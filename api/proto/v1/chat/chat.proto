@@ -1,0 +1,32 @@
+syntax = "proto3";
+package v1;
+
+option go_package = "gen/chat/pb";
+
+service ChatService {
+  rpc SendWhisperMessage(SendWhisperMessageRequest) returns (SendWhisperMessageResponse);
+}
+
+message SendWhisperMessageRequest {
+  string api = 1;
+
+  uint32 realmID = 2;
+  uint64 senderGUID = 3;
+  string senderName = 4;
+  uint32 senderRace = 5;
+  uint32 language = 6;
+  string receiverName = 7;
+  string msg = 8;
+}
+
+message SendWhisperMessageResponse {
+  string api = 1;
+
+  enum Status {
+    Ok = 0;
+    CharacterNotFound = 2;
+  }
+
+  Status status = 2;
+  uint64 receiverGUID = 3;
+}

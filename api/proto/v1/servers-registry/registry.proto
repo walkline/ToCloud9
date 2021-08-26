@@ -1,0 +1,85 @@
+syntax = "proto3";
+package v1;
+
+option go_package = "gen/servers-registry/pb";
+
+service ServersRegistryService {
+  rpc RegisterGameServer(RegisterGameServerRequest) returns (RegisterGameServerResponse);
+  rpc AvailableGameServersForMapAndRealm(AvailableGameServersForMapAndRealmRequest) returns (AvailableGameServersForMapAndRealmResponse);
+  rpc RandomGameServerForRealm(RandomGameServerForRealmRequest) returns (RandomGameServerForRealmResponse);
+
+  rpc RegisterLoadBalancer(RegisterLoadBalancerRequest) returns (RegisterLoadBalancerResponse);
+  rpc LoadBalancerForRealms(LoadBalancerForRealmsRequest) returns (LoadBalancerForRealmsResponse);
+}
+
+message RegisterGameServerRequest{
+  string api = 1;
+
+  uint32 gamePort = 2;
+  uint32 healthPort = 3;
+  uint32 realmID = 4;
+  string availableMaps = 5;
+  string preferredHostName = 6;
+}
+
+message RegisterGameServerResponse{
+  string api = 1;
+}
+
+message AvailableGameServersForMapAndRealmRequest{
+  string api = 1;
+
+  uint32 realmID = 2;
+  uint32 mapID = 3;
+}
+
+message Server {
+  string address = 1;
+  uint32 realmID = 2;
+}
+
+message AvailableGameServersForMapAndRealmResponse{
+  string api = 1;
+
+  repeated Server gameServers = 2;
+}
+
+message RegisterLoadBalancerRequest{
+  string api = 1;
+
+  uint32 gamePort = 2;
+  uint32 healthPort = 3;
+  uint32 realmID = 4;
+  string preferredHostName = 5;
+}
+
+message RegisterLoadBalancerResponse{
+  string api = 1;
+
+  string id = 2;
+}
+
+message LoadBalancerForRealmsRequest{
+  string api = 1;
+
+  repeated uint32 realmIDs = 2;
+}
+
+message LoadBalancerForRealmsResponse{
+  string api = 1;
+
+  repeated Server loadBalancers = 2;
+}
+
+message RandomGameServerForRealmRequest{
+  string api = 1;
+
+  uint32 realmID = 2;
+}
+
+message RandomGameServerForRealmResponse{
+  string api = 1;
+
+  Server gameServer = 2;
+}
+

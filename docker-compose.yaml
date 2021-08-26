@@ -1,0 +1,86 @@
+version: "3.9"
+services:
+  game-load-balancer:
+    build:
+      context: .
+      dockerfile: apps/game-load-balancer/Dockerfile
+    ports:
+      - "8085:8085"
+      - "8900:8900"
+      - "4000:4000"
+    depends_on:
+      - servers-registry
+    environment:
+      SERVERS_REGISTRY_SERVICE_ADDRESS: servers-registry:8999
+      CHAR_SERVICE_ADDRESS: charserver:8087
+      CHAT_SERVICE_ADDRESS: chatserver:8992
+      AUTH_DB_CONNECTION: ${AUTH_DB_USER}:${AUTH_DB_PASS}@tcp(${AUTH_DB_HOST}:${AUTH_DB_PORT})/${AUTH_DB_NAME}
+      PREFERRED_HOSTNAME: ${EXTERNAL_ADDRESS}
+      PORT: 8085
+      NATS_URL: nats://nats:4222
+
+  servers-registry:
+    build:
+      context: .
+      dockerfile: apps/servers-registry/Dockerfile
+    ports:
+      - "8999:8999"
+    environment:
+      PORT: 8999
+
+  authserver:
+    build:
+      context: .
+      dockerfile: apps/authserver/Dockerfile
+    ports:
+      - "3724:3724"
+    environment:
+      PORT: 3724
+      AUTH_DB_CONNECTION: ${AUTH_DB_USER}:${AUTH_DB_PASS}@tcp(${AUTH_DB_HOST}:${AUTH_DB_PORT})/${AUTH_DB_NAME}
+      SERVERS_REGISTRY_SERVICE_ADDRESS: servers-registry:8999
+
+  charserver:
+    build:
+      context: .
+      dockerfile: apps/charserver/Dockerfile
+    ports:
+      - "8087:8087"
+    environment:
+      PORT: 8087
+      CHAR_DB_CONNECTION: ${CHAR_DB_USER}:${CHAR_DB_PASS}@tcp(${CHAR_DB_HOST}:${CHAR_DB_PORT})/${CHAR_DB_NAME}
+      WORLD_DB_CONNECTION: ${WORLD_DB_USER}:${WORLD_DB_PASS}@tcp(${WORLD_DB_HOST}:${WORLD_DB_PORT})/${WORLD_DB_NAME}
+
+  chatserver:
+    build:
+      context: .
+      dockerfile: apps/chatserver/Dockerfile
+    environment:
+      NATS_URL: nats://nats:4222
+      PORT: 8992
+
+  gameserver:
+    build:
+      context: .
+      dockerfile: game-server/Dockerfile
+    volumes:
+    - ${TC_ETC_PATH}:/repo/bin/etc
+    - ${TC_DATA_PATH}:/data
+    environment:
+      TC_LOGIN_DATABASE_INFO: ${AUTH_DB_HOST};${AUTH_DB_PORT};${AUTH_DB_USER};${AUTH_DB_PASS};${AUTH_DB_NAME}
+      TC_WORLD_DATABASE_INFO: ${WORLD_DB_HOST};${WORLD_DB_PORT};${WORLD_DB_USER};${WORLD_DB_PASS};${WORLD_DB_NAME}
+      TC_CHARACTER_DATABASE_INFO: ${CHAR_DB_HOST};${CHAR_DB_PORT};${CHAR_DB_USER};${CHAR_DB_PASS};${CHAR_DB_NAME}
+      TC_CONSOLE_ENABLE: 0
+      TC_RA_ENABLE: 0
+      TC_SOAP_ENABLE: 0
+      TC_DATA_DIR: /data
+      SERVERS_REGISTRY_SERVICE_ADDRESS: servers-registry:8999
+
+  nats:
+    image: 'nats:0.8.0'
+    entrypoint: "/gnatsd -DV"
+    expose:
+      - "4222"
+    ports:
+      - "4222:4222"
+      - "8222:8222"
+    hostname: nats-server

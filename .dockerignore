@@ -1,0 +1,5 @@
+game-server/libsidecar/*.dylib
+game-server/libsidecar/*.h
+
+game-server/libsidecar/Dockerfile
+bin/

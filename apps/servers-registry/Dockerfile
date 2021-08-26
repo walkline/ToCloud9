@@ -1,0 +1,23 @@
+# syntax = docker/dockerfile:1-experimental
+FROM --platform=${BUILDPLATFORM} golang:1.16-alpine AS build
+
+# runs from project directory
+WORKDIR /
+
+COPY go.mod go.sum ./
+RUN go mod download
+
+COPY . .
+
+RUN --mount=type=cache,target=/root/.cache/go-build \
+    go build /apps/servers-registry/cmd/servers-registry/main.go
+
+FROM alpine:3.14
+
+WORKDIR /
+
+COPY --from=build ./main ./servers-registry
+
+EXPOSE 8080
+
+ENTRYPOINT ["./servers-registry"]

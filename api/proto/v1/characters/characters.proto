@@ -1,0 +1,98 @@
+syntax = "proto3";
+package v1;
+
+option go_package = "gen/characters/pb";
+
+// Service to manage characters
+service CharactersService {
+  rpc CharactersToLoginForAccount(CharactersToLoginForAccountRequest) returns (CharactersToLoginForAccountResponse);
+  rpc CharactersToLoginByGUID(CharactersToLoginByGUIDRequest) returns (CharactersToLoginByGUIDResponse);
+
+  rpc AccountDataForAccount(AccountDataForAccountRequest) returns (AccountDataForAccountResponse);
+}
+
+// LogInCharacter is character that should be displayed on log in screen
+message LogInCharacter {
+  uint64 GUID = 1;
+  string name = 2;
+  uint32 race = 3;
+  uint32 class = 4;
+  uint32 gender = 5;
+  uint32 skin = 6;
+  uint32 face = 7;
+  uint32 hairStyle = 8;
+  uint32 hairColor = 9;
+  uint32 facialStyle = 10;
+  uint32 level = 11;
+  uint32 zone = 12;
+  uint32 map = 13;
+  float positionX = 14;
+  float positionY = 15;
+  float positionZ = 16;
+  uint32 guildID = 17;
+  uint32 playerFlags = 18;
+  uint32 atLogin = 19;
+  uint32 petEntry = 20;
+  uint32 petModelID = 21;
+  uint32 petLevel = 22;
+  bool banned = 23;
+  repeated EquipmentDisplay equipments = 24;
+  uint32 accountID = 25;
+}
+
+message EquipmentDisplay {
+  uint32 DisplayInfoID = 1;
+  uint32 InventoryType = 2;
+  uint32 EnchantmentID = 3;
+}
+
+message CharactersToLoginForAccountRequest{
+
+  string api = 1;
+
+  uint32 accountID = 2;
+  uint32 realmID = 3;
+}
+
+// Response that contains list of characters for given account
+message CharactersToLoginForAccountResponse{
+  string api = 1;
+
+  repeated LogInCharacter characters = 2;
+}
+
+message CharactersToLoginByGUIDRequest{
+  string api = 1;
+
+  uint64 characterGUID = 2;
+  uint32 realmID = 3;
+}
+
+// Response that contains character to login
+message CharactersToLoginByGUIDResponse{
+  string api = 1;
+
+  LogInCharacter character = 2;
+}
+
+
+message AccountDataForAccountRequest{
+  string api = 1;
+
+  uint32 accountID = 2;
+  uint32 realmID = 3;
+}
+
+message AccountData {
+  uint32 type = 1;
+  int64 time = 2;
+  string data = 3;
+}
+
+message AccountDataForAccountResponse{
+
+  string api = 1;
+
+  repeated AccountData accountData = 2;
+}
+
