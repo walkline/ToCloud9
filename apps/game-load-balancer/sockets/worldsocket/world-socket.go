@@ -4,13 +4,13 @@ import (
 	"context"
 	"encoding/binary"
 	"fmt"
-	"github.com/walkline/ToCloud9/apps/game-load-balancer/sockets"
 	"net"
 	"time"
 
 	"github.com/rs/zerolog"
 
 	"github.com/walkline/ToCloud9/apps/game-load-balancer/packet"
+	"github.com/walkline/ToCloud9/apps/game-load-balancer/sockets"
 )
 
 type WorldSocket struct {
@@ -19,6 +19,7 @@ type WorldSocket struct {
 	packetsReader    *sockets.PacketsReader
 	readPacketsChan  chan *packet.Packet
 	writePacketsChan chan *packet.Packet
+	address          string
 }
 
 func (s *WorldSocket) Close() {
@@ -96,6 +97,10 @@ func (s *WorldSocket) WriteChannel() chan<- *packet.Packet {
 	return s.writePacketsChan
 }
 
+func (s *WorldSocket) Address() string {
+	return s.address
+}
+
 func NewWorldSocketWithAddress(logger *zerolog.Logger, addr string) (sockets.Socket, error) {
 	dialer := net.Dialer{Timeout: time.Second * 5}
 	net, err := dialer.Dial("tcp", addr)
@@ -109,6 +114,7 @@ func NewWorldSocketWithAddress(logger *zerolog.Logger, addr string) (sockets.Soc
 		packetsReader:    sockets.NewPacketsReader(net, 2),
 		readPacketsChan:  make(chan *packet.Packet, 100),
 		writePacketsChan: make(chan *packet.Packet, 100),
+		address:          addr,
 	}, nil
 }
 

@@ -14,6 +14,7 @@ import (
 type LoadBalancer interface {
 	Register(ctx context.Context, server *repo.LoadBalancerServer) (*repo.LoadBalancerServer, error)
 	BalancerForRealm(ctx context.Context, realmID uint32) (*repo.LoadBalancerServer, error)
+	ListBalancersForRealm(ctx context.Context, realmID uint32) ([]repo.LoadBalancerServer, error)
 }
 
 type loadBalancerImpl struct {
@@ -24,9 +25,10 @@ type loadBalancerImpl struct {
 }
 
 func NewLoadBalancer(
-	r repo.LoadBalancerRepo, checker healthandmetrics.HealthChecker,
+	ctx context.Context, r repo.LoadBalancerRepo, checker healthandmetrics.HealthChecker,
 	metrics healthandmetrics.MetricsConsumer, eProducer events.ServerRegistryProducer,
-) LoadBalancer {
+	supportedRealmIDs []uint32,
+) (LoadBalancer, error) {
 	service := &loadBalancerImpl{
 		r:         r,
 		checker:   checker,
@@ -45,7 +47,26 @@ func NewLoadBalancer(
 		}
 	})
 
-	return service
+	for _, id := range supportedRealmIDs {
+		servers, err := r.ListByRealm(ctx, id)
+		if err != nil {
+			return nil, err
+		}
+
+		for i := range servers {
+			err = checker.AddHealthCheckObject(&servers[i])
+			if err != nil {
+				return nil, err
+			}
+
+			err = metrics.AddMetricsObservable(&servers[i])
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+
+	return service, nil
 }
 
 func (b *loadBalancerImpl) Register(ctx context.Context, server *repo.LoadBalancerServer) (*repo.LoadBalancerServer, error) {
@@ -94,6 +115,10 @@ func (b *loadBalancerImpl) BalancerForRealm(ctx context.Context, realmID uint32)
 	return &balancers[0], nil
 }
 
+func (b *loadBalancerImpl) ListBalancersForRealm(ctx context.Context, realmID uint32) ([]repo.LoadBalancerServer, error) {
+	return b.r.ListByRealm(ctx, realmID)
+}
+
 func (b *loadBalancerImpl) onServerUnhealthy(server *repo.LoadBalancerServer, err error) {
 	log.Warn().
 		Err(err).
@@ -122,7 +147,7 @@ func (b *loadBalancerImpl) onServerUnhealthy(server *repo.LoadBalancerServer, er
 }
 
 func (b *loadBalancerImpl) onMetricsUpdate(server *repo.LoadBalancerServer, m *healthandmetrics.MetricsRead) {
-	err := b.r.Update(context.TODO(), server.ID, func(s repo.LoadBalancerServer) repo.LoadBalancerServer {
+	err := b.r.Update(context.Background(), server.ID, func(s repo.LoadBalancerServer) repo.LoadBalancerServer {
 		s.ActiveConnections = m.ActiveConnections
 		return s
 	})

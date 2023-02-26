@@ -2,18 +2,18 @@ package events
 
 import "fmt"
 
-// ServerRegistryEvent is event type that servers registry service generates
+// ServerRegistryEvent is event type that servers registry service generates.
 type ServerRegistryEvent int
 
 const (
-	// ServerRegistryEventLBAdded is event that occurs when server registry registers game load balancer
+	// ServerRegistryEventLBAdded is event that occurs when server registry registers game load balancer.
 	ServerRegistryEventLBAdded ServerRegistryEvent = iota + 1
 
-	// ServerRegistryEventLBRemovedUnhealthy is event that occurs when game load balancer unhealthy and it's been removed from registry
+	// ServerRegistryEventLBRemovedUnhealthy is event that occurs when game load balancer unhealthy and it's been removed from registry.
 	ServerRegistryEventLBRemovedUnhealthy
 )
 
-// SubjectName is key that nats uses
+// SubjectName is key that nats uses.
 func (e ServerRegistryEvent) SubjectName() string {
 	switch e {
 	case ServerRegistryEventLBAdded:
@@ -24,7 +24,7 @@ func (e ServerRegistryEvent) SubjectName() string {
 	panic(fmt.Errorf("unk event %d", e))
 }
 
-// ServerRegistryEventLBAddedPayload represents payload of ServerRegistryEventLBAdded event
+// ServerRegistryEventLBAddedPayload represents payload of ServerRegistryEventLBAdded event.
 type ServerRegistryEventLBAddedPayload struct {
 	ID              string
 	Address         string
@@ -32,7 +32,7 @@ type ServerRegistryEventLBAddedPayload struct {
 	RealmID         uint32
 }
 
-// ServerRegistryEventLBRemovedUnhealthyPayload represents payload of ServerRegistryEventLBRemovedUnhealthy event
+// ServerRegistryEventLBRemovedUnhealthyPayload represents payload of ServerRegistryEventLBRemovedUnhealthy event.
 type ServerRegistryEventLBRemovedUnhealthyPayload struct {
 	ID              string
 	Address         string

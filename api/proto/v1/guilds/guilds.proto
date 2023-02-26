@@ -1,0 +1,253 @@
+syntax = "proto3";
+package v1;
+
+option go_package = "gen/guilds/pb";
+
+service GuildService {
+  rpc GetGuildInfo(GetInfoParams) returns (GetInfoResponse);
+
+  rpc GetRosterInfo(GetRosterInfoParams) returns (GetRosterInfoResponse);
+
+  rpc InviteMember(InviteMemberParams) returns (InviteMemberResponse);
+  rpc InviteAccepted(InviteAcceptedParams) returns (InviteAcceptedResponse);
+
+  rpc Leave(LeaveParams) returns (LeaveResponse);
+  rpc Kick(KickParams) returns (KickResponse);
+
+  rpc SetMessageOfTheDay(SetMessageOfTheDayParams) returns (SetMessageOfTheDayResponse);
+  rpc SetGuildInfo(SetGuildInfoParams) returns (SetGuildInfoResponse);
+
+  rpc SetMemberPublicNote(SetNoteParams) returns (SetNoteResponse);
+  rpc SetMemberOfficerNote(SetNoteParams) returns (SetNoteResponse);
+
+  rpc UpdateRank(RankUpdateParams) returns (RankUpdateResponse);
+  rpc AddRank(AddRankParams) returns (AddRankResponse);
+  rpc DeleteLastRank(DeleteLastRankParams) returns (DeleteLastRankResponse);
+
+  rpc PromoteMember(PromoteDemoteParams) returns (PromoteDemoteResponse);
+  rpc DemoteMember(PromoteDemoteParams) returns (PromoteDemoteResponse);
+
+  rpc SendGuildMessage(SendGuildMessageParams) returns (SendGuildMessageResponse);
+}
+
+message GetInfoParams {
+  string api = 1;
+
+  uint32 realmID = 2;
+  uint64 guildID = 3;
+}
+
+message GetInfoResponse {
+  string api = 1;
+
+  uint64 guildID = 2;
+  string guildName = 3;
+  uint32 emblemStyle = 4;
+  uint32 emblemColor = 5;
+  uint32 borderStyle = 6;
+  uint32 borderColor = 7;
+  uint32 backgroundColor = 8;
+
+  repeated string rankNames = 9;
+}
+
+message GetRosterInfoParams {
+  string api = 1;
+
+  uint32 realmID = 2;
+  uint64 guildID = 3;
+}
+
+message GetRosterInfoResponse {
+  string api = 1;
+
+  message Member {
+    uint64 guid = 1;
+    string name = 2;
+    uint32 status = 3;
+    uint32 rankID = 4;
+    uint32 lvl = 5;
+    uint32 classID = 6;
+    uint32 gender = 7;
+    uint32 areaID = 8;
+    int64 logoutTime = 9;
+    string note = 10;
+    string officerNote = 11;
+  }
+
+  message Rank {
+    uint32 id = 1;
+    uint32 flags = 2;
+    uint32 goldLimit = 3;
+  }
+
+  message Guild {
+    uint64 id = 1;
+    string welcomeText = 2;
+    string infoText = 3;
+
+    repeated Member members = 4;
+    repeated Rank ranks = 5;
+  };
+
+  Guild guild = 2;
+}
+
+message InviteMemberParams {
+  string api = 1;
+
+  uint32 realmID = 2;
+  uint64 inviter = 3;
+  uint64 invitee = 4;
+  string inviteeName = 5;
+}
+
+message InviteMemberResponse {
+  string api = 1;
+
+  enum Status {
+    Ok = 0;
+    Failed = 1;
+  }
+}
+
+message InviteAcceptedParams {
+  string api = 1;
+
+  uint32 realmID = 2;
+
+  message Character {
+    uint64 guid = 1;
+    string name = 2;
+    uint32 lvl = 3;
+    uint32 race = 4;
+    uint32 classID = 5;
+    uint32 gender = 6;
+    uint32 areaID = 7;
+    uint64 accountID = 8;
+  }
+
+  Character character = 3;
+}
+
+message InviteAcceptedResponse {
+  string api = 1;
+  uint64 guildID = 2;
+}
+
+message LeaveParams {
+  string api = 1;
+  uint32 realmID = 2;
+  uint64 leaver = 3;
+}
+
+message LeaveResponse {
+  string api = 1;
+}
+
+message KickParams {
+  string api = 1;
+  uint32 realmID = 2;
+  uint64 kicker = 3;
+  uint64 target = 4;
+}
+
+message KickResponse {
+  string api = 1;
+}
+
+message SetMessageOfTheDayParams {
+  string api = 1;
+  uint32 realmID = 2;
+  uint64 changerGUID = 3;
+  string messageOfTheDay = 4;
+}
+
+message SetMessageOfTheDayResponse {
+  string api = 1;
+}
+
+message SetGuildInfoParams {
+  string api = 1;
+  uint32 realmID = 2;
+  uint64 changerGUID = 3;
+  string info = 4;
+}
+
+message SetGuildInfoResponse {
+  string api = 1;
+}
+
+message SetNoteParams {
+  string api = 1;
+  uint32 realmID = 2;
+  uint64 changerGUID = 3;
+  uint64 targetGUID = 4;
+  string note = 5;
+}
+
+message SetNoteResponse {
+  string api = 1;
+}
+
+message RankUpdateParams {
+  string api = 1;
+  uint32 realmID = 2;
+  uint64 changerGUID = 3;
+  uint32 rank = 4;
+  string rankName = 5;
+  uint32 rights = 6;
+  uint32 moneyPerDay = 7;
+}
+
+message RankUpdateResponse {
+  string api = 1;
+}
+
+message AddRankParams {
+  string api = 1;
+  uint32 realmID = 2;
+  uint64 changerGUID = 3;
+  string rankName = 5;
+}
+
+message AddRankResponse {
+  string api = 1;
+}
+
+message DeleteLastRankParams {
+  string api = 1;
+  uint32 realmID = 2;
+  uint64 changerGUID = 3;
+}
+
+message DeleteLastRankResponse {
+  string api = 1;
+}
+
+message PromoteDemoteParams {
+  string api = 1;
+  uint32 realmID = 2;
+  uint64 changerGUID = 3;
+  uint64 targetGUID = 4;
+}
+
+message PromoteDemoteResponse {
+  string api = 1;
+}
+
+message SendGuildMessageParams {
+  string api = 1;
+  uint32 realmID = 2;
+  uint64 senderGUID = 3;
+  bool   isOfficerMessage = 4;
+  string message = 5;
+  uint32 language = 6;
+}
+
+message SendGuildMessageResponse {
+  string api = 1;
+}
+
+
+

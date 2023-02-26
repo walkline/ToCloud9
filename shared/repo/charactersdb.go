@@ -5,12 +5,21 @@ import (
 	"fmt"
 )
 
+// PreparedStatement represents prepared statement with id.
+type PreparedStatement interface {
+	// ID returns identifier of prepared statement.
+	ID() uint32
+
+	// Stmt returns prepared statement as string.
+	Stmt() string
+}
+
 type CharactersDB interface {
 	DBByRealm(realmID uint32) *sql.DB
 	SetDBForRealm(realmID uint32, db *sql.DB)
 
-	PreparedStatement(realm uint32, stmt CharactersPreparedStatements) *sql.Stmt
-	SetPreparedStatement(stmt CharactersPreparedStatements)
+	PreparedStatement(realm uint32, stmt PreparedStatement) *sql.Stmt
+	SetPreparedStatement(stmt PreparedStatement)
 }
 
 func NewCharactersDB() CharactersDB {
@@ -21,7 +30,7 @@ func NewCharactersDB() CharactersDB {
 
 type dbWithPreparedStmts struct {
 	db    *sql.DB
-	stmts map[CharactersPreparedStatements]*sql.Stmt
+	stmts map[uint32]*sql.Stmt
 }
 
 type characterDBImpl struct {
@@ -36,20 +45,20 @@ func (c characterDBImpl) DBByRealm(realmID uint32) *sql.DB {
 func (c *characterDBImpl) SetDBForRealm(realmID uint32, db *sql.DB) {
 	c.dbByReam[realmID] = dbWithPreparedStmts{
 		db:    db,
-		stmts: map[CharactersPreparedStatements]*sql.Stmt{},
+		stmts: map[uint32]*sql.Stmt{},
 	}
 }
 
-func (c characterDBImpl) PreparedStatement(realm uint32, stmt CharactersPreparedStatements) *sql.Stmt {
-	return c.dbByReam[realm].stmts[stmt]
+func (c characterDBImpl) PreparedStatement(realm uint32, stmt PreparedStatement) *sql.Stmt {
+	return c.dbByReam[realm].stmts[stmt.ID()]
 }
 
-func (c *characterDBImpl) SetPreparedStatement(stmt CharactersPreparedStatements) {
+func (c *characterDBImpl) SetPreparedStatement(stmt PreparedStatement) {
 	for i := range c.dbByReam {
 		s, err := c.dbByReam[i].db.Prepare(stmt.Stmt())
 		if err != nil {
 			panic(fmt.Errorf("can't create prepared stmt with id %d, err: %w", stmt, err))
 		}
-		c.dbByReam[i].stmts[stmt] = s
+		c.dbByReam[i].stmts[stmt.ID()] = s
 	}
 }

@@ -9,6 +9,10 @@ service CharactersService {
   rpc CharactersToLoginByGUID(CharactersToLoginByGUIDRequest) returns (CharactersToLoginByGUIDResponse);
 
   rpc AccountDataForAccount(AccountDataForAccountRequest) returns (AccountDataForAccountResponse);
+
+  rpc WhoQuery(WhoQueryRequest) returns (WhoQueryResponse);
+
+  rpc CharacterOnlineByName(CharacterOnlineByNameRequest) returns (CharacterOnlineByNameResponse);
 }
 
 // LogInCharacter is character that should be displayed on log in screen
@@ -90,9 +94,70 @@ message AccountData {
 }
 
 message AccountDataForAccountResponse{
-
   string api = 1;
 
   repeated AccountData accountData = 2;
 }
 
+message WhoQueryRequest{
+  string api = 1;
+
+  uint64 characterGUID = 2;
+  uint32 realmID = 3;
+  uint32 lvlMin = 4;
+  uint32 lvlMax = 5;
+
+  string playerName = 6;
+  string guildName = 7;
+
+  uint32 raceMask = 8;
+  uint32 classMask = 9;
+
+  repeated uint32 zones = 10;
+
+  repeated string strings = 11;
+}
+
+message WhoQueryResponse{
+  string api = 1;
+
+  uint32 totalFound = 2;
+  message WhoItem {
+    uint64 guid = 1;
+    string name = 2;
+    string guild = 3;
+    uint32 lvl = 4;
+    uint32 class = 5;
+    uint32 race = 6;
+    uint32 gender = 7;
+    uint32 zoneID = 8;
+  };
+  repeated WhoItem itemsToDisplay = 3;
+}
+
+message CharacterOnlineByNameRequest {
+  string api = 1;
+
+  uint32 realmID = 2;
+  string characterName = 3;
+}
+
+message CharacterOnlineByNameResponse {
+  string api = 1;
+
+  message Char {
+    uint32 realmID = 1;
+    string loadBalancerID = 2;
+    uint64 charGUID = 3;
+    string charName = 4;
+    uint32 charRace = 5;
+    uint32 charClass = 6;
+    uint32 charGender = 7;
+    uint32 charLvl = 8;
+    uint32 charZone = 9;
+    uint32 charMap = 10;
+    uint64 charGuildID = 11;
+    uint32 accountID = 12;
+  }
+  Char character = 2;
+}

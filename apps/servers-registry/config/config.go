@@ -2,6 +2,7 @@ package config
 
 import (
 	"github.com/Netflix/go-env"
+
 	"github.com/walkline/ToCloud9/shared/config"
 )
 
@@ -11,6 +12,9 @@ type Config struct {
 
 	// Port is port that would be used for grpc server
 	Port string `env:"PORT,default=8999"`
+
+	// RedisConnection is connection string for the redis connection
+	RedisConnection string `env:"REDIS_URL,default=redis://:@redis:6379/0"`
 
 	// NatsURL is nats connection url
 	NatsURL string `env:"NATS_URL,default=nats://nats:4222"`

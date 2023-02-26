@@ -1,0 +1,31 @@
+syntax = "proto3";
+package v1;
+
+option go_package = "gen/guid/pb";
+
+service GuidService {
+  rpc GetGUIDPool(GetGUIDPoolRequest) returns (GetGUIDPoolRequestResponse);
+}
+
+enum GuidType {
+  Character = 0;
+  Item = 1;
+}
+
+message GetGUIDPoolRequest {
+  string api = 1;
+
+  uint32 realmID = 2;
+  GuidType guidType = 3;
+  uint64 desiredPoolSize = 4;
+}
+
+message GetGUIDPoolRequestResponse {
+  string api = 1;
+
+  message GuidDiapason {
+    uint64 start = 1;
+    uint64 end = 2;
+  };
+  repeated GuidDiapason receiverGUID = 2;
+}

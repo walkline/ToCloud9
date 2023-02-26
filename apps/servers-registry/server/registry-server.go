@@ -3,17 +3,18 @@ package server
 import (
 	"context"
 	"fmt"
+	"strconv"
+	"strings"
+
 	"github.com/rs/zerolog/log"
+	"google.golang.org/grpc/peer"
+
 	"github.com/walkline/ToCloud9/apps/servers-registry/repo"
 	"github.com/walkline/ToCloud9/apps/servers-registry/service"
 	"github.com/walkline/ToCloud9/gen/servers-registry/pb"
-	"google.golang.org/grpc/peer"
-	"strconv"
-	"strings"
-	"time"
 )
 
-const ver = "1.0"
+const ver = "0.0.1"
 
 type serversRegistry struct {
 	gService  service.GameServer
@@ -55,22 +56,12 @@ func (s *serversRegistry) RegisterGameServer(ctx context.Context, request *pb.Re
 }
 
 func (s *serversRegistry) AvailableGameServersForMapAndRealm(ctx context.Context, request *pb.AvailableGameServersForMapAndRealmRequest) (*pb.AvailableGameServersForMapAndRealmResponse, error) {
-	var resultServers []*pb.Server
-
-	defer func(t time.Time) {
-		log.Debug().
-			Interface("servers", resultServers).
-			Uint32("mapID", request.MapID).
-			Str("timeTook", time.Since(t).String()).
-			Msg("Handled available game servers")
-	}(time.Now())
-
 	servers, err := s.gService.AvailableForMapAndRealm(ctx, request.MapID, request.RealmID)
 	if err != nil {
 		return nil, err
 	}
 
-	resultServers = make([]*pb.Server, 0, len(servers))
+	resultServers := make([]*pb.Server, 0, len(servers))
 	for i := range servers {
 		resultServers = append(resultServers, &pb.Server{
 			Address: servers[i].Address,
@@ -84,16 +75,30 @@ func (s *serversRegistry) AvailableGameServersForMapAndRealm(ctx context.Context
 	}, nil
 }
 
+func (s *serversRegistry) ListGameServersForRealm(ctx context.Context, request *pb.ListGameServersForRealmRequest) (*pb.ListGameServersForRealmResponse, error) {
+	servers, err := s.gService.ListForRealm(ctx, request.RealmID)
+	if err != nil {
+		return nil, err
+	}
+
+	respServers := make([]*pb.GameServerDetailed, len(servers))
+	for i := range servers {
+		respServers[i] = &pb.GameServerDetailed{
+			Address:       servers[i].Address,
+			HealthAddress: servers[i].HealthCheckAddr,
+			RealmID:       servers[i].RealmID,
+			AvailableMaps: servers[i].AvailableMaps,
+			AssignedMaps:  servers[i].AssignedMapsToHandle,
+		}
+	}
+
+	return &pb.ListGameServersForRealmResponse{
+		Api:         ver,
+		GameServers: respServers,
+	}, nil
+}
+
 func (s *serversRegistry) RandomGameServerForRealm(ctx context.Context, request *pb.RandomGameServerForRealmRequest) (*pb.RandomGameServerForRealmResponse, error) {
-	var resultServers []*pb.Server
-
-	defer func(t time.Time) {
-		log.Debug().
-			Interface("servers", resultServers).
-			Str("timeTook", time.Since(t).String()).
-			Msg("Handled random game servers")
-	}(time.Now())
-
 	server, err := s.gService.RandomServerForRealm(ctx, request.RealmID)
 	if err != nil {
 		return nil, err
@@ -139,16 +144,7 @@ func (s *serversRegistry) RegisterLoadBalancer(ctx context.Context, request *pb.
 }
 
 func (s *serversRegistry) LoadBalancerForRealms(ctx context.Context, request *pb.LoadBalancerForRealmsRequest) (*pb.LoadBalancerForRealmsResponse, error) {
-	var servers []*pb.Server
-
-	defer func(t time.Time) {
-		log.Debug().
-			Interface("servers", servers).
-			Str("timeTook", time.Since(t).String()).
-			Msg("Handled load balancers for realm")
-	}(time.Now())
-
-	servers = make([]*pb.Server, 0, len(request.RealmIDs))
+	servers := make([]*pb.Server, 0, len(request.RealmIDs))
 
 	for _, realmID := range request.RealmIDs {
 		server, err := s.lbService.BalancerForRealm(ctx, realmID)
@@ -168,6 +164,29 @@ func (s *serversRegistry) LoadBalancerForRealms(ctx context.Context, request *pb
 	return &pb.LoadBalancerForRealmsResponse{
 		Api:           ver,
 		LoadBalancers: servers,
+	}, nil
+}
+
+func (s *serversRegistry) ListLoadBalancersForRealm(ctx context.Context, request *pb.ListLoadBalancersForRealmRequest) (*pb.ListLoadBalancersForRealmResponse, error) {
+	servers, err := s.lbService.ListBalancersForRealm(ctx, request.RealmID)
+	if err != nil {
+		return nil, err
+	}
+
+	result := make([]*pb.LoadBalancerServerDetailed, len(servers))
+	for i := range servers {
+		result[i] = &pb.LoadBalancerServerDetailed{
+			Id:                servers[i].ID,
+			Address:           servers[i].Address,
+			HealthAddress:     servers[i].HealthCheckAddr,
+			RealmID:           servers[i].RealmID,
+			ActiveConnections: uint32(servers[i].ActiveConnections),
+		}
+	}
+
+	return &pb.ListLoadBalancersForRealmResponse{
+		Api:           ver,
+		LoadBalancers: result,
 	}, nil
 }
 

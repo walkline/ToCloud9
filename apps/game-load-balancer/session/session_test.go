@@ -32,6 +32,10 @@ func TestGameSessionHandlePacketsWorldPacketsRoute(t *testing.T) {
 	gameSocket := &mocks.Socket{}
 	gameSocket.On("WriteChannel").Return((chan<- *packet.Packet)(gameWriteChan))
 	gameSocket.On("ReadChannel").Return((<-chan *packet.Packet)(nil))
+	gameSocket.On("SendPacket", mock.MatchedBy(func(p *packet.Packet) bool {
+		gameWriteChan <- p
+		return true
+	})).Return()
 
 	session := NewGameSession(
 		context.Background(),

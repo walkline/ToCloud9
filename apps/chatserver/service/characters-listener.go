@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+
 	"github.com/nats-io/nats.go"
 	"github.com/rs/zerolog/log"
 

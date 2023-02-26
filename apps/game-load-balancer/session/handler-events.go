@@ -7,7 +7,18 @@ import (
 )
 
 var EventsHandleMap = map[eBroadcaster.EventType]EventsHandlersQueue{
-	eBroadcaster.EventTypeIncomingWhisper: NewEventHandler("IncomingWhisper", (*GameSession).HandleEventIncomingWhisperMessage),
+	eBroadcaster.EventTypeIncomingWhisper:     NewEventHandler("IncomingWhisper", (*GameSession).HandleEventIncomingWhisperMessage),
+	eBroadcaster.EventTypeGuildInviteCreated:  NewEventHandler("GuildInviteCreated", (*GameSession).HandleEventGuildInviteCreated),
+	eBroadcaster.EventTypeGuildMemberPromoted: NewEventHandler("GuildMemberPromoted", (*GameSession).HandleEventGuildMemberPromoted),
+	eBroadcaster.EventTypeGuildMemberDemoted:  NewEventHandler("GuildMemberDemoted", (*GameSession).HandleEventGuildMemberDemoted),
+	eBroadcaster.EventTypeGuildMOTDUpdated:    NewEventHandler("GuildMOTDUpdated", (*GameSession).HandleEventGuildMOTDUpdated),
+	eBroadcaster.EventTypeGuildMemberAdded:    NewEventHandler("GuildMemberAdded", (*GameSession).HandleEventGuildMemberAdded),
+	eBroadcaster.EventTypeGuildMemberLeft:     NewEventHandler("GuildMemberLeft", (*GameSession).HandleEventGuildMemberLeft),
+	eBroadcaster.EventTypeGuildMemberKicked:   NewEventHandler("GuildMemberKicked", (*GameSession).HandleEventGuildMemberKicked),
+	eBroadcaster.EventTypeGuildRankCreated:    NewEventHandler("GuildRankCreated", (*GameSession).HandleEventGuildRankCreated),
+	eBroadcaster.EventTypeGuildRankUpdated:    NewEventHandler("GuildRankUpdated", (*GameSession).HandleEventGuildRankUpdated),
+	eBroadcaster.EventTypeGuildRankDeleted:    NewEventHandler("GuildRankDeleted", (*GameSession).HandleEventGuildRankDeleted),
+	eBroadcaster.EventTypeGuildNewMessage:     NewEventHandler("GuildNewMessage", (*GameSession).HandleEventGuildNewMessage),
 }
 
 type EventHandler func(*GameSession, context.Context, *eBroadcaster.Event) error

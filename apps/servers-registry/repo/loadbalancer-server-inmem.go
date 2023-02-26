@@ -7,13 +7,15 @@ import (
 )
 
 type loadBalancerInMemRepo struct {
-	storage []LoadBalancerServer
+	storage map[string]*LoadBalancerServer
 	mutex   sync.RWMutex
 	counter int
 }
 
 func NewLoadBalancerInMemRepo() LoadBalancerRepo {
-	return &loadBalancerInMemRepo{}
+	return &loadBalancerInMemRepo{
+		storage: map[string]*LoadBalancerServer{},
+	}
 }
 
 func (g *loadBalancerInMemRepo) Add(ctx context.Context, server *LoadBalancerServer) (*LoadBalancerServer, error) {
@@ -22,7 +24,7 @@ func (g *loadBalancerInMemRepo) Add(ctx context.Context, server *LoadBalancerSer
 
 	g.counter++
 	server.ID = fmt.Sprintf("%d", g.counter)
-	g.storage = append(g.storage, *server)
+	g.storage[server.Address] = server
 
 	return server, nil
 }
@@ -31,9 +33,10 @@ func (g *loadBalancerInMemRepo) Update(ctx context.Context, id string, f func(Lo
 	g.mutex.Lock()
 	defer g.mutex.Unlock()
 
-	for i := range g.storage {
-		if g.storage[i].ID == id {
-			g.storage[i] = f(g.storage[i])
+	for _, v := range g.storage {
+		if v.ID == id {
+			newVal := f(*v)
+			g.storage[v.Address] = &newVal
 			return nil
 		}
 	}
@@ -45,21 +48,9 @@ func (g *loadBalancerInMemRepo) Remove(ctx context.Context, address string) erro
 	g.mutex.Lock()
 	defer g.mutex.Unlock()
 
-	for i := range g.storage {
-		if g.storage[i].Address == address {
-			g.storage = append(g.storage[:i], g.storage[i+1:]...)
-			return nil
-		}
-	}
+	delete(g.storage, address)
 
 	return nil
-}
-
-func (g *loadBalancerInMemRepo) List(ctx context.Context) ([]LoadBalancerServer, error) {
-	g.mutex.RLock()
-	defer g.mutex.RUnlock()
-
-	return g.storage, nil
 }
 
 func (g *loadBalancerInMemRepo) ListByRealm(ctx context.Context, realmID uint32) ([]LoadBalancerServer, error) {
@@ -67,9 +58,9 @@ func (g *loadBalancerInMemRepo) ListByRealm(ctx context.Context, realmID uint32)
 	defer g.mutex.RUnlock()
 
 	result := []LoadBalancerServer{}
-	for i := range g.storage {
-		if g.storage[i].RealmID == realmID {
-			result = append(result, g.storage[i])
+	for _, v := range g.storage {
+		if v.RealmID == realmID {
+			result = append(result, *v)
 		}
 	}
 	return result, nil

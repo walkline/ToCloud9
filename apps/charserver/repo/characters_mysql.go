@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+
+	shrepo "github.com/walkline/ToCloud9/shared/repo"
 )
 
 type CharactersPreparedStatements uint32
@@ -21,12 +23,15 @@ func (s CharactersPreparedStatements) Stmt() string {
 		IFNULL(gm.guildid, 0), c.playerFlags, c.at_login, IFNULL(cp.entry, 0), IFNULL(cp.modelid, 0), IFNULL(cp.level, 0), c.equipmentCache, IFNULL(cb.guid, 0) 
 		FROM characters AS c LEFT JOIN character_pet AS cp ON c.guid = cp.owner AND cp.slot = ? LEFT JOIN guild_member AS gm ON c.guid = gm.guid 
 		LEFT JOIN character_banned AS cb ON c.guid = cb.guid AND cb.active = 1 WHERE c.guid = ? AND c.deleteInfos_Name IS NULL`
-
 	case StmtSelectAccountData:
 		return "SELECT type, time, data FROM account_data WHERE accountId = ?"
 	}
 
 	panic(fmt.Errorf("unk stmt %d", s))
+}
+
+func (s CharactersPreparedStatements) ID() uint32 {
+	return uint32(s)
 }
 
 const (
@@ -36,10 +41,10 @@ const (
 )
 
 type CharactersMYSQL struct {
-	db CharactersDB
+	db shrepo.CharactersDB
 }
 
-func NewCharactersMYSQL(db CharactersDB) Characters {
+func NewCharactersMYSQL(db shrepo.CharactersDB) Characters {
 	db.SetPreparedStatement(StmtListCharactersToLogin)
 	db.SetPreparedStatement(StmtSelectAccountData)
 	db.SetPreparedStatement(StmtCharacterToLogin)

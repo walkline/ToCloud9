@@ -5,9 +5,8 @@ package mocks
 import (
 	context "context"
 
-	grpc "google.golang.org/grpc"
-
 	mock "github.com/stretchr/testify/mock"
+	grpc "google.golang.org/grpc"
 
 	pb "github.com/walkline/ToCloud9/gen/characters/pb"
 )
@@ -39,6 +38,36 @@ func (_m *CharactersServiceClient) AccountDataForAccount(ctx context.Context, in
 
 	var r1 error
 	if rf, ok := ret.Get(1).(func(context.Context, *pb.AccountDataForAccountRequest, ...grpc.CallOption) error); ok {
+		r1 = rf(ctx, in, opts...)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// CharacterOnlineByName provides a mock function with given fields: ctx, in, opts
+func (_m *CharactersServiceClient) CharacterOnlineByName(ctx context.Context, in *pb.CharacterOnlineByNameRequest, opts ...grpc.CallOption) (*pb.CharacterOnlineByNameResponse, error) {
+	_va := make([]interface{}, len(opts))
+	for _i := range opts {
+		_va[_i] = opts[_i]
+	}
+	var _ca []interface{}
+	_ca = append(_ca, ctx, in)
+	_ca = append(_ca, _va...)
+	ret := _m.Called(_ca...)
+
+	var r0 *pb.CharacterOnlineByNameResponse
+	if rf, ok := ret.Get(0).(func(context.Context, *pb.CharacterOnlineByNameRequest, ...grpc.CallOption) *pb.CharacterOnlineByNameResponse); ok {
+		r0 = rf(ctx, in, opts...)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*pb.CharacterOnlineByNameResponse)
+		}
+	}
+
+	var r1 error
+	if rf, ok := ret.Get(1).(func(context.Context, *pb.CharacterOnlineByNameRequest, ...grpc.CallOption) error); ok {
 		r1 = rf(ctx, in, opts...)
 	} else {
 		r1 = ret.Error(1)
@@ -99,6 +128,36 @@ func (_m *CharactersServiceClient) CharactersToLoginForAccount(ctx context.Conte
 
 	var r1 error
 	if rf, ok := ret.Get(1).(func(context.Context, *pb.CharactersToLoginForAccountRequest, ...grpc.CallOption) error); ok {
+		r1 = rf(ctx, in, opts...)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// WhoQuery provides a mock function with given fields: ctx, in, opts
+func (_m *CharactersServiceClient) WhoQuery(ctx context.Context, in *pb.WhoQueryRequest, opts ...grpc.CallOption) (*pb.WhoQueryResponse, error) {
+	_va := make([]interface{}, len(opts))
+	for _i := range opts {
+		_va[_i] = opts[_i]
+	}
+	var _ca []interface{}
+	_ca = append(_ca, ctx, in)
+	_ca = append(_ca, _va...)
+	ret := _m.Called(_ca...)
+
+	var r0 *pb.WhoQueryResponse
+	if rf, ok := ret.Get(0).(func(context.Context, *pb.WhoQueryRequest, ...grpc.CallOption) *pb.WhoQueryResponse); ok {
+		r0 = rf(ctx, in, opts...)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*pb.WhoQueryResponse)
+		}
+	}
+
+	var r1 error
+	if rf, ok := ret.Get(1).(func(context.Context, *pb.WhoQueryRequest, ...grpc.CallOption) error); ok {
 		r1 = rf(ctx, in, opts...)
 	} else {
 		r1 = ret.Error(1)

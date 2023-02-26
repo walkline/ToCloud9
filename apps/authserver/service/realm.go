@@ -2,9 +2,9 @@ package service
 
 import (
 	"context"
-	"github.com/walkline/ToCloud9/gen/servers-registry/pb"
 
 	"github.com/walkline/ToCloud9/apps/authserver/repo"
+	"github.com/walkline/ToCloud9/gen/servers-registry/pb"
 )
 
 const (

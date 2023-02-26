@@ -6,7 +6,6 @@ import (
 	"crypto/rand"
 	"encoding/binary"
 	"errors"
-	"github.com/walkline/ToCloud9/apps/authserver/service"
 	"io"
 	"io/ioutil"
 	"net"
@@ -18,6 +17,7 @@ import (
 
 	"github.com/walkline/ToCloud9/apps/authserver/crypto/srp6"
 	"github.com/walkline/ToCloud9/apps/authserver/repo"
+	"github.com/walkline/ToCloud9/apps/authserver/service"
 )
 
 type Status uint8

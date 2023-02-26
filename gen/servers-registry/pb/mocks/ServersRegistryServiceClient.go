@@ -5,9 +5,8 @@ package mocks
 import (
 	context "context"
 
-	grpc "google.golang.org/grpc"
-
 	mock "github.com/stretchr/testify/mock"
+	grpc "google.golang.org/grpc"
 
 	pb "github.com/walkline/ToCloud9/gen/servers-registry/pb"
 )
@@ -39,6 +38,66 @@ func (_m *ServersRegistryServiceClient) AvailableGameServersForMapAndRealm(ctx c
 
 	var r1 error
 	if rf, ok := ret.Get(1).(func(context.Context, *pb.AvailableGameServersForMapAndRealmRequest, ...grpc.CallOption) error); ok {
+		r1 = rf(ctx, in, opts...)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// ListGameServersForRealm provides a mock function with given fields: ctx, in, opts
+func (_m *ServersRegistryServiceClient) ListGameServersForRealm(ctx context.Context, in *pb.ListGameServersForRealmRequest, opts ...grpc.CallOption) (*pb.ListGameServersForRealmResponse, error) {
+	_va := make([]interface{}, len(opts))
+	for _i := range opts {
+		_va[_i] = opts[_i]
+	}
+	var _ca []interface{}
+	_ca = append(_ca, ctx, in)
+	_ca = append(_ca, _va...)
+	ret := _m.Called(_ca...)
+
+	var r0 *pb.ListGameServersForRealmResponse
+	if rf, ok := ret.Get(0).(func(context.Context, *pb.ListGameServersForRealmRequest, ...grpc.CallOption) *pb.ListGameServersForRealmResponse); ok {
+		r0 = rf(ctx, in, opts...)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*pb.ListGameServersForRealmResponse)
+		}
+	}
+
+	var r1 error
+	if rf, ok := ret.Get(1).(func(context.Context, *pb.ListGameServersForRealmRequest, ...grpc.CallOption) error); ok {
+		r1 = rf(ctx, in, opts...)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// ListLoadBalancersForRealm provides a mock function with given fields: ctx, in, opts
+func (_m *ServersRegistryServiceClient) ListLoadBalancersForRealm(ctx context.Context, in *pb.ListLoadBalancersForRealmRequest, opts ...grpc.CallOption) (*pb.ListLoadBalancersForRealmResponse, error) {
+	_va := make([]interface{}, len(opts))
+	for _i := range opts {
+		_va[_i] = opts[_i]
+	}
+	var _ca []interface{}
+	_ca = append(_ca, ctx, in)
+	_ca = append(_ca, _va...)
+	ret := _m.Called(_ca...)
+
+	var r0 *pb.ListLoadBalancersForRealmResponse
+	if rf, ok := ret.Get(0).(func(context.Context, *pb.ListLoadBalancersForRealmRequest, ...grpc.CallOption) *pb.ListLoadBalancersForRealmResponse); ok {
+		r0 = rf(ctx, in, opts...)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*pb.ListLoadBalancersForRealmResponse)
+		}
+	}
+
+	var r1 error
+	if rf, ok := ret.Get(1).(func(context.Context, *pb.ListLoadBalancersForRealmRequest, ...grpc.CallOption) error); ok {
 		r1 = rf(ctx, in, opts...)
 	} else {
 		r1 = ret.Error(1)

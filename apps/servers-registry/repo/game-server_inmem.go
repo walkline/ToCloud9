@@ -14,7 +14,7 @@ func NewGameServerInMemRepo() GameServerRepo {
 	return &gameServerInMemRepo{}
 }
 
-func (g *gameServerInMemRepo) Add(ctx context.Context, server *GameServer) error {
+func (g *gameServerInMemRepo) Upsert(ctx context.Context, server *GameServer) error {
 	g.mutex.Lock()
 	defer g.mutex.Unlock()
 
@@ -35,13 +35,6 @@ func (g *gameServerInMemRepo) Remove(ctx context.Context, address string) error 
 	}
 
 	return nil
-}
-
-func (g *gameServerInMemRepo) List(ctx context.Context) ([]GameServer, error) {
-	g.mutex.RLock()
-	defer g.mutex.RUnlock()
-
-	return g.storage, nil
 }
 
 func (g *gameServerInMemRepo) ListByRealm(ctx context.Context, realmID uint32) ([]GameServer, error) {

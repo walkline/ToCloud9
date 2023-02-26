@@ -3,12 +3,16 @@ package srp6
 import (
 	"crypto/rand"
 	"crypto/sha1"
-	"github.com/walkline/ToCloud9/shared/slices"
 	"math/big"
+
+	"github.com/walkline/ToCloud9/shared/slices"
 )
 
 var _N = big.NewInt(0).
-	SetBytes([]byte{137, 75, 100, 94, 137, 225, 83, 91, 189, 173, 91, 139, 41, 6, 80, 83, 8, 1, 177, 142, 191, 191, 94, 143, 171, 60, 130, 135, 42, 62, 155, 183})
+	SetBytes([]byte{
+		137, 75, 100, 94, 137, 225, 83, 91, 189, 173, 91, 139, 41, 6, 80, 83,
+		8, 1, 177, 142, 191, 191, 94, 143, 171, 60, 130, 135, 42, 62, 155, 183,
+	})
 var _g = big.NewInt(7)
 
 var randBytesProvider = randCryptoBytesProvider

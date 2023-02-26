@@ -7,11 +7,16 @@ service ServersRegistryService {
   rpc RegisterGameServer(RegisterGameServerRequest) returns (RegisterGameServerResponse);
   rpc AvailableGameServersForMapAndRealm(AvailableGameServersForMapAndRealmRequest) returns (AvailableGameServersForMapAndRealmResponse);
   rpc RandomGameServerForRealm(RandomGameServerForRealmRequest) returns (RandomGameServerForRealmResponse);
+  rpc ListGameServersForRealm(ListGameServersForRealmRequest) returns (ListGameServersForRealmResponse);
 
   rpc RegisterLoadBalancer(RegisterLoadBalancerRequest) returns (RegisterLoadBalancerResponse);
   rpc LoadBalancerForRealms(LoadBalancerForRealmsRequest) returns (LoadBalancerForRealmsResponse);
+  rpc ListLoadBalancersForRealm(ListLoadBalancersForRealmRequest) returns (ListLoadBalancersForRealmResponse);
 }
 
+//
+// RegisterGameServer
+//
 message RegisterGameServerRequest{
   string api = 1;
 
@@ -26,16 +31,14 @@ message RegisterGameServerResponse{
   string api = 1;
 }
 
+//
+// AvailableGameServersForMapAndRealm
+//
 message AvailableGameServersForMapAndRealmRequest{
   string api = 1;
 
   uint32 realmID = 2;
   uint32 mapID = 3;
-}
-
-message Server {
-  string address = 1;
-  uint32 realmID = 2;
 }
 
 message AvailableGameServersForMapAndRealmResponse{
@@ -44,6 +47,47 @@ message AvailableGameServersForMapAndRealmResponse{
   repeated Server gameServers = 2;
 }
 
+//
+// RandomGameServerForRealm
+//
+message RandomGameServerForRealmRequest{
+  string api = 1;
+
+  uint32 realmID = 2;
+}
+
+message RandomGameServerForRealmResponse{
+  string api = 1;
+
+  Server gameServer = 2;
+}
+
+//
+// ListGameServersForRealm
+//
+message ListGameServersForRealmRequest {
+  string api = 1;
+
+  uint32 realmID = 2;
+}
+
+message GameServerDetailed {
+  string address = 1;
+  string healthAddress = 2;
+  uint32 realmID = 3;
+  repeated uint32 availableMaps = 4;
+  repeated uint32 assignedMaps = 5;
+}
+
+message ListGameServersForRealmResponse {
+  string api = 1;
+
+  repeated GameServerDetailed gameServers = 2;
+}
+
+//
+// RegisterLoadBalancer
+//
 message RegisterLoadBalancerRequest{
   string api = 1;
 
@@ -59,6 +103,9 @@ message RegisterLoadBalancerResponse{
   string id = 2;
 }
 
+//
+// LoadBalancerForRealms
+//
 message LoadBalancerForRealmsRequest{
   string api = 1;
 
@@ -71,15 +118,33 @@ message LoadBalancerForRealmsResponse{
   repeated Server loadBalancers = 2;
 }
 
-message RandomGameServerForRealmRequest{
+//
+// ListLoadBalancersForRealm
+//
+message ListLoadBalancersForRealmRequest {
   string api = 1;
 
   uint32 realmID = 2;
 }
 
-message RandomGameServerForRealmResponse{
-  string api = 1;
-
-  Server gameServer = 2;
+message LoadBalancerServerDetailed {
+  string id = 1;
+  string address = 2;
+  string healthAddress = 3;
+  uint32 realmID = 4;
+  uint32 activeConnections = 5;
 }
 
+message ListLoadBalancersForRealmResponse {
+  string api = 1;
+
+  repeated LoadBalancerServerDetailed loadBalancers = 2;
+}
+
+//
+// Shared
+//
+message Server {
+  string address = 1;
+  uint32 realmID = 2;
+}

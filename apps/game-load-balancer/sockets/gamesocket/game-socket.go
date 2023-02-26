@@ -12,13 +12,12 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 
-	"github.com/walkline/ToCloud9/shared/slices"
-
 	"github.com/walkline/ToCloud9/apps/game-load-balancer/crypto"
 	"github.com/walkline/ToCloud9/apps/game-load-balancer/packet"
 	"github.com/walkline/ToCloud9/apps/game-load-balancer/repo"
 	"github.com/walkline/ToCloud9/apps/game-load-balancer/session"
 	"github.com/walkline/ToCloud9/apps/game-load-balancer/sockets"
+	"github.com/walkline/ToCloud9/shared/slices"
 )
 
 // useEncryption used to disable encryption during testing
@@ -152,7 +151,7 @@ func (s *GameSocket) ReadChannel() <-chan *packet.Packet {
 	return s.readChan
 }
 
-// ReadChannel returns channel that consumes packets that needs to be sent to the game client
+// WriteChannel returns channel that consumes packets that needs to be sent to the game client
 func (s *GameSocket) WriteChannel() chan<- *packet.Packet {
 	return s.sendChan
 }
@@ -249,6 +248,10 @@ func (s *GameSocket) AuthSession(p *packet.Packet) error {
 	go s.session.HandlePackets(s.ctx)
 
 	return nil
+}
+
+func (s *GameSocket) Address() string {
+	return s.conn.RemoteAddr().String()
 }
 
 func (s *GameSocket) handleAddons(b []byte) error {

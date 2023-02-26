@@ -3,21 +3,45 @@ package session
 import (
 	"context"
 	"fmt"
-	root "github.com/walkline/ToCloud9/apps/game-load-balancer"
-	pbServ "github.com/walkline/ToCloud9/gen/servers-registry/pb"
 	"time"
 
+	root "github.com/walkline/ToCloud9/apps/game-load-balancer"
 	"github.com/walkline/ToCloud9/apps/game-load-balancer/packet"
+	pbServ "github.com/walkline/ToCloud9/gen/servers-registry/pb"
 )
 
 var HandleMap = map[uint16]HandlersQueue{
 	packet.CMsgCharCreate:               NewHandler("CMsgCharCreate", ForwardPacketToRandomGameServer(packet.SMsgCharCreate)),
 	packet.CMsgPlayerLogin:              NewHandler("CMsgPlayerLogin", (*GameSession).Login),
-	packet.CMsgCharDelete:               NewHandler("CMsgCharCreate", ForwardPacketToRandomGameServer(packet.SMsgCharDelete)),
+	packet.CMsgCharDelete:               NewHandler("CMsgCharDelete", ForwardPacketToRandomGameServer(packet.SMsgCharDelete)),
 	packet.CMsgCharEnum:                 NewHandler("CMsgCharEnum", (*GameSession).CharactersList),
 	packet.CMsgRealmSplit:               NewHandler("CMsgRealmSplit", (*GameSession).RealmSplit),
 	packet.CMsgReadyForAccountDataTimes: NewHandler("CMsgReadyForAccountDataTimes", (*GameSession).ReadyForAccountDataTimes),
 	packet.CMsgMessageChat:              NewHandler("CMsgMessageChat", (*GameSession).HandleChatMessage),
+	packet.CMsgGuildQuery:               NewHandler("CMsgGuildQuery", (*GameSession).HandleGuildQuery),
+	packet.CMsgWho:                      NewHandler("CMsgWho", (*GameSession).HandleWho),
+	packet.CMsgGuildInvite:              NewHandler("CMsgGuildInvite", (*GameSession).HandleGuildInvite),
+	packet.CMsgGuildInviteAccept:        NewHandler("CMsgGuildInviteAccept", (*GameSession).HandleGuildInviteAccept),
+	packet.CMsgGuildRoster:              NewHandler("CMsgGuildRoster", (*GameSession).HandleGuildRoster),
+	packet.CMsgGuildLeave:               NewHandler("CMsgGuildLeave", (*GameSession).HandleGuildLeave),
+	packet.CMsgGuildRemove:              NewHandler("CMsgGuildRemove", (*GameSession).HandleGuildKick),
+	packet.CMsgGuildSMTD:                NewHandler("CMsgGuildSMTD", (*GameSession).HandleGuildSetMessageOfTheDay),
+	packet.CMsgGuildSetPublicNote:       NewHandler("CMsgGuildSetPublicNote", (*GameSession).HandleGuildSetPublicNote),
+	packet.CMsgGuildSetOfficerNote:      NewHandler("CMsgGuildSetOfficerNote", (*GameSession).HandleGuildSetOfficerNote),
+	packet.CMsgGuildInfoText:            NewHandler("CMsgGuildInfoText", (*GameSession).HandleGuildSetInfoText),
+	packet.CMsgGuildRank:                NewHandler("CMsgGuildRank", (*GameSession).HandleGuildRankUpdate),
+	packet.CMsgGuildAddRank:             NewHandler("CMsgGuildAddRank", (*GameSession).HandleGuildRankAdd),
+	packet.CMsgGuildDelRank:             NewHandler("CMsgGuildDelRank", (*GameSession).HandleGuildRankDelete),
+	packet.CMsgGuildPromote:             NewHandler("CMsgGuildPromote", (*GameSession).HandleGuildPromote),
+	packet.CMsgGuildDemote:              NewHandler("CMsgGuildDemote", (*GameSession).HandleGuildDemote),
+	packet.SMsgInitWorldStates:          NewHandler("SMsgInitWorldStates", (*GameSession).InterceptInitWorldStates),
+	packet.SMsgLevelUpInfo:              NewHandler("SMsgLevelUpInfo", (*GameSession).InterceptLevelUpInfo),
+	packet.CMsgPing:                     NewHandler("CMsgPing", (*GameSession).HandlePing),
+	packet.SMsgPong:                     NewHandler("SMsgPong", (*GameSession).InterceptPong),
+	packet.SMsgNewWorld:                 NewHandler("SMsgNewWorld", (*GameSession).InterceptNewWorld),
+	packet.MsgGuildPermissions:          NewHandler("MsgGuildPermissions", (*GameSession).HandleGuildPermissions),
+	packet.MsgGuildBankMoneyWithdrawn:   NewHandler("MsgGuildBankMoneyWithdrawn", (*GameSession).HandleGuildBankMoneyWithdrawn),
+	packet.MsgMoveWorldPortAck:          NewHandler("MsgMoveWorldPortAck", (*GameSession).InterceptMoveWorldPortAck),
 }
 
 type Handler func(*GameSession, context.Context, *packet.Packet) error
@@ -64,9 +88,8 @@ func ForwardPacketToRandomGameServer(waitOpcodeToClose uint16) Handler {
 			return fmt.Errorf("can't connect to the world server, err: %w", err)
 		}
 
-		//s.worldSocket = socket
 		go socket.ListenAndProcess(s.ctx)
-		newCtx, cancel := context.WithTimeout(s.ctx, time.Second*10)
+		newCtx, cancel := context.WithTimeout(s.ctx, time.Minute)
 		waitDone := make(chan struct{})
 		go func() {
 			defer cancel()
@@ -79,14 +102,15 @@ func ForwardPacketToRandomGameServer(waitOpcodeToClose uint16) Handler {
 						return
 					}
 					s.gameSocket.WriteChannel() <- p
-
 					if p.Opcode == waitOpcodeToClose {
 						socket.Close()
 						return
 					}
 
 				case <-newCtx.Done():
-					s.worldSocket.Close()
+					if s.worldSocket != nil {
+						s.worldSocket.Close()
+					}
 					return
 				}
 			}
@@ -95,9 +119,10 @@ func ForwardPacketToRandomGameServer(waitOpcodeToClose uint16) Handler {
 		socket.SendPacket(s.authPacket)
 
 		// we need to give some time to add session on the world side
-		time.Sleep(time.Millisecond * 100)
+		time.Sleep(time.Millisecond * 300)
 
 		socket.SendPacket(p)
+
 		if waitOpcodeToClose != 0 {
 			<-waitDone
 		} else {

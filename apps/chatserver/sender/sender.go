@@ -2,6 +2,7 @@ package sender
 
 import (
 	"github.com/nats-io/nats.go"
+
 	"github.com/walkline/ToCloud9/shared/events"
 )
 

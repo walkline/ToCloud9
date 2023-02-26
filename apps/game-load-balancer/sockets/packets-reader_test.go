@@ -3,11 +3,13 @@ package sockets
 import (
 	"bytes"
 	"encoding/binary"
-	"github.com/stretchr/testify/assert"
-	"github.com/walkline/ToCloud9/apps/game-load-balancer/packet"
-	"github.com/walkline/ToCloud9/shared/slices"
 	"io"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+
+	"github.com/walkline/ToCloud9/apps/game-load-balancer/packet"
+	"github.com/walkline/ToCloud9/shared/slices"
 )
 
 func TestPacketsReader(t *testing.T) {

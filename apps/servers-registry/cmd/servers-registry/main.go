@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"os"
@@ -10,10 +11,13 @@ import (
 	"time"
 
 	"github.com/nats-io/nats.go"
+	"github.com/redis/go-redis/v9"
+	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"google.golang.org/grpc"
 
 	"github.com/walkline/ToCloud9/apps/servers-registry/config"
+	"github.com/walkline/ToCloud9/apps/servers-registry/mapbalancing/binpack"
 	"github.com/walkline/ToCloud9/apps/servers-registry/repo"
 	"github.com/walkline/ToCloud9/apps/servers-registry/server"
 	"github.com/walkline/ToCloud9/apps/servers-registry/service"
@@ -23,6 +27,9 @@ import (
 )
 
 func main() {
+	mainContext, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	conf, err := config.LoadConfig()
 	if err != nil {
 		panic(err)
@@ -41,19 +48,57 @@ func main() {
 	}
 	defer nc.Close()
 
-	healthChecker := healthandmetrics.NewHealthChecker(time.Second*4, 4, healthandmetrics.NewHttpHealthCheckProcessor(time.Second*2))
+	opt, err := redis.ParseURL(conf.RedisConnection)
+	if err != nil {
+		log.Fatal().Err(err).Msg("can't connect to the redis")
+	}
+
+	rdb := redis.NewClient(opt)
+	pingRes := rdb.Ping(context.Background())
+	if pingRes.Err() != nil {
+		log.Fatal().Err(err).Msg("can't connect to redis")
+	}
+	defer rdb.Close()
+
+	healthChecker := healthandmetrics.NewHealthChecker(time.Second*4, 4, healthandmetrics.NewHttpHealthCheckProcessor(time.Second*15))
 	go healthChecker.Start()
 
 	metricsConsumer := healthandmetrics.NewMetricsConsumer(time.Second*5, 3, healthandmetrics.NewHttpPrometheusMetricsReader(time.Second))
 	go metricsConsumer.Start()
 
+	supportedRealms := []uint32{1} // TODO: implement fetching realms list
+	gameServersService, err := service.NewGameServer(
+		mainContext,
+		repo.NewGameServerRedisRepo(rdb),
+		healthChecker,
+		binpack.NewBinPackBalancer(binpack.DefaultMapsWeight), // TODO: implement providing custom maps weight list.
+		supportedRealms,
+	)
+	if err != nil {
+		log.Fatal().Err(err).Msg("can't create game server service")
+	}
+
+	loadBalancersService, err := service.NewLoadBalancer(
+		mainContext,
+		repo.NewLoadBalancerRedisRepo(rdb),
+		healthChecker,
+		metricsConsumer,
+		events.NewServerRegistryProducerNatsJSON(nc, "0.0.1"),
+		[]uint32{1},
+	)
+	if err != nil {
+		log.Fatal().Err(err).Msg("can't create load balancer service")
+	}
+
+	registryService := server.NewServersRegistry(gameServersService, loadBalancersService)
+	if conf.LogLevel == zerolog.DebugLevel {
+		registryService = server.NewServersRegistryDebugLoggerMiddleware(registryService, log.Logger)
+	}
+
 	grpcServer := grpc.NewServer()
 	pb.RegisterServersRegistryServiceServer(
 		grpcServer,
-		server.NewServersRegistry(
-			service.NewGameServer(repo.NewGameServerInMemRepo(), healthChecker),
-			service.NewLoadBalancer(repo.NewLoadBalancerInMemRepo(), healthChecker, metricsConsumer, events.NewServerRegistryProducerNatsJSON(nc, "0.0.1")),
-		),
+		registryService,
 	)
 
 	sigCh := make(chan os.Signal, 1)

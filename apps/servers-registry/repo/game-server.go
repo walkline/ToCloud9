@@ -10,30 +10,31 @@ type GameServer struct {
 	HealthCheckAddr string
 	RealmID         uint32
 	AvailableMaps   []uint32
+
+	// AssignedMapsToHandle list of maps that loadbalancer algorithm assigned for this server.
+	AssignedMapsToHandle []uint32
 }
 
 func (g *GameServer) HealthCheckAddress() string {
 	return g.HealthCheckAddr
 }
 
-func (g *GameServer) IsMapAvailable(id uint32) bool {
-	// all maps available
-	if len(g.AvailableMaps) == 0 {
-		return true
-	}
-
-	i := sort.Search(len(g.AvailableMaps), func(i int) bool { return g.AvailableMaps[i] >= id })
+func (g *GameServer) HasMapInHandleList(id uint32) bool {
+	i := sort.Search(len(g.AssignedMapsToHandle), func(i int) bool { return g.AssignedMapsToHandle[i] >= id })
 	// item exists
-	if i < len(g.AvailableMaps) && g.AvailableMaps[i] == id {
+	if i < len(g.AssignedMapsToHandle) && g.AssignedMapsToHandle[i] == id {
 		return true
 	}
 
 	return false
 }
 
+func (g *GameServer) IsAllMapsAvailable() bool {
+	return len(g.AvailableMaps) == 0
+}
+
 type GameServerRepo interface {
-	Add(context.Context, *GameServer) error
+	Upsert(context.Context, *GameServer) error
 	Remove(ctx context.Context, address string) error
-	List(ctx context.Context) ([]GameServer, error)
 	ListByRealm(ctx context.Context, realmID uint32) ([]GameServer, error)
 }

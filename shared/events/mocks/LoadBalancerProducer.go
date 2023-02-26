@@ -4,6 +4,7 @@ package mocks
 
 import (
 	mock "github.com/stretchr/testify/mock"
+
 	events "github.com/walkline/ToCloud9/shared/events"
 )
 
@@ -32,6 +33,20 @@ func (_m *LoadBalancerProducer) CharacterLoggedOut(payload *events.LBEventCharac
 
 	var r0 error
 	if rf, ok := ret.Get(0).(func(*events.LBEventCharacterLoggedOutPayload) error); ok {
+		r0 = rf(payload)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// CharactersUpdates provides a mock function with given fields: payload
+func (_m *LoadBalancerProducer) CharactersUpdates(payload *events.LBEventCharactersUpdatesPayload) error {
+	ret := _m.Called(payload)
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(*events.LBEventCharactersUpdatesPayload) error); ok {
 		r0 = rf(payload)
 	} else {
 		r0 = ret.Error(0)

@@ -18,6 +18,9 @@ type Config struct {
 
 	// WorldDBConnection is connection string to the world database
 	WorldDBConnection string `env:"WORLD_DB_CONNECTION,default=trinity:trinity@tcp(127.0.0.1:3306)/world"`
+
+	// NatsURL is nats connection url
+	NatsURL string `env:"NATS_URL,default=nats://nats:4222"`
 }
 
 // LoadConfig loads config from env variables

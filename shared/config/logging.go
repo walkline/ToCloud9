@@ -1,9 +1,10 @@
 package config
 
 import (
+	"os"
+
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
-	"os"
 )
 
 type LoggingFormat string

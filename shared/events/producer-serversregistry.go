@@ -2,9 +2,11 @@ package events
 
 import (
 	"encoding/json"
+
 	"github.com/nats-io/nats.go"
 )
 
+//go:generate mockery --name=ServerRegistryProducer
 type ServerRegistryProducer interface {
 	LBAdded(payload *ServerRegistryEventLBAddedPayload) error
 	LBRemovedUnhealthy(payload *ServerRegistryEventLBRemovedUnhealthyPayload) error

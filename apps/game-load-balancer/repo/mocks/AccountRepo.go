@@ -6,6 +6,7 @@ import (
 	context "context"
 
 	mock "github.com/stretchr/testify/mock"
+
 	repo "github.com/walkline/ToCloud9/apps/game-load-balancer/repo"
 )
 

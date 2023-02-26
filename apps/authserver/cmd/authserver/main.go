@@ -3,6 +3,7 @@ package main
 import (
 	"database/sql"
 	"net"
+	"time"
 
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/rs/zerolog/log"
@@ -28,6 +29,8 @@ func main() {
 		log.Fatal().Err(err).Msg("can't connect to auth db")
 	}
 	defer authDB.Close()
+
+	configureDBConn(authDB)
 
 	authRepo, err := repo.NewAccountMySQLRepo(authDB)
 	if err != nil {
@@ -74,4 +77,11 @@ func servRegistryService(cfg *config.Config) pbServ.ServersRegistryServiceClient
 	}
 
 	return pbServ.NewServersRegistryServiceClient(conn)
+}
+
+func configureDBConn(db *sql.DB) {
+	db.SetMaxIdleConns(5)
+	db.SetMaxOpenConns(10)
+	db.SetConnMaxLifetime(time.Minute * 4)
+	db.SetConnMaxIdleTime(time.Minute * 8)
 }

@@ -1,10 +1,12 @@
 package config
 
 import (
+	"strconv"
+
 	"github.com/Netflix/go-env"
+
 	game_load_balancer "github.com/walkline/ToCloud9/apps/game-load-balancer"
 	"github.com/walkline/ToCloud9/shared/config"
-	"strconv"
 )
 
 // Config is config of application
@@ -34,6 +36,9 @@ type Config struct {
 
 	// ChatServiceAddress is address of chat service
 	ChatServiceAddress string `env:"CHAT_SERVICE_ADDRESS,default=localhost:8992"`
+
+	// GuildsServiceAddress is address of guilds service
+	GuildsServiceAddress string `env:"GUILDS_SERVICE_ADDRESS,default=localhost:8995"`
 
 	// NatsURL is nats connection url
 	NatsURL string `env:"NATS_URL,default=nats://nats:4222"`

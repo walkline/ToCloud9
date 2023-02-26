@@ -2,12 +2,15 @@ package events
 
 import (
 	"encoding/json"
+
 	"github.com/nats-io/nats.go"
 )
 
+//go:generate mockery --name=LoadBalancerProducer
 type LoadBalancerProducer interface {
 	CharacterLoggedIn(payload *LBEventCharacterLoggedInPayload) error
 	CharacterLoggedOut(payload *LBEventCharacterLoggedOutPayload) error
+	CharactersUpdates(payload *LBEventCharactersUpdatesPayload) error
 }
 
 type loadBalancerProducerNatsJSON struct {
@@ -37,6 +40,12 @@ func (p *loadBalancerProducerNatsJSON) CharacterLoggedOut(payload *LBEventCharac
 	payload.RealmID = p.RealmID
 	payload.LoadBalancerID = p.ID
 	return p.publish(LBEventCharacterLoggedOut, payload)
+}
+
+func (p *loadBalancerProducerNatsJSON) CharactersUpdates(payload *LBEventCharactersUpdatesPayload) error {
+	payload.RealmID = p.RealmID
+	payload.LoadBalancerID = p.ID
+	return p.publish(LBEventCharactersUpdates, payload)
 }
 
 func (p *loadBalancerProducerNatsJSON) publish(e LoadBalancerEvent, payload interface{}) error {

@@ -11,10 +11,12 @@ import (
 	root "github.com/walkline/ToCloud9/apps/game-load-balancer"
 	eBroadcaster "github.com/walkline/ToCloud9/apps/game-load-balancer/events-broadcaster"
 	"github.com/walkline/ToCloud9/apps/game-load-balancer/packet"
+	"github.com/walkline/ToCloud9/apps/game-load-balancer/service"
 	"github.com/walkline/ToCloud9/apps/game-load-balancer/sockets"
 	"github.com/walkline/ToCloud9/apps/game-load-balancer/sockets/worldsocket"
 	pbChar "github.com/walkline/ToCloud9/gen/characters/pb"
 	pbChat "github.com/walkline/ToCloud9/gen/chat/pb"
+	pbGuild "github.com/walkline/ToCloud9/gen/guilds/pb"
 	pbServ "github.com/walkline/ToCloud9/gen/servers-registry/pb"
 	"github.com/walkline/ToCloud9/shared/events"
 )
@@ -38,20 +40,28 @@ type GameSession struct {
 	charServiceClient     pbChar.CharactersServiceClient
 	serversRegistryClient pbServ.ServersRegistryServiceClient
 	chatServiceClient     pbChat.ChatServiceClient
+	guildServiceClient    pbGuild.GuildServiceClient
 	eventsProducer        events.LoadBalancerProducer
 	eventsBroadcaster     eBroadcaster.Broadcaster
+	charsUpdsBarrier      *service.CharactersUpdatesBarrier
 
 	authPacket *packet.Packet
 
+	pingToWorldServerStarted time.Time
+
 	accountID uint32
 	character *pbChar.LogInCharacter
+
+	teleportingToNewMap *uint32
 }
 
 type GameSessionParams struct {
 	CharServiceClient     pbChar.CharactersServiceClient
 	ServersRegistryClient pbServ.ServersRegistryServiceClient
 	ChatServiceClient     pbChat.ChatServiceClient
+	GuildsServiceClient   pbGuild.GuildServiceClient
 	EventsProducer        events.LoadBalancerProducer
+	CharsUpdsBarrier      *service.CharactersUpdatesBarrier
 	EventsBroadcaster     eBroadcaster.Broadcaster
 }
 
@@ -69,8 +79,10 @@ func NewGameSession(
 		charServiceClient:     params.CharServiceClient,
 		serversRegistryClient: params.ServersRegistryClient,
 		chatServiceClient:     params.ChatServiceClient,
+		guildServiceClient:    params.GuildsServiceClient,
 		eventsProducer:        params.EventsProducer,
 		eventsBroadcaster:     params.EventsBroadcaster,
+		charsUpdsBarrier:      params.CharsUpdsBarrier,
 		sessionSafeFuChan:     make(chan func(*GameSession), 100),
 	}
 	return s
@@ -98,11 +110,16 @@ func (s *GameSession) HandlePackets(ctx context.Context) {
 			worldReadChan = nil
 		}
 
+		pCtx, pCancel := context.WithTimeout(c, time.Second*20)
+		// Defer in for loop will leak mem.
+		//defer pCancel()
+
 		select {
 		case f := <-s.sessionSafeFuChan:
 			f(s)
 		case p, ok := <-s.gameSocket.ReadChannel():
 			if !ok {
+				pCancel()
 				return
 			}
 			handler, found := HandleMap[p.Opcode]
@@ -110,9 +127,10 @@ func (s *GameSession) HandlePackets(ctx context.Context) {
 				if s.worldSocket != nil {
 					s.worldSocket.WriteChannel() <- p
 				}
+				pCancel()
 				break
 			}
-			if err = handler.Handle(c, s, p); err != nil {
+			if err = handler.Handle(pCtx, s, p); err != nil {
 				s.logger.Error().Err(err).Msgf("can't handle packet with name %s", handler.name)
 			}
 		// worldReadChan can be nil and can be forever blocked
@@ -120,6 +138,7 @@ func (s *GameSession) HandlePackets(ctx context.Context) {
 			if !ok {
 				s.worldSocket = nil
 				s.onWorldSocketClosed()
+				pCancel()
 				break
 			}
 			handler, found := HandleMap[p.Opcode]
@@ -127,27 +146,30 @@ func (s *GameSession) HandlePackets(ctx context.Context) {
 				if s.gameSocket != nil {
 					s.gameSocket.WriteChannel() <- p
 				}
+				pCancel()
 				break
 			}
-			if err = handler.Handle(c, s, p); err != nil {
+			if err = handler.Handle(pCtx, s, p); err != nil {
 				s.logger.Error().Err(err).Msgf("can't handle packet with name %s", handler.name)
 			}
 		case event := <-s.eventsChan:
 			handler, found := EventsHandleMap[event.Type]
 			if !found {
+				pCancel()
 				break
 			}
-			if err = handler.Handle(c, s, &event); err != nil {
+			if err = handler.Handle(pCtx, s, &event); err != nil {
 				s.logger.Error().Err(err).Msgf("can't handle event with name %s", handler.name)
 			}
 		case <-c.Done():
+			pCancel()
 			return
 		}
 	}
 }
 
 func (s *GameSession) Login(ctx context.Context, p *packet.Packet) error {
-	char, socket, err := s.connectToGameServer(ctx, p.Reader().Uint64())
+	char, socket, err := s.connectToGameServer(ctx, p.Reader().Uint64(), nil)
 	if err != nil {
 		code := packet.LoginErrorCodeLoginFailed
 		switch {
@@ -186,6 +208,10 @@ func (s *GameSession) Login(ctx context.Context, p *packet.Packet) error {
 	}
 
 	s.eventsChan = s.eventsBroadcaster.RegisterCharacter(char.GUID)
+
+	if s.character.GuildID != 0 {
+		return s.GuildLoginCommand(ctx)
+	}
 
 	return err
 }
@@ -305,7 +331,31 @@ func (s *GameSession) ReadyForAccountDataTimes(ctx context.Context, p *packet.Pa
 	return nil
 }
 
-func (s *GameSession) connectToGameServer(ctx context.Context, characterGUID uint64) (*pbChar.LogInCharacter, sockets.Socket, error) {
+func (s *GameSession) HandlePing(ctx context.Context, p *packet.Packet) error {
+	s.pingToWorldServerStarted = time.Now()
+	if s.worldSocket != nil {
+		s.worldSocket.WriteChannel() <- p
+	}
+
+	// Would show ping to our load balancer.
+	//resp := packet.NewWriterWithSize(packet.SMsgPong, 4)
+	//resp.Uint32(p.Reader().Uint32())
+	//s.gameSocket.Send(resp)
+
+	return nil
+}
+
+func (s *GameSession) InterceptPong(ctx context.Context, p *packet.Packet) error {
+	s.logger.Info().
+		Uint32("account", s.accountID).
+		Str("latency", time.Since(s.pingToWorldServerStarted).String()).
+		Msg("Latency with world server")
+
+	s.gameSocket.WriteChannel() <- p
+	return nil
+}
+
+func (s *GameSession) connectToGameServer(ctx context.Context, characterGUID uint64, mapID *uint32) (*pbChar.LogInCharacter, sockets.Socket, error) {
 	r, err := s.charServiceClient.CharactersToLoginByGUID(ctx, &pbChar.CharactersToLoginByGUIDRequest{
 		Api:           root.SupportedCharServiceVer,
 		CharacterGUID: characterGUID,
@@ -320,10 +370,15 @@ func (s *GameSession) connectToGameServer(ctx context.Context, characterGUID uin
 		return nil, nil, fmt.Errorf("char id: %q, err: %w", characterGUID, worldConnectErrCharacterNotFound)
 	}
 
+	mapIDToLogin := r.Character.Map
+	if mapID != nil {
+		mapIDToLogin = *mapID
+	}
+
 	serversResult, err := s.serversRegistryClient.AvailableGameServersForMapAndRealm(s.ctx, &pbServ.AvailableGameServersForMapAndRealmRequest{
 		Api:     root.SupportedCharServiceVer,
 		RealmID: root.RealmID,
-		MapID:   r.Character.Map,
+		MapID:   mapIDToLogin,
 	})
 
 	if err != nil {
@@ -331,8 +386,12 @@ func (s *GameSession) connectToGameServer(ctx context.Context, characterGUID uin
 	}
 
 	if len(serversResult.GameServers) == 0 {
-		return nil, nil, fmt.Errorf("%w, mapID %v", worldConnectErrInstanceNotFound, r.Character.Map)
+		return nil, nil, fmt.Errorf("%w, mapID %v", worldConnectErrInstanceNotFound, mapIDToLogin)
 	}
+
+	s.logger.Debug().
+		Str("address", serversResult.GameServers[0].Address).
+		Msg("Connecting to the world server")
 
 	socket, err := WorldSocketCreator(s.logger, serversResult.GameServers[0].Address)
 	if err != nil {
@@ -340,22 +399,6 @@ func (s *GameSession) connectToGameServer(ctx context.Context, characterGUID uin
 	}
 
 	go socket.ListenAndProcess(s.ctx)
-	newCtx, cancel := context.WithCancel(s.ctx)
-	go func() {
-		defer cancel()
-		for {
-			select {
-			case p, open := <-socket.ReadChannel():
-				if !open {
-					return
-				}
-				s.gameSocket.WriteChannel() <- p
-			case <-newCtx.Done():
-				socket.Close()
-				return
-			}
-		}
-	}()
 
 	socket.SendPacket(s.authPacket)
 
@@ -380,7 +423,7 @@ func (s *GameSession) onWorldSocketClosed() {
 		var char *pbChar.LogInCharacter
 		var socket sockets.Socket
 		for i := 0; i < 3; i++ {
-			char, socket, err = s.connectToGameServer(context.TODO(), charGUID)
+			char, socket, err = s.connectToGameServer(context.TODO(), charGUID, nil)
 			if err != nil {
 				s.logger.Error().Err(err).Msg("failed to reconnect player to the world")
 			} else {

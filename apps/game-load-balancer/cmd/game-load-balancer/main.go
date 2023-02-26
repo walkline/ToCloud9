@@ -4,9 +4,9 @@ import (
 	"context"
 	"database/sql"
 	"net"
+	"os"
+	"runtime/pprof"
 	"time"
-
-	//_ "net/http/pprof"
 
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/nats-io/nats.go"
@@ -22,15 +22,17 @@ import (
 	"github.com/walkline/ToCloud9/apps/game-load-balancer/sockets/gamesocket"
 	pbChar "github.com/walkline/ToCloud9/gen/characters/pb"
 	pbChat "github.com/walkline/ToCloud9/gen/chat/pb"
+	pbGuild "github.com/walkline/ToCloud9/gen/guilds/pb"
 	pbServ "github.com/walkline/ToCloud9/gen/servers-registry/pb"
 	"github.com/walkline/ToCloud9/shared/events"
 	"github.com/walkline/ToCloud9/shared/healthandmetrics"
 )
 
 func main() {
-	// debugging with pprof
+	//debugging with pprof
 	//go func() {
-	//	http.ListenAndServe("localhost:6060", nil)
+	//	fmt.Println("???")
+	//	fmt.Println(http.ListenAndServe(":8333", nil))
 	//}()
 
 	conf, err := config.LoadConfig()
@@ -46,6 +48,8 @@ func main() {
 	}
 	defer authDB.Close()
 
+	//configureDBConn(authDB)
+
 	accountRepo, err := repo.NewAccountMySQLRepo(authDB)
 	if err != nil {
 		log.Fatal().Err(err).Msg("can't create account repo")
@@ -60,6 +64,7 @@ func main() {
 	charClient := charService(conf)
 	chatClient := chatService(conf)
 	servRegistryClient := servRegistryService(conf)
+	guildClient := guildService(conf)
 
 	healthandmetrics.EnableActiveConnectionsMetrics()
 	healthCheckServer := healthandmetrics.NewServer(conf.HealthCheckPort, true)
@@ -71,7 +76,7 @@ func main() {
 		}
 	}()
 
-	id := registerLoadBalancer(servRegistryClient, conf)
+	root.RetrievedBalancerID = registerLoadBalancer(servRegistryClient, conf)
 
 	nc, err := nats.Connect(conf.NatsURL, nats.PingInterval(20*time.Second), nats.MaxPingsOutstanding(5), nats.Timeout(10*time.Second))
 	if err != nil {
@@ -81,13 +86,21 @@ func main() {
 
 	broadcaster := events_broadcaster.NewBroadcaster()
 
-	chatListener := service.NewChatNatsListener(nc, id, broadcaster)
+	chatListener := service.NewChatNatsListener(nc, root.RetrievedBalancerID, broadcaster)
 	err = chatListener.Listen()
 	if err != nil {
 		log.Fatal().Err(err).Msg("can't listen to chat events-broadcaster")
 	}
 
-	producer := events.NewLoadBalancerProducerNatsJSON(nc, root.Ver, root.RealmID, id)
+	guildListener := service.NewGuildNatsListener(nc, broadcaster)
+	err = guildListener.Listen()
+	if err != nil {
+		log.Fatal().Err(err).Msg("can't listen to guild events-broadcaster")
+	}
+
+	producer := events.NewLoadBalancerProducerNatsJSON(nc, root.Ver, root.RealmID, root.RetrievedBalancerID)
+	charsUpdsBarrier := service.NewCharactersUpdatesBarrier(&log.Logger, producer, time.Second)
+	go charsUpdsBarrier.Run(context.TODO())
 
 	log.Info().
 		Str("address", l.Addr().String()).
@@ -99,14 +112,16 @@ func main() {
 			log.Fatal().Err(err).Msg("can't accept connection")
 		}
 
-		//pprof.Lookup("goroutine").WriteTo(os.Stdout, 1)
+		pprof.Lookup("goroutine").WriteTo(os.Stdout, 1)
 
 		s := gamesocket.NewGameSocket(conn, accountRepo, session.GameSessionParams{
 			CharServiceClient:     charClient,
 			ServersRegistryClient: servRegistryClient,
 			ChatServiceClient:     chatClient,
+			GuildsServiceClient:   guildClient,
 			EventsProducer:        producer,
 			EventsBroadcaster:     broadcaster,
+			CharsUpdsBarrier:      charsUpdsBarrier,
 		})
 		go func() {
 			healthandmetrics.ActiveConnectionsMetrics.Inc()
@@ -139,10 +154,22 @@ func servRegistryService(cnf *config.Config) pbServ.ServersRegistryServiceClient
 func chatService(cnf *config.Config) pbChat.ChatServiceClient {
 	conn, err := grpc.Dial(cnf.ChatServiceAddress, grpc.WithInsecure())
 	if err != nil {
-		log.Fatal().Err(err).Msg("can't connect to servers registry service")
+		log.Fatal().Err(err).Msg("can't connect to chat service")
 	}
 
 	return pbChat.NewChatServiceClient(conn)
+}
+
+func guildService(cnf *config.Config) pbGuild.GuildServiceClient {
+	conn, err := grpc.Dial(cnf.GuildsServiceAddress, grpc.WithInsecure(), grpc.WithContextDialer(func(ctx context.Context, s string) (net.Conn, error) {
+		dialer := net.Dialer{Timeout: time.Second * 5}
+		return dialer.DialContext(ctx, "tcp", s)
+	}))
+	if err != nil {
+		log.Fatal().Err(err).Msg("can't connect to guilds service")
+	}
+
+	return pbGuild.NewGuildServiceClient(conn)
 }
 
 func registerLoadBalancer(servRegistryClient pbServ.ServersRegistryServiceClient, conf *config.Config) string {
@@ -157,4 +184,11 @@ func registerLoadBalancer(servRegistryClient pbServ.ServersRegistryServiceClient
 		log.Fatal().Err(err).Msg("can't register load balancer")
 	}
 	return r.Id
+}
+
+func configureDBConn(db *sql.DB) {
+	db.SetMaxIdleConns(5)
+	db.SetMaxOpenConns(5)
+	db.SetConnMaxLifetime(time.Minute * 4)
+	db.SetConnMaxIdleTime(time.Minute * 8)
 }

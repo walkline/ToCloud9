@@ -18,6 +18,18 @@ type Config struct {
 
 	// ServersRegistryServiceAddress is address of servers registry service
 	ServersRegistryServiceAddress string `env:"SERVERS_REGISTRY_SERVICE_ADDRESS,default=localhost:8999"`
+
+	// GuidProviderServiceAddress is address of service that provides guids to use
+	GuidProviderServiceAddress string `env:"GUID_PROVIDER_SERVICE_ADDRESS,default=localhost:8996"`
+
+	// CharacterGuidsBufferSize is the size of the buffer for characters guids
+	CharacterGuidsBufferSize int `env:"CHARACTER_GUIDS_BUFFER_SIZE,default=50"`
+
+	// CharacterGuidsBufferSize is the size of the buffer for items guids
+	ItemGuidsBufferSize int `env:"ITEM_GUIDS_BUFFER_SIZE,default=200"`
+
+	// NatsURL is nats connection url
+	NatsURL string `env:"NATS_URL,default=nats://nats:4222"`
 }
 
 // LoadConfig loads config from env variables
