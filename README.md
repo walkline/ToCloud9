@@ -27,7 +27,7 @@ __Prerequisites:__
 * Database for TrinityCore;
 * TrinityCore data folder (dbc, vmaps, mmaps).
 * [Docker & docker-compose](https://www.docker.com/products/docker-desktop) (for 'Docker-compose' approach);
-* [Golang](https://golang.org/dl/) (for 'Without Docker' approach).
+* [Golang](https://golang.org/dl/) v1.18+ (for 'Without Docker' approach).
 * [NATS](https://docs.nats.io/nats-server/installation) (for 'Without Docker' approach).
 * [Redis](https://redis.io/download/) (for 'Without Docker' approach).
 
@@ -41,8 +41,8 @@ __Prerequisites:__
 
 1. Run `$ make install`.
 2. Apply migrations to the characters DB from this folder - sql/characters/mysql/*
-3. Apply `game-server/trinitycore/31ea74b96e.diff` patch on TrinityCore (should be compatible with [this rev](https://github.com/TrinityCore/TrinityCore/commit/31ea74b96e)).
-4. Place `bin/libsidecar.dylib` & `bin/libsidecar.h` files in `$TRINITY_CORE_SRC_PATH/dep/libsidecar` folder and in folder with `worldserver` executable.
+3. Apply `game-server/trinitycore/e11613eeb5.diff` patch on TrinityCore (should be compatible with [this rev](https://github.com/TrinityCore/TrinityCore/commit/e11613eeb5)).
+4. Place `bin/libsidecar.dylib`, `bin/libsidecar.h` and `game-server/libsidecar/events-guild.h` files in `$TRINITY_CORE_SRC_PATH/dep/libsidecar` folder and in folder with `worldserver` executable.
 5. Build patched TrinityCore.
 6. Install and run [NATS](https://docs.nats.io/nats-server/installation).
 7. Install and run [Redis](https://redis.io/download/).
