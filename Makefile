@@ -13,7 +13,7 @@ migrate-characters:
 	migrate -database "mysql://trinity:trinity@tcp(localhost:3306)/characters" -path sql/characters/mysql up
 
 test:
-	go test ./... -cover -v
+	go test ./... -race -coverprofile=coverage.out -covermode=atomic
 
 build-authserver:
 	go build -o $(INSTALL_PATH)/authserver apps/authserver/cmd/authserver/main.go
