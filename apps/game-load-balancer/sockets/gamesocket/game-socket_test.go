@@ -62,7 +62,10 @@ func TestGameSocketForwardsPacketsToGameClient(t *testing.T) {
 	m := q.Mock()
 
 	var bytesWritten [][]byte
+	bytesMutex := sync.Mutex{}
 	m.OnWrite = func(b []byte) (n int, err error) {
+		bytesMutex.Lock()
+		defer bytesMutex.Unlock()
 		bytesWritten = append(bytesWritten, b)
 		return len(b), nil
 	}
@@ -75,6 +78,10 @@ func TestGameSocketForwardsPacketsToGameClient(t *testing.T) {
 		m.Close()
 	}()
 	assert.NoError(t, s.ListenAndProcess(context.Background()))
+
+	bytesMutex.Lock()
+	defer bytesMutex.Unlock()
+
 	assert.Len(t, bytesWritten, 2) // the first msg is handshake
 	assert.Equal(t, bytesWritten[1], WriterToBytes(packet.NewWriter(packet.CMsgPing).Uint8(42)))
 }

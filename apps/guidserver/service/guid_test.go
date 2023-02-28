@@ -18,6 +18,7 @@ type MaxGuidStorageMock struct {
 
 	increaseDelay time.Duration
 
+	counterLock     sync.Mutex
 	requestsCounter int
 }
 
@@ -54,7 +55,9 @@ func (m *MaxGuidStorageMock) IncreaseMaxGuidForCharacters(ctx context.Context, r
 	m.charLock.Lock()
 	defer m.charLock.Unlock()
 
+	m.counterLock.Lock()
 	m.requestsCounter++
+	m.counterLock.Unlock()
 
 	if m.increaseDelay > 0 {
 		time.Sleep(m.increaseDelay)
@@ -72,10 +75,18 @@ func (m *MaxGuidStorageMock) IncreaseMaxGuidForItems(ctx context.Context, realmI
 		time.Sleep(m.increaseDelay)
 	}
 
+	m.counterLock.Lock()
 	m.requestsCounter++
+	m.counterLock.Unlock()
 
 	m.itemCounter[realmID] += increaseAmount
 	return m.itemCounter[realmID], nil
+}
+
+func (m *MaxGuidStorageMock) GetRequestsCounter() int {
+	m.counterLock.Lock()
+	defer m.counterLock.Unlock()
+	return m.requestsCounter
 }
 
 func Test_guidServiceImpl_GetGuids(t *testing.T) {

@@ -4,6 +4,7 @@ import (
 	"io"
 	"math/rand"
 	"net"
+	"sync"
 	"time"
 )
 
@@ -56,7 +57,8 @@ type DataQueue struct {
 
 	closeChan chan bool
 
-	closed bool
+	closeMutex sync.RWMutex
+	closed     bool
 
 	reachedEnd bool
 	i          int
@@ -78,7 +80,11 @@ func (q *DataQueue) SetLoopedPart(loopedQ ...[]byte) {
 }
 
 func (q *DataQueue) OnRead(b []byte) (n int, err error) {
-	if q.closed {
+	q.closeMutex.RLock()
+	closed := q.closed
+	q.closeMutex.RUnlock()
+
+	if closed {
 		return 0, io.EOF
 	}
 
@@ -125,7 +131,9 @@ func (q *DataQueue) OnWrite(b []byte) (n int, err error) {
 }
 
 func (q *DataQueue) OnClose() error {
+	q.closeMutex.Lock()
 	q.closed = true
+	q.closeMutex.Unlock()
 	q.closeChan <- true
 	return nil
 }

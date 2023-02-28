@@ -1,6 +1,7 @@
 package healthandmetrics
 
 import (
+	"sync"
 	"testing"
 	"time"
 
@@ -17,14 +18,23 @@ type healthCheckProcessorMock struct {
 	err        error
 	delay      time.Duration
 	checkCount int
+	m          sync.Mutex
 }
 
 func (h *healthCheckProcessorMock) Check(object HealthCheckObject) error {
 	if h.delay > 0 {
 		time.Sleep(h.delay)
 	}
+	h.m.Lock()
 	h.checkCount++
+	h.m.Unlock()
 	return h.err
+}
+
+func (h *healthCheckProcessorMock) checksCount() int {
+	h.m.Lock()
+	defer h.m.Unlock()
+	return h.checkCount
 }
 
 func Test_healthChecker_StartSkippingDelay(t *testing.T) {
@@ -40,7 +50,7 @@ func Test_healthChecker_StartSkippingDelay(t *testing.T) {
 
 	time.Sleep(time.Millisecond * 13)
 
-	assert.Equal(t, 2, proc.checkCount)
+	assert.Equal(t, 2, proc.checksCount())
 }
 
 func Test_healthChecker_StartRespectDelay(t *testing.T) {
@@ -56,7 +66,7 @@ func Test_healthChecker_StartRespectDelay(t *testing.T) {
 
 	time.Sleep(time.Millisecond * 13)
 
-	assert.Equal(t, 1, proc.checkCount)
+	assert.Equal(t, 1, proc.checksCount())
 }
 
 func Test_healthChecker_StartWithAddingObjectsAfterStart(t *testing.T) {
@@ -73,5 +83,5 @@ func Test_healthChecker_StartWithAddingObjectsAfterStart(t *testing.T) {
 	checker.AddHealthCheckObject(obj)
 	time.Sleep(time.Millisecond * 8)
 
-	assert.Equal(t, 1, proc.checkCount)
+	assert.Equal(t, 1, proc.checksCount())
 }
