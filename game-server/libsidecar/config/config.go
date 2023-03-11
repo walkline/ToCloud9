@@ -10,6 +10,9 @@ import (
 type Config struct {
 	config.Logging
 
+	// GRPCPort is port that would be used to listen for GRPC requests
+	GRPCPort string `env:"GRPC_PORT,default=9501"`
+
 	// HealthCheckPort is port that would be used to listen for health checks
 	HealthCheckPort string `env:"HEALTH_CHECK_PORT,default=8900"`
 
@@ -29,7 +32,7 @@ type Config struct {
 	ItemGuidsBufferSize int `env:"ITEM_GUIDS_BUFFER_SIZE,default=200"`
 
 	// NatsURL is nats connection url
-	NatsURL string `env:"NATS_URL,default=nats://nats:4222"`
+	NatsURL string `env:"NATS_URL,default=nats://localhost:4222"`
 }
 
 // LoadConfig loads config from env variables

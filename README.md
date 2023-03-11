@@ -42,11 +42,11 @@ __Prerequisites:__
 1. Run `$ make install`.
 2. Apply migrations to the characters DB from this folder - sql/characters/mysql/*
 3. Apply `game-server/trinitycore/e11613eeb5.diff` patch on TrinityCore (should be compatible with [this rev](https://github.com/TrinityCore/TrinityCore/commit/e11613eeb5)).
-4. Place `bin/libsidecar.dylib`, `bin/libsidecar.h` and `game-server/libsidecar/events-guild.h` files in `$TRINITY_CORE_SRC_PATH/dep/libsidecar` folder and in folder with `worldserver` executable.
+4. Place `bin/libsidecar.dylib`, `bin/libsidecar.h` and `game-server/libsidecar/*.h` files in `$TRINITY_CORE_SRC_PATH/dep/libsidecar` & `$TRINITY_CORE_SRC_PATH/dep/libsidecar/include` folder and in folder with `worldserver` executable.
 5. Build patched TrinityCore.
 6. Install and run [NATS](https://docs.nats.io/nats-server/installation).
 7. Install and run [Redis](https://redis.io/download/).
-7. Run everything.
+8. Run everything.
 ```bash
 export AUTH_DB_CONNECTION=trinity:trinity@tcp(127.0.0.1:3306)/auth
 export CHAR_DB_CONNECTION=trinity:trinity@tcp(127.0.0.1:3306)/characters

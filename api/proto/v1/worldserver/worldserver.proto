@@ -1,0 +1,85 @@
+syntax = "proto3";
+package v1;
+
+option go_package = "gen/worldserver/pb";
+
+// API to interact with worldserver/gameserver.
+// Worldserver is the source of truth to a lot of things, like player inventory, player gold, etc.
+service WorldServerService {
+  // Items
+  rpc GetPlayerItemsByGuids(GetPlayerItemsByGuidsRequest) returns (GetPlayerItemsByGuidsResponse);
+  rpc RemoveItemsWithGuidsFromPlayer(RemoveItemsWithGuidsFromPlayerRequest) returns (RemoveItemsWithGuidsFromPlayerResponse);
+  rpc AddExistingItemToPlayer(AddExistingItemToPlayerRequest) returns (AddExistingItemToPlayerResponse);
+}
+
+// GetPlayerItemsByGuids
+message GetPlayerItemsByGuidsRequest {
+  string api = 1;
+
+  uint64 playerGuid = 2;
+  repeated uint64 guids = 3;
+}
+
+message GetPlayerItemsByGuidsResponse {
+  string api = 1;
+
+  message Item {
+    uint64 guid = 1;
+    uint32 entry = 2;
+    uint64 owner = 3;
+    uint32 bagSlot = 4;
+    uint32 slot = 5;
+    bool isTradable = 6;
+    uint32 count = 7;
+    uint32 flags = 8;
+    uint32 durability = 9;
+    uint32 randomPropertyID = 10;
+    string text = 11;
+  };
+  repeated Item items = 2;
+}
+
+// RemoveItemsWithGuidsFromPlayer
+message RemoveItemsWithGuidsFromPlayerRequest {
+  string api = 1;
+
+  uint64 playerGuid = 2;
+  repeated uint64 guids = 3;
+
+  uint64 assignToPlayerGuid = 4;
+}
+
+message RemoveItemsWithGuidsFromPlayerResponse {
+  string api = 1;
+
+  repeated uint64 updatedItemsGuids = 2;
+}
+
+// AddExistingItemToPlayer
+message AddExistingItemToPlayerRequest {
+  string api = 1;
+
+  message Item {
+    uint64 guid = 1;
+    uint32 entry = 2;
+    uint32 count = 7;
+    uint32 flags = 8;
+    uint32 durability = 9;
+    uint32 randomPropertyID = 10;
+    string text = 11;
+  }
+
+  uint64 playerGuid = 2;
+  Item item = 3;
+}
+
+message AddExistingItemToPlayerResponse {
+  string api = 1;
+
+  enum Status {
+    Success = 0;
+    NoSpace = 1;
+  }
+
+  Status status = 2;
+}

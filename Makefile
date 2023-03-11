@@ -2,12 +2,13 @@ INSTALL_PATH?=bin
 
 generate:
 	go generate ./...
+	mockery --dir=gen/servers-registry/pb --output=gen/servers-registry/pb/mocks --name=ServersRegistryServiceClient --structname=ServersRegistryServiceClient
 	protoc --proto_path=api/proto/v1/characters --go_out=plugins=grpc:. characters.proto
 	protoc --proto_path=api/proto/v1/servers-registry --go_out=plugins=grpc:. registry.proto
 	protoc --proto_path=api/proto/v1/chat --go_out=plugins=grpc:. chat.proto
 	protoc --proto_path=api/proto/v1/guilds --go_out=plugins=grpc:. guilds.proto
 	protoc --proto_path=api/proto/v1/guid --go_out=plugins=grpc:. guid.proto
-	mockery --dir=gen/servers-registry/pb --output=gen/servers-registry/pb/mocks --name=ServersRegistryServiceClient --structname=ServersRegistryServiceClient
+	protoc --proto_path=api/proto/v1/worldserver --go_out=plugins=grpc:. worldserver.proto
 
 migrate-characters:
 	migrate -database "mysql://trinity:trinity@tcp(localhost:3306)/characters" -path sql/characters/mysql up

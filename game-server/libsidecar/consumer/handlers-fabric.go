@@ -1,11 +1,9 @@
 package consumer
 
-type Handler interface {
-	Handle()
-}
+import "github.com/walkline/ToCloud9/game-server/libsidecar/queue"
 
 type GuildHandlersFabric interface {
-	GuildMemberAddedHandler(guildID, characterGUID uint64) Handler
-	GuildMemberRemovedHandler(guildID, characterGUID uint64) Handler
-	GuildMemberLeftHandler(guildID, characterGUID uint64) Handler
+	GuildMemberAddedHandler(guildID, characterGUID uint64) queue.Handler
+	GuildMemberRemovedHandler(guildID, characterGUID uint64) queue.Handler
+	GuildMemberLeftHandler(guildID, characterGUID uint64) queue.Handler
 }

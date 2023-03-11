@@ -1,6 +1,8 @@
-package consumer
+package queue
 
-import "fmt"
+type Handler interface {
+	Handle()
+}
 
 type HandlersQueue interface {
 	Push(handler Handler)
@@ -25,10 +27,15 @@ func (h *handlersFIFOQueue) Push(handler Handler) {
 func (h *handlersFIFOQueue) Pop() Handler {
 	select {
 	case handler := <-h.queue:
-		fmt.Println("return value!")
 		return handler
 	// no more handlers, return nil
 	default:
 		return nil
 	}
+}
+
+type HandlerFunc func()
+
+func (f HandlerFunc) Handle() {
+	f()
 }

@@ -8,12 +8,8 @@ import (
 
 	"github.com/nats-io/nats.go"
 	"github.com/rs/zerolog/log"
-	"google.golang.org/grpc"
 
 	"github.com/walkline/ToCloud9/game-server/libsidecar/config"
-	"github.com/walkline/ToCloud9/game-server/libsidecar/consumer"
-	"github.com/walkline/ToCloud9/game-server/libsidecar/guids"
-	guidPB "github.com/walkline/ToCloud9/gen/guid/pb"
 	"github.com/walkline/ToCloud9/gen/servers-registry/pb"
 	"github.com/walkline/ToCloud9/shared/healthandmetrics"
 )
@@ -22,24 +18,14 @@ const (
 	libVer = "0.0.1"
 )
 
-var registryClient pb.ServersRegistryServiceClient
-var healthCheckServer healthandmetrics.Server
-
-var eventsHandlersQueue consumer.HandlersQueue
-var natsConsumer consumer.Consumer
-
-var cfg *config.Config
-
-func init() {
-	var err error
-	cfg, err = config.LoadConfig()
+func initLib() (*config.Config, healthandmetrics.Server, ShutdownFunc) {
+	cfg, err := config.LoadConfig()
 	if err != nil {
 		panic(err)
 	}
 
 	log := cfg.Logger()
 
-	// nats setup
 	nc, err := nats.Connect(
 		cfg.NatsURL,
 		nats.PingInterval(20*time.Second),
@@ -49,26 +35,51 @@ func init() {
 	if err != nil {
 		log.Fatal().Err(err).Msg("can't connect to the Nats")
 	}
-	//defer nc.Close()
 
-	conn, err := grpc.Dial(cfg.ServersRegistryServiceAddress, grpc.WithInsecure())
-	if err != nil {
-		log.Fatal().Err(err).Msg("can't connect to the registry server")
-	}
-
-	registryClient = pb.NewServersRegistryServiceClient(conn)
-
-	healthCheckServer = healthandmetrics.NewServer(cfg.HealthCheckPort, false)
+	healthCheckServer := healthandmetrics.NewServer(cfg.HealthCheckPort, false)
 	go healthCheckServer.ListenAndServe()
 
-	eventsHandlersQueue = consumer.NewHandlersFIFOQueue()
-	natsConsumer = consumer.NewNatsEventsConsumer(nc, NewGuildHandlerFabric(log), eventsHandlersQueue)
-	err = natsConsumer.Start()
-	if err != nil {
-		log.Fatal().Err(err).Msg("can't start nats consumer")
-	}
+	natsConsumer := SetupEventsListener(nc, log)
 
-	SetupGuidServiceConnection()
+	srvRegConn := SetupServersRegistryConnection(cfg)
+
+	guidConn := SetupGuidServiceConnection(cfg)
+
+	grpcListener, grpcServer := SetupGRPCService(cfg)
+	go func() {
+		if err := grpcServer.Serve(grpcListener); err != nil {
+			log.Fatal().Err(err).Msg("can't serve grpc server")
+		}
+	}()
+
+	return cfg, healthCheckServer, func() {
+		log.Info().Msg("🧨 Attempting graceful shutdown sidecar...")
+
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+		defer cancel()
+
+		if err = healthCheckServer.Shutdown(ctx); err != nil {
+			log.Fatal().Err(err).Msg("failed to shutdown healthcheck server")
+		}
+
+		grpcServer.GracefulStop()
+
+		if err = natsConsumer.Stop(); err != nil {
+			log.Fatal().Err(err).Msg("failed to close nats consumer")
+		}
+
+		nc.Close()
+
+		if err = srvRegConn.Close(); err != nil {
+			log.Fatal().Err(err).Msg("failed to close servers registry connection")
+		}
+
+		if err = guidConn.Close(); err != nil {
+			log.Fatal().Err(err).Msg("failed to close guid service connection")
+		}
+
+		log.Info().Msg("👍 Sidecar successfully stopped.")
+	}
 }
 
 func main() {
@@ -83,54 +94,25 @@ func main() {
 	//time.Sleep(time.Second*10)
 }
 
-var guidServiceClient guidPB.GuidServiceClient
+type ShutdownFunc func()
 
-func SetupGuidServiceConnection() {
-	conn, err := grpc.Dial(cfg.GuidProviderServiceAddress, grpc.WithInsecure())
-	if err != nil {
-		log.Fatal().Err(err).Msg("can't connect to the guid provider service")
-	}
+var shutdownFunc ShutdownFunc
 
-	guidServiceClient = guidPB.NewGuidServiceClient(conn)
-}
+// TC9InitLib inits lib by starting services like grpc and healthcheck.
+// Adds game server to the servers registry that will make this server visible for game load balancer.
+//export TC9InitLib
+func TC9InitLib(port uint16, realmID uint32, availableMaps *C.char) {
+	cfg, healthCheckServer, shutdown := initLib()
+	shutdownFunc = shutdown
 
-var charactersGuidsIterator guids.GuidProvider
-var itemsGuidsIterator guids.GuidProvider
-
-func SetupGuidProviders(realmID uint32) {
-	const pctToTriggerUpdate float32 = 65
-
-	var err error
-	charactersGuidsIterator, err = guids.NewThreadUnsafeGuidProvider(
-		context.Background(),
-		guids.NewCharactersGRPCDiapasonsProvider(guidServiceClient, realmID, uint64(cfg.CharacterGuidsBufferSize)),
-		pctToTriggerUpdate,
-	)
-	if err != nil {
-		log.Fatal().Err(err).Msg("can't create characters guid provider")
-	}
-
-	itemsGuidsIterator, err = guids.NewThreadUnsafeGuidProvider(
-		context.Background(),
-		guids.NewItemsGRPCDiapasonsProvider(guidServiceClient, realmID, uint64(cfg.ItemGuidsBufferSize)),
-		pctToTriggerUpdate,
-	)
-	if err != nil {
-		log.Fatal().Err(err).Msg("can't create items guid provider")
-	}
-}
-
-// TC9AddToRegistry adds game server to the servers registry that will make this server visible for game load balancer.
-//export TC9AddToRegistry
-func TC9AddToRegistry(port uint16, realmID uint32, availableMaps *C.char) {
-	SetupGuidProviders(realmID)
+	SetupGuidProviders(realmID, cfg)
 
 	healthPort, err := strconv.Atoi(healthCheckServer.Port())
 	if err != nil {
 		panic(err)
 	}
 
-	registryClient.RegisterGameServer(context.TODO(), &pb.RegisterGameServerRequest{
+	_, err = registryClient.RegisterGameServer(context.TODO(), &pb.RegisterGameServerRequest{
 		Api:               libVer,
 		GamePort:          uint32(port),
 		HealthPort:        uint32(healthPort),
@@ -138,26 +120,13 @@ func TC9AddToRegistry(port uint16, realmID uint32, availableMaps *C.char) {
 		AvailableMaps:     C.GoString(availableMaps),
 		PreferredHostName: cfg.PreferredHostname,
 	})
-}
-
-// TC9ProcessEventsHooks calls all events hooks.
-//export TC9ProcessEventsHooks
-func TC9ProcessEventsHooks() {
-	handler := eventsHandlersQueue.Pop()
-	for handler != nil {
-		handler.Handle()
-		handler = eventsHandlersQueue.Pop()
+	if err != nil {
+		log.Fatal().Err(err).Msg("couldn't register game server")
 	}
 }
 
-// TC9GetNextAvailableCharacterGuid returns next available characters GUID. Thread unsafe.
-//export TC9GetNextAvailableCharacterGuid
-func TC9GetNextAvailableCharacterGuid() uint64 {
-	return charactersGuidsIterator.Next()
-}
-
-// TC9GetNextAvailableItemGuid returns next available item GUID. Thread unsafe.
-//export TC9GetNextAvailableItemGuid
-func TC9GetNextAvailableItemGuid() uint64 {
-	return itemsGuidsIterator.Next()
+// TC9GracefulShutdown gracefully stops all running services.
+//export TC9GracefulShutdown
+func TC9GracefulShutdown() {
+	shutdownFunc()
 }

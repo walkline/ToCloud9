@@ -6,6 +6,7 @@ import (
 	"github.com/nats-io/nats.go"
 	"github.com/rs/zerolog/log"
 
+	"github.com/walkline/ToCloud9/game-server/libsidecar/queue"
 	"github.com/walkline/ToCloud9/shared/events"
 )
 
@@ -21,10 +22,10 @@ type natsConsumer struct {
 
 	handlersFabric GuildHandlersFabric
 
-	queue HandlersQueue
+	queue queue.HandlersQueue
 }
 
-func NewNatsEventsConsumer(nc *nats.Conn, handlersFabric GuildHandlersFabric, queue HandlersQueue) Consumer {
+func NewNatsEventsConsumer(nc *nats.Conn, handlersFabric GuildHandlersFabric, queue queue.HandlersQueue) Consumer {
 	return &natsConsumer{
 		nc:             nc,
 		handlersFabric: handlersFabric,

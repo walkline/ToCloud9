@@ -8,6 +8,7 @@ import (
 	"github.com/rs/zerolog"
 
 	"github.com/walkline/ToCloud9/game-server/libsidecar/consumer"
+	"github.com/walkline/ToCloud9/game-server/libsidecar/queue"
 )
 
 // TC9SetOnGuildMemberAddedHook sets hook for guild member added event.
@@ -44,21 +45,21 @@ func NewGuildHandlerFabric(logger zerolog.Logger) consumer.GuildHandlersFabric {
 	}
 }
 
-func (g guildHandlerFabric) GuildMemberAddedHandler(guildID, characterGUID uint64) consumer.Handler {
+func (g guildHandlerFabric) GuildMemberAddedHandler(guildID, characterGUID uint64) queue.Handler {
 	return eventsHandlerFunc(func() {
 		r := C.CallOnGuildMemberAddedHook(C.uint64_t(guildID), C.uint64_t(characterGUID))
 		g.handleResponse(int(r), "GuildMemberAdded")
 	})
 }
 
-func (g guildHandlerFabric) GuildMemberRemovedHandler(guildID, characterGUID uint64) consumer.Handler {
+func (g guildHandlerFabric) GuildMemberRemovedHandler(guildID, characterGUID uint64) queue.Handler {
 	return eventsHandlerFunc(func() {
 		r := C.CallOnGuildMemberRemovedHook(C.uint64_t(guildID), C.uint64_t(characterGUID))
 		g.handleResponse(int(r), "GuildMemberRemoved")
 	})
 }
 
-func (g guildHandlerFabric) GuildMemberLeftHandler(guildID, characterGUID uint64) consumer.Handler {
+func (g guildHandlerFabric) GuildMemberLeftHandler(guildID, characterGUID uint64) queue.Handler {
 	return eventsHandlerFunc(func() {
 		r := C.CallOnGuildMemberLeftHook(C.uint64_t(guildID), C.uint64_t(characterGUID))
 		g.handleResponse(int(r), "GuildMemberLeft")
