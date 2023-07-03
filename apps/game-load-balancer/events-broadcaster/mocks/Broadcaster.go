@@ -69,6 +69,11 @@ func (_m *Broadcaster) NewGuildRankUpdatedEvent(payload *events.GuildEventRankUp
 	_m.Called(payload)
 }
 
+// NewIncomingMailEvent provides a mock function with given fields: payload
+func (_m *Broadcaster) NewIncomingMailEvent(payload *events.MailEventIncomingMailPayload) {
+	_m.Called(payload)
+}
+
 // NewIncomingWhisperEvent provides a mock function with given fields: payload
 func (_m *Broadcaster) NewIncomingWhisperEvent(payload *events_broadcaster.IncomingWhisperPayload) {
 	_m.Called(payload)

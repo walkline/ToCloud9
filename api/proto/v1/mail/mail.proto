@@ -1,0 +1,151 @@
+syntax = "proto3";
+package v1;
+
+option go_package = "gen/mail/pb";
+
+service MailService {
+  rpc Send(SendRequest) returns (SendResponse);
+  rpc MarkAsReadForPlayer(MarkAsReadForPlayerRequest) returns (MarkAsReadForPlayerResponse);
+  rpc RemoveMailItem(RemoveMailItemRequest) returns (RemoveMailItemResponse);
+  rpc RemoveMailMoney(RemoveMailMoneyRequest) returns (RemoveMailMoneyResponse);
+
+  rpc MailsForPlayer(MailsForPlayerRequest) returns (MailsForPlayerResponse);
+
+  rpc MailByID(MailByIDRequest) returns (MailByIDResponse);
+}
+
+enum MailType {
+  PlayerToPlayer = 0;
+  Auction = 2;
+  Creature = 3;
+  GameObject = 4;
+  Calendar = 5;
+}
+
+message ItemAttachment {
+  uint64 guid = 1;
+  uint32 entry = 2;
+  uint32 count = 3;
+  uint32 flags = 4;
+  int32 durability = 5;
+  int32 charges = 6;
+  uint32 randomPropertyID = 7;
+  uint32 propertySeed = 8;
+  string text = 9;
+}
+
+message SendRequest {
+  string api = 1;
+  uint32 realmID = 2;
+
+  optional uint64 senderGuid = 3;
+
+  uint64 receiverGuid = 4;
+
+  string subject = 5;
+  string body = 6;
+
+  int32 moneyToSend = 7;
+  int32 cashOnDelivery = 8;
+
+  repeated ItemAttachment attachments = 9;
+
+  int64 deliveryTimestamp = 10;
+  int64 expirationTimestamp = 11;
+
+  MailType type = 12;
+  uint32 templateID = 13;
+}
+
+message SendResponse {
+  string api = 1;
+
+  uint32 mailID = 2;
+}
+
+message MailsForPlayerRequest {
+  string api = 1;
+
+  uint32 realmID = 2;
+  uint64 playerGuid = 3;
+}
+
+message MailsForPlayerResponse {
+  string api = 1;
+  repeated Mail mails = 2;
+}
+
+message Mail {
+  uint32 id = 1;
+
+  uint64 sender = 2;
+
+  uint64 receiverGuid = 3;
+
+  string subject = 4;
+  string body = 5;
+
+  int32 moneyToSend = 6;
+  int32 cashOnDelivery = 7;
+
+  repeated ItemAttachment attachments = 8;
+
+  int64 deliveryTimestamp = 9;
+  int64 expirationTimestamp = 10;
+
+  int32 flags = 11;
+
+  MailType type = 12;
+  uint32 templateID = 13;
+}
+
+message MarkAsReadForPlayerRequest {
+  string api = 1;
+
+  uint32 realmID = 2;
+  uint64 playerGuid = 3;
+  int32  mailID = 4;
+}
+
+message MarkAsReadForPlayerResponse {
+  string api = 1;
+}
+
+message MailByIDRequest {
+  string api = 1;
+
+  uint32 realmID = 2;
+  int32  mailID = 3;
+}
+
+message MailByIDResponse {
+  string api = 1;
+  Mail mail = 2;
+}
+
+message RemoveMailItemRequest {
+  string api = 1;
+
+  uint32 realmID = 2;
+  optional uint64 playerGuid = 3;
+  int32  mailID = 4;
+  uint64 itemGuid = 5;
+}
+
+message RemoveMailItemResponse {
+  string api = 1;
+}
+
+message RemoveMailMoneyRequest {
+  string api = 1;
+
+  uint32 realmID = 2;
+  optional uint64 playerGuid = 3;
+  int32  mailID = 4;
+}
+
+message RemoveMailMoneyResponse {
+  string api = 1;
+
+  int32 moneyRemoved = 2;
+}

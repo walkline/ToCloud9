@@ -7,4 +7,5 @@ const (
 	Ver                        = "0.0.1"
 	SupportedCharServiceVer    = "0.0.1"
 	SupportedServerRegistryVer = "0.0.1"
+	SupportedMailServiceVer    = "0.0.1"
 )

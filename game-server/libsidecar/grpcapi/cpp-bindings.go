@@ -27,9 +27,13 @@ type ItemToAdd struct {
 type GetPlayerItemsByGuidsHandler func(player uint64, items []uint64) ([]PlayerItem, error)
 type RemoveItemsWithGuidsFromPlayerHandler func(player uint64, items []uint64, assignToPlayer uint64) ([]uint64, error)
 type AddExistingItemToPlayerHandler func(player uint64, item *ItemToAdd) error
+type GetMoneyForPlayerHandler func(player uint64) (uint32, error)
+type ModifyMoneyForPlayerHandler func(player uint64, value int32) (uint32, error)
 
 type CppBindings struct {
 	GetPlayerItemsByGuids          GetPlayerItemsByGuidsHandler
 	RemoveItemsWithGuidsFromPlayer RemoveItemsWithGuidsFromPlayerHandler
 	AddExistingItemToPlayer        AddExistingItemToPlayerHandler
+	GetMoneyForPlayer              GetMoneyForPlayerHandler
+	ModifyMoneyForPlayer           ModifyMoneyForPlayerHandler
 }

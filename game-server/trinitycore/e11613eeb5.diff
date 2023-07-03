@@ -56,11 +56,11 @@ index 53971feebf..021fab1654 100644
 -    game-interface)
 +    game-interface
 +    sidecar)
-
+ 
  set_target_properties(game
      PROPERTIES
 @@ -74,5 +75,6 @@ endif()
-
+ 
  # Generate precompiled header
  if(USE_COREPCH)
 +  include_directories(${CMAKE_SOURCE_DIR}/dep/libsidecar/include/)
@@ -75,11 +75,11 @@ index 31996595d0..20c263f23a 100644
  #include <vector>
  #include <unordered_set>
 +#include "TC9Sidecar.h"
-
+ 
  enum TypeID
  {
 @@ -299,6 +300,11 @@ public:
-
+ 
      ObjectGuid::LowType Generate() override
      {
 +        if (high == HighGuid::Player)
@@ -89,15 +89,15 @@ index 31996595d0..20c263f23a 100644
 +
          if (_nextGuid >= ObjectGuid::GetMaxCounter(high) - 1)
              HandleCounterOverflow(high);
-
+ 
 diff --git a/src/server/game/Handlers/CharacterHandler.cpp b/src/server/game/Handlers/CharacterHandler.cpp
 index f6e51d9aeb..de9c2f33cd 100644
 --- a/src/server/game/Handlers/CharacterHandler.cpp
 +++ b/src/server/game/Handlers/CharacterHandler.cpp
 @@ -713,12 +713,13 @@ void WorldSession::HandlePlayerLoginOpcode(WorldPacket& recvData)
-
+ 
      recvData >> playerGuid;
-
+ 
 -    if (!IsLegitCharacterForAccount(playerGuid))
 -    {
 -        TC_LOG_ERROR("network", "Account (%u) can't login with that character (%s).", GetAccountId(), playerGuid.ToString().c_str());
@@ -111,7 +111,7 @@ index f6e51d9aeb..de9c2f33cd 100644
 +//        KickPlayer("WorldSession::HandlePlayerLoginOpcode Trying to login with a character of another account");
 +//        return;
 +//    }
-
+ 
      std::shared_ptr<LoginQueryHolder> holder = std::make_shared<LoginQueryHolder>(GetAccountId(), playerGuid);
      if (!holder->Initialize())
 @@ -781,23 +782,23 @@ void WorldSession::HandlePlayerLogin(LoginQueryHolder const& holder)
@@ -152,7 +152,7 @@ index f6e51d9aeb..de9c2f33cd 100644
 +//            pCurrChar->SetInGuild(0);
 +//        }
 +//    }
-
+ 
      WorldPacket data(SMSG_LEARNED_DANCE_MOVES, 4+4);
      data << uint32(0);
 diff --git a/src/server/game/Server/Protocol/Opcodes.cpp b/src/server/game/Server/Protocol/Opcodes.cpp
@@ -165,9 +165,9 @@ index 0dff9c1ea9..31cfeac19d 100644
      /*0x51E*/ DEFINE_SERVER_OPCODE_HANDLER(SMSG_MULTIPLE_MOVES,   STATUS_NEVER);
 +    /*0x51F*/ DEFINE_HANDLER(TC9_CMSG_PREPARE_FOR_REDIRECT,                STATUS_AUTHED,   PROCESS_THREADUNSAFE,      &WorldSession::HandleTC9PrepareForRedirect     );
 +    /*0x520*/ DEFINE_SERVER_OPCODE_HANDLER(TC9_SMSG_READY_FOR_REDIRECT, STATUS_NEVER);
-
+ 
  #undef DEFINE_HANDLER
-
+ 
 diff --git a/src/server/game/Server/Protocol/Opcodes.h b/src/server/game/Server/Protocol/Opcodes.h
 index 38cc24128c..95f6022304 100644
 --- a/src/server/game/Server/Protocol/Opcodes.h
@@ -181,7 +181,7 @@ index 38cc24128c..95f6022304 100644
 +    TC9_SMSG_READY_FOR_REDIRECT                     = 0x520,
 +    NUM_MSG_TYPES                                   = 0x521
  };
-
+ 
  enum OpcodeMisc : uint16
 diff --git a/src/server/game/Server/WorldSession.cpp b/src/server/game/Server/WorldSession.cpp
 index 968e314989..3ee95600d0 100644
@@ -190,7 +190,7 @@ index 968e314989..3ee95600d0 100644
 @@ -1329,17 +1329,50 @@ void WorldSession::InitializeSessionCallback(CharacterDatabaseQueryHolder const&
      LoadAccountData(realmHolder.GetPreparedResult(AccountInfoQueryHolderPerRealm::GLOBAL_ACCOUNT_DATA), GLOBAL_CACHE_MASK);
      LoadTutorialsData(realmHolder.GetPreparedResult(AccountInfoQueryHolderPerRealm::TUTORIALS));
-
+ 
 -    if (!m_inQueue)
 -        SendAuthResponse(AUTH_OK, true);
 -    else
@@ -199,10 +199,10 @@ index 968e314989..3ee95600d0 100644
 +    //     SendAuthResponse(AUTH_OK, true);
 +    // else
 +    //     SendAuthWaitQueue(0);
-
+ 
      SetInQueue(false);
      ResetTimeOutTime(false);
-
+ 
 -    SendAddonsInfo();
 -    SendClientCacheVersion(sWorld->getIntConfig(CONFIG_CLIENTCACHE_VERSION));
 -    SendTutorialsData();
@@ -220,7 +220,7 @@ index 968e314989..3ee95600d0 100644
 +        data << uint8(1); // 1 - Failed.
 +        SendPacket(&data);
 +    }
-+
++   
 +    TC_LOG_DEBUG("network", "Starting saving, AccountId = %d", GetAccountId());
 +
 +    CharacterDatabaseTransaction trans = CharacterDatabase.BeginTransaction();
@@ -236,14 +236,14 @@ index 968e314989..3ee95600d0 100644
 +            TC_LOG_DEBUG("network", "Failed to save player, AccountId = %d", GetAccountId());
 +            return;
 +        }
-+
++        
 +        TC_LOG_DEBUG("network", "Saved, AccountId = %d", GetAccountId());
-+
++        
 +        KickPlayer("HandlePrepareForRedirect client redirected");
 +        LogoutPlayer(false);
 +    });
  }
-
+ 
  rbac::RBACData* WorldSession::GetRBACData()
 diff --git a/src/server/game/Server/WorldSession.h b/src/server/game/Server/WorldSession.h
 index 8c2f073fa6..4330ed129e 100644
@@ -252,38 +252,38 @@ index 8c2f073fa6..4330ed129e 100644
 @@ -625,6 +625,8 @@ class TC_GAME_API WorldSession
          void SendSetPlayerDeclinedNamesResult(DeclinedNameResult result, ObjectGuid guid);
          void SendBarberShopResult(BarberShopResult result);
-
+ 
 +        void HandleTC9PrepareForRedirect(WorldPacket& recvData);
 +
          // played time
          void HandlePlayedTime(WorldPackets::Character::PlayedTimeClient& packet);
-
+ 
 diff --git a/src/server/game/Server/WorldSocket.cpp b/src/server/game/Server/WorldSocket.cpp
 index 7de97d54a4..421d44f614 100644
 --- a/src/server/game/Server/WorldSocket.cpp
 +++ b/src/server/game/Server/WorldSocket.cpp
 @@ -75,7 +75,7 @@ void WorldSocket::CheckIpCallback(PreparedQueryResult result)
      }
-
+ 
      AsyncRead();
 -    HandleSendAuthSession();
 +//    HandleSendAuthSession();
  }
-
+ 
  bool WorldSocket::Update()
 @@ -475,7 +475,7 @@ void WorldSocket::HandleAuthSessionCallback(std::shared_ptr<AuthSession> authSes
      }
-
+ 
      // even if auth credentials are bad, try using the session key we have - client cannot read auth response error without it
 -    _authCrypt.Init(account.SessionKey);
 +//    _authCrypt.Init(account.SessionKey);
-
+ 
      // First reject the connection if packet contains invalid data or realm state doesn't allow logging in
      if (sWorld->IsClosed())
 @@ -495,15 +495,15 @@ void WorldSocket::HandleAuthSessionCallback(std::shared_ptr<AuthSession> authSes
          return;
      }
-
+ 
 -    // Must be done before WorldSession is created
 -    bool wardenActive = sWorld->getBoolConfig(CONFIG_WARDEN_ENABLED);
 -    if (wardenActive && account.OS != "Win" && account.OS != "OSX")
@@ -302,13 +302,13 @@ index 7de97d54a4..421d44f614 100644
 +//        DelayedCloseSocket();
 +//        return;
 +//    }
-
+ 
      // Check that Key and account name are the same on client and server
      uint8 t[4] = { 0x00,0x00,0x00,0x00 };
 @@ -516,42 +516,42 @@ void WorldSocket::HandleAuthSessionCallback(std::shared_ptr<AuthSession> authSes
      sha.UpdateData(account.SessionKey);
      sha.Finalize();
-
+ 
 -    if (sha.GetDigest() != authSession->Digest)
 -    {
 -        SendAuthResponseError(AUTH_FAILED);
@@ -381,26 +381,26 @@ index 7de97d54a4..421d44f614 100644
 +//            return;
 +//        }
 +//    }
-
+ 
      int64 mutetime = account.MuteTime;
      //! Negative mutetime indicates amount of seconds to be muted effective on next login - which is now.
 @@ -608,8 +608,8 @@ void WorldSocket::HandleAuthSessionCallback(std::shared_ptr<AuthSession> authSes
      _worldSession->ReadAddonsInfo(authSession->AddonInfo);
-
+ 
      // Initialize Warden system only if it is enabled by config
 -    if (wardenActive)
 -        _worldSession->InitWarden(account.SessionKey, account.OS);
 +//    if (wardenActive)
 +//        _worldSession->InitWarden(account.SessionKey, account.OS);
-
+ 
      _queryProcessor.AddCallback(_worldSession->LoadPermissionsAsync().WithPreparedCallback(std::bind(&WorldSocket::LoadSessionPermissionsCallback, this, std::placeholders::_1)));
      AsyncRead();
 diff --git a/src/server/game/TC9Sidecar/TC9GrpcHandler.cpp b/src/server/game/TC9Sidecar/TC9GrpcHandler.cpp
 new file mode 100644
-index 0000000000..42b8c96404
+index 0000000000..91e9205d43
 --- /dev/null
 +++ b/src/server/game/TC9Sidecar/TC9GrpcHandler.cpp
-@@ -0,0 +1,166 @@
+@@ -0,0 +1,207 @@
 +#include "TC9GrpcHandler.h"
 +#include "ObjectAccessor.h"
 +#include "Item.h"
@@ -549,6 +549,8 @@ index 0000000000..42b8c96404
 +    item->SetUInt32Value(ITEM_FIELD_FLAGS, request->itemFlags);
 +    item->SetUInt32Value(ITEM_FIELD_DURABILITY, request->itemDurability);
 +    item->SetItemRandomProperties(request->itemRandomPropertyID);
++    item->SetCount(request->itemCount);
++
 +    // TODO: Add text.
 +
 +    ItemPosCountVec dest;
@@ -567,12 +569,51 @@ index 0000000000..42b8c96404
 +
 +    return PlayerItemErrorCodeNoError;
 +}
++
++GetMoneyForPlayerResponse ToCloud9GrpcHandler::GetMoneyForPlayer(uint64 playerGuid)
++{
++    Player *player = ObjectAccessor::FindPlayer(ObjectGuid(playerGuid));
++    if (player == nullptr)
++    {
++        GetMoneyForPlayerResponse resp;
++        resp.errorCode = PlayerMoneyErrorCodePlayerNotFound;
++        return resp;
++    }
++
++    GetMoneyForPlayerResponse resp;
++    resp.errorCode = PlayerMoneyErrorCodeNoError;
++    resp.money = player->GetMoney();
++    return resp;
++}
++
++ModifyMoneyForPlayerResponse ToCloud9GrpcHandler::ModifyMoneyForPlayer(uint64 playerGuid, int32 value)
++{
++    Player *player = ObjectAccessor::FindPlayer(ObjectGuid(playerGuid));
++    if (player == nullptr)
++    {
++        ModifyMoneyForPlayerResponse resp;
++        resp.errorCode = PlayerMoneyErrorCodePlayerNotFound;
++        return resp;
++    }
++
++    if (!player->ModifyMoney(value, true)) {
++        ModifyMoneyForPlayerResponse resp;
++        resp.errorCode = PlayerMoneyErrorCodeToMuchMoney;
++        resp.newMoneyValue = player->GetMoney();
++        return resp;
++    }
++
++    ModifyMoneyForPlayerResponse resp;
++    resp.errorCode = PlayerMoneyErrorCodeNoError;
++    resp.newMoneyValue = player->GetMoney();
++    return resp;
++}
 diff --git a/src/server/game/TC9Sidecar/TC9GrpcHandler.h b/src/server/game/TC9Sidecar/TC9GrpcHandler.h
 new file mode 100644
-index 0000000000..76aa9a0dae
+index 0000000000..b16503c198
 --- /dev/null
 +++ b/src/server/game/TC9Sidecar/TC9GrpcHandler.h
-@@ -0,0 +1,21 @@
+@@ -0,0 +1,25 @@
 +#ifndef _TC9_GRPC_HANDLER_H
 +#define _TC9_GRPC_HANDLER_H
 +
@@ -585,10 +626,14 @@ index 0000000000..76aa9a0dae
 +    ToCloud9GrpcHandler() {};
 +    ~ToCloud9GrpcHandler() {};
 +
-+    static GetPlayerItemsByGuidsResponse GetPlayerItemsByGuids(uint64 player, uint64* items, int items_len);
++    // Items
++    static GetPlayerItemsByGuidsResponse          GetPlayerItemsByGuids(uint64 player, uint64* items, int items_len);
 +    static RemoveItemsWithGuidsFromPlayerResponse RemoveItemsWithGuidsFromPlayer(uint64 player, uint64* items, int itemsLen, uint64 assignToPlayer);
-+    static RemoveItemsWithGuidsFromPlayerResponse Add(uint64 player, uint64* items, int itemsLen, uint64 assignToPlayer);
-+    static PlayerItemErrorCode AddExistingItemToPlayer(AddExistingItemToPlayerRequest*);
++    static PlayerItemErrorCode                    AddExistingItemToPlayer(AddExistingItemToPlayerRequest*);
++
++    // Money
++    static GetMoneyForPlayerResponse    GetMoneyForPlayer(uint64 player);
++    static ModifyMoneyForPlayerResponse ModifyMoneyForPlayer(uint64 player, int32 value);
 +};
 +
 +
@@ -657,10 +702,10 @@ index 0000000000..ccd5bee0e6
 +#endif // _TC9_GUILD_HOOKS_H
 diff --git a/src/server/game/TC9Sidecar/TC9Sidecar.cpp b/src/server/game/TC9Sidecar/TC9Sidecar.cpp
 new file mode 100644
-index 0000000000..9b752e739a
+index 0000000000..7c6c15d04b
 --- /dev/null
 +++ b/src/server/game/TC9Sidecar/TC9Sidecar.cpp
-@@ -0,0 +1,42 @@
+@@ -0,0 +1,45 @@
 +#include "TC9Sidecar.h"
 +#include "libsidecar.h"
 +
@@ -682,6 +727,9 @@ index 0000000000..9b752e739a
 +    TC9SetGetPlayerItemsByGuidsHandler(&ToCloud9GrpcHandler::GetPlayerItemsByGuids);
 +    TC9SetRemoveItemsWithGuidsFromPlayerHandler(&ToCloud9GrpcHandler::RemoveItemsWithGuidsFromPlayer);
 +    TC9SetAddExistingItemToPlayerHandler(&ToCloud9GrpcHandler::AddExistingItemToPlayer);
++
++    TC9SetGetMoneyForPlayerHandler(&ToCloud9GrpcHandler::GetMoneyForPlayer);
++    TC9SetModifyMoneyForPlayerHandler(&ToCloud9GrpcHandler::ModifyMoneyForPlayer);
 +}
 +
 +void ToCloud9Sidecar::ProcessHooks()
@@ -859,7 +907,7 @@ index 90ad17d318..b4f5c12cd8 100644
 @@ -4095,6 +4095,21 @@ AntiCheat.PendingMoveChangesTimeoutTime = 0
  #
  ###################################################################################################
- 
+
 +###################################################################################################
 +# CLUSTER SETTINGS
 +#
@@ -868,7 +916,7 @@ index 90ad17d318..b4f5c12cd8 100644
 +#    Cluster.AvailableMaps
 +#        Description: List of available maps id on this server.
 +#        Examples:    "" - (Can handle any map)
-+#                     "0,1,573" 
++#                     "0,1,573"
 +
 +Cluster.AvailableMaps=""
 +

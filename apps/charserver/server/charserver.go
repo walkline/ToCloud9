@@ -30,7 +30,7 @@ func NewCharServer(repo repo.Characters, onlineChars repo.CharactersOnline, whoH
 	}
 }
 
-func (c CharServer) CharactersToLoginForAccount(ctx context.Context, request *pb.CharactersToLoginForAccountRequest) (*pb.CharactersToLoginForAccountResponse, error) {
+func (c *CharServer) CharactersToLoginForAccount(ctx context.Context, request *pb.CharactersToLoginForAccountRequest) (*pb.CharactersToLoginForAccountResponse, error) {
 	defer func(t time.Time) {
 		log.Debug().
 			Uint32("accountID", request.AccountID).
@@ -101,7 +101,7 @@ func (c CharServer) CharactersToLoginForAccount(ctx context.Context, request *pb
 	}, nil
 }
 
-func (c CharServer) AccountDataForAccount(ctx context.Context, request *pb.AccountDataForAccountRequest) (*pb.AccountDataForAccountResponse, error) {
+func (c *CharServer) AccountDataForAccount(ctx context.Context, request *pb.AccountDataForAccountRequest) (*pb.AccountDataForAccountResponse, error) {
 	defer func(t time.Time) {
 		log.Debug().
 			Uint32("accountID", request.AccountID).
@@ -130,7 +130,7 @@ func (c CharServer) AccountDataForAccount(ctx context.Context, request *pb.Accou
 	}, nil
 }
 
-func (c CharServer) CharactersToLoginByGUID(ctx context.Context, request *pb.CharactersToLoginByGUIDRequest) (*pb.CharactersToLoginByGUIDResponse, error) {
+func (c *CharServer) CharactersToLoginByGUID(ctx context.Context, request *pb.CharactersToLoginByGUIDRequest) (*pb.CharactersToLoginByGUIDResponse, error) {
 	defer func(t time.Time) {
 		log.Debug().
 			Uint64("characterID", request.CharacterGUID).
@@ -199,7 +199,7 @@ func (c CharServer) CharactersToLoginByGUID(ctx context.Context, request *pb.Cha
 	}, nil
 }
 
-func (c CharServer) WhoQuery(ctx context.Context, request *pb.WhoQueryRequest) (*pb.WhoQueryResponse, error) {
+func (c *CharServer) WhoQuery(ctx context.Context, request *pb.WhoQueryRequest) (*pb.WhoQueryResponse, error) {
 	defer func(t time.Time) {
 		log.Debug().
 			Uint64("characterID", request.CharacterGUID).
@@ -240,7 +240,7 @@ func (c CharServer) WhoQuery(ctx context.Context, request *pb.WhoQueryRequest) (
 	}, nil
 }
 
-func (c CharServer) CharacterOnlineByName(ctx context.Context, request *pb.CharacterOnlineByNameRequest) (*pb.CharacterOnlineByNameResponse, error) {
+func (c *CharServer) CharacterOnlineByName(ctx context.Context, request *pb.CharacterOnlineByNameRequest) (*pb.CharacterOnlineByNameResponse, error) {
 	defer func(t time.Time) {
 		log.Debug().
 			Str("name", request.CharacterName).
@@ -266,6 +266,73 @@ func (c CharServer) CharacterOnlineByName(ctx context.Context, request *pb.Chara
 		Character: &pb.CharacterOnlineByNameResponse_Char{
 			RealmID:        char.RealmID,
 			LoadBalancerID: char.LoadBalancerID,
+			CharGUID:       char.CharGUID,
+			CharName:       char.CharName,
+			CharRace:       uint32(char.CharRace),
+			CharClass:      uint32(char.CharClass),
+			CharGender:     uint32(char.CharGender),
+			CharLvl:        uint32(char.CharLevel),
+			CharZone:       char.CharZone,
+			CharMap:        char.CharMap,
+			CharGuildID:    uint64(char.CharGuildID),
+			AccountID:      char.AccountID,
+		},
+	}, nil
+}
+
+func (c *CharServer) CharacterByName(ctx context.Context, request *pb.CharacterByNameRequest) (*pb.CharacterByNameResponse, error) {
+	defer func(t time.Time) {
+		log.Debug().
+			Str("name", request.CharacterName).
+			Uint32("realmID", request.RealmID).
+			Str("timeTook", time.Since(t).String()).
+			Msg("Handled character by name")
+	}(time.Now())
+
+	char, err := c.onlineChars.OneByRealmAndName(ctx, request.RealmID, request.CharacterName)
+	if err != nil {
+		return nil, err
+	}
+
+	if char != nil {
+		return &pb.CharacterByNameResponse{
+			Api: ver,
+			Character: &pb.CharacterByNameResponse_Char{
+				RealmID:        char.RealmID,
+				IsOnline:       true,
+				LoadBalancerID: char.LoadBalancerID,
+				CharGUID:       char.CharGUID,
+				CharName:       char.CharName,
+				CharRace:       uint32(char.CharRace),
+				CharClass:      uint32(char.CharClass),
+				CharGender:     uint32(char.CharGender),
+				CharLvl:        uint32(char.CharLevel),
+				CharZone:       char.CharZone,
+				CharMap:        char.CharMap,
+				CharGuildID:    uint64(char.CharGuildID),
+				AccountID:      char.AccountID,
+			},
+		}, nil
+	}
+
+	char, err = c.repo.CharacterByName(ctx, request.RealmID, request.CharacterName)
+	if err != nil {
+		return nil, err
+	}
+
+	if char == nil {
+		return &pb.CharacterByNameResponse{
+			Api:       ver,
+			Character: nil,
+		}, nil
+	}
+
+	return &pb.CharacterByNameResponse{
+		Api: ver,
+		Character: &pb.CharacterByNameResponse_Char{
+			RealmID:        char.RealmID,
+			IsOnline:       false,
+			LoadBalancerID: "",
 			CharGUID:       char.CharGUID,
 			CharName:       char.CharName,
 			CharRace:       uint32(char.CharRace),

@@ -1,6 +1,6 @@
 game-server/libsidecar/*.dylib
 game-server/libsidecar/libsidecar.h
 
-game-server/libsidecar/Dockerfile
+game-server/Dockerfile
 bin/
 vendor/

@@ -13,6 +13,7 @@ service CharactersService {
   rpc WhoQuery(WhoQueryRequest) returns (WhoQueryResponse);
 
   rpc CharacterOnlineByName(CharacterOnlineByNameRequest) returns (CharacterOnlineByNameResponse);
+  rpc CharacterByName(CharacterByNameRequest) returns (CharacterByNameResponse);
 }
 
 // LogInCharacter is character that should be displayed on log in screen
@@ -158,6 +159,34 @@ message CharacterOnlineByNameResponse {
     uint32 charMap = 10;
     uint64 charGuildID = 11;
     uint32 accountID = 12;
+  }
+  Char character = 2;
+}
+
+message CharacterByNameRequest {
+  string api = 1;
+
+  uint32 realmID = 2;
+  string characterName = 3;
+}
+
+message CharacterByNameResponse {
+  string api = 1;
+
+  message Char {
+    uint32 realmID = 1;
+    bool isOnline = 2;
+    string loadBalancerID = 3;
+    uint64 charGUID = 4;
+    string charName = 5;
+    uint32 charRace = 6;
+    uint32 charClass = 7;
+    uint32 charGender = 8;
+    uint32 charLvl = 9;
+    uint32 charZone = 10;
+    uint32 charMap = 11;
+    uint64 charGuildID = 12;
+    uint32 accountID = 13;
   }
   Char character = 2;
 }

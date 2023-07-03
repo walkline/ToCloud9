@@ -13,7 +13,7 @@ const (
 	// LoggingFormatDevelopment uses console writer with pretty formatting
 	LoggingFormatDevelopment LoggingFormat = "dev"
 
-	// LoggingFormatDevelopment uses JSON format
+	// LoggingFormatJSON uses JSON format
 	LoggingFormatJSON LoggingFormat = "json"
 )
 

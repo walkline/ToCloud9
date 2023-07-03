@@ -19,6 +19,8 @@ var grpcReadRequestsQueue = queue.NewHandlersFIFOQueue()
 var grpcWriteRequestsQueue = queue.NewHandlersFIFOQueue()
 
 func SetupGRPCService(conf *config.Config) (net.Listener, *grpc.Server) {
+	grpcapi.LibVer = libVer
+
 	lis, err := net.Listen("tcp4", ":"+conf.GRPCPort)
 	if err != nil {
 		log.Fatal().Err(err).Msg("can't listen for incoming connections")
@@ -32,6 +34,8 @@ func SetupGRPCService(conf *config.Config) (net.Listener, *grpc.Server) {
 				GetPlayerItemsByGuids:          GetPlayerItemsByGuidHandler,
 				RemoveItemsWithGuidsFromPlayer: RemoveItemsWithGuidsFromPlayerHandler,
 				AddExistingItemToPlayer:        AddExistingItemToPlayerHandler,
+				GetMoneyForPlayer:              GetMoneyForPlayerHandler,
+				ModifyMoneyForPlayer:           ModifyMoneyForPlayerHandler,
 			},
 			time.Second*5,
 			grpcReadRequestsQueue,
@@ -43,6 +47,7 @@ func SetupGRPCService(conf *config.Config) (net.Listener, *grpc.Server) {
 }
 
 // TC9ProcessGRPCRequests calls all grpc handlers in queue.
+//
 //export TC9ProcessGRPCRequests
 func TC9ProcessGRPCRequests() {
 	// TODO: make this configurable.

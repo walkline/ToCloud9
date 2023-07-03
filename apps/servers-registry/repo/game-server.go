@@ -8,6 +8,7 @@ import (
 type GameServer struct {
 	Address         string
 	HealthCheckAddr string
+	GRPCAddress     string
 	RealmID         uint32
 	AvailableMaps   []uint32
 

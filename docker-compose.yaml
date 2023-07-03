@@ -16,6 +16,7 @@ services:
       CHAR_SERVICE_ADDRESS: charserver:8087
       CHAT_SERVICE_ADDRESS: chatserver:8992
       GUILDS_SERVICE_ADDRESS: guildserver:8995
+      MAIL_SERVICE_ADDRESS: mailserver:8997
       AUTH_DB_CONNECTION: ${AUTH_DB_USER}:${AUTH_DB_PASS}@tcp(${AUTH_DB_HOST}:${AUTH_DB_PORT})/${AUTH_DB_NAME}
       PREFERRED_HOSTNAME: ${EXTERNAL_ADDRESS}
       LOG_LEVEL: 0
@@ -35,6 +36,7 @@ services:
       CHAR_SERVICE_ADDRESS: charserver:8087
       CHAT_SERVICE_ADDRESS: chatserver:8992
       GUILDS_SERVICE_ADDRESS: guildserver:8995
+      MAIL_SERVICE_ADDRESS: mailserver:8997
       AUTH_DB_CONNECTION: ${AUTH_DB_USER}:${AUTH_DB_PASS}@tcp(${AUTH_DB_HOST}:${AUTH_DB_PORT})/${AUTH_DB_NAME}
       PREFERRED_HOSTNAME: ${EXTERNAL_ADDRESS}
       LOG_LEVEL: 0
@@ -107,6 +109,17 @@ services:
     ports:
       - '8996:8996'
 
+  mailserver:
+    build:
+      context: .
+      dockerfile: apps/mailserver/Dockerfile
+    environment:
+      CHAR_DB_CONNECTION: ${CHAR_DB_USER}:${CHAR_DB_PASS}@tcp(${CHAR_DB_HOST}:${CHAR_DB_PORT})/${CHAR_DB_NAME}
+      NATS_URL: nats://nats:4222
+      PORT: 8997
+    ports:
+      - '8997:8997'
+
   gameserver:
     build:
       context: .
@@ -124,6 +137,8 @@ services:
       TC_DATA_DIR: /data
       CHARACTER_GUIDS_BUFFER_SIZE: 5
       ITEM_GUIDS_BUFFER_SIZE: 50
+      NATS_URL: nats://nats:4222
+      GRPC_PORT: 9509
       GUID_PROVIDER_SERVICE_ADDRESS: guidserver:8996
       SERVERS_REGISTRY_SERVICE_ADDRESS: servers-registry:8999
 

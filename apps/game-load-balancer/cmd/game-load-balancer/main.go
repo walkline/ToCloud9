@@ -4,8 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"net"
-	"os"
-	"runtime/pprof"
 	"time"
 
 	_ "github.com/go-sql-driver/mysql"
@@ -15,7 +13,7 @@ import (
 
 	root "github.com/walkline/ToCloud9/apps/game-load-balancer"
 	"github.com/walkline/ToCloud9/apps/game-load-balancer/config"
-	events_broadcaster "github.com/walkline/ToCloud9/apps/game-load-balancer/events-broadcaster"
+	eventsBroadcaster "github.com/walkline/ToCloud9/apps/game-load-balancer/events-broadcaster"
 	"github.com/walkline/ToCloud9/apps/game-load-balancer/repo"
 	"github.com/walkline/ToCloud9/apps/game-load-balancer/service"
 	"github.com/walkline/ToCloud9/apps/game-load-balancer/session"
@@ -23,6 +21,7 @@ import (
 	pbChar "github.com/walkline/ToCloud9/gen/characters/pb"
 	pbChat "github.com/walkline/ToCloud9/gen/chat/pb"
 	pbGuild "github.com/walkline/ToCloud9/gen/guilds/pb"
+	pbMail "github.com/walkline/ToCloud9/gen/mail/pb"
 	pbServ "github.com/walkline/ToCloud9/gen/servers-registry/pb"
 	"github.com/walkline/ToCloud9/shared/events"
 	"github.com/walkline/ToCloud9/shared/healthandmetrics"
@@ -65,6 +64,7 @@ func main() {
 	chatClient := chatService(conf)
 	servRegistryClient := servRegistryService(conf)
 	guildClient := guildService(conf)
+	mailClient := mailService(conf)
 
 	healthandmetrics.EnableActiveConnectionsMetrics()
 	healthCheckServer := healthandmetrics.NewServer(conf.HealthCheckPort, true)
@@ -84,7 +84,7 @@ func main() {
 	}
 	defer nc.Close()
 
-	broadcaster := events_broadcaster.NewBroadcaster()
+	broadcaster := eventsBroadcaster.NewBroadcaster()
 
 	chatListener := service.NewChatNatsListener(nc, root.RetrievedBalancerID, broadcaster)
 	err = chatListener.Listen()
@@ -96,6 +96,12 @@ func main() {
 	err = guildListener.Listen()
 	if err != nil {
 		log.Fatal().Err(err).Msg("can't listen to guild events-broadcaster")
+	}
+
+	mailListener := service.NewMailNatsListener(nc, broadcaster)
+	err = mailListener.Listen()
+	if err != nil {
+		log.Fatal().Err(err).Msg("can't listen to mail events-broadcaster")
 	}
 
 	producer := events.NewLoadBalancerProducerNatsJSON(nc, root.Ver, root.RealmID, root.RetrievedBalancerID)
@@ -112,16 +118,18 @@ func main() {
 			log.Fatal().Err(err).Msg("can't accept connection")
 		}
 
-		pprof.Lookup("goroutine").WriteTo(os.Stdout, 1)
+		//pprof.Lookup("goroutine").WriteTo(os.Stdout, 1)
 
 		s := gamesocket.NewGameSocket(conn, accountRepo, session.GameSessionParams{
 			CharServiceClient:     charClient,
 			ServersRegistryClient: servRegistryClient,
 			ChatServiceClient:     chatClient,
 			GuildsServiceClient:   guildClient,
+			MailServiceClient:     mailClient,
 			EventsProducer:        producer,
 			EventsBroadcaster:     broadcaster,
 			CharsUpdsBarrier:      charsUpdsBarrier,
+			GameServerGRPCConnMgr: service.DefaultGameServerGRPCConnMgr,
 		})
 		go func() {
 			healthandmetrics.ActiveConnectionsMetrics.Inc()
@@ -170,6 +178,18 @@ func guildService(cnf *config.Config) pbGuild.GuildServiceClient {
 	}
 
 	return pbGuild.NewGuildServiceClient(conn)
+}
+
+func mailService(cnf *config.Config) pbMail.MailServiceClient {
+	conn, err := grpc.Dial(cnf.MailServiceAddress, grpc.WithInsecure(), grpc.WithContextDialer(func(ctx context.Context, s string) (net.Conn, error) {
+		dialer := net.Dialer{Timeout: time.Second * 5}
+		return dialer.DialContext(ctx, "tcp", s)
+	}))
+	if err != nil {
+		log.Fatal().Err(err).Msg("can't connect to mail service")
+	}
+
+	return pbMail.NewMailServiceClient(conn)
 }
 
 func registerLoadBalancer(servRegistryClient pbServ.ServersRegistryServiceClient, conf *config.Config) string {

@@ -10,6 +10,10 @@ service WorldServerService {
   rpc GetPlayerItemsByGuids(GetPlayerItemsByGuidsRequest) returns (GetPlayerItemsByGuidsResponse);
   rpc RemoveItemsWithGuidsFromPlayer(RemoveItemsWithGuidsFromPlayerRequest) returns (RemoveItemsWithGuidsFromPlayerResponse);
   rpc AddExistingItemToPlayer(AddExistingItemToPlayerRequest) returns (AddExistingItemToPlayerResponse);
+
+  // Money
+  rpc GetMoneyForPlayer(GetMoneyForPlayerRequest) returns (GetMoneyForPlayerResponse);
+  rpc ModifyMoneyForPlayer(ModifyMoneyForPlayerRequest) returns (ModifyMoneyForPlayerResponse);
 }
 
 // GetPlayerItemsByGuids
@@ -82,4 +86,29 @@ message AddExistingItemToPlayerResponse {
   }
 
   Status status = 2;
+}
+
+message GetMoneyForPlayerRequest {
+  string api = 1;
+
+  uint64 playerGuid = 2;
+}
+
+message GetMoneyForPlayerResponse {
+  string api = 1;
+
+  uint32 money = 2;
+}
+
+message ModifyMoneyForPlayerRequest {
+  string api = 1;
+
+  uint64 playerGuid = 2;
+  int32 value = 3;
+}
+
+message ModifyMoneyForPlayerResponse {
+  string api = 1;
+
+  uint32 newMoneyValue = 2;
 }

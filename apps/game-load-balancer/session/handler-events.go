@@ -19,6 +19,7 @@ var EventsHandleMap = map[eBroadcaster.EventType]EventsHandlersQueue{
 	eBroadcaster.EventTypeGuildRankUpdated:    NewEventHandler("GuildRankUpdated", (*GameSession).HandleEventGuildRankUpdated),
 	eBroadcaster.EventTypeGuildRankDeleted:    NewEventHandler("GuildRankDeleted", (*GameSession).HandleEventGuildRankDeleted),
 	eBroadcaster.EventTypeGuildNewMessage:     NewEventHandler("GuildNewMessage", (*GameSession).HandleEventGuildNewMessage),
+	eBroadcaster.EventTypeIncomingMail:        NewEventHandler("IncomingMail", (*GameSession).HandleEventIncomingMail),
 }
 
 type EventHandler func(*GameSession, context.Context, *eBroadcaster.Event) error

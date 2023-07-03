@@ -33,15 +33,20 @@ RUN cd repo && git apply --reject --ignore-space-change --ignore-whitespace e116
 COPY --from=build-sidecar ./go/src/github.com/walkline/ToCloud9/libsidecar.dylib ./repo/dep/libsidecar/libsidecar.dylib
 COPY --from=build-sidecar ./go/src/github.com/walkline/ToCloud9/libsidecar.h ./repo/dep/libsidecar/include/libsidecar.h
 COPY --from=build-sidecar ./go/src/github.com/walkline/ToCloud9/game-server/libsidecar/events-guild.h ./repo/dep/libsidecar/include/events-guild.h
+COPY --from=build-sidecar ./go/src/github.com/walkline/ToCloud9/game-server/libsidecar/player-items-api.h ./repo/dep/libsidecar/include/player-items-api.h
+COPY --from=build-sidecar ./go/src/github.com/walkline/ToCloud9/game-server/libsidecar/player-money-api.h ./repo/dep/libsidecar/include/player-money-api.h
 
 WORKDIR /repo
 
 RUN mkdir bin && cd bin && \
     cmake .. -DWITH_WARNINGS=1 -DWITH_COREDEBUG=0 -DUSE_COREPCH=1 -DUSE_SCRIPTPCH=1 -DTOOLS=0 -DSCRIPTS=static -DSERVERS=1 -DCMAKE_INSTALL_PREFIX=/repo/bin -DBUILD_TESTING=0
-RUN cd bin && make -j 4 -k && make install
 
-RUN cp dep/libsidecar/libsidecar.dylib bin/src/server/libsidecar.dylib
-#RUN cp -r bin/src/server/scripts bin/src/server/worldserver/scripts
+RUN cp dep/libsidecar/libsidecar.dylib /usr/lib/libsidecar.so
+
+WORKDIR /repo/bin
+
+RUN make -j 8 -k
+RUN make install
 
 WORKDIR /repo/bin/src/server/worldserver
 

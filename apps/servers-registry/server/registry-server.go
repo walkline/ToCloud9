@@ -41,6 +41,7 @@ func (s *serversRegistry) RegisterGameServer(ctx context.Context, request *pb.Re
 	gameServer := &repo.GameServer{
 		Address:         fmt.Sprintf("%s:%d", host, request.GamePort),
 		HealthCheckAddr: fmt.Sprintf("%s:%d", host, request.HealthPort),
+		GRPCAddress:     fmt.Sprintf("%s:%d", host, request.GrpcPort),
 		RealmID:         request.RealmID,
 		AvailableMaps:   stringToAvailableMaps(request.AvailableMaps),
 	}
@@ -64,8 +65,9 @@ func (s *serversRegistry) AvailableGameServersForMapAndRealm(ctx context.Context
 	resultServers := make([]*pb.Server, 0, len(servers))
 	for i := range servers {
 		resultServers = append(resultServers, &pb.Server{
-			Address: servers[i].Address,
-			RealmID: servers[i].RealmID,
+			Address:     servers[i].Address,
+			RealmID:     servers[i].RealmID,
+			GrpcAddress: servers[i].GRPCAddress,
 		})
 	}
 
@@ -86,6 +88,7 @@ func (s *serversRegistry) ListGameServersForRealm(ctx context.Context, request *
 		respServers[i] = &pb.GameServerDetailed{
 			Address:       servers[i].Address,
 			HealthAddress: servers[i].HealthCheckAddr,
+			GrpcAddress:   servers[i].GRPCAddress,
 			RealmID:       servers[i].RealmID,
 			AvailableMaps: servers[i].AvailableMaps,
 			AssignedMaps:  servers[i].AssignedMapsToHandle,

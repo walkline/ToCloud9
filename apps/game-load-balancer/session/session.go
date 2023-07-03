@@ -17,6 +17,7 @@ import (
 	pbChar "github.com/walkline/ToCloud9/gen/characters/pb"
 	pbChat "github.com/walkline/ToCloud9/gen/chat/pb"
 	pbGuild "github.com/walkline/ToCloud9/gen/guilds/pb"
+	pbMail "github.com/walkline/ToCloud9/gen/mail/pb"
 	pbServ "github.com/walkline/ToCloud9/gen/servers-registry/pb"
 	"github.com/walkline/ToCloud9/shared/events"
 )
@@ -41,9 +42,11 @@ type GameSession struct {
 	serversRegistryClient pbServ.ServersRegistryServiceClient
 	chatServiceClient     pbChat.ChatServiceClient
 	guildServiceClient    pbGuild.GuildServiceClient
+	mailServiceClient     pbMail.MailServiceClient
 	eventsProducer        events.LoadBalancerProducer
 	eventsBroadcaster     eBroadcaster.Broadcaster
 	charsUpdsBarrier      *service.CharactersUpdatesBarrier
+	gameServerGRPCConnMgr *service.GameServerGRPCConnMgr
 
 	authPacket *packet.Packet
 
@@ -60,9 +63,11 @@ type GameSessionParams struct {
 	ServersRegistryClient pbServ.ServersRegistryServiceClient
 	ChatServiceClient     pbChat.ChatServiceClient
 	GuildsServiceClient   pbGuild.GuildServiceClient
+	MailServiceClient     pbMail.MailServiceClient
 	EventsProducer        events.LoadBalancerProducer
 	CharsUpdsBarrier      *service.CharactersUpdatesBarrier
 	EventsBroadcaster     eBroadcaster.Broadcaster
+	GameServerGRPCConnMgr *service.GameServerGRPCConnMgr
 }
 
 func NewGameSession(
@@ -80,9 +85,11 @@ func NewGameSession(
 		serversRegistryClient: params.ServersRegistryClient,
 		chatServiceClient:     params.ChatServiceClient,
 		guildServiceClient:    params.GuildsServiceClient,
+		mailServiceClient:     params.MailServiceClient,
 		eventsProducer:        params.EventsProducer,
 		eventsBroadcaster:     params.EventsBroadcaster,
 		charsUpdsBarrier:      params.CharsUpdsBarrier,
+		gameServerGRPCConnMgr: params.GameServerGRPCConnMgr,
 		sessionSafeFuChan:     make(chan func(*GameSession), 100),
 	}
 	return s
@@ -212,6 +219,8 @@ func (s *GameSession) Login(ctx context.Context, p *packet.Packet) error {
 	if s.character.GuildID != 0 {
 		return s.GuildLoginCommand(ctx)
 	}
+
+	s.HandleQueryNextMailTime(ctx, p)
 
 	return err
 }
@@ -392,6 +401,8 @@ func (s *GameSession) connectToGameServer(ctx context.Context, characterGUID uin
 	s.logger.Debug().
 		Str("address", serversResult.GameServers[0].Address).
 		Msg("Connecting to the world server")
+
+	s.gameServerGRPCConnMgr.AddAddressMapping(serversResult.GameServers[0].Address, serversResult.GameServers[0].GrpcAddress)
 
 	socket, err := WorldSocketCreator(s.logger, serversResult.GameServers[0].Address)
 	if err != nil {

@@ -11,6 +11,8 @@ import (
 
 var ErrTimeout = errors.New("request timeouted")
 
+var LibVer string
+
 type RequestQueue struct {
 }
 
@@ -33,7 +35,7 @@ func NewWorldServerGRPCAPI(bindings CppBindings, timeout time.Duration, readQueu
 func (w *WorldServerGRPCAPI) GetPlayerItemsByGuids(ctx context.Context, request *pb.GetPlayerItemsByGuidsRequest) (*pb.GetPlayerItemsByGuidsResponse, error) {
 	if request.PlayerGuid == 0 || len(request.Guids) == 0 {
 		return &pb.GetPlayerItemsByGuidsResponse{
-			Api: "0.0.1",
+			Api: LibVer,
 		}, nil
 	}
 
@@ -85,7 +87,7 @@ func (w *WorldServerGRPCAPI) GetPlayerItemsByGuids(ctx context.Context, request 
 	}
 
 	return &pb.GetPlayerItemsByGuidsResponse{
-		Api:   "0.0.1",
+		Api:   LibVer,
 		Items: items,
 	}, nil
 }
@@ -93,7 +95,7 @@ func (w *WorldServerGRPCAPI) GetPlayerItemsByGuids(ctx context.Context, request 
 func (w *WorldServerGRPCAPI) RemoveItemsWithGuidsFromPlayer(ctx context.Context, request *pb.RemoveItemsWithGuidsFromPlayerRequest) (*pb.RemoveItemsWithGuidsFromPlayerResponse, error) {
 	if request.PlayerGuid == 0 || len(request.Guids) == 0 {
 		return &pb.RemoveItemsWithGuidsFromPlayerResponse{
-			Api: "0.0.1",
+			Api: LibVer,
 		}, nil
 	}
 
@@ -128,7 +130,7 @@ func (w *WorldServerGRPCAPI) RemoveItemsWithGuidsFromPlayer(ctx context.Context,
 	}
 
 	return &pb.RemoveItemsWithGuidsFromPlayerResponse{
-		Api:               "0.0.1",
+		Api:               LibVer,
 		UpdatedItemsGuids: resp.items,
 	}, nil
 }
@@ -136,7 +138,7 @@ func (w *WorldServerGRPCAPI) RemoveItemsWithGuidsFromPlayer(ctx context.Context,
 func (w *WorldServerGRPCAPI) AddExistingItemToPlayer(ctx context.Context, request *pb.AddExistingItemToPlayerRequest) (*pb.AddExistingItemToPlayerResponse, error) {
 	if request.PlayerGuid == 0 {
 		return &pb.AddExistingItemToPlayerResponse{
-			Api: "0.0.1",
+			Api: LibVer,
 		}, nil
 	}
 
@@ -168,7 +170,7 @@ func (w *WorldServerGRPCAPI) AddExistingItemToPlayer(ctx context.Context, reques
 	if respErr != nil {
 		if itemErr, ok := respErr.(ItemError); ok && itemErr == ItemErrorNoInventorySpace {
 			return &pb.AddExistingItemToPlayerResponse{
-				Api:    "0.0.1",
+				Api:    LibVer,
 				Status: pb.AddExistingItemToPlayerResponse_NoSpace,
 			}, nil
 		}
@@ -176,7 +178,91 @@ func (w *WorldServerGRPCAPI) AddExistingItemToPlayer(ctx context.Context, reques
 	}
 
 	return &pb.AddExistingItemToPlayerResponse{
-		Api:    "0.0.1",
+		Api:    LibVer,
 		Status: pb.AddExistingItemToPlayerResponse_Success,
+	}, nil
+}
+
+func (w *WorldServerGRPCAPI) GetMoneyForPlayer(ctx context.Context, request *pb.GetMoneyForPlayerRequest) (*pb.GetMoneyForPlayerResponse, error) {
+	if request.PlayerGuid == 0 {
+		return &pb.GetMoneyForPlayerResponse{
+			Api: LibVer,
+		}, nil
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, w.timeout)
+	defer cancel()
+
+	type respType struct {
+		money uint32
+		err   error
+	}
+	var resp respType
+
+	respChan := make(chan respType, 1)
+
+	w.readQueue.Push(queue.HandlerFunc(func() {
+		money, err := w.bindings.GetMoneyForPlayer(request.PlayerGuid)
+		respChan <- respType{
+			money: money,
+			err:   err,
+		}
+		close(respChan)
+	}))
+	select {
+	case <-ctx.Done():
+		return nil, ErrTimeout
+	case resp = <-respChan:
+	}
+
+	if resp.err != nil {
+		return nil, resp.err
+	}
+
+	return &pb.GetMoneyForPlayerResponse{
+		Api:   LibVer,
+		Money: resp.money,
+	}, nil
+}
+
+func (w *WorldServerGRPCAPI) ModifyMoneyForPlayer(ctx context.Context, request *pb.ModifyMoneyForPlayerRequest) (*pb.ModifyMoneyForPlayerResponse, error) {
+	if request.PlayerGuid == 0 {
+		return &pb.ModifyMoneyForPlayerResponse{
+			Api: LibVer,
+		}, nil
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, w.timeout)
+	defer cancel()
+
+	type respType struct {
+		money uint32
+		err   error
+	}
+	var resp respType
+
+	respChan := make(chan respType, 1)
+
+	w.readQueue.Push(queue.HandlerFunc(func() {
+		money, err := w.bindings.ModifyMoneyForPlayer(request.PlayerGuid, request.Value)
+		respChan <- respType{
+			money: money,
+			err:   err,
+		}
+		close(respChan)
+	}))
+	select {
+	case <-ctx.Done():
+		return nil, ErrTimeout
+	case resp = <-respChan:
+	}
+
+	if resp.err != nil {
+		return nil, resp.err
+	}
+
+	return &pb.ModifyMoneyForPlayerResponse{
+		Api:           LibVer,
+		NewMoneyValue: resp.money,
 	}, nil
 }

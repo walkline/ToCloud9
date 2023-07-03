@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"unicode"
 
 	shrepo "github.com/walkline/ToCloud9/shared/repo"
 )
@@ -25,6 +26,8 @@ func (s CharactersPreparedStatements) Stmt() string {
 		LEFT JOIN character_banned AS cb ON c.guid = cb.guid AND cb.active = 1 WHERE c.guid = ? AND c.deleteInfos_Name IS NULL`
 	case StmtSelectAccountData:
 		return "SELECT type, time, data FROM account_data WHERE accountId = ?"
+	case StmtSelectCharacterWithName:
+		return "SELECT c.guid, account, race, class, gender, level, zone, map, position_x, position_y, position_z, IFNULL(gm.guildid, 0) FROM characters AS c LEFT JOIN guild_member AS gm ON c.guid = gm.guid WHERE name = ?"
 	}
 
 	panic(fmt.Errorf("unk stmt %d", s))
@@ -38,6 +41,7 @@ const (
 	StmtListCharactersToLogin CharactersPreparedStatements = iota
 	StmtCharacterToLogin
 	StmtSelectAccountData
+	StmtSelectCharacterWithName
 )
 
 type CharactersMYSQL struct {
@@ -48,6 +52,7 @@ func NewCharactersMYSQL(db shrepo.CharactersDB) Characters {
 	db.SetPreparedStatement(StmtListCharactersToLogin)
 	db.SetPreparedStatement(StmtSelectAccountData)
 	db.SetPreparedStatement(StmtCharacterToLogin)
+	db.SetPreparedStatement(StmtSelectCharacterWithName)
 
 	return &CharactersMYSQL{
 		db: db,
@@ -154,6 +159,42 @@ func (c CharactersMYSQL) CharacterToLogInByGUID(ctx context.Context, realmID uin
 	return &result[0], nil
 }
 
+func (c CharactersMYSQL) CharacterByName(ctx context.Context, realmID uint32, name string) (*Character, error) {
+	nameRunes := []rune(strings.ToLower(name))
+	if len(nameRunes) == 0 {
+		return nil, nil
+	}
+
+	nameRunes[0] = unicode.ToUpper(nameRunes[0])
+
+	rows, err := c.db.PreparedStatement(realmID, StmtSelectCharacterWithName).QueryContext(ctx, string(nameRunes))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	result := []Character{}
+	for rows.Next() {
+		item := Character{
+			CharName: string(nameRunes),
+		}
+		if err = rows.Scan(
+			&item.CharGUID, &item.AccountID, &item.CharRace, &item.CharClass, &item.CharGender, &item.CharLevel,
+			&item.CharZone, &item.CharMap, &item.CharPosX, &item.CharPosY, &item.CharPosZ, &item.CharGuildID,
+		); err != nil {
+			return nil, err
+		}
+		result = append(result, item)
+	}
+
+	if len(result) == 0 {
+		return nil, nil
+	}
+
+	return &result[0], nil
+
+}
+
 func (c CharactersMYSQL) AccountDataForAccountID(ctx context.Context, realmID, accountID uint32) ([]AccountData, error) {
 	rows, err := c.db.PreparedStatement(realmID, StmtSelectAccountData).QueryContext(ctx, accountID)
 	if err != nil {
@@ -164,7 +205,7 @@ func (c CharactersMYSQL) AccountDataForAccountID(ctx context.Context, realmID, a
 	result := []AccountData{}
 	for rows.Next() {
 		item := AccountData{}
-		if err := rows.Scan(&item.Type, &item.Time, &item.Data); err != nil {
+		if err = rows.Scan(&item.Type, &item.Time, &item.Data); err != nil {
 			return nil, err
 		}
 		result = append(result, item)
