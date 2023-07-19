@@ -98,7 +98,7 @@ func (s *GameSession) HandleSendMail(ctx context.Context, p *packet.Packet) erro
 
 	for i := uint8(0); i < attachmentsCount; i++ {
 		reader.Uint8()
-		attachmentGUIDs[i] = guid.NewObjectGuidFromUint64(reader.Uint64())
+		attachmentGUIDs[i] = guid.New(reader.Uint64())
 	}
 
 	moneyToSend := reader.Int32()
@@ -185,7 +185,7 @@ func (s *GameSession) HandleSendMail(ctx context.Context, p *packet.Packet) erro
 			}
 
 			attachmentsToSend[i] = &pbMail.ItemAttachment{
-				Guid:             uint64(guid.NewObjectGuidFromUint64(item.Guid).GetCounter()),
+				Guid:             uint64(guid.New(item.Guid).GetCounter()),
 				Entry:            item.Entry,
 				Count:            item.Count,
 				Flags:            item.Flags,
@@ -655,7 +655,7 @@ func (s *GameSession) HandleDeleteMail(ctx context.Context, p *packet.Packet) er
 }
 
 func (s *GameSession) CanInteractWithMailingObject(ctx context.Context, object uint64) (bool, error) {
-	switch guid.NewObjectGuidFromUint64(object).GetHigh() {
+	switch guid.New(object).GetHigh() {
 	case guid.GameObject:
 		const gameObjectTypeMailbox = 19
 		resp, err := s.gameServerGRPCClient.CanPlayerInteractWithGameObject(ctx, &pb.CanPlayerInteractWithGameObjectRequest{
