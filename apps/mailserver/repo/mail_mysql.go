@@ -3,6 +3,8 @@ package repo
 import (
 	"context"
 	"fmt"
+	"strings"
+	"time"
 
 	shrepo "github.com/walkline/ToCloud9/shared/repo"
 )
@@ -22,6 +24,8 @@ func NewMailMySQLRepo(db shrepo.CharactersDB) (MailRepo, error) {
 	db.SetPreparedStatement(StmtDeleteMailItem)
 	db.SetPreparedStatement(StmtDeleteMailItemForPlayer)
 	db.SetPreparedStatement(StmtUpdateMailByID)
+	db.SetPreparedStatement(StmtSelectExpiredMails)
+	db.SetPreparedStatement(StmtUpdateMailItemsReceiverByMailID)
 
 	return &mailMySQLRepo{
 		db: db,
@@ -106,7 +110,7 @@ func (m *mailMySQLRepo) MailListForPlayer(ctx context.Context, realmID uint32, p
 		err = rowsMail.Scan(
 			&mail.ID, &mail.Type, &mail.SenderGuid, &mail.ReceiverGuid, &mail.Subject, &mail.Body,
 			&mail.ExpirationTimestamp, &mail.DeliveryTimestamp, &mail.MoneyToSend,
-			&mail.CashOnDelivery, &mail.FlagsMask, &mail.Stationery, &mail.TemplateID,
+			&mail.CashOnDelivery, &mail.FlagsMask, &mail.Stationery, &mail.TemplateID, &mail.HasItemAttachments,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("can't create mail object, err: %w", err)
@@ -157,6 +161,18 @@ func (m *mailMySQLRepo) UpdateMailFlagsMaskForPlayer(ctx context.Context, realmI
 	}
 
 	return nil
+}
+
+func (m *mailMySQLRepo) UpdateMailWithoutAttachments(ctx context.Context, realmID uint32, mail *Mail) error {
+	_, err := m.db.PreparedStatement(realmID, StmtUpdateMailByID).ExecContext(
+		ctx, mail.Type, mail.SenderGuid, mail.ReceiverGuid, mail.Subject, mail.Body,
+		mail.ExpirationTimestamp, mail.DeliveryTimestamp, mail.MoneyToSend,
+		mail.CashOnDelivery, mail.FlagsMask, mail.Stationery, mail.TemplateID, mail.ID,
+	)
+	if err != nil {
+		return fmt.Errorf("can't update mail without attachments, err: %w", err)
+	}
+	return err
 }
 
 func (m *mailMySQLRepo) MailByID(ctx context.Context, realmID uint32, mailID uint) (*Mail, error) {
@@ -264,8 +280,91 @@ func (m *mailMySQLRepo) RemoveMailMoneyForPlayer(ctx context.Context, realmID ui
 	return mailMoney, nil
 }
 
+func (m *mailMySQLRepo) ExpiredMails(ctx context.Context, realmID uint32) ([]Mail, error) {
+	rowsMail, err := m.db.PreparedStatement(realmID, StmtSelectExpiredMails).QueryContext(ctx, time.Now().Unix())
+	if err != nil {
+		return nil, err
+	}
+	defer rowsMail.Close()
+
+	mails := []Mail{}
+
+	for rowsMail.Next() {
+		mail := Mail{}
+		err = rowsMail.Scan(
+			&mail.ID, &mail.Type, &mail.SenderGuid, &mail.ReceiverGuid, &mail.Subject, &mail.Body,
+			&mail.ExpirationTimestamp, &mail.DeliveryTimestamp, &mail.MoneyToSend,
+			&mail.CashOnDelivery, &mail.FlagsMask, &mail.Stationery, &mail.TemplateID, &mail.HasItemAttachments,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("can't create expired mail object, err: %w", err)
+		}
+		mails = append(mails, mail)
+	}
+
+	return mails, err
+}
+
+func (m *mailMySQLRepo) DeleteMailsWithoutAttachments(ctx context.Context, realmID uint32, IDs []uint) error {
+	_, err := m.db.DBByRealm(realmID).ExecContext(ctx, fmt.Sprintf(StmtDeleteMailsWithIDs.Stmt(), strings.Join(uintsToStrings(IDs), ",")))
+	if err != nil {
+		return fmt.Errorf("can't delete mails without attachments, err: %w", err)
+	}
+
+	return nil
+}
+
+func (m *mailMySQLRepo) UpdateMailItemsOwner(ctx context.Context, realmID uint32, mailID uint, newReceiverID uint64) error {
+	_, err := m.db.PreparedStatement(realmID, StmtUpdateMailItemsReceiverByMailID).ExecContext(ctx, newReceiverID, mailID)
+	if err != nil {
+		return fmt.Errorf("can't update mail items receiver, err: %w", err)
+	}
+
+	return nil
+}
+
+func (m *mailMySQLRepo) MailItemsIDsByMailIDs(ctx context.Context, realmID uint32, IDs []uint) ([]uint64, error) {
+	mailItemIDsRes, err := m.db.DBByRealm(realmID).QueryContext(ctx, fmt.Sprintf(StmtSelectMailsItemsIDWithMailIDs.Stmt(), strings.Join(uintsToStrings(IDs), ",")))
+	if err != nil {
+		return nil, err
+	}
+	defer mailItemIDsRes.Close()
+
+	mailItemsIDs := []uint64{}
+
+	var mailID uint
+	var mailItemID uint64
+	for mailItemIDsRes.Next() {
+		err = mailItemIDsRes.Scan(&mailID, &mailItemID)
+		if err != nil {
+			return nil, fmt.Errorf("can't scan mail item, err: %w", err)
+		}
+		mailItemsIDs = append(mailItemsIDs, mailItemID)
+	}
+
+	return mailItemsIDs, nil
+}
+
+func (m *mailMySQLRepo) DeleteItemsWithIDs(ctx context.Context, realmID uint32, itemIDs []uint64) error {
+	_, err := m.db.DBByRealm(realmID).ExecContext(ctx, fmt.Sprintf(StmtDeleteItemsByIDs.Stmt(), strings.Join(uint64sToStrings(itemIDs), ",")))
+	if err != nil {
+		return fmt.Errorf("can't delete items, err: %w", err)
+	}
+
+	return nil
+}
+
+func (m *mailMySQLRepo) DeleteMailItemsWithIDs(ctx context.Context, realmID uint32, itemIDs []uint64) error {
+	_, err := m.db.DBByRealm(realmID).ExecContext(ctx, fmt.Sprintf(StmtDeleteMailItemsByItemIDs.Stmt(), strings.Join(uint64sToStrings(itemIDs), ",")))
+	if err != nil {
+		return fmt.Errorf("can't delete mail items, err: %w", err)
+	}
+
+	return nil
+}
+
 func (m *mailMySQLRepo) updateMailByIDWithoutAttachments(ctx context.Context, realmID uint32, mail *Mail) error {
-	res, err := m.db.PreparedStatement(realmID, StmtDeleteMailItemForPlayer).ExecContext(
+	res, err := m.db.PreparedStatement(realmID, StmtUpdateMailByID).ExecContext(
 		ctx, mail.Type, mail.SenderGuid, mail.ReceiverGuid,
 		mail.Subject, mail.Body, mail.ExpirationTimestamp,
 		mail.DeliveryTimestamp, mail.MoneyToSend, mail.CashOnDelivery,
@@ -301,7 +400,7 @@ func (m *mailMySQLRepo) mailByIDWithoutAttachments(ctx context.Context, realmID 
 		err = rowsMail.Scan(
 			&mail.ID, &mail.Type, &mail.SenderGuid, &mail.ReceiverGuid, &mail.Subject, &mail.Body,
 			&mail.ExpirationTimestamp, &mail.DeliveryTimestamp, &mail.MoneyToSend,
-			&mail.CashOnDelivery, &mail.FlagsMask, &mail.Stationery, &mail.TemplateID,
+			&mail.CashOnDelivery, &mail.FlagsMask, &mail.Stationery, &mail.TemplateID, &mail.HasItemAttachments,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("can't create mail object, err: %w", err)
@@ -313,4 +412,20 @@ func (m *mailMySQLRepo) mailByIDWithoutAttachments(ctx context.Context, realmID 
 	}
 
 	return &mail, nil
+}
+
+func uint64sToStrings(ints []uint64) []string {
+	strIDs := make([]string, len(ints))
+	for i, id := range ints {
+		strIDs[i] = fmt.Sprintf("%d", id)
+	}
+	return strIDs
+}
+
+func uintsToStrings(ints []uint) []string {
+	strIDs := make([]string, len(ints))
+	for i, id := range ints {
+		strIDs[i] = fmt.Sprintf("%d", id)
+	}
+	return strIDs
 }

@@ -35,7 +35,7 @@ func NewPacketsReader(r io.Reader, opcodeSize uint32) *PacketsReader {
 }
 
 func (p *PacketsReader) Next() bool {
-	packet := packet.Packet{}
+	pack := packet.Packet{}
 	for {
 		if len(p.headerBuffer) > p.hWritePos {
 			n, err := p.r.Read(p.headerBuffer[p.hWritePos:])
@@ -51,13 +51,13 @@ func (p *PacketsReader) Next() bool {
 					p.encryption.Decrypt(p.headerBuffer)
 				}
 
-				packet.Size = uint32(binary.BigEndian.Uint16(p.headerBuffer[0:])) - p.opcodeSize
+				pack.Size = uint32(binary.BigEndian.Uint16(p.headerBuffer[0:])) - p.opcodeSize
 				if p.opcodeSize == 2 {
-					packet.Opcode = binary.LittleEndian.Uint16(p.headerBuffer[2:])
+					pack.Opcode = packet.Opcode(binary.LittleEndian.Uint16(p.headerBuffer[2:]))
 				} else {
-					packet.Opcode = uint16(binary.LittleEndian.Uint32(p.headerBuffer[2:]))
+					pack.Opcode = packet.Opcode(binary.LittleEndian.Uint32(p.headerBuffer[2:]))
 				}
-				p.payloadBuffer = make([]byte, packet.Size)
+				p.payloadBuffer = make([]byte, pack.Size)
 			} else {
 				continue
 			}
@@ -76,7 +76,7 @@ func (p *PacketsReader) Next() bool {
 		if len(p.payloadBuffer) == p.pWritePos {
 			p.hWritePos = 0
 			p.pWritePos = 0
-			p.packet = &packet
+			p.packet = &pack
 			p.packet.Data = p.payloadBuffer[:]
 
 			return true

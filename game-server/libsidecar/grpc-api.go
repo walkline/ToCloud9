@@ -3,7 +3,6 @@ package main
 import "C"
 import (
 	"net"
-	"sync"
 	"time"
 
 	"github.com/rs/zerolog/log"
@@ -36,6 +35,8 @@ func SetupGRPCService(conf *config.Config) (net.Listener, *grpc.Server) {
 				AddExistingItemToPlayer:        AddExistingItemToPlayerHandler,
 				GetMoneyForPlayer:              GetMoneyForPlayerHandler,
 				ModifyMoneyForPlayer:           ModifyMoneyForPlayerHandler,
+				CanPlayerInteractWithNPC:       CanPlayerInteractWithNPCAndFlagsHandler,
+				CanPlayerInteractWithGO:        CanPlayerInteractWithGOAndTypeHandler,
 			},
 			time.Second*5,
 			grpcReadRequestsQueue,
@@ -50,30 +51,45 @@ func SetupGRPCService(conf *config.Config) (net.Listener, *grpc.Server) {
 //
 //export TC9ProcessGRPCRequests
 func TC9ProcessGRPCRequests() {
-	// TODO: make this configurable.
-	const readGoroutineCount = 4
+	// Parallel read processing disabled, since goroutines setup time is bigger than benefits for the low amount of requests.
+	// Can be enabled if read requests increase.
 
-	// Handle read operations.
-	// Read operation is safe to process in parallel.
-	wg := sync.WaitGroup{}
-	wg.Add(readGoroutineCount)
-	for i := 0; i < readGoroutineCount; i++ {
-		go func() {
-			defer wg.Done()
+	//// TODO: make this configurable.
+	//const readGoroutineCount = 4
+	//
+	//// Handle read operations.
+	//// Read operation is safe to process in parallel.
+	//wg := sync.WaitGroup{}
+	//wg.Add(readGoroutineCount)
+	//for i := 0; i < readGoroutineCount; i++ {
+	//	go func() {
+	//		defer wg.Done()
+	//
+	//		handler := grpcReadRequestsQueue.Pop()
+	//		for handler != nil {
+	//			handler.Handle()
+	//			handler = grpcReadRequestsQueue.Pop()
+	//		}
+	//	}()
+	//}
+	//
+	//wg.Wait()
+	//
+	//// Handle write operations.
+	//// Since TC is not tread-safe for write operations, we can have only 1 goroutine to process.
+	//handler := grpcWriteRequestsQueue.Pop()
+	//for handler != nil {
+	//	handler.Handle()
+	//	handler = grpcWriteRequestsQueue.Pop()
+	//}
 
-			handler := grpcReadRequestsQueue.Pop()
-			for handler != nil {
-				handler.Handle()
-				handler = grpcReadRequestsQueue.Pop()
-			}
-		}()
+	handler := grpcReadRequestsQueue.Pop()
+	for handler != nil {
+		handler.Handle()
+		handler = grpcReadRequestsQueue.Pop()
 	}
 
-	wg.Wait()
-
-	// Handle write operations.
-	// Since TC is not tread-safe for write operations, we can have only 1 goroutine to process.
-	handler := grpcWriteRequestsQueue.Pop()
+	handler = grpcWriteRequestsQueue.Pop()
 	for handler != nil {
 		handler.Handle()
 		handler = grpcWriteRequestsQueue.Pop()

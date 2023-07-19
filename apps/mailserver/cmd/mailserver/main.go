@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"net"
@@ -54,7 +55,14 @@ func main() {
 	}
 	defer nc.Close()
 
-	mailService := service.NewMailService(guildsRepo, events.NewMailServiceProducerNatsJSON(nc, root.Ver))
+	mailService := service.NewMailService(
+		guildsRepo,
+		events.NewMailServiceProducerNatsJSON(nc, root.Ver),
+		time.Second*time.Duration(cfg.DefaultMailExpirationTimeSecs),
+	)
+
+	ticker := service.NewMailsCleanupTicker([]uint32{1}, time.Second*time.Duration(cfg.ExpiredMailsCleanupSecsDelay), mailService)
+	go ticker.Start(context.TODO())
 
 	// grpc setup
 	lis, err := net.Listen("tcp4", ":"+cfg.Port)

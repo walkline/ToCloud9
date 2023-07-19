@@ -37,6 +37,7 @@ func (m *MailServer) Send(ctx context.Context, request *pb.SendRequest) (*pb.Sen
 
 	mail := repo.Mail{
 		Type:                repo.MailType(request.Type),
+		Stationery:          uint8(request.Stationery),
 		TemplateID:          request.TemplateID,
 		SenderGuid:          senderGuid,
 		ReceiverGuid:        request.ReceiverGuid,
@@ -46,6 +47,7 @@ func (m *MailServer) Send(ctx context.Context, request *pb.SendRequest) (*pb.Sen
 		CashOnDelivery:      request.CashOnDelivery,
 		DeliveryTimestamp:   request.DeliveryTimestamp,
 		ExpirationTimestamp: request.ExpirationTimestamp,
+		FlagsMask:           uint16(request.FlagsMask),
 		Attachments:         attachments,
 	}
 	err := m.service.SendMail(ctx, request.RealmID, &mail)
@@ -96,6 +98,7 @@ func (m *MailServer) MailsForPlayer(ctx context.Context, request *pb.MailsForPla
 			Flags:               int32(mail.FlagsMask),
 			Type:                pb.MailType(mail.Type),
 			TemplateID:          mail.TemplateID,
+			Stationery:          pb.MailStationery(mail.Stationery),
 		}
 	}
 	return &pb.MailsForPlayerResponse{
@@ -151,12 +154,20 @@ func (m *MailServer) MailByID(ctx context.Context, request *pb.MailByIDRequest) 
 			Flags:               int32(mail.FlagsMask),
 			Type:                pb.MailType(mail.Type),
 			TemplateID:          mail.TemplateID,
+			Stationery:          pb.MailStationery(mail.Stationery),
 		},
 	}, nil
 }
 
 func (m *MailServer) RemoveMailItem(ctx context.Context, request *pb.RemoveMailItemRequest) (*pb.RemoveMailItemResponse, error) {
-	err := m.service.RemoveMailItem(ctx, request.RealmID, uint(request.MailID), request.ItemGuid, request.PlayerGuid)
+	err := m.service.RemoveMailItem(
+		ctx,
+		request.RealmID,
+		uint(request.MailID),
+		request.ItemGuid,
+		request.PlayerGuid,
+		request.HandleCashOnDelivery,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -175,5 +186,16 @@ func (m *MailServer) RemoveMailMoney(ctx context.Context, request *pb.RemoveMail
 	return &pb.RemoveMailMoneyResponse{
 		Api:          mailserver.Ver,
 		MoneyRemoved: money,
+	}, nil
+}
+
+func (m *MailServer) DeleteMail(ctx context.Context, request *pb.DeleteMailRequest) (*pb.DeleteMailResponse, error) {
+	err := m.service.DeleteMail(ctx, request.RealmID, uint(request.MailID))
+	if err != nil {
+		return nil, err
+	}
+
+	return &pb.DeleteMailResponse{
+		Api: mailserver.Ver,
 	}, nil
 }

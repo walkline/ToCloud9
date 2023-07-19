@@ -30,8 +30,8 @@ func TestPacketsReader(t *testing.T) {
 
 	assert.Equal(t, 2, len(result))
 
-	assert.Equal(t, uint16(packet.CMsgPlayerLogin), result[0].Opcode)
-	assert.Equal(t, uint16(packet.CMsgAuthSession), result[1].Opcode)
+	assert.Equal(t, packet.CMsgPlayerLogin, result[0].Opcode)
+	assert.Equal(t, packet.CMsgAuthSession, result[1].Opcode)
 
 	assert.Equal(t, uint32(8), result[0].Size)
 	assert.Equal(t, uint32(8*4), result[1].Size)
@@ -40,7 +40,7 @@ func TestPacketsReader(t *testing.T) {
 func writerToBytes(p *packet.Writer) []byte {
 	header := make([]byte, 6, len(p.Payload.Bytes())+6)
 	binary.BigEndian.PutUint16(header[0:2], uint16(len(p.Payload.Bytes())+4))
-	binary.LittleEndian.PutUint16(header[2:6], p.Opcode)
+	binary.LittleEndian.PutUint16(header[2:6], uint16(p.Opcode))
 
 	return append(header, p.Payload.Bytes()...)
 }

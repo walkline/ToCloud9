@@ -19,6 +19,6 @@ func (e MoneyError) Error() string {
 	case MoneyErrorTooMuchMoney:
 		return "too much money"
 	default:
-		return fmt.Sprintf("unk item error %d", e)
+		return fmt.Sprintf("unk money error %d", e)
 	}
 }

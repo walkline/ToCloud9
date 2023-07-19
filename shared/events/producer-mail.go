@@ -6,6 +6,7 @@ import (
 	"github.com/nats-io/nats.go"
 )
 
+//go:generate mockery --name=MailServiceProducer
 type MailServiceProducer interface {
 	IncomingMail(payload *MailEventIncomingMailPayload) error
 }

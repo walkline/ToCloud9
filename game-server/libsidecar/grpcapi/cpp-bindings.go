@@ -29,6 +29,8 @@ type RemoveItemsWithGuidsFromPlayerHandler func(player uint64, items []uint64, a
 type AddExistingItemToPlayerHandler func(player uint64, item *ItemToAdd) error
 type GetMoneyForPlayerHandler func(player uint64) (uint32, error)
 type ModifyMoneyForPlayerHandler func(player uint64, value int32) (uint32, error)
+type CanPlayerInteractWithNPCWithFlagsHandler func(player, npc uint64, flag uint32) (bool, error)
+type CanPlayerInteractWithGOWithTypeHandler func(player, goGUID uint64, goType uint8) (bool, error)
 
 type CppBindings struct {
 	GetPlayerItemsByGuids          GetPlayerItemsByGuidsHandler
@@ -36,4 +38,6 @@ type CppBindings struct {
 	AddExistingItemToPlayer        AddExistingItemToPlayerHandler
 	GetMoneyForPlayer              GetMoneyForPlayerHandler
 	ModifyMoneyForPlayer           ModifyMoneyForPlayerHandler
+	CanPlayerInteractWithNPC       CanPlayerInteractWithNPCWithFlagsHandler
+	CanPlayerInteractWithGO        CanPlayerInteractWithGOWithTypeHandler
 }

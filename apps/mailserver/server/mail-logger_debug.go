@@ -96,3 +96,15 @@ func (g *mailDebugLoggerMiddleware) RemoveMailMoney(ctx context.Context, params 
 	res, err = g.mailServer.RemoveMailMoney(ctx, params)
 	return
 }
+
+func (g *mailDebugLoggerMiddleware) DeleteMail(ctx context.Context, params *pb.DeleteMailRequest) (res *pb.DeleteMailResponse, err error) {
+	defer func(t time.Time) {
+		g.logger.Debug().
+			Int32("mailID", params.MailID).
+			Err(err).
+			Msgf("Handled DeleteMail for %v.", time.Since(t))
+	}(time.Now())
+
+	res, err = g.mailServer.DeleteMail(ctx, params)
+	return
+}

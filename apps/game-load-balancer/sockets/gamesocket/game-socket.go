@@ -122,7 +122,7 @@ func (s *GameSocket) ListenAndProcess(ctx context.Context) error {
 		p := s.packetsReader.Packet()
 		if e := s.logger.Debug(); e.Enabled() {
 			s.logger.Debug().
-				Str("opcode", fmt.Sprintf("0x%X", p.Opcode)).
+				Str("opcode", fmt.Sprintf("%s (0x%X)", p.Opcode.String(), uint16(p.Opcode))).
 				Uint32("size", p.Size).
 				Msg("📦 Game=>Balancer")
 		}
@@ -131,7 +131,7 @@ func (s *GameSocket) ListenAndProcess(ctx context.Context) error {
 		if err != nil {
 			s.logger.Error().
 				Err(err).
-				Str("opcode", fmt.Sprintf("0x%X", p.Opcode)).
+				Str("opcode", fmt.Sprintf("%s (0x%X)", p.Opcode.String(), p.Opcode)).
 				Uint32("size", p.Size).
 				Str("payload", fmt.Sprintf("%v", p.Data)).
 				Msg("Failed to process packet")
@@ -337,14 +337,14 @@ func (s *GameSocket) sendOriginalPacket(p *packet.Packet) error {
 	if e := s.logger.Debug(); e.Enabled() {
 		s.logger.
 			Debug().
-			Str("opcode", fmt.Sprintf("0x%X", p.Opcode)).
+			Str("opcode", fmt.Sprintf("%s (0x%X)", p.Opcode.String(), uint16(p.Opcode))).
 			Int("size", len(p.Data)).
 			Msg("📦 Balancer=>Game")
 	}
 
 	header := make([]byte, 4, len(p.Data)+4)
 	binary.BigEndian.PutUint16(header[0:2], uint16(len(p.Data)+2))
-	binary.LittleEndian.PutUint16(header[2:4], p.Opcode)
+	binary.LittleEndian.PutUint16(header[2:4], uint16(p.Opcode))
 
 	if s.encryption != nil {
 		s.encryption.Encrypt(header)

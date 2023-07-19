@@ -5,13 +5,16 @@ option go_package = "gen/mail/pb";
 
 service MailService {
   rpc Send(SendRequest) returns (SendResponse);
+
   rpc MarkAsReadForPlayer(MarkAsReadForPlayerRequest) returns (MarkAsReadForPlayerResponse);
+
   rpc RemoveMailItem(RemoveMailItemRequest) returns (RemoveMailItemResponse);
   rpc RemoveMailMoney(RemoveMailMoneyRequest) returns (RemoveMailMoneyResponse);
 
+  rpc MailByID(MailByIDRequest) returns (MailByIDResponse);
   rpc MailsForPlayer(MailsForPlayerRequest) returns (MailsForPlayerResponse);
 
-  rpc MailByID(MailByIDRequest) returns (MailByIDResponse);
+  rpc DeleteMail(DeleteMailRequest) returns (DeleteMailResponse);
 }
 
 enum MailType {
@@ -20,6 +23,17 @@ enum MailType {
   Creature = 3;
   GameObject = 4;
   Calendar = 5;
+}
+
+enum MailStationery {
+  StUnused = 0;
+  StTest = 1;
+  StDefault = 41;
+  StGM = 61;
+  StAuction = 62;
+  StValentine = 64;
+  StChristmas = 65;
+  StOrphan = 67;
 }
 
 message ItemAttachment {
@@ -55,6 +69,9 @@ message SendRequest {
 
   MailType type = 12;
   uint32 templateID = 13;
+  MailStationery stationery = 14;
+
+  uint32 flagsMask = 15;
 }
 
 message SendResponse {
@@ -97,6 +114,7 @@ message Mail {
 
   MailType type = 12;
   uint32 templateID = 13;
+  MailStationery stationery = 14;
 }
 
 message MarkAsReadForPlayerRequest {
@@ -130,6 +148,7 @@ message RemoveMailItemRequest {
   optional uint64 playerGuid = 3;
   int32  mailID = 4;
   uint64 itemGuid = 5;
+  bool handleCashOnDelivery = 6;
 }
 
 message RemoveMailItemResponse {
@@ -148,4 +167,15 @@ message RemoveMailMoneyResponse {
   string api = 1;
 
   int32 moneyRemoved = 2;
+}
+
+message DeleteMailRequest {
+  string api = 1;
+
+  uint32 realmID = 2;
+  int32  mailID = 4;
+}
+
+message DeleteMailResponse {
+  string api = 1;
 }

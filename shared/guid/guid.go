@@ -3,9 +3,9 @@ package guid
 type HighGuid uint16
 
 const (
+	Player        HighGuid = 0x0000
 	Item          HighGuid = 0x4000
 	Container     HighGuid = 0x4000
-	Player        HighGuid = 0x0000
 	GameObject    HighGuid = 0xF110
 	Transport     HighGuid = 0xF120
 	Unit          HighGuid = 0xF130
@@ -24,23 +24,13 @@ type ObjectGuid struct {
 
 type LowType uint32
 
-func NewObjectGuid() ObjectGuid {
-	return ObjectGuid{}
-}
-
-func NewObjectGuidFromUint64(guid uint64) ObjectGuid {
-	return ObjectGuid{guid: guid}
-}
-
-func NewObjectGuidFromValues(hi HighGuid, entry uint32, counter LowType) ObjectGuid {
-	var guid uint64
-	if counter != 0 {
-		guid = uint64(counter) | (uint64(entry) << 24) | (uint64(hi) << 48)
+func New(raw uint64) ObjectGuid {
+	return ObjectGuid{
+		guid: raw,
 	}
-	return ObjectGuid{guid: guid}
 }
 
-func NewObjectGuidFromCounter(hi HighGuid, counter LowType) ObjectGuid {
+func NewFromCounter(hi HighGuid, counter LowType) ObjectGuid {
 	var guid uint64
 	if counter != 0 {
 		guid = uint64(counter) | (uint64(hi) << 48)
@@ -48,35 +38,43 @@ func NewObjectGuidFromCounter(hi HighGuid, counter LowType) ObjectGuid {
 	return ObjectGuid{guid: guid}
 }
 
-func (og ObjectGuid) GetRawValue() uint64 {
-	return og.guid
+func NewFromEntryAndCounter(hi HighGuid, entry uint32, counter LowType) ObjectGuid {
+	var guid uint64
+	if counter != 0 {
+		guid = uint64(counter) | (uint64(entry) << 24) | (uint64(hi) << 48)
+	}
+	return ObjectGuid{guid: guid}
 }
 
-func (og ObjectGuid) GetHigh() HighGuid {
-	return HighGuid((og.guid >> 48) & 0x0000FFFF)
+func (g ObjectGuid) GetRawValue() uint64 {
+	return g.guid
 }
 
-func (og ObjectGuid) GetEntry() uint32 {
-	if og.HasEntry(og.GetHigh()) {
-		return uint32((og.guid >> 24) & 0x0000000000FFFFFF)
+func (g ObjectGuid) GetHigh() HighGuid {
+	return HighGuid((g.guid >> 48) & 0x0000FFFF)
+}
+
+func (g ObjectGuid) GetEntry() uint32 {
+	if g.HasEntry(g.GetHigh()) {
+		return uint32((g.guid >> 24) & 0x0000000000FFFFFF)
 	}
 	return 0
 }
 
-func (og ObjectGuid) GetCounter() LowType {
-	if og.HasEntry(og.GetHigh()) {
-		return LowType(og.guid & 0x0000000000FFFFFF)
+func (g ObjectGuid) GetCounter() LowType {
+	if g.HasEntry(g.GetHigh()) {
+		return LowType(g.guid & 0x0000000000FFFFFF)
 	}
-	return LowType(og.guid & 0x00000000FFFFFFFF)
+	return LowType(g.guid & 0x00000000FFFFFFFF)
 }
 
-func (og ObjectGuid) GetMaxCounter(high HighGuid) LowType {
-	if og.HasEntry(high) {
+func (g ObjectGuid) GetMaxCounter(high HighGuid) LowType {
+	if g.HasEntry(high) {
 		return LowType(0x00FFFFFF)
 	}
 	return LowType(0xFFFFFFFF)
 }
 
-func (og ObjectGuid) HasEntry(high HighGuid) bool {
+func (g ObjectGuid) HasEntry(high HighGuid) bool {
 	return high != Player
 }

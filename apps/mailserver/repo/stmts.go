@@ -47,6 +47,12 @@ const (
 
 	// StmtSelectMailsItemsIDWithMailIDs selects mail items IDs for given mail IDs.
 	StmtSelectMailsItemsIDWithMailIDs
+
+	// StmtDeleteItemsByIDs delete items with IDs.
+	StmtDeleteItemsByIDs
+
+	// StmtDeleteMailItemsByItemIDs delete mail items with item IDs.
+	StmtDeleteMailItemsByItemIDs
 )
 
 // CharsPreparedStatements represents prepared statements for the characters database.
@@ -62,7 +68,7 @@ func (s CharsPreparedStatements) ID() uint32 {
 func (s CharsPreparedStatements) Stmt() string {
 	switch s {
 	case StmtGetMailsForCharacter:
-		return "SELECT id, messageType, sender, receiver, subject, body, expire_time, deliver_time, money, cod, checked, stationery, mailTemplateId FROM mail WHERE receiver = ? ORDER BY id DESC"
+		return "SELECT id, messageType, sender, receiver, subject, body, expire_time, deliver_time, money, cod, checked, stationery, mailTemplateId, has_items FROM mail WHERE receiver = ? ORDER BY id DESC"
 	case StmtGetMailsItemsForCharacter:
 		return "SELECT count, charges, flags, enchantments, randomPropertyId, durability, text, item_guid, itemEntry, ii.owner_guid, m.id FROM mail_items mi INNER JOIN mail m ON mi.mail_id = m.id LEFT JOIN item_instance ii ON mi.item_guid = ii.guid WHERE m.receiver = ?"
 	case StmtUpdateMailFlagsMask:
@@ -85,7 +91,7 @@ func (s CharsPreparedStatements) Stmt() string {
 		    durability = VALUES(durability),
  		    text = VALUES(text)`
 	case StmtGetMailByID:
-		return "SELECT id, messageType, sender, receiver, subject, body, expire_time, deliver_time, money, cod, checked, stationery, mailTemplateId FROM mail WHERE id = ?"
+		return "SELECT id, messageType, sender, receiver, subject, body, expire_time, deliver_time, money, cod, checked, stationery, mailTemplateId, has_items FROM mail WHERE id = ?"
 	case StmtGetMailItemsByID:
 		return "SELECT count, charges, flags, enchantments, randomPropertyId, durability, text, item_guid, itemEntry, ii.owner_guid, m.id FROM mail_items mi INNER JOIN mail m ON mi.mail_id = m.id LEFT JOIN item_instance ii ON mi.item_guid = ii.guid WHERE m.id = ?"
 	case StmtDeleteMailItem:
@@ -95,13 +101,17 @@ func (s CharsPreparedStatements) Stmt() string {
 	case StmtUpdateMailByID:
 		return "UPDATE mail SET messageType = ?, sender = ?, receiver = ?, subject = ?, body = ?, expire_time = ?, deliver_time = ?, money = ?, cod = ?, checked = ?, stationery = ?, mailTemplateId = ? WHERE id = ?"
 	case StmtSelectExpiredMails:
-		return "SELECT id, messageType, sender, receiver, has_items, expire_time, cod, checked, mailTemplateId FROM mail WHERE expire_time < ?"
+		return "SELECT id, messageType, sender, receiver, subject, body, expire_time, deliver_time, money, cod, checked, stationery, mailTemplateId, has_items FROM mail WHERE expire_time < ?"
 	case StmtUpdateMailItemsReceiverByMailID:
 		return "UPDATE mail_items SET receiver = ? WHERE mail_id = ?"
 	case StmtDeleteMailsWithIDs:
-		return "DELETE mail WHERE id IN (?)"
+		return "DELETE FROM mail WHERE id IN (%s)"
 	case StmtSelectMailsItemsIDWithMailIDs:
-
+		return "SELECT mail_id, item_guid FROM mail_items WHERE mail_id IN (%s)"
+	case StmtDeleteItemsByIDs:
+		return "DELETE FROM item_instance WHERE guid IN (%s)"
+	case StmtDeleteMailItemsByItemIDs:
+		return "DELETE FROM mail_items WHERE item_guid IN (%s)"
 	}
 	panic(fmt.Errorf("unk stmt %d", s))
 }

@@ -12,7 +12,12 @@ import (
 	"github.com/walkline/ToCloud9/gen/worldserver/pb"
 )
 
-type GameServerGRPCConnMgr struct {
+type GameServerGRPCConnMgr interface {
+	AddAddressMapping(gameServerAddress, grpcServerAddress string)
+	GRPCConnByGameServerAddress(address string) (conn pb.WorldServerServiceClient, err error)
+}
+
+type gameServerGRPCConnMgrImpl struct {
 	addressesMapping map[ /*gameServerAddress*/ string] /*grpcAddress*/ string
 	addressWithConn  map[string]pb.WorldServerServiceClient
 	lock             sync.RWMutex
@@ -20,21 +25,20 @@ type GameServerGRPCConnMgr struct {
 
 var DefaultGameServerGRPCConnMgr = NewGameServerGRPCConnMgr()
 
-func NewGameServerGRPCConnMgr() *GameServerGRPCConnMgr {
-	return &GameServerGRPCConnMgr{
+func NewGameServerGRPCConnMgr() GameServerGRPCConnMgr {
+	return &gameServerGRPCConnMgrImpl{
 		addressesMapping: map[string]string{},
 		addressWithConn:  map[string]pb.WorldServerServiceClient{},
 	}
-
 }
 
-func (m *GameServerGRPCConnMgr) AddAddressMapping(gameServerAddress, grpcServerAddress string) {
+func (m *gameServerGRPCConnMgrImpl) AddAddressMapping(gameServerAddress, grpcServerAddress string) {
 	m.lock.Lock()
 	m.addressesMapping[gameServerAddress] = grpcServerAddress
 	m.lock.Unlock()
 }
 
-func (m *GameServerGRPCConnMgr) GRPCConnByGameServerAddress(address string) (conn pb.WorldServerServiceClient, err error) {
+func (m *gameServerGRPCConnMgrImpl) GRPCConnByGameServerAddress(address string) (conn pb.WorldServerServiceClient, err error) {
 	m.lock.RLock()
 	connAddress := m.addressesMapping[address]
 	conn = m.addressWithConn[connAddress]
@@ -56,7 +60,7 @@ func (m *GameServerGRPCConnMgr) GRPCConnByGameServerAddress(address string) (con
 	return conn, err
 }
 
-func (m *GameServerGRPCConnMgr) establishConn(address string) (pb.WorldServerServiceClient, error) {
+func (m *gameServerGRPCConnMgrImpl) establishConn(address string) (pb.WorldServerServiceClient, error) {
 	conn, err := grpc.Dial(address, grpc.WithInsecure(), grpc.WithContextDialer(func(ctx context.Context, s string) (net.Conn, error) {
 		dialer := net.Dialer{Timeout: time.Second * 5}
 		return dialer.DialContext(ctx, "tcp", s)

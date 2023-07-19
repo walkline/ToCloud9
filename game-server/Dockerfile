@@ -35,6 +35,7 @@ COPY --from=build-sidecar ./go/src/github.com/walkline/ToCloud9/libsidecar.h ./r
 COPY --from=build-sidecar ./go/src/github.com/walkline/ToCloud9/game-server/libsidecar/events-guild.h ./repo/dep/libsidecar/include/events-guild.h
 COPY --from=build-sidecar ./go/src/github.com/walkline/ToCloud9/game-server/libsidecar/player-items-api.h ./repo/dep/libsidecar/include/player-items-api.h
 COPY --from=build-sidecar ./go/src/github.com/walkline/ToCloud9/game-server/libsidecar/player-money-api.h ./repo/dep/libsidecar/include/player-money-api.h
+COPY --from=build-sidecar ./go/src/github.com/walkline/ToCloud9/game-server/libsidecar/player-interactions-api.h ./repo/dep/libsidecar/include/player-interactions-api.h
 
 WORKDIR /repo
 

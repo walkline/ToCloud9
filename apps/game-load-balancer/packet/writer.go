@@ -7,13 +7,13 @@ import (
 
 type Writer struct {
 	Payload *bytes.Buffer
-	Opcode  uint16
+	Opcode  Opcode
 	Size    int32
 	order   binary.ByteOrder
 	err     error
 }
 
-func NewWriter(opcode uint16) *Writer {
+func NewWriter(opcode Opcode) *Writer {
 	return &Writer{
 		Opcode:  opcode,
 		Payload: bytes.NewBuffer(nil),
@@ -22,7 +22,7 @@ func NewWriter(opcode uint16) *Writer {
 	}
 }
 
-func NewWriterWithSize(opcode uint16, size uint32) *Writer {
+func NewWriterWithSize(opcode Opcode, size uint32) *Writer {
 	return &Writer{
 		Opcode:  opcode,
 		Payload: bytes.NewBuffer(make([]byte, 0, size)),
