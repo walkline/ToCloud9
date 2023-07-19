@@ -22,9 +22,10 @@ message RegisterGameServerRequest{
 
   uint32 gamePort = 2;
   uint32 healthPort = 3;
-  uint32 realmID = 4;
-  string availableMaps = 5;
-  string preferredHostName = 6;
+  uint32 grpcPort = 4;
+  uint32 realmID = 5;
+  string availableMaps = 6;
+  string preferredHostName = 7;
 }
 
 message RegisterGameServerResponse{
@@ -74,9 +75,10 @@ message ListGameServersForRealmRequest {
 message GameServerDetailed {
   string address = 1;
   string healthAddress = 2;
-  uint32 realmID = 3;
-  repeated uint32 availableMaps = 4;
-  repeated uint32 assignedMaps = 5;
+  string grpcAddress = 3;
+  uint32 realmID = 4;
+  repeated uint32 availableMaps = 5;
+  repeated uint32 assignedMaps = 6;
 }
 
 message ListGameServersForRealmResponse {
@@ -147,4 +149,5 @@ message ListLoadBalancersForRealmResponse {
 message Server {
   string address = 1;
   uint32 realmID = 2;
+  string grpcAddress = 3;
 }

@@ -10,6 +10,7 @@ type EventType int
 
 const (
 	EventTypeIncomingWhisper EventType = iota + 1
+	EventTypeIncomingMail
 	EventTypeGuildInviteCreated
 	EventTypeGuildMemberPromoted
 	EventTypeGuildMemberDemoted
@@ -57,6 +58,7 @@ type Broadcaster interface {
 	UnregisterCharacter(charGUID uint64)
 
 	NewIncomingWhisperEvent(payload *IncomingWhisperPayload)
+	NewIncomingMailEvent(payload *events.MailEventIncomingMailPayload)
 	NewGuildInviteCreatedEvent(payload *GuildInviteCreatedPayload)
 	NewGuildMemberPromoteEvent(payload *events.GuildEventMemberPromotePayload)
 	NewGuildMemberDemoteEvent(payload *events.GuildEventMemberDemotePayload)
@@ -110,6 +112,21 @@ func (b *broadcasterImpl) NewIncomingWhisperEvent(payload *IncomingWhisperPayloa
 
 	ch <- Event{
 		Type:    EventTypeIncomingWhisper,
+		Payload: payload,
+	}
+}
+
+func (b *broadcasterImpl) NewIncomingMailEvent(payload *events.MailEventIncomingMailPayload) {
+	b.channelsMu.RLock()
+	ch, ok := b.channels[payload.ReceiverGUID]
+	b.channelsMu.RUnlock()
+
+	if !ok {
+		return
+	}
+
+	ch <- Event{
+		Type:    EventTypeIncomingMail,
 		Payload: payload,
 	}
 }

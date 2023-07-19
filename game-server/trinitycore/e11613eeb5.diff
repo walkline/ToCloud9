@@ -56,11 +56,11 @@ index 53971feebf..021fab1654 100644
 -    game-interface)
 +    game-interface
 +    sidecar)
-
+ 
  set_target_properties(game
      PROPERTIES
 @@ -74,5 +75,6 @@ endif()
-
+ 
  # Generate precompiled header
  if(USE_COREPCH)
 +  include_directories(${CMAKE_SOURCE_DIR}/dep/libsidecar/include/)
@@ -75,11 +75,11 @@ index 31996595d0..20c263f23a 100644
  #include <vector>
  #include <unordered_set>
 +#include "TC9Sidecar.h"
-
+ 
  enum TypeID
  {
 @@ -299,6 +300,11 @@ public:
-
+ 
      ObjectGuid::LowType Generate() override
      {
 +        if (high == HighGuid::Player)
@@ -89,11 +89,45 @@ index 31996595d0..20c263f23a 100644
 +
          if (_nextGuid >= ObjectGuid::GetMaxCounter(high) - 1)
              HandleCounterOverflow(high);
+ 
+diff --git a/src/server/game/Entities/Player/Player.cpp b/src/server/game/Entities/Player/Player.cpp
+index 444f00206f..ac474616e2 100644
+--- a/src/server/game/Entities/Player/Player.cpp
++++ b/src/server/game/Entities/Player/Player.cpp
+@@ -17761,7 +17761,7 @@ bool Player::LoadFromDB(ObjectGuid guid, CharacterDatabaseQueryHolder const& hol
+     _LoadActions(holder.GetPreparedResult(PLAYER_LOGIN_QUERY_LOAD_ACTIONS));
+
+     // unread mails and next delivery time, actual mails not loaded
+-    _LoadMail(holder.GetPreparedResult(PLAYER_LOGIN_QUERY_LOAD_MAILS), holder.GetPreparedResult(PLAYER_LOGIN_QUERY_LOAD_MAIL_ITEMS));
++//    _LoadMail(holder.GetPreparedResult(PLAYER_LOGIN_QUERY_LOAD_MAILS), holder.GetPreparedResult(PLAYER_LOGIN_QUERY_LOAD_MAIL_ITEMS));
+
+     m_social = sSocialMgr->LoadFromDB(holder.GetPreparedResult(PLAYER_LOGIN_QUERY_LOAD_SOCIAL_LIST), GetGUID());
 
 diff --git a/src/server/game/Handlers/CharacterHandler.cpp b/src/server/game/Handlers/CharacterHandler.cpp
-index f6e51d9aeb..de9c2f33cd 100644
+index f6e51d9aeb..fdbe90b726 100644
 --- a/src/server/game/Handlers/CharacterHandler.cpp
 +++ b/src/server/game/Handlers/CharacterHandler.cpp
+@@ -125,13 +125,13 @@ bool LoginQueryHolder::Initialize()
+     stmt->setUInt32(0, lowGuid);
+     res &= SetPreparedQuery(PLAYER_LOGIN_QUERY_LOAD_ACTIONS, stmt);
+
+-    stmt = CharacterDatabase.GetPreparedStatement(CHAR_SEL_MAIL);
+-    stmt->setUInt32(0, lowGuid);
+-    res &= SetPreparedQuery(PLAYER_LOGIN_QUERY_LOAD_MAILS, stmt);
+-
+-    stmt = CharacterDatabase.GetPreparedStatement(CHAR_SEL_MAILITEMS);
+-    stmt->setUInt32(0, lowGuid);
+-    res &= SetPreparedQuery(PLAYER_LOGIN_QUERY_LOAD_MAIL_ITEMS, stmt);
++//    stmt = CharacterDatabase.GetPreparedStatement(CHAR_SEL_MAIL);
++//    stmt->setUInt32(0, lowGuid);
++//    res &= SetPreparedQuery(PLAYER_LOGIN_QUERY_LOAD_MAILS, stmt);
++//
++//    stmt = CharacterDatabase.GetPreparedStatement(CHAR_SEL_MAILITEMS);
++//    stmt->setUInt32(0, lowGuid);
++//    res &= SetPreparedQuery(PLAYER_LOGIN_QUERY_LOAD_MAIL_ITEMS, stmt);
+
+     stmt = CharacterDatabase.GetPreparedStatement(CHAR_SEL_CHARACTER_SOCIALLIST);
+     stmt->setUInt32(0, lowGuid);
 @@ -713,12 +713,13 @@ void WorldSession::HandlePlayerLoginOpcode(WorldPacket& recvData)
 
      recvData >> playerGuid;
@@ -397,10 +431,10 @@ index 7de97d54a4..421d44f614 100644
      AsyncRead();
 diff --git a/src/server/game/TC9Sidecar/TC9GrpcHandler.cpp b/src/server/game/TC9Sidecar/TC9GrpcHandler.cpp
 new file mode 100644
-index 0000000000..42b8c96404
+index 0000000000..2f3a2c2f0e
 --- /dev/null
 +++ b/src/server/game/TC9Sidecar/TC9GrpcHandler.cpp
-@@ -0,0 +1,166 @@
+@@ -0,0 +1,239 @@
 +#include "TC9GrpcHandler.h"
 +#include "ObjectAccessor.h"
 +#include "Item.h"
@@ -549,6 +583,8 @@ index 0000000000..42b8c96404
 +    item->SetUInt32Value(ITEM_FIELD_FLAGS, request->itemFlags);
 +    item->SetUInt32Value(ITEM_FIELD_DURABILITY, request->itemDurability);
 +    item->SetItemRandomProperties(request->itemRandomPropertyID);
++    item->SetCount(request->itemCount);
++
 +    // TODO: Add text.
 +
 +    ItemPosCountVec dest;
@@ -567,12 +603,83 @@ index 0000000000..42b8c96404
 +
 +    return PlayerItemErrorCodeNoError;
 +}
++
++GetMoneyForPlayerResponse ToCloud9GrpcHandler::GetMoneyForPlayer(uint64 playerGuid)
++{
++    Player *player = ObjectAccessor::FindPlayer(ObjectGuid(playerGuid));
++    if (player == nullptr)
++    {
++        GetMoneyForPlayerResponse resp;
++        resp.errorCode = PlayerMoneyErrorCodePlayerNotFound;
++        return resp;
++    }
++
++    GetMoneyForPlayerResponse resp;
++    resp.errorCode = PlayerMoneyErrorCodeNoError;
++    resp.money = player->GetMoney();
++    return resp;
++}
++
++ModifyMoneyForPlayerResponse ToCloud9GrpcHandler::ModifyMoneyForPlayer(uint64 playerGuid, int32 value)
++{
++    Player *player = ObjectAccessor::FindPlayer(ObjectGuid(playerGuid));
++    if (player == nullptr)
++    {
++        ModifyMoneyForPlayerResponse resp;
++        resp.errorCode = PlayerMoneyErrorCodePlayerNotFound;
++        return resp;
++    }
++
++    if (!player->ModifyMoney(value, true)) {
++        ModifyMoneyForPlayerResponse resp;
++        resp.errorCode = PlayerMoneyErrorCodeToMuchMoney;
++        resp.newMoneyValue = player->GetMoney();
++        return resp;
++    }
++
++    ModifyMoneyForPlayerResponse resp;
++    resp.errorCode = PlayerMoneyErrorCodeNoError;
++    resp.newMoneyValue = player->GetMoney();
++    return resp;
++}
++
++CanPlayerInteractWithGOAndTypeResponse ToCloud9GrpcHandler::CanPlayerInteractWithGOAndType(uint64 playerGuid, uint64 go, uint8 goType)
++{
++    Player *player = ObjectAccessor::FindPlayer(ObjectGuid(playerGuid));
++    if (player == nullptr)
++    {
++        CanPlayerInteractWithGOAndTypeResponse resp;
++        resp.errorCode = PlayerInteractionErrorCodeCodePlayerNotFound;
++        return resp;
++    }
++
++    CanPlayerInteractWithGOAndTypeResponse resp;
++    resp.errorCode = PlayerInteractionErrorCodeNoError;
++    resp.canInteract = player->GetGameObjectIfCanInteractWith(ObjectGuid(go), (GameobjectTypes)goType) != nullptr;
++    return resp;
++}
++
++CanPlayerInteractWithNPCAndFlagsResponse ToCloud9GrpcHandler::CanPlayerInteractWithNPCAndFlags(uint64 playerGuid, uint64 npc, uint32 unitFlags)
++{
++    Player *player = ObjectAccessor::FindPlayer(ObjectGuid(playerGuid));
++    if (player == nullptr)
++    {
++        CanPlayerInteractWithNPCAndFlagsResponse resp;
++        resp.errorCode = PlayerInteractionErrorCodeCodePlayerNotFound;
++        return resp;
++    }
++
++    CanPlayerInteractWithNPCAndFlagsResponse resp;
++    resp.errorCode = PlayerInteractionErrorCodeNoError;
++    resp.canInteract = player->GetNPCIfCanInteractWith(ObjectGuid(npc), (NPCFlags)unitFlags) != nullptr;
++    return resp;
++}
 diff --git a/src/server/game/TC9Sidecar/TC9GrpcHandler.h b/src/server/game/TC9Sidecar/TC9GrpcHandler.h
 new file mode 100644
-index 0000000000..76aa9a0dae
+index 0000000000..db409b4c42
 --- /dev/null
 +++ b/src/server/game/TC9Sidecar/TC9GrpcHandler.h
-@@ -0,0 +1,21 @@
+@@ -0,0 +1,29 @@
 +#ifndef _TC9_GRPC_HANDLER_H
 +#define _TC9_GRPC_HANDLER_H
 +
@@ -585,10 +692,18 @@ index 0000000000..76aa9a0dae
 +    ToCloud9GrpcHandler() {};
 +    ~ToCloud9GrpcHandler() {};
 +
-+    static GetPlayerItemsByGuidsResponse GetPlayerItemsByGuids(uint64 player, uint64* items, int items_len);
++    // Items
++    static GetPlayerItemsByGuidsResponse          GetPlayerItemsByGuids(uint64 player, uint64* items, int items_len);
 +    static RemoveItemsWithGuidsFromPlayerResponse RemoveItemsWithGuidsFromPlayer(uint64 player, uint64* items, int itemsLen, uint64 assignToPlayer);
-+    static RemoveItemsWithGuidsFromPlayerResponse Add(uint64 player, uint64* items, int itemsLen, uint64 assignToPlayer);
-+    static PlayerItemErrorCode AddExistingItemToPlayer(AddExistingItemToPlayerRequest*);
++    static PlayerItemErrorCode                    AddExistingItemToPlayer(AddExistingItemToPlayerRequest*);
++
++    // Money
++    static GetMoneyForPlayerResponse    GetMoneyForPlayer(uint64 player);
++    static ModifyMoneyForPlayerResponse ModifyMoneyForPlayer(uint64 player, int32 value);
++
++    // Interactions
++    static CanPlayerInteractWithGOAndTypeResponse   CanPlayerInteractWithGOAndType(uint64 player, uint64 go, uint8 goType);
++    static CanPlayerInteractWithNPCAndFlagsResponse CanPlayerInteractWithNPCAndFlags(uint64 player, uint64 npc, uint32 unitFlags);
 +};
 +
 +
@@ -657,10 +772,10 @@ index 0000000000..ccd5bee0e6
 +#endif // _TC9_GUILD_HOOKS_H
 diff --git a/src/server/game/TC9Sidecar/TC9Sidecar.cpp b/src/server/game/TC9Sidecar/TC9Sidecar.cpp
 new file mode 100644
-index 0000000000..9b752e739a
+index 0000000000..aa2d1f2168
 --- /dev/null
 +++ b/src/server/game/TC9Sidecar/TC9Sidecar.cpp
-@@ -0,0 +1,42 @@
+@@ -0,0 +1,48 @@
 +#include "TC9Sidecar.h"
 +#include "libsidecar.h"
 +
@@ -682,6 +797,12 @@ index 0000000000..9b752e739a
 +    TC9SetGetPlayerItemsByGuidsHandler(&ToCloud9GrpcHandler::GetPlayerItemsByGuids);
 +    TC9SetRemoveItemsWithGuidsFromPlayerHandler(&ToCloud9GrpcHandler::RemoveItemsWithGuidsFromPlayer);
 +    TC9SetAddExistingItemToPlayerHandler(&ToCloud9GrpcHandler::AddExistingItemToPlayer);
++
++    TC9SetGetMoneyForPlayerHandler(&ToCloud9GrpcHandler::GetMoneyForPlayer);
++    TC9SetModifyMoneyForPlayerHandler(&ToCloud9GrpcHandler::ModifyMoneyForPlayer);
++
++    TC9SetCanPlayerInteractWithGOAndTypeHandler(&ToCloud9GrpcHandler::CanPlayerInteractWithGOAndType);
++    TC9SetCanPlayerInteractWithNPCAndFlagsHandler(&ToCloud9GrpcHandler::CanPlayerInteractWithNPCAndFlags);
 +}
 +
 +void ToCloud9Sidecar::ProcessHooks()
@@ -689,7 +810,7 @@ index 0000000000..9b752e739a
 +    TC9ProcessEventsHooks();
 +}
 +
-+void ToCloud9Sidecar::ProcessGrpcRequest()
++void ToCloud9Sidecar::ProcessGrpcRequests()
 +{
 +    TC9ProcessGRPCRequests();
 +}
@@ -705,7 +826,7 @@ index 0000000000..9b752e739a
 +}
 diff --git a/src/server/game/TC9Sidecar/TC9Sidecar.h b/src/server/game/TC9Sidecar/TC9Sidecar.h
 new file mode 100644
-index 0000000000..111b9032da
+index 0000000000..418184dfcb
 --- /dev/null
 +++ b/src/server/game/TC9Sidecar/TC9Sidecar.h
 @@ -0,0 +1,29 @@
@@ -729,7 +850,7 @@ index 0000000000..111b9032da
 +    void SetupGrpcHandlers();
 +
 +    void ProcessHooks();
-+    void ProcessGrpcRequest();
++    void ProcessGrpcRequests();
 +
 +    uint32 GenerateCharacterGuid();
 +    uint32 GenerateItemGuid();
@@ -739,7 +860,7 @@ index 0000000000..111b9032da
 +
 +#endif // _TC9_SIDECAR_H
 diff --git a/src/server/game/World/World.cpp b/src/server/game/World/World.cpp
-index ed38d2505e..ae22c4a07b 100644
+index ed38d2505e..835613f365 100644
 --- a/src/server/game/World/World.cpp
 +++ b/src/server/game/World/World.cpp
 @@ -88,6 +88,7 @@
@@ -771,6 +892,27 @@ index ed38d2505e..ae22c4a07b 100644
 
      TC_LOG_INFO("server.loading", "Loading ArenaTeams...");
      sArenaTeamMgr->LoadArenaTeams();
+@@ -2380,13 +2384,13 @@ void World::Update(uint32 diff)
+         TC_METRIC_TIMER("world_update_time", TC_METRIC_TAG("type", "Update expired auctions"));
+         m_timers[WUPDATE_AUCTIONS].Reset();
+
+-        ///- Update mails (return old mails with item, or delete them)
+-        //(tested... works on win)
+-        if (++mail_timer > mail_timer_expires)
+-        {
+-            mail_timer = 0;
+-            sObjectMgr->ReturnOrDeleteOldMails(true);
+-        }
++//        ///- Update mails (return old mails with item, or delete them)
++//        //(tested... works on win)
++//        if (++mail_timer > mail_timer_expires)
++//        {
++//            mail_timer = 0;
++//            sObjectMgr->ReturnOrDeleteOldMails(true);
++//        }
+
+         ///- Handle expired auctions
+         sAuctionMgr->Update();
 @@ -2573,6 +2577,16 @@ void World::Update(uint32 diff)
          TC_METRIC_TIMER("world_update_time", TC_METRIC_TAG("type", "Update world scripts"));
          sScriptMgr->OnWorldUpdate(diff);
@@ -783,7 +925,7 @@ index ed38d2505e..ae22c4a07b 100644
 +
 +    {
 +        TC_METRIC_TIMER("world_update_time", TC_METRIC_TAG("type", "Process TC9 grpc requests"));
-+        sToCloud9Sidecar->ProcessGrpcRequest();
++        sToCloud9Sidecar->ProcessGrpcRequests();
 +    }
 
      {
@@ -859,7 +1001,7 @@ index 90ad17d318..b4f5c12cd8 100644
 @@ -4095,6 +4095,21 @@ AntiCheat.PendingMoveChangesTimeoutTime = 0
  #
  ###################################################################################################
- 
+
 +###################################################################################################
 +# CLUSTER SETTINGS
 +#
@@ -868,7 +1010,7 @@ index 90ad17d318..b4f5c12cd8 100644
 +#    Cluster.AvailableMaps
 +#        Description: List of available maps id on this server.
 +#        Examples:    "" - (Can handle any map)
-+#                     "0,1,573" 
++#                     "0,1,573"
 +
 +Cluster.AvailableMaps=""
 +

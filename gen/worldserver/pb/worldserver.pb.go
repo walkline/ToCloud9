@@ -30,7 +30,6 @@ type AddExistingItemToPlayerResponse_Status int32
 const (
 	AddExistingItemToPlayerResponse_Success AddExistingItemToPlayerResponse_Status = 0
 	AddExistingItemToPlayerResponse_NoSpace AddExistingItemToPlayerResponse_Status = 1
-	AddExistingItemToPlayerResponse_Failed  AddExistingItemToPlayerResponse_Status = 2
 )
 
 // Enum value maps for AddExistingItemToPlayerResponse_Status.
@@ -38,12 +37,10 @@ var (
 	AddExistingItemToPlayerResponse_Status_name = map[int32]string{
 		0: "Success",
 		1: "NoSpace",
-		2: "Failed",
 	}
 	AddExistingItemToPlayerResponse_Status_value = map[string]int32{
 		"Success": 0,
 		"NoSpace": 1,
-		"Failed":  2,
 	}
 )
 
@@ -439,6 +436,490 @@ func (x *AddExistingItemToPlayerResponse) GetStatus() AddExistingItemToPlayerRes
 	return AddExistingItemToPlayerResponse_Success
 }
 
+// GetMoneyForPlayer
+type GetMoneyForPlayerRequest struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Api        string `protobuf:"bytes,1,opt,name=api,proto3" json:"api,omitempty"`
+	PlayerGuid uint64 `protobuf:"varint,2,opt,name=playerGuid,proto3" json:"playerGuid,omitempty"`
+}
+
+func (x *GetMoneyForPlayerRequest) Reset() {
+	*x = GetMoneyForPlayerRequest{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_worldserver_proto_msgTypes[6]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *GetMoneyForPlayerRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetMoneyForPlayerRequest) ProtoMessage() {}
+
+func (x *GetMoneyForPlayerRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_worldserver_proto_msgTypes[6]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetMoneyForPlayerRequest.ProtoReflect.Descriptor instead.
+func (*GetMoneyForPlayerRequest) Descriptor() ([]byte, []int) {
+	return file_worldserver_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *GetMoneyForPlayerRequest) GetApi() string {
+	if x != nil {
+		return x.Api
+	}
+	return ""
+}
+
+func (x *GetMoneyForPlayerRequest) GetPlayerGuid() uint64 {
+	if x != nil {
+		return x.PlayerGuid
+	}
+	return 0
+}
+
+type GetMoneyForPlayerResponse struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Api   string `protobuf:"bytes,1,opt,name=api,proto3" json:"api,omitempty"`
+	Money uint32 `protobuf:"varint,2,opt,name=money,proto3" json:"money,omitempty"`
+}
+
+func (x *GetMoneyForPlayerResponse) Reset() {
+	*x = GetMoneyForPlayerResponse{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_worldserver_proto_msgTypes[7]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *GetMoneyForPlayerResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetMoneyForPlayerResponse) ProtoMessage() {}
+
+func (x *GetMoneyForPlayerResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_worldserver_proto_msgTypes[7]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetMoneyForPlayerResponse.ProtoReflect.Descriptor instead.
+func (*GetMoneyForPlayerResponse) Descriptor() ([]byte, []int) {
+	return file_worldserver_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *GetMoneyForPlayerResponse) GetApi() string {
+	if x != nil {
+		return x.Api
+	}
+	return ""
+}
+
+func (x *GetMoneyForPlayerResponse) GetMoney() uint32 {
+	if x != nil {
+		return x.Money
+	}
+	return 0
+}
+
+// ModifyMoneyForPlayer
+type ModifyMoneyForPlayerRequest struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Api        string `protobuf:"bytes,1,opt,name=api,proto3" json:"api,omitempty"`
+	PlayerGuid uint64 `protobuf:"varint,2,opt,name=playerGuid,proto3" json:"playerGuid,omitempty"`
+	Value      int32  `protobuf:"varint,3,opt,name=value,proto3" json:"value,omitempty"`
+}
+
+func (x *ModifyMoneyForPlayerRequest) Reset() {
+	*x = ModifyMoneyForPlayerRequest{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_worldserver_proto_msgTypes[8]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *ModifyMoneyForPlayerRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ModifyMoneyForPlayerRequest) ProtoMessage() {}
+
+func (x *ModifyMoneyForPlayerRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_worldserver_proto_msgTypes[8]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ModifyMoneyForPlayerRequest.ProtoReflect.Descriptor instead.
+func (*ModifyMoneyForPlayerRequest) Descriptor() ([]byte, []int) {
+	return file_worldserver_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *ModifyMoneyForPlayerRequest) GetApi() string {
+	if x != nil {
+		return x.Api
+	}
+	return ""
+}
+
+func (x *ModifyMoneyForPlayerRequest) GetPlayerGuid() uint64 {
+	if x != nil {
+		return x.PlayerGuid
+	}
+	return 0
+}
+
+func (x *ModifyMoneyForPlayerRequest) GetValue() int32 {
+	if x != nil {
+		return x.Value
+	}
+	return 0
+}
+
+type ModifyMoneyForPlayerResponse struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Api           string `protobuf:"bytes,1,opt,name=api,proto3" json:"api,omitempty"`
+	NewMoneyValue uint32 `protobuf:"varint,2,opt,name=newMoneyValue,proto3" json:"newMoneyValue,omitempty"`
+}
+
+func (x *ModifyMoneyForPlayerResponse) Reset() {
+	*x = ModifyMoneyForPlayerResponse{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_worldserver_proto_msgTypes[9]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *ModifyMoneyForPlayerResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ModifyMoneyForPlayerResponse) ProtoMessage() {}
+
+func (x *ModifyMoneyForPlayerResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_worldserver_proto_msgTypes[9]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ModifyMoneyForPlayerResponse.ProtoReflect.Descriptor instead.
+func (*ModifyMoneyForPlayerResponse) Descriptor() ([]byte, []int) {
+	return file_worldserver_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *ModifyMoneyForPlayerResponse) GetApi() string {
+	if x != nil {
+		return x.Api
+	}
+	return ""
+}
+
+func (x *ModifyMoneyForPlayerResponse) GetNewMoneyValue() uint32 {
+	if x != nil {
+		return x.NewMoneyValue
+	}
+	return 0
+}
+
+// CanPlayerInteractWithNPC
+type CanPlayerInteractWithNPCRequest struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Api        string `protobuf:"bytes,1,opt,name=api,proto3" json:"api,omitempty"`
+	PlayerGuid uint64 `protobuf:"varint,2,opt,name=playerGuid,proto3" json:"playerGuid,omitempty"`
+	NpcGuid    uint64 `protobuf:"varint,3,opt,name=npcGuid,proto3" json:"npcGuid,omitempty"`
+	NpcFlags   uint32 `protobuf:"varint,4,opt,name=npcFlags,proto3" json:"npcFlags,omitempty"`
+}
+
+func (x *CanPlayerInteractWithNPCRequest) Reset() {
+	*x = CanPlayerInteractWithNPCRequest{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_worldserver_proto_msgTypes[10]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *CanPlayerInteractWithNPCRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CanPlayerInteractWithNPCRequest) ProtoMessage() {}
+
+func (x *CanPlayerInteractWithNPCRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_worldserver_proto_msgTypes[10]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CanPlayerInteractWithNPCRequest.ProtoReflect.Descriptor instead.
+func (*CanPlayerInteractWithNPCRequest) Descriptor() ([]byte, []int) {
+	return file_worldserver_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *CanPlayerInteractWithNPCRequest) GetApi() string {
+	if x != nil {
+		return x.Api
+	}
+	return ""
+}
+
+func (x *CanPlayerInteractWithNPCRequest) GetPlayerGuid() uint64 {
+	if x != nil {
+		return x.PlayerGuid
+	}
+	return 0
+}
+
+func (x *CanPlayerInteractWithNPCRequest) GetNpcGuid() uint64 {
+	if x != nil {
+		return x.NpcGuid
+	}
+	return 0
+}
+
+func (x *CanPlayerInteractWithNPCRequest) GetNpcFlags() uint32 {
+	if x != nil {
+		return x.NpcFlags
+	}
+	return 0
+}
+
+type CanPlayerInteractWithNPCResponse struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Api         string `protobuf:"bytes,1,opt,name=api,proto3" json:"api,omitempty"`
+	CanInteract bool   `protobuf:"varint,2,opt,name=canInteract,proto3" json:"canInteract,omitempty"`
+}
+
+func (x *CanPlayerInteractWithNPCResponse) Reset() {
+	*x = CanPlayerInteractWithNPCResponse{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_worldserver_proto_msgTypes[11]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *CanPlayerInteractWithNPCResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CanPlayerInteractWithNPCResponse) ProtoMessage() {}
+
+func (x *CanPlayerInteractWithNPCResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_worldserver_proto_msgTypes[11]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CanPlayerInteractWithNPCResponse.ProtoReflect.Descriptor instead.
+func (*CanPlayerInteractWithNPCResponse) Descriptor() ([]byte, []int) {
+	return file_worldserver_proto_rawDescGZIP(), []int{11}
+}
+
+func (x *CanPlayerInteractWithNPCResponse) GetApi() string {
+	if x != nil {
+		return x.Api
+	}
+	return ""
+}
+
+func (x *CanPlayerInteractWithNPCResponse) GetCanInteract() bool {
+	if x != nil {
+		return x.CanInteract
+	}
+	return false
+}
+
+// CanPlayerInteractWithGameObject
+type CanPlayerInteractWithGameObjectRequest struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Api            string `protobuf:"bytes,1,opt,name=api,proto3" json:"api,omitempty"`
+	PlayerGuid     uint64 `protobuf:"varint,2,opt,name=playerGuid,proto3" json:"playerGuid,omitempty"`
+	GameObjectGuid uint64 `protobuf:"varint,3,opt,name=gameObjectGuid,proto3" json:"gameObjectGuid,omitempty"`
+	GameObjectType uint32 `protobuf:"varint,4,opt,name=gameObjectType,proto3" json:"gameObjectType,omitempty"`
+}
+
+func (x *CanPlayerInteractWithGameObjectRequest) Reset() {
+	*x = CanPlayerInteractWithGameObjectRequest{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_worldserver_proto_msgTypes[12]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *CanPlayerInteractWithGameObjectRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CanPlayerInteractWithGameObjectRequest) ProtoMessage() {}
+
+func (x *CanPlayerInteractWithGameObjectRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_worldserver_proto_msgTypes[12]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CanPlayerInteractWithGameObjectRequest.ProtoReflect.Descriptor instead.
+func (*CanPlayerInteractWithGameObjectRequest) Descriptor() ([]byte, []int) {
+	return file_worldserver_proto_rawDescGZIP(), []int{12}
+}
+
+func (x *CanPlayerInteractWithGameObjectRequest) GetApi() string {
+	if x != nil {
+		return x.Api
+	}
+	return ""
+}
+
+func (x *CanPlayerInteractWithGameObjectRequest) GetPlayerGuid() uint64 {
+	if x != nil {
+		return x.PlayerGuid
+	}
+	return 0
+}
+
+func (x *CanPlayerInteractWithGameObjectRequest) GetGameObjectGuid() uint64 {
+	if x != nil {
+		return x.GameObjectGuid
+	}
+	return 0
+}
+
+func (x *CanPlayerInteractWithGameObjectRequest) GetGameObjectType() uint32 {
+	if x != nil {
+		return x.GameObjectType
+	}
+	return 0
+}
+
+type CanPlayerInteractWithGameObjectResponse struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Api         string `protobuf:"bytes,1,opt,name=api,proto3" json:"api,omitempty"`
+	CanInteract bool   `protobuf:"varint,2,opt,name=canInteract,proto3" json:"canInteract,omitempty"`
+}
+
+func (x *CanPlayerInteractWithGameObjectResponse) Reset() {
+	*x = CanPlayerInteractWithGameObjectResponse{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_worldserver_proto_msgTypes[13]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *CanPlayerInteractWithGameObjectResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CanPlayerInteractWithGameObjectResponse) ProtoMessage() {}
+
+func (x *CanPlayerInteractWithGameObjectResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_worldserver_proto_msgTypes[13]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CanPlayerInteractWithGameObjectResponse.ProtoReflect.Descriptor instead.
+func (*CanPlayerInteractWithGameObjectResponse) Descriptor() ([]byte, []int) {
+	return file_worldserver_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *CanPlayerInteractWithGameObjectResponse) GetApi() string {
+	if x != nil {
+		return x.Api
+	}
+	return ""
+}
+
+func (x *CanPlayerInteractWithGameObjectResponse) GetCanInteract() bool {
+	if x != nil {
+		return x.CanInteract
+	}
+	return false
+}
+
 type GetPlayerItemsByGuidsResponse_Item struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
@@ -460,7 +941,7 @@ type GetPlayerItemsByGuidsResponse_Item struct {
 func (x *GetPlayerItemsByGuidsResponse_Item) Reset() {
 	*x = GetPlayerItemsByGuidsResponse_Item{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_worldserver_proto_msgTypes[6]
+		mi := &file_worldserver_proto_msgTypes[14]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -473,7 +954,7 @@ func (x *GetPlayerItemsByGuidsResponse_Item) String() string {
 func (*GetPlayerItemsByGuidsResponse_Item) ProtoMessage() {}
 
 func (x *GetPlayerItemsByGuidsResponse_Item) ProtoReflect() protoreflect.Message {
-	mi := &file_worldserver_proto_msgTypes[6]
+	mi := &file_worldserver_proto_msgTypes[14]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -583,7 +1064,7 @@ type AddExistingItemToPlayerRequest_Item struct {
 func (x *AddExistingItemToPlayerRequest_Item) Reset() {
 	*x = AddExistingItemToPlayerRequest_Item{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_worldserver_proto_msgTypes[7]
+		mi := &file_worldserver_proto_msgTypes[15]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -596,7 +1077,7 @@ func (x *AddExistingItemToPlayerRequest_Item) String() string {
 func (*AddExistingItemToPlayerRequest_Item) ProtoMessage() {}
 
 func (x *AddExistingItemToPlayerRequest_Item) ProtoReflect() protoreflect.Message {
-	mi := &file_worldserver_proto_msgTypes[7]
+	mi := &file_worldserver_proto_msgTypes[15]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -735,40 +1216,117 @@ var file_worldserver_proto_rawDesc = []byte{
 	0x72, 0x74, 0x79, 0x49, 0x44, 0x18, 0x0a, 0x20, 0x01, 0x28, 0x0d, 0x52, 0x10, 0x72, 0x61, 0x6e,
 	0x64, 0x6f, 0x6d, 0x50, 0x72, 0x6f, 0x70, 0x65, 0x72, 0x74, 0x79, 0x49, 0x44, 0x12, 0x12, 0x0a,
 	0x04, 0x74, 0x65, 0x78, 0x74, 0x18, 0x0b, 0x20, 0x01, 0x28, 0x09, 0x52, 0x04, 0x74, 0x65, 0x78,
-	0x74, 0x22, 0xa7, 0x01, 0x0a, 0x1f, 0x41, 0x64, 0x64, 0x45, 0x78, 0x69, 0x73, 0x74, 0x69, 0x6e,
+	0x74, 0x22, 0x9b, 0x01, 0x0a, 0x1f, 0x41, 0x64, 0x64, 0x45, 0x78, 0x69, 0x73, 0x74, 0x69, 0x6e,
 	0x67, 0x49, 0x74, 0x65, 0x6d, 0x54, 0x6f, 0x50, 0x6c, 0x61, 0x79, 0x65, 0x72, 0x52, 0x65, 0x73,
 	0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x10, 0x0a, 0x03, 0x61, 0x70, 0x69, 0x18, 0x01, 0x20, 0x01,
 	0x28, 0x09, 0x52, 0x03, 0x61, 0x70, 0x69, 0x12, 0x42, 0x0a, 0x06, 0x73, 0x74, 0x61, 0x74, 0x75,
 	0x73, 0x18, 0x02, 0x20, 0x01, 0x28, 0x0e, 0x32, 0x2a, 0x2e, 0x76, 0x31, 0x2e, 0x41, 0x64, 0x64,
 	0x45, 0x78, 0x69, 0x73, 0x74, 0x69, 0x6e, 0x67, 0x49, 0x74, 0x65, 0x6d, 0x54, 0x6f, 0x50, 0x6c,
 	0x61, 0x79, 0x65, 0x72, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x2e, 0x53, 0x74, 0x61,
-	0x74, 0x75, 0x73, 0x52, 0x06, 0x73, 0x74, 0x61, 0x74, 0x75, 0x73, 0x22, 0x2e, 0x0a, 0x06, 0x53,
+	0x74, 0x75, 0x73, 0x52, 0x06, 0x73, 0x74, 0x61, 0x74, 0x75, 0x73, 0x22, 0x22, 0x0a, 0x06, 0x53,
 	0x74, 0x61, 0x74, 0x75, 0x73, 0x12, 0x0b, 0x0a, 0x07, 0x53, 0x75, 0x63, 0x63, 0x65, 0x73, 0x73,
-	0x10, 0x00, 0x12, 0x0b, 0x0a, 0x07, 0x4e, 0x6f, 0x53, 0x70, 0x61, 0x63, 0x65, 0x10, 0x01, 0x12,
-	0x0a, 0x0a, 0x06, 0x46, 0x61, 0x69, 0x6c, 0x65, 0x64, 0x10, 0x02, 0x32, 0xcf, 0x02, 0x0a, 0x12,
-	0x57, 0x6f, 0x72, 0x6c, 0x64, 0x53, 0x65, 0x72, 0x76, 0x65, 0x72, 0x53, 0x65, 0x72, 0x76, 0x69,
-	0x63, 0x65, 0x12, 0x5c, 0x0a, 0x15, 0x47, 0x65, 0x74, 0x50, 0x6c, 0x61, 0x79, 0x65, 0x72, 0x49,
-	0x74, 0x65, 0x6d, 0x73, 0x42, 0x79, 0x47, 0x75, 0x69, 0x64, 0x73, 0x12, 0x20, 0x2e, 0x76, 0x31,
-	0x2e, 0x47, 0x65, 0x74, 0x50, 0x6c, 0x61, 0x79, 0x65, 0x72, 0x49, 0x74, 0x65, 0x6d, 0x73, 0x42,
-	0x79, 0x47, 0x75, 0x69, 0x64, 0x73, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x21, 0x2e,
-	0x76, 0x31, 0x2e, 0x47, 0x65, 0x74, 0x50, 0x6c, 0x61, 0x79, 0x65, 0x72, 0x49, 0x74, 0x65, 0x6d,
-	0x73, 0x42, 0x79, 0x47, 0x75, 0x69, 0x64, 0x73, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65,
-	0x12, 0x77, 0x0a, 0x1e, 0x52, 0x65, 0x6d, 0x6f, 0x76, 0x65, 0x49, 0x74, 0x65, 0x6d, 0x73, 0x57,
-	0x69, 0x74, 0x68, 0x47, 0x75, 0x69, 0x64, 0x73, 0x46, 0x72, 0x6f, 0x6d, 0x50, 0x6c, 0x61, 0x79,
-	0x65, 0x72, 0x12, 0x29, 0x2e, 0x76, 0x31, 0x2e, 0x52, 0x65, 0x6d, 0x6f, 0x76, 0x65, 0x49, 0x74,
-	0x65, 0x6d, 0x73, 0x57, 0x69, 0x74, 0x68, 0x47, 0x75, 0x69, 0x64, 0x73, 0x46, 0x72, 0x6f, 0x6d,
-	0x50, 0x6c, 0x61, 0x79, 0x65, 0x72, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x2a, 0x2e,
-	0x76, 0x31, 0x2e, 0x52, 0x65, 0x6d, 0x6f, 0x76, 0x65, 0x49, 0x74, 0x65, 0x6d, 0x73, 0x57, 0x69,
-	0x74, 0x68, 0x47, 0x75, 0x69, 0x64, 0x73, 0x46, 0x72, 0x6f, 0x6d, 0x50, 0x6c, 0x61, 0x79, 0x65,
-	0x72, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x62, 0x0a, 0x17, 0x41, 0x64, 0x64,
-	0x45, 0x78, 0x69, 0x73, 0x74, 0x69, 0x6e, 0x67, 0x49, 0x74, 0x65, 0x6d, 0x54, 0x6f, 0x50, 0x6c,
-	0x61, 0x79, 0x65, 0x72, 0x12, 0x22, 0x2e, 0x76, 0x31, 0x2e, 0x41, 0x64, 0x64, 0x45, 0x78, 0x69,
-	0x73, 0x74, 0x69, 0x6e, 0x67, 0x49, 0x74, 0x65, 0x6d, 0x54, 0x6f, 0x50, 0x6c, 0x61, 0x79, 0x65,
-	0x72, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x23, 0x2e, 0x76, 0x31, 0x2e, 0x41, 0x64,
-	0x64, 0x45, 0x78, 0x69, 0x73, 0x74, 0x69, 0x6e, 0x67, 0x49, 0x74, 0x65, 0x6d, 0x54, 0x6f, 0x50,
-	0x6c, 0x61, 0x79, 0x65, 0x72, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x42, 0x14, 0x5a,
-	0x12, 0x67, 0x65, 0x6e, 0x2f, 0x77, 0x6f, 0x72, 0x6c, 0x64, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72,
-	0x2f, 0x70, 0x62, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
+	0x10, 0x00, 0x12, 0x0b, 0x0a, 0x07, 0x4e, 0x6f, 0x53, 0x70, 0x61, 0x63, 0x65, 0x10, 0x01, 0x22,
+	0x4c, 0x0a, 0x18, 0x47, 0x65, 0x74, 0x4d, 0x6f, 0x6e, 0x65, 0x79, 0x46, 0x6f, 0x72, 0x50, 0x6c,
+	0x61, 0x79, 0x65, 0x72, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x12, 0x10, 0x0a, 0x03, 0x61,
+	0x70, 0x69, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x03, 0x61, 0x70, 0x69, 0x12, 0x1e, 0x0a,
+	0x0a, 0x70, 0x6c, 0x61, 0x79, 0x65, 0x72, 0x47, 0x75, 0x69, 0x64, 0x18, 0x02, 0x20, 0x01, 0x28,
+	0x04, 0x52, 0x0a, 0x70, 0x6c, 0x61, 0x79, 0x65, 0x72, 0x47, 0x75, 0x69, 0x64, 0x22, 0x43, 0x0a,
+	0x19, 0x47, 0x65, 0x74, 0x4d, 0x6f, 0x6e, 0x65, 0x79, 0x46, 0x6f, 0x72, 0x50, 0x6c, 0x61, 0x79,
+	0x65, 0x72, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x10, 0x0a, 0x03, 0x61, 0x70,
+	0x69, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x03, 0x61, 0x70, 0x69, 0x12, 0x14, 0x0a, 0x05,
+	0x6d, 0x6f, 0x6e, 0x65, 0x79, 0x18, 0x02, 0x20, 0x01, 0x28, 0x0d, 0x52, 0x05, 0x6d, 0x6f, 0x6e,
+	0x65, 0x79, 0x22, 0x65, 0x0a, 0x1b, 0x4d, 0x6f, 0x64, 0x69, 0x66, 0x79, 0x4d, 0x6f, 0x6e, 0x65,
+	0x79, 0x46, 0x6f, 0x72, 0x50, 0x6c, 0x61, 0x79, 0x65, 0x72, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73,
+	0x74, 0x12, 0x10, 0x0a, 0x03, 0x61, 0x70, 0x69, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x03,
+	0x61, 0x70, 0x69, 0x12, 0x1e, 0x0a, 0x0a, 0x70, 0x6c, 0x61, 0x79, 0x65, 0x72, 0x47, 0x75, 0x69,
+	0x64, 0x18, 0x02, 0x20, 0x01, 0x28, 0x04, 0x52, 0x0a, 0x70, 0x6c, 0x61, 0x79, 0x65, 0x72, 0x47,
+	0x75, 0x69, 0x64, 0x12, 0x14, 0x0a, 0x05, 0x76, 0x61, 0x6c, 0x75, 0x65, 0x18, 0x03, 0x20, 0x01,
+	0x28, 0x05, 0x52, 0x05, 0x76, 0x61, 0x6c, 0x75, 0x65, 0x22, 0x56, 0x0a, 0x1c, 0x4d, 0x6f, 0x64,
+	0x69, 0x66, 0x79, 0x4d, 0x6f, 0x6e, 0x65, 0x79, 0x46, 0x6f, 0x72, 0x50, 0x6c, 0x61, 0x79, 0x65,
+	0x72, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x10, 0x0a, 0x03, 0x61, 0x70, 0x69,
+	0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x03, 0x61, 0x70, 0x69, 0x12, 0x24, 0x0a, 0x0d, 0x6e,
+	0x65, 0x77, 0x4d, 0x6f, 0x6e, 0x65, 0x79, 0x56, 0x61, 0x6c, 0x75, 0x65, 0x18, 0x02, 0x20, 0x01,
+	0x28, 0x0d, 0x52, 0x0d, 0x6e, 0x65, 0x77, 0x4d, 0x6f, 0x6e, 0x65, 0x79, 0x56, 0x61, 0x6c, 0x75,
+	0x65, 0x22, 0x89, 0x01, 0x0a, 0x1f, 0x43, 0x61, 0x6e, 0x50, 0x6c, 0x61, 0x79, 0x65, 0x72, 0x49,
+	0x6e, 0x74, 0x65, 0x72, 0x61, 0x63, 0x74, 0x57, 0x69, 0x74, 0x68, 0x4e, 0x50, 0x43, 0x52, 0x65,
+	0x71, 0x75, 0x65, 0x73, 0x74, 0x12, 0x10, 0x0a, 0x03, 0x61, 0x70, 0x69, 0x18, 0x01, 0x20, 0x01,
+	0x28, 0x09, 0x52, 0x03, 0x61, 0x70, 0x69, 0x12, 0x1e, 0x0a, 0x0a, 0x70, 0x6c, 0x61, 0x79, 0x65,
+	0x72, 0x47, 0x75, 0x69, 0x64, 0x18, 0x02, 0x20, 0x01, 0x28, 0x04, 0x52, 0x0a, 0x70, 0x6c, 0x61,
+	0x79, 0x65, 0x72, 0x47, 0x75, 0x69, 0x64, 0x12, 0x18, 0x0a, 0x07, 0x6e, 0x70, 0x63, 0x47, 0x75,
+	0x69, 0x64, 0x18, 0x03, 0x20, 0x01, 0x28, 0x04, 0x52, 0x07, 0x6e, 0x70, 0x63, 0x47, 0x75, 0x69,
+	0x64, 0x12, 0x1a, 0x0a, 0x08, 0x6e, 0x70, 0x63, 0x46, 0x6c, 0x61, 0x67, 0x73, 0x18, 0x04, 0x20,
+	0x01, 0x28, 0x0d, 0x52, 0x08, 0x6e, 0x70, 0x63, 0x46, 0x6c, 0x61, 0x67, 0x73, 0x22, 0x56, 0x0a,
+	0x20, 0x43, 0x61, 0x6e, 0x50, 0x6c, 0x61, 0x79, 0x65, 0x72, 0x49, 0x6e, 0x74, 0x65, 0x72, 0x61,
+	0x63, 0x74, 0x57, 0x69, 0x74, 0x68, 0x4e, 0x50, 0x43, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73,
+	0x65, 0x12, 0x10, 0x0a, 0x03, 0x61, 0x70, 0x69, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x03,
+	0x61, 0x70, 0x69, 0x12, 0x20, 0x0a, 0x0b, 0x63, 0x61, 0x6e, 0x49, 0x6e, 0x74, 0x65, 0x72, 0x61,
+	0x63, 0x74, 0x18, 0x02, 0x20, 0x01, 0x28, 0x08, 0x52, 0x0b, 0x63, 0x61, 0x6e, 0x49, 0x6e, 0x74,
+	0x65, 0x72, 0x61, 0x63, 0x74, 0x22, 0xaa, 0x01, 0x0a, 0x26, 0x43, 0x61, 0x6e, 0x50, 0x6c, 0x61,
+	0x79, 0x65, 0x72, 0x49, 0x6e, 0x74, 0x65, 0x72, 0x61, 0x63, 0x74, 0x57, 0x69, 0x74, 0x68, 0x47,
+	0x61, 0x6d, 0x65, 0x4f, 0x62, 0x6a, 0x65, 0x63, 0x74, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74,
+	0x12, 0x10, 0x0a, 0x03, 0x61, 0x70, 0x69, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x03, 0x61,
+	0x70, 0x69, 0x12, 0x1e, 0x0a, 0x0a, 0x70, 0x6c, 0x61, 0x79, 0x65, 0x72, 0x47, 0x75, 0x69, 0x64,
+	0x18, 0x02, 0x20, 0x01, 0x28, 0x04, 0x52, 0x0a, 0x70, 0x6c, 0x61, 0x79, 0x65, 0x72, 0x47, 0x75,
+	0x69, 0x64, 0x12, 0x26, 0x0a, 0x0e, 0x67, 0x61, 0x6d, 0x65, 0x4f, 0x62, 0x6a, 0x65, 0x63, 0x74,
+	0x47, 0x75, 0x69, 0x64, 0x18, 0x03, 0x20, 0x01, 0x28, 0x04, 0x52, 0x0e, 0x67, 0x61, 0x6d, 0x65,
+	0x4f, 0x62, 0x6a, 0x65, 0x63, 0x74, 0x47, 0x75, 0x69, 0x64, 0x12, 0x26, 0x0a, 0x0e, 0x67, 0x61,
+	0x6d, 0x65, 0x4f, 0x62, 0x6a, 0x65, 0x63, 0x74, 0x54, 0x79, 0x70, 0x65, 0x18, 0x04, 0x20, 0x01,
+	0x28, 0x0d, 0x52, 0x0e, 0x67, 0x61, 0x6d, 0x65, 0x4f, 0x62, 0x6a, 0x65, 0x63, 0x74, 0x54, 0x79,
+	0x70, 0x65, 0x22, 0x5d, 0x0a, 0x27, 0x43, 0x61, 0x6e, 0x50, 0x6c, 0x61, 0x79, 0x65, 0x72, 0x49,
+	0x6e, 0x74, 0x65, 0x72, 0x61, 0x63, 0x74, 0x57, 0x69, 0x74, 0x68, 0x47, 0x61, 0x6d, 0x65, 0x4f,
+	0x62, 0x6a, 0x65, 0x63, 0x74, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x10, 0x0a,
+	0x03, 0x61, 0x70, 0x69, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x03, 0x61, 0x70, 0x69, 0x12,
+	0x20, 0x0a, 0x0b, 0x63, 0x61, 0x6e, 0x49, 0x6e, 0x74, 0x65, 0x72, 0x61, 0x63, 0x74, 0x18, 0x02,
+	0x20, 0x01, 0x28, 0x08, 0x52, 0x0b, 0x63, 0x61, 0x6e, 0x49, 0x6e, 0x74, 0x65, 0x72, 0x61, 0x63,
+	0x74, 0x32, 0xdf, 0x05, 0x0a, 0x12, 0x57, 0x6f, 0x72, 0x6c, 0x64, 0x53, 0x65, 0x72, 0x76, 0x65,
+	0x72, 0x53, 0x65, 0x72, 0x76, 0x69, 0x63, 0x65, 0x12, 0x5c, 0x0a, 0x15, 0x47, 0x65, 0x74, 0x50,
+	0x6c, 0x61, 0x79, 0x65, 0x72, 0x49, 0x74, 0x65, 0x6d, 0x73, 0x42, 0x79, 0x47, 0x75, 0x69, 0x64,
+	0x73, 0x12, 0x20, 0x2e, 0x76, 0x31, 0x2e, 0x47, 0x65, 0x74, 0x50, 0x6c, 0x61, 0x79, 0x65, 0x72,
+	0x49, 0x74, 0x65, 0x6d, 0x73, 0x42, 0x79, 0x47, 0x75, 0x69, 0x64, 0x73, 0x52, 0x65, 0x71, 0x75,
+	0x65, 0x73, 0x74, 0x1a, 0x21, 0x2e, 0x76, 0x31, 0x2e, 0x47, 0x65, 0x74, 0x50, 0x6c, 0x61, 0x79,
+	0x65, 0x72, 0x49, 0x74, 0x65, 0x6d, 0x73, 0x42, 0x79, 0x47, 0x75, 0x69, 0x64, 0x73, 0x52, 0x65,
+	0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x77, 0x0a, 0x1e, 0x52, 0x65, 0x6d, 0x6f, 0x76, 0x65,
+	0x49, 0x74, 0x65, 0x6d, 0x73, 0x57, 0x69, 0x74, 0x68, 0x47, 0x75, 0x69, 0x64, 0x73, 0x46, 0x72,
+	0x6f, 0x6d, 0x50, 0x6c, 0x61, 0x79, 0x65, 0x72, 0x12, 0x29, 0x2e, 0x76, 0x31, 0x2e, 0x52, 0x65,
+	0x6d, 0x6f, 0x76, 0x65, 0x49, 0x74, 0x65, 0x6d, 0x73, 0x57, 0x69, 0x74, 0x68, 0x47, 0x75, 0x69,
+	0x64, 0x73, 0x46, 0x72, 0x6f, 0x6d, 0x50, 0x6c, 0x61, 0x79, 0x65, 0x72, 0x52, 0x65, 0x71, 0x75,
+	0x65, 0x73, 0x74, 0x1a, 0x2a, 0x2e, 0x76, 0x31, 0x2e, 0x52, 0x65, 0x6d, 0x6f, 0x76, 0x65, 0x49,
+	0x74, 0x65, 0x6d, 0x73, 0x57, 0x69, 0x74, 0x68, 0x47, 0x75, 0x69, 0x64, 0x73, 0x46, 0x72, 0x6f,
+	0x6d, 0x50, 0x6c, 0x61, 0x79, 0x65, 0x72, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12,
+	0x62, 0x0a, 0x17, 0x41, 0x64, 0x64, 0x45, 0x78, 0x69, 0x73, 0x74, 0x69, 0x6e, 0x67, 0x49, 0x74,
+	0x65, 0x6d, 0x54, 0x6f, 0x50, 0x6c, 0x61, 0x79, 0x65, 0x72, 0x12, 0x22, 0x2e, 0x76, 0x31, 0x2e,
+	0x41, 0x64, 0x64, 0x45, 0x78, 0x69, 0x73, 0x74, 0x69, 0x6e, 0x67, 0x49, 0x74, 0x65, 0x6d, 0x54,
+	0x6f, 0x50, 0x6c, 0x61, 0x79, 0x65, 0x72, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x23,
+	0x2e, 0x76, 0x31, 0x2e, 0x41, 0x64, 0x64, 0x45, 0x78, 0x69, 0x73, 0x74, 0x69, 0x6e, 0x67, 0x49,
+	0x74, 0x65, 0x6d, 0x54, 0x6f, 0x50, 0x6c, 0x61, 0x79, 0x65, 0x72, 0x52, 0x65, 0x73, 0x70, 0x6f,
+	0x6e, 0x73, 0x65, 0x12, 0x50, 0x0a, 0x11, 0x47, 0x65, 0x74, 0x4d, 0x6f, 0x6e, 0x65, 0x79, 0x46,
+	0x6f, 0x72, 0x50, 0x6c, 0x61, 0x79, 0x65, 0x72, 0x12, 0x1c, 0x2e, 0x76, 0x31, 0x2e, 0x47, 0x65,
+	0x74, 0x4d, 0x6f, 0x6e, 0x65, 0x79, 0x46, 0x6f, 0x72, 0x50, 0x6c, 0x61, 0x79, 0x65, 0x72, 0x52,
+	0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x1d, 0x2e, 0x76, 0x31, 0x2e, 0x47, 0x65, 0x74, 0x4d,
+	0x6f, 0x6e, 0x65, 0x79, 0x46, 0x6f, 0x72, 0x50, 0x6c, 0x61, 0x79, 0x65, 0x72, 0x52, 0x65, 0x73,
+	0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x59, 0x0a, 0x14, 0x4d, 0x6f, 0x64, 0x69, 0x66, 0x79, 0x4d,
+	0x6f, 0x6e, 0x65, 0x79, 0x46, 0x6f, 0x72, 0x50, 0x6c, 0x61, 0x79, 0x65, 0x72, 0x12, 0x1f, 0x2e,
+	0x76, 0x31, 0x2e, 0x4d, 0x6f, 0x64, 0x69, 0x66, 0x79, 0x4d, 0x6f, 0x6e, 0x65, 0x79, 0x46, 0x6f,
+	0x72, 0x50, 0x6c, 0x61, 0x79, 0x65, 0x72, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x20,
+	0x2e, 0x76, 0x31, 0x2e, 0x4d, 0x6f, 0x64, 0x69, 0x66, 0x79, 0x4d, 0x6f, 0x6e, 0x65, 0x79, 0x46,
+	0x6f, 0x72, 0x50, 0x6c, 0x61, 0x79, 0x65, 0x72, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65,
+	0x12, 0x65, 0x0a, 0x18, 0x43, 0x61, 0x6e, 0x50, 0x6c, 0x61, 0x79, 0x65, 0x72, 0x49, 0x6e, 0x74,
+	0x65, 0x72, 0x61, 0x63, 0x74, 0x57, 0x69, 0x74, 0x68, 0x4e, 0x50, 0x43, 0x12, 0x23, 0x2e, 0x76,
+	0x31, 0x2e, 0x43, 0x61, 0x6e, 0x50, 0x6c, 0x61, 0x79, 0x65, 0x72, 0x49, 0x6e, 0x74, 0x65, 0x72,
+	0x61, 0x63, 0x74, 0x57, 0x69, 0x74, 0x68, 0x4e, 0x50, 0x43, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73,
+	0x74, 0x1a, 0x24, 0x2e, 0x76, 0x31, 0x2e, 0x43, 0x61, 0x6e, 0x50, 0x6c, 0x61, 0x79, 0x65, 0x72,
+	0x49, 0x6e, 0x74, 0x65, 0x72, 0x61, 0x63, 0x74, 0x57, 0x69, 0x74, 0x68, 0x4e, 0x50, 0x43, 0x52,
+	0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x7a, 0x0a, 0x1f, 0x43, 0x61, 0x6e, 0x50, 0x6c,
+	0x61, 0x79, 0x65, 0x72, 0x49, 0x6e, 0x74, 0x65, 0x72, 0x61, 0x63, 0x74, 0x57, 0x69, 0x74, 0x68,
+	0x47, 0x61, 0x6d, 0x65, 0x4f, 0x62, 0x6a, 0x65, 0x63, 0x74, 0x12, 0x2a, 0x2e, 0x76, 0x31, 0x2e,
+	0x43, 0x61, 0x6e, 0x50, 0x6c, 0x61, 0x79, 0x65, 0x72, 0x49, 0x6e, 0x74, 0x65, 0x72, 0x61, 0x63,
+	0x74, 0x57, 0x69, 0x74, 0x68, 0x47, 0x61, 0x6d, 0x65, 0x4f, 0x62, 0x6a, 0x65, 0x63, 0x74, 0x52,
+	0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x2b, 0x2e, 0x76, 0x31, 0x2e, 0x43, 0x61, 0x6e, 0x50,
+	0x6c, 0x61, 0x79, 0x65, 0x72, 0x49, 0x6e, 0x74, 0x65, 0x72, 0x61, 0x63, 0x74, 0x57, 0x69, 0x74,
+	0x68, 0x47, 0x61, 0x6d, 0x65, 0x4f, 0x62, 0x6a, 0x65, 0x63, 0x74, 0x52, 0x65, 0x73, 0x70, 0x6f,
+	0x6e, 0x73, 0x65, 0x42, 0x14, 0x5a, 0x12, 0x67, 0x65, 0x6e, 0x2f, 0x77, 0x6f, 0x72, 0x6c, 0x64,
+	0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2f, 0x70, 0x62, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f,
+	0x33,
 }
 
 var (
@@ -784,33 +1342,49 @@ func file_worldserver_proto_rawDescGZIP() []byte {
 }
 
 var file_worldserver_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_worldserver_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
+var file_worldserver_proto_msgTypes = make([]protoimpl.MessageInfo, 16)
 var file_worldserver_proto_goTypes = []interface{}{
-	(AddExistingItemToPlayerResponse_Status)(0),    // 0: v1.AddExistingItemToPlayerResponse.Status
-	(*GetPlayerItemsByGuidsRequest)(nil),           // 1: v1.GetPlayerItemsByGuidsRequest
-	(*GetPlayerItemsByGuidsResponse)(nil),          // 2: v1.GetPlayerItemsByGuidsResponse
-	(*RemoveItemsWithGuidsFromPlayerRequest)(nil),  // 3: v1.RemoveItemsWithGuidsFromPlayerRequest
-	(*RemoveItemsWithGuidsFromPlayerResponse)(nil), // 4: v1.RemoveItemsWithGuidsFromPlayerResponse
-	(*AddExistingItemToPlayerRequest)(nil),         // 5: v1.AddExistingItemToPlayerRequest
-	(*AddExistingItemToPlayerResponse)(nil),        // 6: v1.AddExistingItemToPlayerResponse
-	(*GetPlayerItemsByGuidsResponse_Item)(nil),     // 7: v1.GetPlayerItemsByGuidsResponse.Item
-	(*AddExistingItemToPlayerRequest_Item)(nil),    // 8: v1.AddExistingItemToPlayerRequest.Item
+	(AddExistingItemToPlayerResponse_Status)(0),     // 0: v1.AddExistingItemToPlayerResponse.Status
+	(*GetPlayerItemsByGuidsRequest)(nil),            // 1: v1.GetPlayerItemsByGuidsRequest
+	(*GetPlayerItemsByGuidsResponse)(nil),           // 2: v1.GetPlayerItemsByGuidsResponse
+	(*RemoveItemsWithGuidsFromPlayerRequest)(nil),   // 3: v1.RemoveItemsWithGuidsFromPlayerRequest
+	(*RemoveItemsWithGuidsFromPlayerResponse)(nil),  // 4: v1.RemoveItemsWithGuidsFromPlayerResponse
+	(*AddExistingItemToPlayerRequest)(nil),          // 5: v1.AddExistingItemToPlayerRequest
+	(*AddExistingItemToPlayerResponse)(nil),         // 6: v1.AddExistingItemToPlayerResponse
+	(*GetMoneyForPlayerRequest)(nil),                // 7: v1.GetMoneyForPlayerRequest
+	(*GetMoneyForPlayerResponse)(nil),               // 8: v1.GetMoneyForPlayerResponse
+	(*ModifyMoneyForPlayerRequest)(nil),             // 9: v1.ModifyMoneyForPlayerRequest
+	(*ModifyMoneyForPlayerResponse)(nil),            // 10: v1.ModifyMoneyForPlayerResponse
+	(*CanPlayerInteractWithNPCRequest)(nil),         // 11: v1.CanPlayerInteractWithNPCRequest
+	(*CanPlayerInteractWithNPCResponse)(nil),        // 12: v1.CanPlayerInteractWithNPCResponse
+	(*CanPlayerInteractWithGameObjectRequest)(nil),  // 13: v1.CanPlayerInteractWithGameObjectRequest
+	(*CanPlayerInteractWithGameObjectResponse)(nil), // 14: v1.CanPlayerInteractWithGameObjectResponse
+	(*GetPlayerItemsByGuidsResponse_Item)(nil),      // 15: v1.GetPlayerItemsByGuidsResponse.Item
+	(*AddExistingItemToPlayerRequest_Item)(nil),     // 16: v1.AddExistingItemToPlayerRequest.Item
 }
 var file_worldserver_proto_depIdxs = []int32{
-	7, // 0: v1.GetPlayerItemsByGuidsResponse.items:type_name -> v1.GetPlayerItemsByGuidsResponse.Item
-	8, // 1: v1.AddExistingItemToPlayerRequest.item:type_name -> v1.AddExistingItemToPlayerRequest.Item
-	0, // 2: v1.AddExistingItemToPlayerResponse.status:type_name -> v1.AddExistingItemToPlayerResponse.Status
-	1, // 3: v1.WorldServerService.GetPlayerItemsByGuids:input_type -> v1.GetPlayerItemsByGuidsRequest
-	3, // 4: v1.WorldServerService.RemoveItemsWithGuidsFromPlayer:input_type -> v1.RemoveItemsWithGuidsFromPlayerRequest
-	5, // 5: v1.WorldServerService.AddExistingItemToPlayer:input_type -> v1.AddExistingItemToPlayerRequest
-	2, // 6: v1.WorldServerService.GetPlayerItemsByGuids:output_type -> v1.GetPlayerItemsByGuidsResponse
-	4, // 7: v1.WorldServerService.RemoveItemsWithGuidsFromPlayer:output_type -> v1.RemoveItemsWithGuidsFromPlayerResponse
-	6, // 8: v1.WorldServerService.AddExistingItemToPlayer:output_type -> v1.AddExistingItemToPlayerResponse
-	6, // [6:9] is the sub-list for method output_type
-	3, // [3:6] is the sub-list for method input_type
-	3, // [3:3] is the sub-list for extension type_name
-	3, // [3:3] is the sub-list for extension extendee
-	0, // [0:3] is the sub-list for field type_name
+	15, // 0: v1.GetPlayerItemsByGuidsResponse.items:type_name -> v1.GetPlayerItemsByGuidsResponse.Item
+	16, // 1: v1.AddExistingItemToPlayerRequest.item:type_name -> v1.AddExistingItemToPlayerRequest.Item
+	0,  // 2: v1.AddExistingItemToPlayerResponse.status:type_name -> v1.AddExistingItemToPlayerResponse.Status
+	1,  // 3: v1.WorldServerService.GetPlayerItemsByGuids:input_type -> v1.GetPlayerItemsByGuidsRequest
+	3,  // 4: v1.WorldServerService.RemoveItemsWithGuidsFromPlayer:input_type -> v1.RemoveItemsWithGuidsFromPlayerRequest
+	5,  // 5: v1.WorldServerService.AddExistingItemToPlayer:input_type -> v1.AddExistingItemToPlayerRequest
+	7,  // 6: v1.WorldServerService.GetMoneyForPlayer:input_type -> v1.GetMoneyForPlayerRequest
+	9,  // 7: v1.WorldServerService.ModifyMoneyForPlayer:input_type -> v1.ModifyMoneyForPlayerRequest
+	11, // 8: v1.WorldServerService.CanPlayerInteractWithNPC:input_type -> v1.CanPlayerInteractWithNPCRequest
+	13, // 9: v1.WorldServerService.CanPlayerInteractWithGameObject:input_type -> v1.CanPlayerInteractWithGameObjectRequest
+	2,  // 10: v1.WorldServerService.GetPlayerItemsByGuids:output_type -> v1.GetPlayerItemsByGuidsResponse
+	4,  // 11: v1.WorldServerService.RemoveItemsWithGuidsFromPlayer:output_type -> v1.RemoveItemsWithGuidsFromPlayerResponse
+	6,  // 12: v1.WorldServerService.AddExistingItemToPlayer:output_type -> v1.AddExistingItemToPlayerResponse
+	8,  // 13: v1.WorldServerService.GetMoneyForPlayer:output_type -> v1.GetMoneyForPlayerResponse
+	10, // 14: v1.WorldServerService.ModifyMoneyForPlayer:output_type -> v1.ModifyMoneyForPlayerResponse
+	12, // 15: v1.WorldServerService.CanPlayerInteractWithNPC:output_type -> v1.CanPlayerInteractWithNPCResponse
+	14, // 16: v1.WorldServerService.CanPlayerInteractWithGameObject:output_type -> v1.CanPlayerInteractWithGameObjectResponse
+	10, // [10:17] is the sub-list for method output_type
+	3,  // [3:10] is the sub-list for method input_type
+	3,  // [3:3] is the sub-list for extension type_name
+	3,  // [3:3] is the sub-list for extension extendee
+	0,  // [0:3] is the sub-list for field type_name
 }
 
 func init() { file_worldserver_proto_init() }
@@ -892,7 +1466,7 @@ func file_worldserver_proto_init() {
 			}
 		}
 		file_worldserver_proto_msgTypes[6].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*GetPlayerItemsByGuidsResponse_Item); i {
+			switch v := v.(*GetMoneyForPlayerRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -904,6 +1478,102 @@ func file_worldserver_proto_init() {
 			}
 		}
 		file_worldserver_proto_msgTypes[7].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*GetMoneyForPlayerResponse); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_worldserver_proto_msgTypes[8].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*ModifyMoneyForPlayerRequest); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_worldserver_proto_msgTypes[9].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*ModifyMoneyForPlayerResponse); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_worldserver_proto_msgTypes[10].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*CanPlayerInteractWithNPCRequest); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_worldserver_proto_msgTypes[11].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*CanPlayerInteractWithNPCResponse); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_worldserver_proto_msgTypes[12].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*CanPlayerInteractWithGameObjectRequest); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_worldserver_proto_msgTypes[13].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*CanPlayerInteractWithGameObjectResponse); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_worldserver_proto_msgTypes[14].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*GetPlayerItemsByGuidsResponse_Item); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_worldserver_proto_msgTypes[15].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*AddExistingItemToPlayerRequest_Item); i {
 			case 0:
 				return &v.state
@@ -922,7 +1592,7 @@ func file_worldserver_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: file_worldserver_proto_rawDesc,
 			NumEnums:      1,
-			NumMessages:   8,
+			NumMessages:   16,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
@@ -953,6 +1623,12 @@ type WorldServerServiceClient interface {
 	GetPlayerItemsByGuids(ctx context.Context, in *GetPlayerItemsByGuidsRequest, opts ...grpc.CallOption) (*GetPlayerItemsByGuidsResponse, error)
 	RemoveItemsWithGuidsFromPlayer(ctx context.Context, in *RemoveItemsWithGuidsFromPlayerRequest, opts ...grpc.CallOption) (*RemoveItemsWithGuidsFromPlayerResponse, error)
 	AddExistingItemToPlayer(ctx context.Context, in *AddExistingItemToPlayerRequest, opts ...grpc.CallOption) (*AddExistingItemToPlayerResponse, error)
+	// Money
+	GetMoneyForPlayer(ctx context.Context, in *GetMoneyForPlayerRequest, opts ...grpc.CallOption) (*GetMoneyForPlayerResponse, error)
+	ModifyMoneyForPlayer(ctx context.Context, in *ModifyMoneyForPlayerRequest, opts ...grpc.CallOption) (*ModifyMoneyForPlayerResponse, error)
+	// Interactions
+	CanPlayerInteractWithNPC(ctx context.Context, in *CanPlayerInteractWithNPCRequest, opts ...grpc.CallOption) (*CanPlayerInteractWithNPCResponse, error)
+	CanPlayerInteractWithGameObject(ctx context.Context, in *CanPlayerInteractWithGameObjectRequest, opts ...grpc.CallOption) (*CanPlayerInteractWithGameObjectResponse, error)
 }
 
 type worldServerServiceClient struct {
@@ -990,12 +1666,54 @@ func (c *worldServerServiceClient) AddExistingItemToPlayer(ctx context.Context, 
 	return out, nil
 }
 
+func (c *worldServerServiceClient) GetMoneyForPlayer(ctx context.Context, in *GetMoneyForPlayerRequest, opts ...grpc.CallOption) (*GetMoneyForPlayerResponse, error) {
+	out := new(GetMoneyForPlayerResponse)
+	err := c.cc.Invoke(ctx, "/v1.WorldServerService/GetMoneyForPlayer", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *worldServerServiceClient) ModifyMoneyForPlayer(ctx context.Context, in *ModifyMoneyForPlayerRequest, opts ...grpc.CallOption) (*ModifyMoneyForPlayerResponse, error) {
+	out := new(ModifyMoneyForPlayerResponse)
+	err := c.cc.Invoke(ctx, "/v1.WorldServerService/ModifyMoneyForPlayer", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *worldServerServiceClient) CanPlayerInteractWithNPC(ctx context.Context, in *CanPlayerInteractWithNPCRequest, opts ...grpc.CallOption) (*CanPlayerInteractWithNPCResponse, error) {
+	out := new(CanPlayerInteractWithNPCResponse)
+	err := c.cc.Invoke(ctx, "/v1.WorldServerService/CanPlayerInteractWithNPC", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *worldServerServiceClient) CanPlayerInteractWithGameObject(ctx context.Context, in *CanPlayerInteractWithGameObjectRequest, opts ...grpc.CallOption) (*CanPlayerInteractWithGameObjectResponse, error) {
+	out := new(CanPlayerInteractWithGameObjectResponse)
+	err := c.cc.Invoke(ctx, "/v1.WorldServerService/CanPlayerInteractWithGameObject", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // WorldServerServiceServer is the server API for WorldServerService service.
 type WorldServerServiceServer interface {
 	// Items
 	GetPlayerItemsByGuids(context.Context, *GetPlayerItemsByGuidsRequest) (*GetPlayerItemsByGuidsResponse, error)
 	RemoveItemsWithGuidsFromPlayer(context.Context, *RemoveItemsWithGuidsFromPlayerRequest) (*RemoveItemsWithGuidsFromPlayerResponse, error)
 	AddExistingItemToPlayer(context.Context, *AddExistingItemToPlayerRequest) (*AddExistingItemToPlayerResponse, error)
+	// Money
+	GetMoneyForPlayer(context.Context, *GetMoneyForPlayerRequest) (*GetMoneyForPlayerResponse, error)
+	ModifyMoneyForPlayer(context.Context, *ModifyMoneyForPlayerRequest) (*ModifyMoneyForPlayerResponse, error)
+	// Interactions
+	CanPlayerInteractWithNPC(context.Context, *CanPlayerInteractWithNPCRequest) (*CanPlayerInteractWithNPCResponse, error)
+	CanPlayerInteractWithGameObject(context.Context, *CanPlayerInteractWithGameObjectRequest) (*CanPlayerInteractWithGameObjectResponse, error)
 }
 
 // UnimplementedWorldServerServiceServer can be embedded to have forward compatible implementations.
@@ -1010,6 +1728,18 @@ func (*UnimplementedWorldServerServiceServer) RemoveItemsWithGuidsFromPlayer(con
 }
 func (*UnimplementedWorldServerServiceServer) AddExistingItemToPlayer(context.Context, *AddExistingItemToPlayerRequest) (*AddExistingItemToPlayerResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method AddExistingItemToPlayer not implemented")
+}
+func (*UnimplementedWorldServerServiceServer) GetMoneyForPlayer(context.Context, *GetMoneyForPlayerRequest) (*GetMoneyForPlayerResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetMoneyForPlayer not implemented")
+}
+func (*UnimplementedWorldServerServiceServer) ModifyMoneyForPlayer(context.Context, *ModifyMoneyForPlayerRequest) (*ModifyMoneyForPlayerResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ModifyMoneyForPlayer not implemented")
+}
+func (*UnimplementedWorldServerServiceServer) CanPlayerInteractWithNPC(context.Context, *CanPlayerInteractWithNPCRequest) (*CanPlayerInteractWithNPCResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CanPlayerInteractWithNPC not implemented")
+}
+func (*UnimplementedWorldServerServiceServer) CanPlayerInteractWithGameObject(context.Context, *CanPlayerInteractWithGameObjectRequest) (*CanPlayerInteractWithGameObjectResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CanPlayerInteractWithGameObject not implemented")
 }
 
 func RegisterWorldServerServiceServer(s *grpc.Server, srv WorldServerServiceServer) {
@@ -1070,6 +1800,78 @@ func _WorldServerService_AddExistingItemToPlayer_Handler(srv interface{}, ctx co
 	return interceptor(ctx, in, info, handler)
 }
 
+func _WorldServerService_GetMoneyForPlayer_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetMoneyForPlayerRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WorldServerServiceServer).GetMoneyForPlayer(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/v1.WorldServerService/GetMoneyForPlayer",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WorldServerServiceServer).GetMoneyForPlayer(ctx, req.(*GetMoneyForPlayerRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _WorldServerService_ModifyMoneyForPlayer_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ModifyMoneyForPlayerRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WorldServerServiceServer).ModifyMoneyForPlayer(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/v1.WorldServerService/ModifyMoneyForPlayer",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WorldServerServiceServer).ModifyMoneyForPlayer(ctx, req.(*ModifyMoneyForPlayerRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _WorldServerService_CanPlayerInteractWithNPC_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CanPlayerInteractWithNPCRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WorldServerServiceServer).CanPlayerInteractWithNPC(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/v1.WorldServerService/CanPlayerInteractWithNPC",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WorldServerServiceServer).CanPlayerInteractWithNPC(ctx, req.(*CanPlayerInteractWithNPCRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _WorldServerService_CanPlayerInteractWithGameObject_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CanPlayerInteractWithGameObjectRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WorldServerServiceServer).CanPlayerInteractWithGameObject(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/v1.WorldServerService/CanPlayerInteractWithGameObject",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WorldServerServiceServer).CanPlayerInteractWithGameObject(ctx, req.(*CanPlayerInteractWithGameObjectRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 var _WorldServerService_serviceDesc = grpc.ServiceDesc{
 	ServiceName: "v1.WorldServerService",
 	HandlerType: (*WorldServerServiceServer)(nil),
@@ -1085,6 +1887,22 @@ var _WorldServerService_serviceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "AddExistingItemToPlayer",
 			Handler:    _WorldServerService_AddExistingItemToPlayer_Handler,
+		},
+		{
+			MethodName: "GetMoneyForPlayer",
+			Handler:    _WorldServerService_GetMoneyForPlayer_Handler,
+		},
+		{
+			MethodName: "ModifyMoneyForPlayer",
+			Handler:    _WorldServerService_ModifyMoneyForPlayer_Handler,
+		},
+		{
+			MethodName: "CanPlayerInteractWithNPC",
+			Handler:    _WorldServerService_CanPlayerInteractWithNPC_Handler,
+		},
+		{
+			MethodName: "CanPlayerInteractWithGameObject",
+			Handler:    _WorldServerService_CanPlayerInteractWithGameObject_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

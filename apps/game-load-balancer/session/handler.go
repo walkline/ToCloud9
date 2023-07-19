@@ -10,7 +10,7 @@ import (
 	pbServ "github.com/walkline/ToCloud9/gen/servers-registry/pb"
 )
 
-var HandleMap = map[uint16]HandlersQueue{
+var HandleMap = map[packet.Opcode]HandlersQueue{
 	packet.CMsgCharCreate:               NewHandler("CMsgCharCreate", ForwardPacketToRandomGameServer(packet.SMsgCharCreate)),
 	packet.CMsgPlayerLogin:              NewHandler("CMsgPlayerLogin", (*GameSession).Login),
 	packet.CMsgCharDelete:               NewHandler("CMsgCharDelete", ForwardPacketToRandomGameServer(packet.SMsgCharDelete)),
@@ -25,7 +25,7 @@ var HandleMap = map[uint16]HandlersQueue{
 	packet.CMsgGuildRoster:              NewHandler("CMsgGuildRoster", (*GameSession).HandleGuildRoster),
 	packet.CMsgGuildLeave:               NewHandler("CMsgGuildLeave", (*GameSession).HandleGuildLeave),
 	packet.CMsgGuildRemove:              NewHandler("CMsgGuildRemove", (*GameSession).HandleGuildKick),
-	packet.CMsgGuildSMTD:                NewHandler("CMsgGuildSMTD", (*GameSession).HandleGuildSetMessageOfTheDay),
+	packet.CMsgGuildMOTD:                NewHandler("CMsgGuildSMTD", (*GameSession).HandleGuildSetMessageOfTheDay),
 	packet.CMsgGuildSetPublicNote:       NewHandler("CMsgGuildSetPublicNote", (*GameSession).HandleGuildSetPublicNote),
 	packet.CMsgGuildSetOfficerNote:      NewHandler("CMsgGuildSetOfficerNote", (*GameSession).HandleGuildSetOfficerNote),
 	packet.CMsgGuildInfoText:            NewHandler("CMsgGuildInfoText", (*GameSession).HandleGuildSetInfoText),
@@ -34,6 +34,13 @@ var HandleMap = map[uint16]HandlersQueue{
 	packet.CMsgGuildDelRank:             NewHandler("CMsgGuildDelRank", (*GameSession).HandleGuildRankDelete),
 	packet.CMsgGuildPromote:             NewHandler("CMsgGuildPromote", (*GameSession).HandleGuildPromote),
 	packet.CMsgGuildDemote:              NewHandler("CMsgGuildDemote", (*GameSession).HandleGuildDemote),
+	packet.CMsgSendMail:                 NewHandler("CMsgSendMail", (*GameSession).HandleSendMail),
+	packet.CMsgGetMailList:              NewHandler("CMsgGetMailList", (*GameSession).HandleGetMailList),
+	packet.CMsgMailMarkAsRead:           NewHandler("CMsgMailMarkAsRead", (*GameSession).HandleMailMarksAsRead),
+	packet.CMsgMailTakeMoney:            NewHandler("CMsgMailTakeMoney", (*GameSession).HandleMailTakeMoney),
+	packet.CMsgMailTakeItem:             NewHandler("CMsgMailTakeItem", (*GameSession).HandleMailTakeItem),
+	packet.CMsgMailDelete:               NewHandler("CMsgMailDelete", (*GameSession).HandleDeleteMail),
+	packet.MsgQueryNextMailTime:         NewHandler("MsgQueryNextMailTime", (*GameSession).HandleQueryNextMailTime),
 	packet.SMsgInitWorldStates:          NewHandler("SMsgInitWorldStates", (*GameSession).InterceptInitWorldStates),
 	packet.SMsgLevelUpInfo:              NewHandler("SMsgLevelUpInfo", (*GameSession).InterceptLevelUpInfo),
 	packet.CMsgPing:                     NewHandler("CMsgPing", (*GameSession).HandlePing),
@@ -69,7 +76,7 @@ func (q *HandlersQueue) Handle(ctx context.Context, session *GameSession, p *pac
 	return nil
 }
 
-func ForwardPacketToRandomGameServer(waitOpcodeToClose uint16) Handler {
+func ForwardPacketToRandomGameServer(waitOpcodeToClose packet.Opcode) Handler {
 	return func(s *GameSession, ctx context.Context, p *packet.Packet) error {
 		serverResult, err := s.serversRegistryClient.RandomGameServerForRealm(ctx, &pbServ.RandomGameServerForRealmRequest{
 			Api:     root.SupportedServerRegistryVer,
@@ -80,7 +87,7 @@ func ForwardPacketToRandomGameServer(waitOpcodeToClose uint16) Handler {
 		}
 
 		if serverResult.GameServer == nil {
-			return fmt.Errorf("no available game servers to handle 0x%X packet", p.Opcode)
+			return fmt.Errorf("no available game servers to handle 0x%X packet", uint16(p.Opcode))
 		}
 
 		socket, err := WorldSocketCreator(s.logger, serverResult.GameServer.Address)

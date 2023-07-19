@@ -100,6 +100,7 @@ var shutdownFunc ShutdownFunc
 
 // TC9InitLib inits lib by starting services like grpc and healthcheck.
 // Adds game server to the servers registry that will make this server visible for game load balancer.
+//
 //export TC9InitLib
 func TC9InitLib(port uint16, realmID uint32, availableMaps *C.char) {
 	cfg, healthCheckServer, shutdown := initLib()
@@ -112,10 +113,16 @@ func TC9InitLib(port uint16, realmID uint32, availableMaps *C.char) {
 		panic(err)
 	}
 
+	grpcPort, err := strconv.Atoi(cfg.GRPCPort)
+	if err != nil {
+		panic(err)
+	}
+
 	_, err = registryClient.RegisterGameServer(context.TODO(), &pb.RegisterGameServerRequest{
 		Api:               libVer,
 		GamePort:          uint32(port),
 		HealthPort:        uint32(healthPort),
+		GrpcPort:          uint32(grpcPort),
 		RealmID:           realmID,
 		AvailableMaps:     C.GoString(availableMaps),
 		PreferredHostName: cfg.PreferredHostname,
@@ -126,6 +133,7 @@ func TC9InitLib(port uint16, realmID uint32, availableMaps *C.char) {
 }
 
 // TC9GracefulShutdown gracefully stops all running services.
+//
 //export TC9GracefulShutdown
 func TC9GracefulShutdown() {
 	shutdownFunc()

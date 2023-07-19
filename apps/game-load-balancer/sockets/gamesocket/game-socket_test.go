@@ -51,7 +51,7 @@ func TestGameSocketForwardsPacketsFromGameClient(t *testing.T) {
 	readCh := s.ReadChannel()
 	assert.Equal(t, 1, len(readCh))
 	p := <-readCh
-	assert.Equal(t, uint16(packet.CMsgPing), p.Opcode)
+	assert.Equal(t, packet.CMsgPing, p.Opcode)
 }
 
 func TestGameSocketForwardsPacketsToGameClient(t *testing.T) {
@@ -194,7 +194,7 @@ func simulateOnePlayer(t *testing.T, packetsReceivedLimit int) {
 func WriterToBytes(p *packet.Writer) []byte {
 	header := make([]byte, 4, len(p.Payload.Bytes())+4)
 	binary.BigEndian.PutUint16(header[0:2], uint16(len(p.Payload.Bytes())+2))
-	binary.LittleEndian.PutUint16(header[2:4], p.Opcode)
+	binary.LittleEndian.PutUint16(header[2:4], uint16(p.Opcode))
 
 	return append(header, p.Payload.Bytes()...)
 }

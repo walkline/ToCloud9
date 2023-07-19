@@ -16,8 +16,12 @@ import (
 	mocks "github.com/walkline/ToCloud9/apps/game-load-balancer/sockets/socketmock"
 	pbChar "github.com/walkline/ToCloud9/gen/characters/pb"
 	charMocks "github.com/walkline/ToCloud9/gen/characters/pb/mocks"
+	pbMail "github.com/walkline/ToCloud9/gen/mail/pb"
+	mailMocks "github.com/walkline/ToCloud9/gen/mail/pb/mocks"
 	pbServ "github.com/walkline/ToCloud9/gen/servers-registry/pb"
 	regMock "github.com/walkline/ToCloud9/gen/servers-registry/pb/mocks"
+	"github.com/walkline/ToCloud9/gen/worldserver/pb"
+	wsMocks "github.com/walkline/ToCloud9/gen/worldserver/pb/mocks"
 	"github.com/walkline/ToCloud9/shared/events"
 	lbProducerMock "github.com/walkline/ToCloud9/shared/events/mocks"
 )
@@ -63,7 +67,7 @@ func TestGameSessionHandlePacketsWorldPacketsRoute(t *testing.T) {
 	assert.Len(t, gameWriteChan, 4)
 	for len(gameWriteChan) > 0 {
 		v := <-gameWriteChan
-		assert.Equal(t, v.Opcode, uint16(packet.SMsgNewWorld))
+		assert.Equal(t, v.Opcode, packet.SMsgNewWorld)
 		assert.Equal(t, v.Size, uint32(0))
 	}
 }
@@ -106,7 +110,7 @@ func TestGameSessionHandlePacketsGamePacketsRoute(t *testing.T) {
 	assert.Len(t, worldWriteChan, 4)
 	for len(worldWriteChan) > 0 {
 		v := <-worldWriteChan
-		assert.Equal(t, v.Opcode, uint16(packet.CMsgPing))
+		assert.Equal(t, v.Opcode, packet.CMsgPing)
 		assert.Equal(t, v.Size, uint32(0))
 	}
 }
@@ -179,7 +183,7 @@ func TestGameSessionHandlePacketsGamePacketsHandler(t *testing.T) {
 		HandleMap[packet.CMsgPing] = NewHandler("test1", func(s *GameSession, c context.Context, p *packet.Packet) error {
 			defer func() { pingHandled = true }()
 
-			assert.Equal(t, uint16(packet.CMsgPing), p.Opcode)
+			assert.Equal(t, packet.CMsgPing, p.Opcode)
 			assert.Equal(t, uint64(42), p.Reader().Uint64())
 
 			return nil
@@ -188,7 +192,7 @@ func TestGameSessionHandlePacketsGamePacketsHandler(t *testing.T) {
 		HandleMap[packet.CMsgPlayerLogin] = NewHandler("test2", func(s *GameSession, c context.Context, p *packet.Packet) error {
 			defer func() { loginHandled = true }()
 
-			assert.Equal(t, uint16(packet.CMsgPlayerLogin), p.Opcode)
+			assert.Equal(t, packet.CMsgPlayerLogin, p.Opcode)
 
 			return nil
 		})
@@ -274,6 +278,9 @@ func TestGameSessionLogin(t *testing.T) {
 		},
 	}, nil)
 
+	mailServiceMock := &mailMocks.MailServiceClient{}
+	mailServiceMock.On("MailsForPlayer", mock.Anything, mock.Anything).Return(&pbMail.MailsForPlayerResponse{}, nil)
+
 	producer := &lbProducerMock.LoadBalancerProducer{}
 	producer.On("CharacterLoggedIn", mock.MatchedBy(func(p *events.LBEventCharacterLoggedInPayload) bool {
 		return p.CharGUID == charID
@@ -287,15 +294,21 @@ func TestGameSessionLogin(t *testing.T) {
 	worldSocket := &mocks.Socket{}
 	worldSocket.On("SendPacket", mock.Anything).Return()
 	worldSocket.On("Send", mock.MatchedBy(func(wr *packet.Writer) bool {
-		return wr.Opcode == packet.CMsgAuthSession || wr.Opcode == packet.CMsgPlayerLogin
+		return wr.Opcode == packet.CMsgAuthSession || wr.Opcode == packet.CMsgPlayerLogin || wr.Opcode == packet.MsgQueryNextMailTime
 	})).Return()
 	worldSocket.On("ReadChannel").Return((<-chan *packet.Packet)(make(chan *packet.Packet, 100)))
 	worldSocket.On("ListenAndProcess", mock.Anything).Return(nil)
 
+	gameSocket := &mocks.Socket{}
+	gameSocket.On("SendPacket", mock.Anything).Return()
+	gameSocket.On("Send", mock.MatchedBy(func(wr *packet.Writer) bool {
+		return wr.Opcode == packet.MsgQueryNextMailTime
+	})).Return()
+
 	session := NewGameSession(
 		context.Background(),
 		&log.Logger,
-		&mocks.Socket{},
+		gameSocket,
 		1,
 		packet.NewWriter(packet.CMsgAuthSession).ToPacket(),
 		GameSessionParams{
@@ -303,6 +316,10 @@ func TestGameSessionLogin(t *testing.T) {
 			CharServiceClient:     charMock,
 			EventsProducer:        producer,
 			EventsBroadcaster:     broadcaster,
+			MailServiceClient:     mailServiceMock,
+			GameServerGRPCConnMgr: &GameGRPCConnMgrMock{
+				connToReturn: &wsMocks.WorldServerServiceClient{},
+			},
 		},
 	)
 
@@ -316,8 +333,8 @@ func TestGameSessionLogin(t *testing.T) {
 	assert.Equal(t, worldSocket, session.worldSocket)
 }
 
-func dumpHandleMap(m map[uint16]HandlersQueue) map[uint16]HandlersQueue {
-	dumpHandleMap := map[uint16]HandlersQueue{}
+func dumpHandleMap(m map[packet.Opcode]HandlersQueue) map[packet.Opcode]HandlersQueue {
+	dumpHandleMap := map[packet.Opcode]HandlersQueue{}
 	for k, v := range m {
 		dumpHandleMap[k] = v
 	}
@@ -330,4 +347,17 @@ func dumpEventsHandleMap(m map[eBroadcaster.EventType]EventsHandlersQueue) map[e
 		dumpHandleMap[k] = v
 	}
 	return dumpHandleMap
+}
+
+type GameGRPCConnMgrMock struct {
+	connToReturn pb.WorldServerServiceClient
+	err          error
+}
+
+func (m GameGRPCConnMgrMock) AddAddressMapping(gameServerAddress, grpcServerAddress string) {
+
+}
+
+func (m GameGRPCConnMgrMock) GRPCConnByGameServerAddress(address string) (pb.WorldServerServiceClient, error) {
+	return m.connToReturn, m.err
 }

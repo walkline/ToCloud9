@@ -40,6 +40,9 @@ type Config struct {
 	// GuildsServiceAddress is address of guilds service
 	GuildsServiceAddress string `env:"GUILDS_SERVICE_ADDRESS,default=localhost:8995"`
 
+	// MailServiceAddress is address of mail service
+	MailServiceAddress string `env:"MAIL_SERVICE_ADDRESS,default=localhost:8997"`
+
 	// NatsURL is nats connection url
 	NatsURL string `env:"NATS_URL,default=nats://nats:4222"`
 }

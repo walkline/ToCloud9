@@ -38,7 +38,7 @@ type characterDBImpl struct {
 	dbByReam map[uint32]dbWithPreparedStmts
 }
 
-func (c characterDBImpl) DBByRealm(realmID uint32) *sql.DB {
+func (c *characterDBImpl) DBByRealm(realmID uint32) *sql.DB {
 	return c.dbByReam[realmID].db
 }
 
@@ -49,7 +49,7 @@ func (c *characterDBImpl) SetDBForRealm(realmID uint32, db *sql.DB) {
 	}
 }
 
-func (c characterDBImpl) PreparedStatement(realm uint32, stmt PreparedStatement) *sql.Stmt {
+func (c *characterDBImpl) PreparedStatement(realm uint32, stmt PreparedStatement) *sql.Stmt {
 	return c.dbByReam[realm].stmts[stmt.ID()]
 }
 

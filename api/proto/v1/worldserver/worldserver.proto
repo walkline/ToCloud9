@@ -10,6 +10,14 @@ service WorldServerService {
   rpc GetPlayerItemsByGuids(GetPlayerItemsByGuidsRequest) returns (GetPlayerItemsByGuidsResponse);
   rpc RemoveItemsWithGuidsFromPlayer(RemoveItemsWithGuidsFromPlayerRequest) returns (RemoveItemsWithGuidsFromPlayerResponse);
   rpc AddExistingItemToPlayer(AddExistingItemToPlayerRequest) returns (AddExistingItemToPlayerResponse);
+
+  // Money
+  rpc GetMoneyForPlayer(GetMoneyForPlayerRequest) returns (GetMoneyForPlayerResponse);
+  rpc ModifyMoneyForPlayer(ModifyMoneyForPlayerRequest) returns (ModifyMoneyForPlayerResponse);
+
+  // Interactions
+  rpc CanPlayerInteractWithNPC(CanPlayerInteractWithNPCRequest) returns (CanPlayerInteractWithNPCResponse);
+  rpc CanPlayerInteractWithGameObject(CanPlayerInteractWithGameObjectRequest) returns (CanPlayerInteractWithGameObjectResponse);
 }
 
 // GetPlayerItemsByGuids
@@ -82,4 +90,61 @@ message AddExistingItemToPlayerResponse {
   }
 
   Status status = 2;
+}
+
+// GetMoneyForPlayer
+message GetMoneyForPlayerRequest {
+  string api = 1;
+
+  uint64 playerGuid = 2;
+}
+
+message GetMoneyForPlayerResponse {
+  string api = 1;
+
+  uint32 money = 2;
+}
+
+// ModifyMoneyForPlayer
+message ModifyMoneyForPlayerRequest {
+  string api = 1;
+
+  uint64 playerGuid = 2;
+  int32 value = 3;
+}
+
+message ModifyMoneyForPlayerResponse {
+  string api = 1;
+
+  uint32 newMoneyValue = 2;
+}
+
+// CanPlayerInteractWithNPC
+message CanPlayerInteractWithNPCRequest {
+  string api = 1;
+
+  uint64 playerGuid = 2;
+  uint64 npcGuid = 3;
+  uint32 npcFlags = 4;
+}
+
+message CanPlayerInteractWithNPCResponse {
+  string api = 1;
+
+  bool canInteract = 2;
+}
+
+// CanPlayerInteractWithGameObject
+message CanPlayerInteractWithGameObjectRequest {
+  string api = 1;
+
+  uint64 playerGuid = 2;
+  uint64 gameObjectGuid = 3;
+  uint32 gameObjectType = 4;
+}
+
+message CanPlayerInteractWithGameObjectResponse {
+  string api = 1;
+
+  bool canInteract = 2;
 }

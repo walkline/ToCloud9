@@ -50,5 +50,6 @@ type AccountData struct {
 type Characters interface {
 	ListCharactersToLogIn(ctx context.Context, realmID, accountID uint32) ([]LogInCharacter, error)
 	CharacterToLogInByGUID(ctx context.Context, realmID uint32, charGUID uint64) (*LogInCharacter, error)
+	CharacterByName(ctx context.Context, realmID uint32, name string) (*Character, error)
 	AccountDataForAccountID(ctx context.Context, realmID, accountID uint32) ([]AccountData, error)
 }

@@ -17,7 +17,9 @@ import (
 	pbChar "github.com/walkline/ToCloud9/gen/characters/pb"
 	pbChat "github.com/walkline/ToCloud9/gen/chat/pb"
 	pbGuild "github.com/walkline/ToCloud9/gen/guilds/pb"
+	pbMail "github.com/walkline/ToCloud9/gen/mail/pb"
 	pbServ "github.com/walkline/ToCloud9/gen/servers-registry/pb"
+	pbGameServ "github.com/walkline/ToCloud9/gen/worldserver/pb"
 	"github.com/walkline/ToCloud9/shared/events"
 )
 
@@ -41,9 +43,12 @@ type GameSession struct {
 	serversRegistryClient pbServ.ServersRegistryServiceClient
 	chatServiceClient     pbChat.ChatServiceClient
 	guildServiceClient    pbGuild.GuildServiceClient
+	mailServiceClient     pbMail.MailServiceClient
+	gameServerGRPCClient  pbGameServ.WorldServerServiceClient
 	eventsProducer        events.LoadBalancerProducer
 	eventsBroadcaster     eBroadcaster.Broadcaster
 	charsUpdsBarrier      *service.CharactersUpdatesBarrier
+	gameServerGRPCConnMgr service.GameServerGRPCConnMgr
 
 	authPacket *packet.Packet
 
@@ -60,9 +65,11 @@ type GameSessionParams struct {
 	ServersRegistryClient pbServ.ServersRegistryServiceClient
 	ChatServiceClient     pbChat.ChatServiceClient
 	GuildsServiceClient   pbGuild.GuildServiceClient
+	MailServiceClient     pbMail.MailServiceClient
 	EventsProducer        events.LoadBalancerProducer
 	CharsUpdsBarrier      *service.CharactersUpdatesBarrier
 	EventsBroadcaster     eBroadcaster.Broadcaster
+	GameServerGRPCConnMgr service.GameServerGRPCConnMgr
 }
 
 func NewGameSession(
@@ -80,9 +87,11 @@ func NewGameSession(
 		serversRegistryClient: params.ServersRegistryClient,
 		chatServiceClient:     params.ChatServiceClient,
 		guildServiceClient:    params.GuildsServiceClient,
+		mailServiceClient:     params.MailServiceClient,
 		eventsProducer:        params.EventsProducer,
 		eventsBroadcaster:     params.EventsBroadcaster,
 		charsUpdsBarrier:      params.CharsUpdsBarrier,
+		gameServerGRPCConnMgr: params.GameServerGRPCConnMgr,
 		sessionSafeFuChan:     make(chan func(*GameSession), 100),
 	}
 	return s
@@ -132,6 +141,11 @@ func (s *GameSession) HandlePackets(ctx context.Context) {
 			}
 			if err = handler.Handle(pCtx, s, p); err != nil {
 				s.logger.Error().Err(err).Msgf("can't handle packet with name %s", handler.name)
+				if userFriendlyErr, ok := err.(*UserFriendlyError); ok {
+					if s.character != nil {
+						s.SendSysMessage(userFriendlyErr.UserError)
+					}
+				}
 			}
 		// worldReadChan can be nil and can be forever blocked
 		case p, ok := <-worldReadChan:
@@ -165,6 +179,8 @@ func (s *GameSession) HandlePackets(ctx context.Context) {
 			pCancel()
 			return
 		}
+
+		pCancel()
 	}
 }
 
@@ -211,6 +227,10 @@ func (s *GameSession) Login(ctx context.Context, p *packet.Packet) error {
 
 	if s.character.GuildID != 0 {
 		return s.GuildLoginCommand(ctx)
+	}
+
+	if err = s.HandleQueryNextMailTime(ctx, p); err != nil {
+		return err
 	}
 
 	return err
@@ -393,6 +413,13 @@ func (s *GameSession) connectToGameServer(ctx context.Context, characterGUID uin
 		Str("address", serversResult.GameServers[0].Address).
 		Msg("Connecting to the world server")
 
+	s.gameServerGRPCConnMgr.AddAddressMapping(serversResult.GameServers[0].Address, serversResult.GameServers[0].GrpcAddress)
+
+	s.gameServerGRPCClient, err = s.gameServerGRPCConnMgr.GRPCConnByGameServerAddress(serversResult.GameServers[0].Address)
+	if err != nil {
+		return nil, nil, fmt.Errorf("can't get game server grpc client, err: %w", err)
+	}
+
 	socket, err := WorldSocketCreator(s.logger, serversResult.GameServers[0].Address)
 	if err != nil {
 		return nil, nil, fmt.Errorf("can't connect to the world server, err: %w", err)
@@ -412,6 +439,7 @@ func (s *GameSession) connectToGameServer(ctx context.Context, characterGUID uin
 }
 
 func (s *GameSession) onWorldSocketClosed() {
+
 	go func(charGUID uint64) {
 		s.SendSysMessage("Lost connection with world server...")
 		time.Sleep(time.Second * 2) // giving some time to recover

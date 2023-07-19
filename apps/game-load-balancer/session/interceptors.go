@@ -124,7 +124,7 @@ func (s *GameSession) InterceptMoveWorldPortAck(ctx context.Context, p *packet.P
 	go func(charGUID uint64) {
 		var err error
 		var socket sockets.Socket
-		_, socket, err = s.connectToGameServer(context.TODO(), charGUID, &mapID)
+		_, socket, err = s.connectToGameServer(context.Background(), charGUID, &mapID)
 		if err != nil {
 			s.logger.Error().Err(err).Msg("failed to reconnect player to the world")
 			resp := packet.NewWriterWithSize(packet.SMsgCharacterLoginFailed, 1)

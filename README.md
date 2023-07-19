@@ -20,6 +20,7 @@ Also intercepts some packets and uses information from them to sync some states 
 * __gameserver__ is modified TrinityCore world server with `sidecar` library, that registers GameServer in Servers Registry and handles health checks.
 * __guildserver__ handles some guild opcodes. Still misses guild creation and guildbank functionality.
 * __guidserver__ provides pool of guids of items and characters to the gameservers.
+* __mailserver__ handles mail opcodes.
 
 ## Run
 
@@ -60,6 +61,7 @@ export REDIS_URL=redis://:@localhost:6379/0
 ./bin/chatserver
 ./bin/guildserver
 ./bin/guidserver
+./bin/mailserver
 
 # this port will be used in realmlist.wtf
 PORT=3724 ./bin/authserver
