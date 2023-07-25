@@ -19,8 +19,8 @@ const (
 
 // Logging config for logging. Uses tags from github.com/Netflix/go-env.
 type Logging struct {
-	LogLevel zerolog.Level `env:"LOG_LEVEL,default=0"`
-	Format   LoggingFormat `env:"LOG_FORMAT,default=dev"`
+	LogLevel zerolog.Level `yaml:"level" env:"LOG_LEVEL" env-default:"0"`
+	Format   LoggingFormat `yaml:"format" env:"LOG_FORMAT" env-default:"dev"`
 }
 
 // Logger creates logger based on config

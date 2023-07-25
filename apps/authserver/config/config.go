@@ -1,32 +1,36 @@
 package config
 
 import (
-	"github.com/Netflix/go-env"
-
 	"github.com/walkline/ToCloud9/shared/config"
 )
 
 // Config is config of application
 type Config struct {
-	config.Logging
+	config.Logging `yaml:"logging"`
 
 	// Port is port that would be used to listen the game client
-	Port string `env:"PORT,default=3724"`
+	Port string `yaml:"port" env:"PORT" env-default:"3724"`
+
+	// DBSchemaType is the schema type of database. Supported values: "tc", "ac".
+	DBSchemaType string `yaml:"dbSchemaType" env:"DB_SCHEMA_TYPE" env-default:"tc"`
 
 	// AuthDBConnection is connection string to the auth database
-	AuthDBConnection string `env:"AUTH_DB_CONNECTION,default=trinity:trinity@tcp(127.0.0.1:3306)/auth"`
+	AuthDBConnection string `yaml:"authDB" env:"AUTH_DB_CONNECTION" env-default:"trinity:trinity@tcp(127.0.0.1:3306)/auth"`
 
 	// ServersRegistryServiceAddress is address of servers registry service
-	ServersRegistryServiceAddress string `env:"SERVERS_REGISTRY_SERVICE_ADDRESS,default=localhost:8999"`
+	ServersRegistryServiceAddress string `yaml:"serversRegistryServiceAddress" env:"SERVERS_REGISTRY_SERVICE_ADDRESS" env-default:"localhost:8999"`
 }
 
 // LoadConfig loads config from env variables
 func LoadConfig() (*Config, error) {
-	var c Config
-	_, err := env.UnmarshalFromEnviron(&c)
+	var C struct {
+		Root Config `yaml:"auth"`
+	}
+
+	err := config.LoadConfig(&C)
 	if err != nil {
 		return nil, err
 	}
 
-	return &c, nil
+	return &C.Root, nil
 }

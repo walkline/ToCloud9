@@ -9,16 +9,10 @@ type accountMySQLRepo struct {
 	db *sql.DB
 
 	accountByUserStmt *sql.Stmt
-	updateAccountStmt *sql.Stmt
 }
 
-func NewAccountMySQLRepo(db *sql.DB) (AccountRepo, error) {
-	accountByUserStmt, err := db.Prepare("SELECT id, username, salt, verifier, session_key_auth, locked, last_ip FROM account WHERE username = ?")
-	if err != nil {
-		return nil, err
-	}
-
-	updateAccountStmt, err := db.Prepare("UPDATE account SET username = ?, salt = ?, verifier = ?, session_key_auth = ?, locked = ?, last_ip = ? WHERE id = ?")
+func NewAccountMySQLRepo(db *sql.DB, stmtBuilder StatementsBuilder) (AccountRepo, error) {
+	accountByUserStmt, err := db.Prepare(stmtBuilder.StmtForType(AuthStmtTypeGetAccountByUsername))
 	if err != nil {
 		return nil, err
 	}
@@ -26,7 +20,6 @@ func NewAccountMySQLRepo(db *sql.DB) (AccountRepo, error) {
 	return &accountMySQLRepo{
 		db:                db,
 		accountByUserStmt: accountByUserStmt,
-		updateAccountStmt: updateAccountStmt,
 	}, nil
 }
 

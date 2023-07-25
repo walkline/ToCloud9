@@ -25,6 +25,7 @@ import (
 	pbServ "github.com/walkline/ToCloud9/gen/servers-registry/pb"
 	"github.com/walkline/ToCloud9/shared/events"
 	"github.com/walkline/ToCloud9/shared/healthandmetrics"
+	sharedRepo "github.com/walkline/ToCloud9/shared/repo"
 )
 
 func main() {
@@ -49,7 +50,7 @@ func main() {
 
 	//configureDBConn(authDB)
 
-	accountRepo, err := repo.NewAccountMySQLRepo(authDB)
+	accountRepo, err := repo.NewAccountMySQLRepo(authDB, repo.StatementsBuilderForSchema(sharedRepo.ParseSchemaType(conf.DBSchemaType)))
 	if err != nil {
 		log.Fatal().Err(err).Msg("can't create account repo")
 	}

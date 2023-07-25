@@ -77,9 +77,9 @@ func (s CharsPreparedStatements) ID() uint32 {
 func (s CharsPreparedStatements) Stmt() string {
 	switch s {
 	case StmtGetMaxCharacterGUID:
-		return "SELECT MAX(guid) FROM characters"
+		return "SELECT COALESCE(MAX(guid), 0) FROM characters"
 	case StmtGetMaxItemGUID:
-		return "SELECT MAX(guid) FROM item_instance"
+		return "SELECT COALESCE(MAX(guid), 0) FROM item_instance"
 	}
 	panic(fmt.Errorf("unk stmt %d", s))
 }

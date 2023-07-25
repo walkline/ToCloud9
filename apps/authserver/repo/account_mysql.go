@@ -12,13 +12,13 @@ type accountMySQLRepo struct {
 	updateAccountStmt *sql.Stmt
 }
 
-func NewAccountMySQLRepo(db *sql.DB) (AccountRepo, error) {
-	accountByUserStmt, err := db.Prepare("SELECT id, username, salt, verifier, session_key_auth, locked, last_ip FROM account WHERE username = ?")
+func NewAccountMySQLRepo(db *sql.DB, stmtBuilder StatementsBuilder) (AccountRepo, error) {
+	accountByUserStmt, err := db.Prepare(stmtBuilder.StmtForType(AuthStmtTypeGetAccountByUsername))
 	if err != nil {
 		return nil, err
 	}
 
-	updateAccountStmt, err := db.Prepare("UPDATE account SET username = ?, salt = ?, verifier = ?, session_key_auth = ?, locked = ?, last_ip = ? WHERE id = ?")
+	updateAccountStmt, err := db.Prepare(stmtBuilder.StmtForType(AuthStmtTypeUpdateAccountByID))
 	if err != nil {
 		return nil, err
 	}

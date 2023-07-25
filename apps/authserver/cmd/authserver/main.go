@@ -14,6 +14,7 @@ import (
 	"github.com/walkline/ToCloud9/apps/authserver/service"
 	"github.com/walkline/ToCloud9/apps/authserver/session"
 	pbServ "github.com/walkline/ToCloud9/gen/servers-registry/pb"
+	sharedRepo "github.com/walkline/ToCloud9/shared/repo"
 )
 
 func main() {
@@ -32,12 +33,14 @@ func main() {
 
 	configureDBConn(authDB)
 
-	authRepo, err := repo.NewAccountMySQLRepo(authDB)
+	stmtsBuilder := repo.StatementsBuilderForSchema(sharedRepo.ParseSchemaType(conf.DBSchemaType))
+
+	authRepo, err := repo.NewAccountMySQLRepo(authDB, stmtsBuilder)
 	if err != nil {
 		log.Fatal().Err(err).Msg("can't create auth repo")
 	}
 
-	realmRepo, err := repo.NewRealmMySQLRepo(authDB)
+	realmRepo, err := repo.NewRealmMySQLRepo(authDB, stmtsBuilder)
 	if err != nil {
 		log.Fatal().Err(err).Msg("can't create realm repo")
 	}

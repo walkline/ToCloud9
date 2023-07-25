@@ -12,13 +12,13 @@ type realmMySQLRepo struct {
 	charsCountStmt *sql.Stmt
 }
 
-func NewRealmMySQLRepo(db *sql.DB) (RealmRepo, error) {
-	realmsStmt, err := db.Prepare("SELECT id, name, icon, flag, timezone, allowedSecurityLevel, gamebuild FROM realmlist")
+func NewRealmMySQLRepo(db *sql.DB, stmtBuilder StatementsBuilder) (RealmRepo, error) {
+	realmsStmt, err := db.Prepare(stmtBuilder.StmtForType(AuthStmtTypeGetRealmList))
 	if err != nil {
 		return nil, err
 	}
 
-	charsCountStmt, err := db.Prepare("SELECT realmid, numchars FROM realmcharacters WHERE acctid = ?")
+	charsCountStmt, err := db.Prepare(stmtBuilder.StmtForType(AuthStmtTypeGetCharactersCountOnRealmsByAccount))
 	if err != nil {
 		return nil, err
 	}

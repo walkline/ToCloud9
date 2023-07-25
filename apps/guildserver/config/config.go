@@ -1,32 +1,33 @@
 package config
 
 import (
-	"github.com/Netflix/go-env"
-
 	"github.com/walkline/ToCloud9/shared/config"
 )
 
 // Config is config of application
 type Config struct {
-	config.Logging
+	config.Logging `yaml:"logging"`
 
 	// Port is port that would be used for grpc server
-	Port string `env:"PORT,default=8995"`
+	Port string `yaml:"port" env:"PORT" env-default:"8995"`
 
 	// NatsURL is nats connection url
-	NatsURL string `env:"NATS_URL,default=nats://nats:4222"`
+	NatsURL string `yaml:"natsUrl" env:"NATS_URL" env-default:"nats://nats:4222"`
 
 	// CharDBConnection is connection string to the characters database
-	CharDBConnection string `env:"CHAR_DB_CONNECTION,default=trinity:trinity@tcp(127.0.0.1:3306)/characters"`
+	CharDBConnection string `yaml:"charactersDB" env:"CHAR_DB_CONNECTION" env-default:"trinity:trinity@tcp(127.0.0.1:3306)/characters"`
 }
 
-// LoadConfig loads config from env variables
+// LoadConfig loads config from file or/and env variables
 func LoadConfig() (*Config, error) {
-	var c Config
-	_, err := env.UnmarshalFromEnviron(&c)
+	var c struct {
+		Root Config `yaml:"guild"`
+	}
+
+	err := config.LoadConfig(&c)
 	if err != nil {
 		return nil, err
 	}
 
-	return &c, nil
+	return &c.Root, nil
 }

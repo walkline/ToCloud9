@@ -1,0 +1,97 @@
+db:
+  auth: &defaultAuthDB "trinity:trinity@tcp(127.0.0.1:3306)/auth"
+  characters: &defaultCharactersDB "trinity:trinity@tcp(127.0.0.1:3306)/characters"
+  world: &defaultWorldDB "trinity:trinity@tcp(127.0.0.1:3306)/world"
+  # Supported 2 schema types:
+  #   tc - TrinityCore
+  #   ac - AzerothCore
+  schemaType: &defaultSchemaType "tc"
+
+nats: &defaultNatsUrl "nats://localhost:4222"
+redis: &defaultRedisUrl "redis://:@localhost:6379/0"
+
+logging: &defaultLogging
+  # Available options:
+  #   dev
+  #   json
+  format: dev
+
+  # Available logging levels:
+  # -1 - Trace
+  #  0 - Debug
+  #  1 - Info
+  #  2 - Warning
+  #  3 - Error
+  level: 0
+
+auth:
+  port: 3724
+  authDB: *defaultAuthDB
+  dbSchemaType: *defaultSchemaType
+  serversRegistryServiceAddress: localhost:8999
+  logging: *defaultLogging
+
+characters:
+  port: 8991
+  charactersDB: *defaultCharactersDB
+  worldDB: *defaultWorldDB
+  natsUrl: *defaultNatsUrl
+  serversRegistryServiceAddress: localhost:8999
+  logging: *defaultLogging
+
+chat:
+  port: 8992
+  natsUrl: *defaultNatsUrl
+  logging: *defaultLogging
+
+game-load-balancer:
+  port: 8085
+  realmId: 1
+  authDB: *defaultAuthDB
+  dbSchemaType: *defaultSchemaType
+  healthCheckPort: 8900
+  preferredHostname: localhost
+  charactersServiceAddress: "localhost:8991"
+  serversRegistryServiceAddress: "localhost:8999"
+  chatServiceAddress: "localhost:8992"
+  guildsServiceAddress: "localhost:8995"
+  mailServiceAddress: "localhost:8997"
+  natsUrl: *defaultNatsUrl
+  logging: *defaultLogging
+
+guid:
+  port: 8996
+  redisUrl: *defaultRedisUrl
+  charactersDB: *defaultCharactersDB
+  logging: *defaultLogging
+
+guild:
+  port: 8995
+  natsUrl: *defaultNatsUrl
+  charactersDB: *defaultCharactersDB
+  logging: *defaultLogging
+
+mail:
+  port: 8997
+  natsUrl: *defaultNatsUrl
+  charactersDB: *defaultCharactersDB
+  expiredMailsCleanupSecsDelay: 3600
+  defaultMailExpirationTimeSecs: 2592000
+  logging: *defaultLogging
+
+servers-registry:
+  port: 8999
+  redisUrl: *defaultRedisUrl
+  natsUrl: *defaultNatsUrl
+  logging: *defaultLogging
+
+gameserver:
+  grpcPort: 9501
+  healthCheckPort: 8901
+  preferredHostname: ""
+  serversRegistryServiceAddress: "localhost:8999"
+  guidProviderServiceAddress: "localhost:8996"
+  characterGuidsBufferSize: 50
+  itemGuidsBufferSize: 200
+  natsUrl: *defaultNatsUrl
+  logging: *defaultLogging
