@@ -1,5 +1,4 @@
 # ToCloud9
-___
 
 **ToCloud9** is an attempt to make [TrinityCore](https://github.com/TrinityCore/TrinityCore) and its forks scalable and cloud-native. 
 The project is at the beginning of development and has limited functionality. 
@@ -22,59 +21,34 @@ Also intercepts some packets and uses information from them to sync some states 
 * __guidserver__ provides pool of guids of items and characters to the gameservers.
 * __mailserver__ handles mail opcodes.
 
-## Run
+## Run with Docker-Compose
 
 __Prerequisites:__
-* Database for TrinityCore;
-* TrinityCore data folder (dbc, vmaps, mmaps).
+* Database for TrinityCore or AzerothCore;
+* TrinityCore or AzerothCore data folder (dbc, vmaps, mmaps) and config (ect folder).
 * [Docker & docker-compose](https://www.docker.com/products/docker-desktop) (for 'Docker-compose' approach);
-* [Golang](https://golang.org/dl/) v1.18+ (for 'Without Docker' approach).
-* [NATS](https://docs.nats.io/nats-server/installation) (for 'Without Docker' approach).
-* [Redis](https://redis.io/download/) (for 'Without Docker' approach).
 
-#### Docker-compose
-
+__Steps:__
 1. Fill in `.env` file with relevant data.
 2. Apply migrations to the characters DB from this folder - sql/characters/mysql/*
-3. `$ docker-compose up -d`
-
-#### Without Docker
-
-1. Run `$ make install`.
-2. Apply migrations to the characters DB from this folder - sql/characters/mysql/*
-3. Apply `game-server/trinitycore/e11613eeb5.diff` patch on TrinityCore (should be compatible with [this rev](https://github.com/TrinityCore/TrinityCore/commit/e11613eeb5)).
-4. Place `bin/libsidecar.dylib`, `bin/libsidecar.h` and `game-server/libsidecar/*.h` files in `$TRINITY_CORE_SRC_PATH/dep/libsidecar` & `$TRINITY_CORE_SRC_PATH/dep/libsidecar/include` folder and in folder with `worldserver` executable.
-5. Build patched TrinityCore.
-6. Install and run [NATS](https://docs.nats.io/nats-server/installation).
-7. Install and run [Redis](https://redis.io/download/).
-8. Run everything.
-```bash
-export AUTH_DB_CONNECTION=trinity:trinity@tcp(127.0.0.1:3306)/auth
-export CHAR_DB_CONNECTION=trinity:trinity@tcp(127.0.0.1:3306)/characters
-export WORLD_DB_CONNECTION=trinity:trinity@tcp(127.0.0.1:3306)/world
-export NATS_URL=nats://localhost:4222
-export REDIS_URL=redis://:@localhost:6379/0
-
-
-./bin/servers-registry
-./bin/charserver
-./bin/chatserver
-./bin/guildserver
-./bin/guidserver
-./bin/mailserver
-
-# this port will be used in realmlist.wtf
-PORT=3724 ./bin/authserver
-
-# PREFERRED_HOSTNAME & PORT address that game client will connect to after auth
-REALM_ID=1 \
-PREFERRED_HOSTNAME=domain-or-ip.com \
-PORT=9876 ./bin/game-load-balancer
-
-# run TrinityCore worldserver as always but add HEALTH_CHECK_PORT env variable
-HEALTH_CHECK_PORT=9898 ./worldserver
-
+3. 
 ```
+# For TrinityCore:
+$ docker-compose --profile tc up -d`
+
+# For AzerothCore:
+$ docker-compose --profile ac up -d`
+```
+
+## Run without Docker
+
+For Windows & AzerothCore [use this guide](doc/RunNonDockerWinWSLAzerothCore.md).
+
+For Linux and Mac - TBD.
+
+## Community
+
+We have the next [Discord channel](https://discord.gg/QxfBD9uGbN) where you can ask any questions and share your feedback.
 
 ## License
 

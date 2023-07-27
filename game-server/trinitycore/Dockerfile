@@ -3,7 +3,7 @@ FROM golang:1.19 AS build-sidecar
 # runs from project directory
 WORKDIR $GOPATH/src/github.com/walkline/ToCloud9
 
-COPY . .
+COPY .. .
 
 RUN go mod download
 

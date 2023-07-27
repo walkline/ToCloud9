@@ -18,6 +18,7 @@ services:
       GUILDS_SERVICE_ADDRESS: guildserver:8995
       MAIL_SERVICE_ADDRESS: mailserver:8997
       AUTH_DB_CONNECTION: ${AUTH_DB_USER}:${AUTH_DB_PASS}@tcp(${AUTH_DB_HOST}:${AUTH_DB_PORT})/${AUTH_DB_NAME}
+      DB_SCHEMA_TYPE: ${DATABASE_SCHEMA_TYPE}
       PREFERRED_HOSTNAME: ${EXTERNAL_ADDRESS}
       LOG_LEVEL: 0
       PORT: 8085
@@ -38,6 +39,7 @@ services:
       GUILDS_SERVICE_ADDRESS: guildserver:8995
       MAIL_SERVICE_ADDRESS: mailserver:8997
       AUTH_DB_CONNECTION: ${AUTH_DB_USER}:${AUTH_DB_PASS}@tcp(${AUTH_DB_HOST}:${AUTH_DB_PORT})/${AUTH_DB_NAME}
+      DB_SCHEMA_TYPE: ${DATABASE_SCHEMA_TYPE}
       PREFERRED_HOSTNAME: ${EXTERNAL_ADDRESS}
       LOG_LEVEL: 0
       PORT: 8045
@@ -64,6 +66,7 @@ services:
     environment:
       PORT: 3724
       AUTH_DB_CONNECTION: ${AUTH_DB_USER}:${AUTH_DB_PASS}@tcp(${AUTH_DB_HOST}:${AUTH_DB_PORT})/${AUTH_DB_NAME}
+      DB_SCHEMA_TYPE: ${DATABASE_SCHEMA_TYPE}
       SERVERS_REGISTRY_SERVICE_ADDRESS: servers-registry:8999
 
   charserver:
@@ -120,13 +123,13 @@ services:
     ports:
       - '8997:8997'
 
-  gameserver:
+  gameserver_tc:
     build:
       context: .
-      dockerfile: game-server/Dockerfile
+      dockerfile: game-server/trinitycore/Dockerfile
     volumes:
-    - ${TC_ETC_PATH}:/repo/bin/etc
-    - ${TC_DATA_PATH}:/data
+    - ${CORE_ETC_PATH}:/repo/bin/etc
+    - ${CORE_DATA_PATH}:/data
     environment:
       TC_LOGIN_DATABASE_INFO: ${AUTH_DB_HOST};${AUTH_DB_PORT};${AUTH_DB_USER};${AUTH_DB_PASS};${AUTH_DB_NAME}
       TC_WORLD_DATABASE_INFO: ${WORLD_DB_HOST};${WORLD_DB_PORT};${WORLD_DB_USER};${WORLD_DB_PASS};${WORLD_DB_NAME}
@@ -141,6 +144,32 @@ services:
       GRPC_PORT: 9509
       GUID_PROVIDER_SERVICE_ADDRESS: guidserver:8996
       SERVERS_REGISTRY_SERVICE_ADDRESS: servers-registry:8999
+    profiles:
+      - tc
+
+  gameserver_ac:
+    build:
+      context: .
+      dockerfile: game-server/azerothcore/Dockerfile
+    volumes:
+      - ${CORE_ETC_PATH}:/repo/bin/etc
+      - ${CORE_DATA_PATH}:/data
+    environment:
+      AC_LOGIN_DATABASE_INFO: ${AUTH_DB_HOST};${AUTH_DB_PORT};${AUTH_DB_USER};${AUTH_DB_PASS};${AUTH_DB_NAME}
+      AC_WORLD_DATABASE_INFO: ${WORLD_DB_HOST};${WORLD_DB_PORT};${WORLD_DB_USER};${WORLD_DB_PASS};${WORLD_DB_NAME}
+      AC_CHARACTER_DATABASE_INFO: ${CHAR_DB_HOST};${CHAR_DB_PORT};${CHAR_DB_USER};${CHAR_DB_PASS};${CHAR_DB_NAME}
+      AC_CONSOLE_ENABLE: 0
+      AC_RA_ENABLE: 0
+      AC_SOAP_ENABLE: 0
+      AC_DATA_DIR: /data
+      CHARACTER_GUIDS_BUFFER_SIZE: 5
+      ITEM_GUIDS_BUFFER_SIZE: 50
+      NATS_URL: nats://nats:4222
+      GRPC_PORT: 9509
+      GUID_PROVIDER_SERVICE_ADDRESS: guidserver:8996
+      SERVERS_REGISTRY_SERVICE_ADDRESS: servers-registry:8999
+    profiles:
+      - ac
 
   nats:
     image: 'nats:0.8.0'
