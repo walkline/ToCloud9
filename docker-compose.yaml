@@ -162,6 +162,7 @@ services:
       AC_RA_ENABLE: 0
       AC_SOAP_ENABLE: 0
       AC_DATA_DIR: /data
+      AC_CLUSTER_ENABLED: 1
       CHARACTER_GUIDS_BUFFER_SIZE: 5
       ITEM_GUIDS_BUFFER_SIZE: 50
       NATS_URL: nats://nats:4222

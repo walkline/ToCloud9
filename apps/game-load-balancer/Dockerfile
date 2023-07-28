@@ -9,8 +9,7 @@ RUN go mod download
 
 COPY . .
 
-RUN \
-    go build /apps/game-load-balancer/cmd/game-load-balancer/main.go
+RUN go build /apps/game-load-balancer/cmd/game-load-balancer/main.go
 
 FROM alpine:3.14
 

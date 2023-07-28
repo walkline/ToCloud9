@@ -9,8 +9,7 @@ RUN go mod download
 
 COPY . .
 
-RUN \
-    go build /apps/servers-registry/cmd/servers-registry/main.go
+RUN go build /apps/servers-registry/cmd/servers-registry/main.go
 
 FROM alpine:3.14
 

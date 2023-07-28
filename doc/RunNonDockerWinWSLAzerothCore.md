@@ -49,7 +49,7 @@ cd ~/dev/
 cp $PATH_TOCLOUD9_DIR/bin/libsidecar.so azerothcore-wotlk/deps/libsidecar/libsidecar.so
 sudo cp $PATH_TOCLOUD9_DIR/bin/libsidecar.so /usr/lib/libsidecar.so
 ```
-5. Follow regular steps to [build and setup AzerothCore in Linux]() (but skip cloning/downloading sources step).
+5. Follow regular steps to [build and setup AzerothCore in Linux](https://www.azerothcore.org/wiki/linux-requirements) but skip cloning/downloading sources step and __ADD cmake option `-DUSE_REAL_LIBSIDECAR=ON`__.
 6. On this step, you should have already configured AzerothCore in the same way as for non-cluster mode, so your worldserver can startup.
 
 ### Setup & Run

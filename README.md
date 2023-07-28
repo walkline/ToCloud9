@@ -34,10 +34,10 @@ __Steps:__
 3. 
 ```
 # For TrinityCore:
-$ docker-compose --profile tc up -d`
+$ docker-compose --profile tc up -d
 
 # For AzerothCore:
-$ docker-compose --profile ac up -d`
+$ docker-compose --profile ac up -d
 ```
 
 ## Run without Docker
