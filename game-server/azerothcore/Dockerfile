@@ -1,4 +1,4 @@
-FROM golang:1.19 AS build-sidecar
+FROM --platform=${BUILDPLATFORM} golang:1.19 AS build-sidecar
 
 # runs from project directory
 WORKDIR $GOPATH/src/github.com/walkline/ToCloud9
@@ -9,7 +9,7 @@ RUN go mod download
 
 RUN go build -o libsidecar.so -buildmode=c-shared ./game-server/libsidecar/
 
-FROM ubuntu:22.04
+FROM --platform=${BUILDPLATFORM} ubuntu:22.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 

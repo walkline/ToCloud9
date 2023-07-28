@@ -9,7 +9,7 @@ RUN go mod download
 
 COPY . .
 
-RUN --mount=type=cache,target=/root/.cache/go-build \
+RUN \
     go build /apps/game-load-balancer/cmd/game-load-balancer/main.go
 
 FROM alpine:3.14

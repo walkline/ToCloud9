@@ -9,7 +9,7 @@ RUN go mod download
 
 COPY . .
 
-RUN --mount=type=cache,target=/root/.cache/go-build \
+RUN \
     go build /apps/servers-registry/cmd/servers-registry/main.go
 
 FROM alpine:3.14

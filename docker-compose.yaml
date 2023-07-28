@@ -172,8 +172,7 @@ services:
       - ac
 
   nats:
-    image: 'nats:0.8.0'
-    entrypoint: "/gnatsd -DV"
+    image: 'nats:2.9.20'
     expose:
       - "4222"
     ports:
