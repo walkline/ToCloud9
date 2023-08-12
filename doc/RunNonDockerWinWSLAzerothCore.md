@@ -101,17 +101,17 @@ To run AzerothCore worldserver follow the next steps:
 1. Don't use `autherserver` from AzerothCore. ToCloud9 uses its own implementation of authserver that you already started. 
 2. In WSL terminal go to the folder with `worldserver` and run it using the following command:
 ```
-AC_CLUSTER_ENABLED=1 AC_WORLDSERVER_PORT=9601 ./worldserver
+AC_CLUSTER_ENABLED=1 AC_WORLD_SERVER_PORT=9601 ./worldserver
 ```
 3. At this point you should have working cluster with 1 worldserver, but the point of this clustering feature to have several.
 Let's run one more worldserver. You need to use the same command as previous but you need to override ports with some available, example:
 ```
-AC_CLUSTER_ENABLED=1 AC_WORLDSERVER_PORT=9602 GRPC_PORT=9603 HEALTH_CHECK_PORT=9604 ./worldserver
+AC_CLUSTER_ENABLED=1 AC_WORLD_SERVER_PORT=9602 GRPC_PORT=9603 HEALTH_CHECK_PORT=9604 ./worldserver
 ```
 4. Now you should have 2 worldservers in your cluster and map IDs distributed equally between them.
 But let's run worldserver that will handle only Icecrown Citadel map:
 ```
-AC_CLUSTER_AVAILABLE_MAPS=631 AC_CLUSTER_ENABLED=1 AC_WORLDSERVER_PORT=9605 GRPC_PORT=9606 HEALTH_CHECK_PORT=9607 ./worldserver
+AC_CLUSTER_AVAILABLE_MAPS=631 AC_CLUSTER_ENABLED=1 AC_WORLD_SERVER_PORT=9605 GRPC_PORT=9606 HEALTH_CHECK_PORT=9607 ./worldserver
 ```
 
 Congratulations if you reached to this place without issues! :) 
