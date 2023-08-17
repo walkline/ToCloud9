@@ -15,3 +15,10 @@ func NewMailServiceUnavailableErr(err error) error {
 		RealError: err,
 	}
 }
+
+func NewGroupServiceUnavailableErr(err error) error {
+	return &UserFriendlyError{
+		UserError: "Group service unavailable. Try again later.",
+		RealError: err,
+	}
+}

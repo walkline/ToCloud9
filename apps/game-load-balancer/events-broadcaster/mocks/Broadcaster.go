@@ -14,6 +14,51 @@ type Broadcaster struct {
 	mock.Mock
 }
 
+// NewGroupConvertedToRaidEvent provides a mock function with given fields: payload
+func (_m *Broadcaster) NewGroupConvertedToRaidEvent(payload *events.GroupEventGroupConvertedToRaidPayload) {
+	_m.Called(payload)
+}
+
+// NewGroupCreatedEvent provides a mock function with given fields: payload
+func (_m *Broadcaster) NewGroupCreatedEvent(payload *events.GroupEventGroupCreatedPayload) {
+	_m.Called(payload)
+}
+
+// NewGroupDisbandEvent provides a mock function with given fields: payload
+func (_m *Broadcaster) NewGroupDisbandEvent(payload *events.GroupEventGroupDisbandPayload) {
+	_m.Called(payload)
+}
+
+// NewGroupInviteCreatedEvent provides a mock function with given fields: payload
+func (_m *Broadcaster) NewGroupInviteCreatedEvent(payload *events.GroupEventInviteCreatedPayload) {
+	_m.Called(payload)
+}
+
+// NewGroupLeaderChangedEvent provides a mock function with given fields: payload
+func (_m *Broadcaster) NewGroupLeaderChangedEvent(payload *events.GroupEventGroupLeaderChangedPayload) {
+	_m.Called(payload)
+}
+
+// NewGroupLootTypeChangedEvent provides a mock function with given fields: payload
+func (_m *Broadcaster) NewGroupLootTypeChangedEvent(payload *events.GroupEventGroupLootTypeChangedPayload) {
+	_m.Called(payload)
+}
+
+// NewGroupMemberAddedEvent provides a mock function with given fields: payload
+func (_m *Broadcaster) NewGroupMemberAddedEvent(payload *events.GroupEventGroupMemberAddedPayload) {
+	_m.Called(payload)
+}
+
+// NewGroupMemberLeftEvent provides a mock function with given fields: payload
+func (_m *Broadcaster) NewGroupMemberLeftEvent(payload *events.GroupEventGroupMemberLeftPayload) {
+	_m.Called(payload)
+}
+
+// NewGroupMemberOnlineStatusChangedEvent provides a mock function with given fields: payload
+func (_m *Broadcaster) NewGroupMemberOnlineStatusChangedEvent(payload *events.GroupEventGroupMemberOnlineStatusChangedPayload) {
+	_m.Called(payload)
+}
+
 // NewGuildInviteCreatedEvent provides a mock function with given fields: payload
 func (_m *Broadcaster) NewGuildInviteCreatedEvent(payload *events_broadcaster.GuildInviteCreatedPayload) {
 	_m.Called(payload)

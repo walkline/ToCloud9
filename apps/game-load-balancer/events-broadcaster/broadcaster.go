@@ -22,6 +22,15 @@ const (
 	EventTypeGuildRankCreated
 	EventTypeGuildRankDeleted
 	EventTypeGuildNewMessage
+	EventTypeGroupInviteCreated
+	EventTypeGroupCreated
+	EventTypeGroupMemberOnlineStatusChanged
+	EventTypeGroupMemberLeft
+	EventTypeGroupDisband
+	EventTypeGroupMemberAdded
+	EventTypeGroupLeaderChanged
+	EventTypeGroupLootTypeChanged
+	EventTypeGroupConvertedToRaid
 )
 
 type IncomingWhisperPayload struct {
@@ -70,6 +79,15 @@ type Broadcaster interface {
 	NewGuildRankCreatedEvent(payload *events.GuildEventRankCreatedPayload)
 	NewGuildRankDeletedEvent(payload *events.GuildEventRankDeletedPayload)
 	NewGuildMessageEvent(payload *events.GuildEventNewMessagePayload)
+	NewGroupInviteCreatedEvent(payload *events.GroupEventInviteCreatedPayload)
+	NewGroupCreatedEvent(payload *events.GroupEventGroupCreatedPayload)
+	NewGroupMemberOnlineStatusChangedEvent(payload *events.GroupEventGroupMemberOnlineStatusChangedPayload)
+	NewGroupMemberLeftEvent(payload *events.GroupEventGroupMemberLeftPayload)
+	NewGroupDisbandEvent(payload *events.GroupEventGroupDisbandPayload)
+	NewGroupMemberAddedEvent(payload *events.GroupEventGroupMemberAddedPayload)
+	NewGroupLeaderChangedEvent(payload *events.GroupEventGroupLeaderChangedPayload)
+	NewGroupLootTypeChangedEvent(payload *events.GroupEventGroupLootTypeChangedPayload)
+	NewGroupConvertedToRaidEvent(payload *events.GroupEventGroupConvertedToRaidPayload)
 }
 
 type broadcasterImpl struct {
@@ -231,6 +249,97 @@ func (b *broadcasterImpl) NewGuildMessageEvent(payload *events.GuildEventNewMess
 	for _, ch := range b.channelsForGUIDs(payload.Receivers) {
 		ch <- Event{
 			Type:    EventTypeGuildNewMessage,
+			Payload: payload,
+		}
+	}
+}
+
+func (b *broadcasterImpl) NewGroupInviteCreatedEvent(payload *events.GroupEventInviteCreatedPayload) {
+	b.channelsMu.RLock()
+	ch, ok := b.channels[payload.InviteeGUID]
+	b.channelsMu.RUnlock()
+
+	if !ok {
+		return
+	}
+
+	ch <- Event{
+		Type:    EventTypeGroupInviteCreated,
+		Payload: payload,
+	}
+}
+
+func (b *broadcasterImpl) NewGroupCreatedEvent(payload *events.GroupEventGroupCreatedPayload) {
+	membersGuids := make([]uint64, len(payload.Members))
+	for i := range payload.Members {
+		membersGuids[i] = payload.Members[i].MemberGUID
+	}
+	for _, ch := range b.channelsForGUIDs(membersGuids) {
+		ch <- Event{
+			Type:    EventTypeGroupCreated,
+			Payload: payload,
+		}
+	}
+}
+
+func (b *broadcasterImpl) NewGroupMemberOnlineStatusChangedEvent(payload *events.GroupEventGroupMemberOnlineStatusChangedPayload) {
+	for _, ch := range b.channelsForGUIDs(payload.OnlineMembers) {
+		ch <- Event{
+			Type:    EventTypeGroupMemberOnlineStatusChanged,
+			Payload: payload,
+		}
+	}
+}
+
+func (b *broadcasterImpl) NewGroupMemberLeftEvent(payload *events.GroupEventGroupMemberLeftPayload) {
+	for _, ch := range b.channelsForGUIDs(payload.OnlineMembers) {
+		ch <- Event{
+			Type:    EventTypeGroupMemberLeft,
+			Payload: payload,
+		}
+	}
+}
+
+func (b *broadcasterImpl) NewGroupDisbandEvent(payload *events.GroupEventGroupDisbandPayload) {
+	for _, ch := range b.channelsForGUIDs(payload.OnlineMembers) {
+		ch <- Event{
+			Type:    EventTypeGroupDisband,
+			Payload: payload,
+		}
+	}
+}
+
+func (b *broadcasterImpl) NewGroupMemberAddedEvent(payload *events.GroupEventGroupMemberAddedPayload) {
+	for _, ch := range b.channelsForGUIDs(payload.OnlineMembers) {
+		ch <- Event{
+			Type:    EventTypeGroupMemberAdded,
+			Payload: payload,
+		}
+	}
+}
+
+func (b *broadcasterImpl) NewGroupLeaderChangedEvent(payload *events.GroupEventGroupLeaderChangedPayload) {
+	for _, ch := range b.channelsForGUIDs(payload.OnlineMembers) {
+		ch <- Event{
+			Type:    EventTypeGroupLeaderChanged,
+			Payload: payload,
+		}
+	}
+}
+
+func (b *broadcasterImpl) NewGroupLootTypeChangedEvent(payload *events.GroupEventGroupLootTypeChangedPayload) {
+	for _, ch := range b.channelsForGUIDs(payload.OnlineMembers) {
+		ch <- Event{
+			Type:    EventTypeGroupLootTypeChanged,
+			Payload: payload,
+		}
+	}
+}
+
+func (b *broadcasterImpl) NewGroupConvertedToRaidEvent(payload *events.GroupEventGroupConvertedToRaidPayload) {
+	for _, ch := range b.channelsForGUIDs(payload.OnlineMembers) {
+		ch <- Event{
+			Type:    EventTypeGroupConvertedToRaid,
 			Payload: payload,
 		}
 	}

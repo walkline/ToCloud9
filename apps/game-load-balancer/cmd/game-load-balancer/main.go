@@ -20,6 +20,7 @@ import (
 	"github.com/walkline/ToCloud9/apps/game-load-balancer/sockets/gamesocket"
 	pbChar "github.com/walkline/ToCloud9/gen/characters/pb"
 	pbChat "github.com/walkline/ToCloud9/gen/chat/pb"
+	pbGroup "github.com/walkline/ToCloud9/gen/group/pb"
 	pbGuild "github.com/walkline/ToCloud9/gen/guilds/pb"
 	pbMail "github.com/walkline/ToCloud9/gen/mail/pb"
 	pbServ "github.com/walkline/ToCloud9/gen/servers-registry/pb"
@@ -66,6 +67,7 @@ func main() {
 	servRegistryClient := servRegistryService(conf)
 	guildClient := guildService(conf)
 	mailClient := mailService(conf)
+	groupClient := groupService(conf)
 
 	healthandmetrics.EnableActiveConnectionsMetrics()
 	healthCheckServer := healthandmetrics.NewServer(conf.HealthCheckPort, true)
@@ -105,6 +107,12 @@ func main() {
 		log.Fatal().Err(err).Msg("can't listen to mail events-broadcaster")
 	}
 
+	groupListener := service.NewGroupNatsListener(nc, broadcaster)
+	err = groupListener.Listen()
+	if err != nil {
+		log.Fatal().Err(err).Msg("can't listen to group events-broadcaster")
+	}
+
 	producer := events.NewLoadBalancerProducerNatsJSON(nc, root.Ver, root.RealmID, root.RetrievedBalancerID)
 	charsUpdsBarrier := service.NewCharactersUpdatesBarrier(&log.Logger, producer, time.Second)
 	go charsUpdsBarrier.Run(context.TODO())
@@ -127,6 +135,7 @@ func main() {
 			ChatServiceClient:     chatClient,
 			GuildsServiceClient:   guildClient,
 			MailServiceClient:     mailClient,
+			GroupServiceClient:    groupClient,
 			EventsProducer:        producer,
 			EventsBroadcaster:     broadcaster,
 			CharsUpdsBarrier:      charsUpdsBarrier,
@@ -191,6 +200,18 @@ func mailService(cnf *config.Config) pbMail.MailServiceClient {
 	}
 
 	return pbMail.NewMailServiceClient(conn)
+}
+
+func groupService(cnf *config.Config) pbGroup.GroupServiceClient {
+	conn, err := grpc.Dial(cnf.GroupServiceAddress, grpc.WithInsecure(), grpc.WithContextDialer(func(ctx context.Context, s string) (net.Conn, error) {
+		dialer := net.Dialer{Timeout: time.Second * 5}
+		return dialer.DialContext(ctx, "tcp", s)
+	}))
+	if err != nil {
+		log.Fatal().Err(err).Msg("can't connect to group service")
+	}
+
+	return pbGroup.NewGroupServiceClient(conn)
 }
 
 func registerLoadBalancer(servRegistryClient pbServ.ServersRegistryServiceClient, conf *config.Config) string {
