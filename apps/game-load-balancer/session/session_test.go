@@ -3,6 +3,7 @@ package session
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
@@ -205,6 +206,69 @@ func TestGameSessionHandlePacketsGamePacketsHandler(t *testing.T) {
 
 	assert.True(t, pingHandled)
 	assert.True(t, loginHandled)
+}
+
+func TestGameSessionHandlePacketsGamePacketsHandlerTimeout(t *testing.T) {
+	timeoutTime := time.Millisecond * 100
+
+	dumpedHandleMap := dumpHandleMap(HandleMap)
+	defer func() {
+		HandleMap = dumpedHandleMap
+	}()
+
+	gameReadChan := make(chan *packet.Packet)
+
+	gameSocket := &mocks.Socket{}
+	gameSocket.On("ReadChannel").Return((<-chan *packet.Packet)(gameReadChan))
+
+	session := NewGameSession(
+		context.Background(),
+		&log.Logger,
+		gameSocket,
+		1,
+		&packet.Packet{},
+		GameSessionParams{
+			PacketProcessTimeout: timeoutTime,
+		},
+	)
+
+	pingHandled := false
+	loginHandled := false
+
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() {
+		defer cancel()
+		defer close(gameReadChan)
+
+		HandleMap[packet.CMsgPing] = NewHandler("test1", func(s *GameSession, c context.Context, p *packet.Packet) error {
+			defer func() { pingHandled = true }()
+
+			<-c.Done()
+
+			assert.Equal(t, packet.CMsgPing, p.Opcode)
+			assert.Equal(t, uint64(42), p.Reader().Uint64())
+
+			return nil
+		})
+
+		HandleMap[packet.CMsgPlayerLogin] = NewHandler("test2", func(s *GameSession, c context.Context, p *packet.Packet) error {
+			defer func() { loginHandled = true }()
+
+			assert.Equal(t, packet.CMsgPlayerLogin, p.Opcode)
+
+			return nil
+		})
+
+		gameReadChan <- packet.NewWriter(packet.CMsgPing).Uint64(42).ToPacket()
+		gameReadChan <- packet.NewWriter(packet.CMsgPlayerLogin).ToPacket()
+	}()
+
+	processingStartedTime := time.Now()
+	session.HandlePackets(ctx)
+
+	assert.True(t, pingHandled)
+	assert.True(t, loginHandled)
+	assert.Greater(t, time.Since(processingStartedTime), timeoutTime)
 }
 
 func TestGameSessionHandlePacketsEventsHandler(t *testing.T) {
