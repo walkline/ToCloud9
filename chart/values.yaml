@@ -11,7 +11,7 @@ nats:
 mysql:
   enabled: true
   global:
-    storageClass: nfs-client
+    storageClass: my-storage-class
   initdbScriptsConfigMap: mysql-init-scripts
 
 databases:
@@ -112,7 +112,7 @@ mailserver:
 
 game_lb:
   replicaCount: 1
-  hostname: "wow.vmoitrot.ovh"
+  hostname: "wow.my.domain"
   image:
     repository: 2o1o0/game-load-balancer
     pullPolicy: IfNotPresent
@@ -125,7 +125,7 @@ game_lb:
 
 gameserver_ac:
   replicaCount: 1
-  storageClass: nfs-client
+  storageClass: my-storage-class
   port_soap: 7878
   port_telnet: 3443
   port_world: 9601
