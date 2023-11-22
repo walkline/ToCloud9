@@ -45,7 +45,7 @@ spec:
           valueFrom:
             secretKeyRef:
               name: {{ .Release.Name }}-databases-config
-              key: DB_SCHEMA_TYPE
+              key: schema_type
         - name: AUTH_DB_CONNECTION
           valueFrom:
             secretKeyRef:
