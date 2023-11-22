@@ -22,7 +22,7 @@ spec:
           persistentVolumeClaim:
             claimName: {{ $fullname }}-gameserver-ac-data-pv-claim
       containers:
-      - name: {{ .Chart.Name }}-gameserver-ac
+      - name: {{ .Release.Name }}-gameserver-ac
         image: "{{ .Values.gameserver_ac.image.repository }}:{{ .Values.gameserver_ac.image.tag }}"
         imagePullPolicy: IfNotPresent
         tty: true
@@ -118,7 +118,7 @@ spec:
 # apiVersion: v1
 # kind: Service
 # metadata:
-#   name: {{ .Chart.Name }}-gameserver-ac
+#   name: {{ .Release.Name }}-gameserver-ac
 #   labels:
 #     chart: "{{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}"
 # spec:
