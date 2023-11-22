@@ -112,7 +112,7 @@ mailserver:
 
 game_lb:
   replicaCount: 1
-  hostname: "wow.my.domain"
+  hostname: "localhost" # If changed to a domain, needs to be updated in auth.realmlist table aswell
   image:
     repository: 2o1o0/game-load-balancer
     pullPolicy: IfNotPresent
