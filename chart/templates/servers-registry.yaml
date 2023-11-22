@@ -20,13 +20,13 @@ spec:
         imagePullPolicy: IfNotPresent
         env:
         - name: PORT
-          value: "{{ .Values.servers_registry.service.internalPort }}"
+          value: "{{ .Values.servers_registry.service.internalPort | int }}"
         - name: REDIS_URL
           value: redis://{{ .Release.Name }}-redis-headless:6379/0
         - name: NATS_URL
           value: nats://{{ .Release.Name }}-nats:4222
         ports:
-        - containerPort: {{ .Values.servers_registry.service.internalPort }}
+        - containerPort: {{ .Values.servers_registry.service.internalPort | int  }}
         # livenessProbe:
         #   httpGet:
         #     path: /healthcheck
@@ -55,8 +55,8 @@ metadata:
 spec:
   type: {{ .Values.servers_registry.service.type }}
   ports:
-  - port: {{ .Values.servers_registry.service.externalPort }}
-    targetPort: {{ .Values.servers_registry.service.internalPort }}
+  - port: {{ .Values.servers_registry.service.externalPort | int  }}
+    targetPort: {{ .Values.servers_registry.service.internalPort | int  }}
     protocol: TCP
   selector:
     app: {{ $fullname }}-servers-registry

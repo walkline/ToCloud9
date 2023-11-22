@@ -29,7 +29,7 @@ spec:
         stdin: true
         env:
         - name: PORT
-          value: "{{ .Values.gameserver_ac.service.internalPort }}"
+          value: "{{ .Values.gameserver_ac.service.internalPort | int }}"
         - name: GUID_PROVIDER_SERVICE_ADDRESS
           value: {{ .Release.Name }}-guidserver:{{ .Values.guidserver.service.externalPort}}
         - name: SERVERS_REGISTRY_SERVICE_ADDRESS
@@ -78,15 +78,15 @@ spec:
         - name: AC_CLUSTER_ENABLED
           value: "1"
         - name: AC_WORLD_SERVER_PORT
-          value: "{{ .Values.gameserver_ac.port_world }}"
+          value: "{{ .Values.gameserver_ac.port_world | int }}"
         - name: CHARACTER_GUIDS_BUFFER_SIZE
           value: "5"
         - name: ITEM_GUIDS_BUFFER_SIZE
           value: "50"
         - name: GRPC_PORT
-          value: "{{ .Values.gameserver_ac.service.internalPort }}"
+          value: "{{ .Values.gameserver_ac.service.internalPort | int }}"
         - name: HEALTH_CHECK_PORT
-          value: "{{ .Values.gameserver_ac.port_health }}"
+          value: "{{ .Values.gameserver_ac.port_health | int }}"
         volumeMounts:
           - name: etc-vol
             mountPath: /repo/bin/etc
@@ -94,15 +94,15 @@ spec:
             mountPath: /data
         ports:
         - name: world
-          containerPort: {{ .Values.gameserver_ac.port_world }}
+          containerPort: {{ .Values.gameserver_ac.port_world | int  }}
         - name: service
-          containerPort: {{ .Values.gameserver_ac.service.internalPort }}
+          containerPort: {{ .Values.gameserver_ac.service.internalPort | int  }}
         - name: health
-          containerPort: {{ .Values.gameserver_ac.port_health }}
+          containerPort: {{ .Values.gameserver_ac.port_health | int  }}
         - name: soap
-          containerPort: {{ .Values.gameserver_ac.port_soap }}
+          containerPort: {{ .Values.gameserver_ac.port_soap | int  }}
         - name: telnet
-          containerPort: {{ .Values.gameserver_ac.port_telnet }}
+          containerPort: {{ .Values.gameserver_ac.port_telnet | int  }}
         # livenessProbe:
         #   httpGet:
         #     path: /

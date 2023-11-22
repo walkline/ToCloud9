@@ -20,11 +20,11 @@ spec:
         imagePullPolicy: IfNotPresent
         env:
         - name: PORT
-          value: "{{ .Values.chatserver.service.internalPort }}"
+          value: "{{ .Values.chatserver.service.internalPort | int }}"
         - name: NATS_URL
           value: nats://{{ .Release.Name }}-nats:4222
         ports:
-        - containerPort: {{ .Values.chatserver.service.internalPort }}
+        - containerPort: {{ .Values.chatserver.service.internalPort | int  }}
         # livenessProbe:
         #   httpGet:
         #     path: /
@@ -53,8 +53,8 @@ metadata:
 spec:
   type: {{ .Values.chatserver.service.type }}
   ports:
-  - port: {{ .Values.chatserver.service.externalPort }}
-    targetPort: {{ .Values.chatserver.service.internalPort }}
+  - port: {{ .Values.chatserver.service.externalPort | int  }}
+    targetPort: {{ .Values.chatserver.service.internalPort | int  }}
     protocol: TCP
   selector:
     app: {{ $fullname }}-chatserver

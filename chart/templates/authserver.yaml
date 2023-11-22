@@ -21,7 +21,7 @@ spec:
         command: ["./authserver"]
         env:
         - name: PORT
-          value: "{{ .Values.authserver.service.internalPort }}"
+          value: "{{ .Values.authserver.service.internalPort | int }}"
         - name: SERVERS_REGISTRY_SERVICE_ADDRESS
           value: {{ .Release.Name }}-servers-registry:{{ .Values.servers_registry.service.externalPort}}
         - name: DB_SCHEMA_TYPE
@@ -35,7 +35,7 @@ spec:
               name: {{ .Release.Name }}-databases-config
               key: AUTH_DB_CONNECTION
         ports:
-        - containerPort: {{ .Values.authserver.service.internalPort }}
+        - containerPort: {{ .Values.authserver.service.internalPort | int  }}
         # livenessProbe:
         #   httpGet:
         #     path: /
@@ -64,8 +64,8 @@ metadata:
 spec:
   type: {{ .Values.authserver.service.type }}
   ports:
-  - port: {{ .Values.authserver.service.internalPort }}
-    targetPort: {{ .Values.authserver.service.internalPort }}
-    nodePort: {{ .Values.authserver.service.externalPort }}
+  - port: {{ .Values.authserver.service.internalPort | int  }}
+    targetPort: {{ .Values.authserver.service.internalPort | int  }}
+    nodePort: {{ .Values.authserver.service.externalPort | int  }}
   selector:
     app: {{ $fullname }}-authserver

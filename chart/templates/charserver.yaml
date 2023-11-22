@@ -20,7 +20,7 @@ spec:
         imagePullPolicy: IfNotPresent
         env:
         - name: PORT
-          value: "{{ .Values.charserver.service.internalPort }}"
+          value: "{{ .Values.charserver.service.internalPort | int }}"
         - name: NATS_URL
           value: nats://{{ .Release.Name }}-nats:4222
         - name: CHAR_DB_CONNECTION
@@ -34,7 +34,7 @@ spec:
               name: {{ .Release.Name }}-databases-config
               key: WORLD_DB_CONNECTION
         ports:
-        - containerPort: {{ .Values.charserver.service.internalPort }}
+        - containerPort: {{ .Values.charserver.service.internalPort | int  }}
         # livenessProbe:
         #   httpGet:
         #     path: /
@@ -63,8 +63,8 @@ metadata:
 spec:
   type: {{ .Values.charserver.service.type }}
   ports:
-  - port: {{ .Values.charserver.service.externalPort }}
-    targetPort: {{ .Values.charserver.service.internalPort }}
+  - port: {{ .Values.charserver.service.externalPort | int  }}
+    targetPort: {{ .Values.charserver.service.internalPort | int  }}
     protocol: TCP
   selector:
     app: {{ $fullname }}-charserver

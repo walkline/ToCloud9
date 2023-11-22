@@ -20,7 +20,7 @@ spec:
         imagePullPolicy: IfNotPresent
         env:
         - name: PORT
-          value: "{{ .Values.guildserver.service.internalPort }}"
+          value: "{{ .Values.guildserver.service.internalPort | int }}"
         - name: NATS_URL
           value: nats://{{ .Release.Name }}-nats:4222
         - name: CHAR_DB_CONNECTION
@@ -29,7 +29,7 @@ spec:
               name: {{ .Release.Name }}-databases-config
               key: CHAR_DB_CONNECTION
         ports:
-        - containerPort: {{ .Values.guildserver.service.internalPort }}
+        - containerPort: {{ .Values.guildserver.service.internalPort | int  }}
         # livenessProbe:
         #   httpGet:
         #     path: /
@@ -58,8 +58,8 @@ metadata:
 spec:
   type: {{ .Values.guildserver.service.type }}
   ports:
-  - port: {{ .Values.guildserver.service.externalPort }}
-    targetPort: {{ .Values.guildserver.service.internalPort }}
+  - port: {{ .Values.guildserver.service.externalPort | int  }}
+    targetPort: {{ .Values.guildserver.service.internalPort | int  }}
     protocol: TCP
   selector:
     app: {{ $fullname }}-guildserver

@@ -20,7 +20,7 @@ spec:
         imagePullPolicy: IfNotPresent
         env:
         - name: PORT
-          value: "{{ .Values.guidserver.service.internalPort }}"
+          value: "{{ .Values.guidserver.service.internalPort | int }}"
         - name: REDIS_URL
           value: redis://{{ .Release.Name }}-redis-headless:6379/0
         - name: CHAR_DB_CONNECTION
@@ -29,7 +29,7 @@ spec:
               name: {{ .Release.Name }}-databases-config
               key: CHAR_DB_CONNECTION
         ports:
-        - containerPort: {{ .Values.guidserver.service.internalPort }}
+        - containerPort: {{ .Values.guidserver.service.internalPort | int  }}
         # livenessProbe:
         #   httpGet:
         #     path: /
@@ -58,8 +58,8 @@ metadata:
 spec:
   type: {{ .Values.guidserver.service.type }}
   ports:
-  - port: {{ .Values.guidserver.service.externalPort }}
-    targetPort: {{ .Values.guidserver.service.internalPort }}
+  - port: {{ .Values.guidserver.service.externalPort | int  }}
+    targetPort: {{ .Values.guidserver.service.internalPort | int  }}
     protocol: TCP
   selector:
     app: {{ $fullname }}-guidserver

@@ -20,7 +20,7 @@ spec:
         imagePullPolicy: IfNotPresent
         env:
         - name: PORT
-          value: "{{ .Values.mailserver.service.internalPort }}"
+          value: "{{ .Values.mailserver.service.internalPort | int }}"
         - name: NATS_URL
           value: nats://{{ .Release.Name }}-nats:4222
         - name: CHAR_DB_CONNECTION
@@ -29,7 +29,7 @@ spec:
               name: {{ .Release.Name }}-databases-config
               key: CHAR_DB_CONNECTION
         ports:
-        - containerPort: {{ .Values.mailserver.service.internalPort }}
+        - containerPort: {{ .Values.mailserver.service.internalPort | int  }}
         # livenessProbe:
         #   httpGet:
         #     path: /
@@ -58,8 +58,8 @@ metadata:
 spec:
   type: {{ .Values.mailserver.service.type }}
   ports:
-  - port: {{ .Values.mailserver.service.externalPort }}
-    targetPort: {{ .Values.mailserver.service.internalPort }}
+  - port: {{ .Values.mailserver.service.externalPort | int  }}
+    targetPort: {{ .Values.mailserver.service.internalPort | int  }}
     protocol: TCP
   selector:
     app: {{ $fullname }}-mailserver

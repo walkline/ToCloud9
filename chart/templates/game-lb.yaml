@@ -54,7 +54,7 @@ spec:
         ports:
         - containerPort: 8333
         - name: service
-          containerPort: {{ .Values.game_lb.service.internalPort }}
+          containerPort: {{ .Values.game_lb.service.internalPort | int  }}
         - name: health
           containerPort: 8900
         - containerPort: 4000
@@ -86,8 +86,8 @@ metadata:
 spec:
   type: {{ .Values.game_lb.service.type }}
   ports:
-  - port: {{ .Values.game_lb.service.internalPort }}
-    targetPort: {{ .Values.game_lb.service.internalPort }}
-    nodePort: {{ .Values.game_lb.service.externalPort }}
+  - port: {{ .Values.game_lb.service.internalPort | int  }}
+    targetPort: {{ .Values.game_lb.service.internalPort | int  }}
+    nodePort: {{ .Values.game_lb.service.externalPort | int  }}
   selector:
     app: {{ $fullname }}-game-lb
