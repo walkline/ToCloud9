@@ -2,6 +2,9 @@
 
 This chart will deploy a ToCloud9 cluster using **AzerothCore** as backend.
 
+> **WARNING:_** 
+Pre-built images in this chart values won't be actively maintained, build your own ones if you want to be up to date with AzerothCore releases.
+
 ## How to use
 
 1. Check the values to set a storage class for persistency and load-balancer domain.
