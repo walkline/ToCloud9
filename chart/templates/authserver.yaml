@@ -1,0 +1,71 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata: {{ $fullname := printf "%s-%s" .Release.Name .Chart.Name | trunc 63 | trimSuffix "-" }}
+  name: {{ $fullname }}-authserver
+  labels:
+    chart: "{{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}"
+spec:
+  selector:
+    matchLabels:
+      app: {{ $fullname }}-authserver
+  replicas: {{ default 1 .Values.authserver.replicaCount | int }}
+  template:
+    metadata:
+      labels:
+        app: {{ $fullname }}-authserver
+    spec:
+      containers:
+      - name: {{ .Release.Name }}-authserver
+        image: "{{ .Values.authserver.image.repository }}:{{ .Values.authserver.image.tag }}"
+        imagePullPolicy: IfNotPresent
+        command: ["./authserver"]
+        env:
+        - name: PORT
+          value: "{{ .Values.authserver.service.internalPort }}"
+        - name: SERVERS_REGISTRY_SERVICE_ADDRESS
+          value: {{ .Release.Name }}-servers-registry:{{ .Values.servers_registry.service.externalPort}}
+        - name: DB_SCHEMA_TYPE
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Release.Name }}-databases-config
+              key: schema_type
+        - name: AUTH_DB_CONNECTION
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Release.Name }}-databases-config
+              key: AUTH_DB_CONNECTION
+        ports:
+        - containerPort: {{ .Values.authserver.service.internalPort }}
+        # livenessProbe:
+        #   httpGet:
+        #     path: /
+        #     port: {{ .Values.authserver.service.internalPort | int }}
+        # readinessProbe:
+        #   httpGet:
+        #     path: /
+        #     port: {{ .Values.authserver.service.internalPort | int }}
+        securityContext:
+          capabilities:
+            drop: ["ALL"]
+          seccompProfile:
+            type: RuntimeDefault
+          # runAsNonRoot: true
+          allowPrivilegeEscalation: false
+        resources:
+{{ toYaml .Values.resources | indent 10 }}
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-authserver
+  labels:
+    chart: "{{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}"
+spec:
+  type: {{ .Values.authserver.service.type }}
+  ports:
+  - port: {{ .Values.authserver.service.internalPort }}
+    targetPort: {{ .Values.authserver.service.internalPort }}
+    nodePort: {{ .Values.authserver.service.externalPort }}
+  selector:
+    app: {{ $fullname }}-authserver
