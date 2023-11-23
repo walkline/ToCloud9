@@ -1,0 +1,141 @@
+# Default values for tocloud9.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+redis:
+  enabled: true
+  architecture: standalone
+  auth:
+    enabled: false
+nats:
+  enabled: true
+mysql:
+  enabled: true
+  global:
+    storageClass: my-storage-class
+  initdbScriptsConfigMap: mysql-init-scripts
+
+databases:
+  db_schema_type: ac # ac / tc
+  db_user: acore
+  db_password: acore
+  db_auth_name: acore_auth
+  db_characters_name: acore_characters
+  db_world_name: acore_world
+
+servers_registry:
+  replicaCount: 1
+  image:
+    repository: 2o1o0/servers-registry
+    pullPolicy: IfNotPresent
+    # Overrides the image tag whose default is the chart appVersion.
+    tag: "latest"
+  service:
+    type: ClusterIP
+    internalPort: 8999
+    externalPort: 8999
+
+authserver:
+  replicaCount: 1
+  # db_schema_type: ac # ac / tc
+  # db_auth_name: acore_auth
+  # db_characters_name: acore_characters
+  # db_world_name: acore_world
+  image:
+    repository: 2o1o0/authserver
+    pullPolicy: IfNotPresent
+    # Overrides the image tag whose default is the chart appVersion.
+    tag: "latest"
+  service:
+    type: NodePort
+    internalPort: 3724
+    externalPort: 32767
+
+guildserver:
+  replicaCount: 1
+  image:
+    repository: 2o1o0/guildserver
+    pullPolicy: IfNotPresent
+    # Overrides the image tag whose default is the chart appVersion.
+    tag: "latest"
+  service:
+    type: ClusterIP
+    internalPort: 8995
+    externalPort: 8995
+
+guidserver:
+  replicaCount: 1
+  image:
+    repository: 2o1o0/guidserver
+    pullPolicy: IfNotPresent
+    # Overrides the image tag whose default is the chart appVersion.
+    tag: "latest"
+  service:
+    type: ClusterIP
+    internalPort: 8996
+    externalPort: 8996
+
+chatserver:
+  replicaCount: 1
+  image:
+    repository: 2o1o0/chatserver
+    pullPolicy: IfNotPresent
+    # Overrides the image tag whose default is the chart appVersion.
+    tag: "latest"
+  service:
+    type: ClusterIP
+    internalPort: 8992
+    externalPort: 8992
+
+charserver:
+  replicaCount: 1
+  image:
+    repository: 2o1o0/charserver
+    pullPolicy: IfNotPresent
+    # Overrides the image tag whose default is the chart appVersion.
+    tag: "latest"
+  service:
+    type: ClusterIP
+    internalPort: 8087
+    externalPort: 8087
+
+mailserver:
+  replicaCount: 1
+  image:
+    repository: 2o1o0/mailserver
+    pullPolicy: IfNotPresent
+    # Overrides the image tag whose default is the chart appVersion.
+    tag: "latest"
+  service:
+    type: ClusterIP
+    internalPort: 8997
+    externalPort: 8997
+
+game_lb:
+  replicaCount: 1
+  hostname: "localhost" # If changed to a domain, needs to be updated in auth.realmlist table aswell
+  image:
+    repository: 2o1o0/game-load-balancer
+    pullPolicy: IfNotPresent
+    # Overrides the image tag whose default is the chart appVersion.
+    tag: "latest"
+  service:
+    type: NodePort
+    internalPort: 8085
+    externalPort: 32766
+
+gameserver_ac:
+  replicaCount: 1
+  storageClass: my-storage-class
+  port_soap: 7878
+  port_telnet: 3443
+  port_world: 9601
+  port_health: 9604
+  image:
+    repository: 2o1o0/gameserver_ac
+    pullPolicy: IfNotPresent
+    # Overrides the image tag whose default is the chart appVersion.
+    tag: "latest"
+  service:
+    type: ClusterIP
+    internalPort: 9509
+    externalPort: 9509

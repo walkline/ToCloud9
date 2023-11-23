@@ -1,0 +1,70 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata: {{ $fullname := printf "%s-%s" .Release.Name .Chart.Name | trunc 63 | trimSuffix "-" }}
+  name: {{ $fullname }}-charserver
+  labels:
+    chart: "{{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}"
+spec:
+  selector:
+    matchLabels:
+      app: {{ $fullname }}-charserver
+  replicas: {{ default 1 .Values.charserver.replicaCount | int }}
+  template:
+    metadata:
+      labels:
+        app: {{ $fullname }}-charserver
+    spec:
+      containers:
+      - name: {{ .Release.Name }}-charserver
+        image: "{{ .Values.charserver.image.repository }}:{{ .Values.charserver.image.tag }}"
+        imagePullPolicy: IfNotPresent
+        env:
+        - name: PORT
+          value: "{{ .Values.charserver.service.internalPort | int }}"
+        - name: NATS_URL
+          value: nats://{{ .Release.Name }}-nats:4222
+        - name: CHAR_DB_CONNECTION
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Release.Name }}-databases-config
+              key: CHAR_DB_CONNECTION
+        - name: WORLD_DB_CONNECTION
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Release.Name }}-databases-config
+              key: WORLD_DB_CONNECTION
+        ports:
+        - containerPort: {{ .Values.charserver.service.internalPort | int  }}
+        # livenessProbe:
+        #   httpGet:
+        #     path: /
+        #     port: {{ .Values.charserver.service.internalPort | int }}
+        # readinessProbe:
+        #   httpGet:
+        #     path: /
+        #     port: {{ .Values.charserver.service.internalPort | int }}
+        securityContext:
+          capabilities:
+            drop: ["ALL"]
+          seccompProfile:
+            type: RuntimeDefault
+          # runAsNonRoot: true
+          allowPrivilegeEscalation: false
+        resources:
+{{ toYaml .Values.resources | indent 10 }}
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-charserver
+  labels:
+    chart: "{{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}"
+spec:
+  type: {{ .Values.charserver.service.type }}
+  ports:
+  - port: {{ .Values.charserver.service.externalPort | int  }}
+    targetPort: {{ .Values.charserver.service.internalPort | int  }}
+    protocol: TCP
+  selector:
+    app: {{ $fullname }}-charserver

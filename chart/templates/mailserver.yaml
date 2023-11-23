@@ -1,0 +1,65 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata: {{ $fullname := printf "%s-%s" .Release.Name .Chart.Name | trunc 63 | trimSuffix "-" }}
+  name: {{ $fullname }}-mailserver
+  labels:
+    chart: "{{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}"
+spec:
+  selector:
+    matchLabels:
+      app: {{ $fullname }}-mailserver
+  replicas: {{ default 1 .Values.mailserver.replicaCount | int }}
+  template:
+    metadata:
+      labels:
+        app: {{ $fullname }}-mailserver
+    spec:
+      containers:
+      - name: {{ .Release.Name }}-mailserver
+        image: "{{ .Values.mailserver.image.repository }}:{{ .Values.mailserver.image.tag }}"
+        imagePullPolicy: IfNotPresent
+        env:
+        - name: PORT
+          value: "{{ .Values.mailserver.service.internalPort | int }}"
+        - name: NATS_URL
+          value: nats://{{ .Release.Name }}-nats:4222
+        - name: CHAR_DB_CONNECTION
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Release.Name }}-databases-config
+              key: CHAR_DB_CONNECTION
+        ports:
+        - containerPort: {{ .Values.mailserver.service.internalPort | int  }}
+        # livenessProbe:
+        #   httpGet:
+        #     path: /
+        #     port: {{ .Values.mailserver.service.internalPort | int }}
+        # readinessProbe:
+        #   httpGet:
+        #     path: /
+        #     port: {{ .Values.mailserver.service.internalPort | int }}
+        securityContext:
+          capabilities:
+            drop: ["ALL"]
+          seccompProfile:
+            type: RuntimeDefault
+          # runAsNonRoot: true
+          allowPrivilegeEscalation: false
+        resources:
+{{ toYaml .Values.resources | indent 10 }}
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-mailserver
+  labels:
+    chart: "{{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}"
+spec:
+  type: {{ .Values.mailserver.service.type }}
+  ports:
+  - port: {{ .Values.mailserver.service.externalPort | int  }}
+    targetPort: {{ .Values.mailserver.service.internalPort | int  }}
+    protocol: TCP
+  selector:
+    app: {{ $fullname }}-mailserver
