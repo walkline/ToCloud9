@@ -126,6 +126,13 @@ game_lb:
     externalPort: 32766
 
 gameserver_ac:
+  initcontainer:
+    download_enabled: true # Will download assets and unzip them if pvc is empty
+    download_url: "https://github.com/wowgaming/client-data/releases/download/v16/data.zip"
+    image:
+      repository: alpine
+      pullPolicy: IfNotPresent
+      tag: "latest"
   replicaCount: 1
   storageClass: my-storage-class
   port_soap: 7878

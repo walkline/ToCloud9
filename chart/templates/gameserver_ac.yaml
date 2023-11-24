@@ -20,11 +20,33 @@ spec:
             name: {{ $fullname }}-worldserver-conf
         - name: data-vol
           persistentVolumeClaim:
-            claimName: {{ $fullname }}-gameserver-ac-data-pv-claim
+            claimName: {{ $fullname }}-gameserver-ac-data-shared-pv-claim
+      initContainers:
+        - name: check-data
+          image: "{{ .Values.gameserver_ac.initcontainer.image.repository }}:{{ .Values.gameserver_ac.initcontainer.image.tag }}"
+          imagePullPolicy: {{ .Values.gameserver_ac.initcontainer.image.pullPolicy }}
+          volumeMounts:
+            - name: data-vol
+              mountPath: /data
+          command: ["/bin/sh", "-c"]
+          env:
+            - name: DOWNLOAD_ENABLED
+              value: "{{ .Values.gameserver_ac.initcontainer.download_enabled }}"
+            - name: DOWNLOAD_URL
+              value: "{{ .Values.gameserver_ac.initcontainer.download_url }}"
+          args:
+            - |
+              if [ -z "$(ls -A /data)" ] && [ "$DOWNLOAD_ENABLED" = "true" ]; then
+                apk add --no-cache unzip curl && \
+                cd /data && \
+                curl -L -o data.zip $DOWNLOAD_URL && \
+                unzip -q data.zip && \
+                rm -f data.zip
+              fi
       containers:
       - name: {{ .Release.Name }}-gameserver-ac
         image: "{{ .Values.gameserver_ac.image.repository }}:{{ .Values.gameserver_ac.image.tag }}"
-        imagePullPolicy: IfNotPresent
+        imagePullPolicy: {{ .Values.gameserver_ac.image.pullPolicy }}
         tty: true
         stdin: true
         env:
@@ -134,15 +156,15 @@ spec:
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: {{ $fullname }}-gameserver-ac-data-pv-claim
+  name: {{ $fullname }}-gameserver-ac-data-shared-pv-claim
 spec:
   storageClassName: {{ .Values.gameserver_ac.storageClass }}
   accessModes:
-    - ReadWriteOnce
+    - ReadWriteMany
   resources:
     requests:
-      storage: 15Gi
-      # storage: 5Gi
+      # storage: 15Gi
+      storage: 10Gi
 
 ---
 kind: ConfigMap
