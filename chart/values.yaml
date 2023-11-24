@@ -21,6 +21,8 @@ databases:
   db_auth_name: acore_auth
   db_characters_name: acore_characters
   db_world_name: acore_world
+  external_db_hostname: "" #set an external db hostname, will use credentials and databases names above to build connection strings. Dont forget to disable mysql.enabled.
+  external_db_port: "3306"
 
 servers_registry:
   replicaCount: 1
