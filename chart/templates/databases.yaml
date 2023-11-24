@@ -6,7 +6,7 @@ metadata:
   namespace: {{ .Release.Namespace }}
 data:
   000_init.sql: |
-    DROP USER IF EXISTS 'acore';
+    DROP USER IF EXISTS '{{ .Values.databases.db_user }}';
     CREATE USER '{{ .Values.databases.db_user }}' IDENTIFIED BY '{{ .Values.databases.db_password }}' WITH MAX_QUERIES_PER_HOUR 0 MAX_CONNECTIONS_PER_HOUR 0 MAX_UPDATES_PER_HOUR 0;
 
     GRANT ALL PRIVILEGES ON * . * TO '{{ .Values.databases.db_user }}' WITH GRANT OPTION;
