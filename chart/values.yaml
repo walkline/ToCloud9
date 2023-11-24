@@ -29,7 +29,6 @@ servers_registry:
   image:
     repository: 2o1o0/servers-registry
     pullPolicy: IfNotPresent
-    # Overrides the image tag whose default is the chart appVersion.
     tag: "latest"
   service:
     type: ClusterIP
@@ -38,14 +37,9 @@ servers_registry:
 
 authserver:
   replicaCount: 1
-  # db_schema_type: ac # ac / tc
-  # db_auth_name: acore_auth
-  # db_characters_name: acore_characters
-  # db_world_name: acore_world
   image:
     repository: 2o1o0/authserver
     pullPolicy: IfNotPresent
-    # Overrides the image tag whose default is the chart appVersion.
     tag: "latest"
   service:
     type: NodePort
@@ -57,7 +51,6 @@ guildserver:
   image:
     repository: 2o1o0/guildserver
     pullPolicy: IfNotPresent
-    # Overrides the image tag whose default is the chart appVersion.
     tag: "latest"
   service:
     type: ClusterIP
@@ -69,7 +62,6 @@ guidserver:
   image:
     repository: 2o1o0/guidserver
     pullPolicy: IfNotPresent
-    # Overrides the image tag whose default is the chart appVersion.
     tag: "latest"
   service:
     type: ClusterIP
@@ -81,7 +73,6 @@ chatserver:
   image:
     repository: 2o1o0/chatserver
     pullPolicy: IfNotPresent
-    # Overrides the image tag whose default is the chart appVersion.
     tag: "latest"
   service:
     type: ClusterIP
@@ -93,7 +84,6 @@ charserver:
   image:
     repository: 2o1o0/charserver
     pullPolicy: IfNotPresent
-    # Overrides the image tag whose default is the chart appVersion.
     tag: "latest"
   service:
     type: ClusterIP
@@ -105,7 +95,6 @@ mailserver:
   image:
     repository: 2o1o0/mailserver
     pullPolicy: IfNotPresent
-    # Overrides the image tag whose default is the chart appVersion.
     tag: "latest"
   service:
     type: ClusterIP
@@ -118,7 +107,6 @@ game_lb:
   image:
     repository: 2o1o0/game-load-balancer
     pullPolicy: IfNotPresent
-    # Overrides the image tag whose default is the chart appVersion.
     tag: "latest"
   service:
     type: NodePort
@@ -142,7 +130,6 @@ gameserver_ac:
   image:
     repository: 2o1o0/gameserver_ac
     pullPolicy: IfNotPresent
-    # Overrides the image tag whose default is the chart appVersion.
     tag: "latest"
   service:
     type: ClusterIP
