@@ -17,7 +17,7 @@ spec:
       containers:
       - name: {{ .Release.Name }}-mailserver
         image: "{{ .Values.mailserver.image.repository }}:{{ .Values.mailserver.image.tag }}"
-        imagePullPolicy: IfNotPresent
+        imagePullPolicy: {{ .Values.mailserver.image.pullPolicy | toString }}
         env:
         - name: PORT
           value: "{{ .Values.mailserver.service.internalPort | int }}"

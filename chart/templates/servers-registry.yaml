@@ -17,7 +17,7 @@ spec:
       containers:
       - name: {{ .Release.Name }}-servers-registry
         image: "{{ .Values.servers_registry.image.repository }}:{{ .Values.servers_registry.image.tag }}"
-        imagePullPolicy: IfNotPresent
+        imagePullPolicy: {{ .Values.servers_registry.image.pullPolicy | toString }}
         env:
         - name: PORT
           value: "{{ .Values.servers_registry.service.internalPort | int }}"
