@@ -17,7 +17,7 @@ spec:
       containers:
       - name: {{ .Release.Name }}-game-lb
         image: "{{ .Values.game_lb.image.repository }}:{{ .Values.game_lb.image.tag }}"
-        imagePullPolicy: IfNotPresent
+        imagePullPolicy: {{ .Values.game_lb.image.pullPolicy | toString }}
         env:
         - name: PREFERRED_HOSTNAME
           value: {{ .Values.game_lb.hostname }}
@@ -52,7 +52,8 @@ spec:
               name: {{ .Release.Name }}-databases-config
               key: AUTH_DB_CONNECTION
         ports:
-        - containerPort: 8333
+        - name: debug
+          containerPort: 8333
         - name: service
           containerPort: {{ .Values.game_lb.service.internalPort | int  }}
         - name: health

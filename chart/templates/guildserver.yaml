@@ -17,7 +17,7 @@ spec:
       containers:
       - name: {{ .Release.Name }}-guildserver
         image: "{{ .Values.guildserver.image.repository }}:{{ .Values.guildserver.image.tag }}"
-        imagePullPolicy: IfNotPresent
+        imagePullPolicy: {{ .Values.guildserver.image.pullPolicy | toString }}
         env:
         - name: PORT
           value: "{{ .Values.guildserver.service.internalPort | int }}"

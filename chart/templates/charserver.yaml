@@ -17,7 +17,7 @@ spec:
       containers:
       - name: {{ .Release.Name }}-charserver
         image: "{{ .Values.charserver.image.repository }}:{{ .Values.charserver.image.tag }}"
-        imagePullPolicy: IfNotPresent
+        imagePullPolicy: {{ .Values.charserver.image.pullPolicy | toString }}
         env:
         - name: PORT
           value: "{{ .Values.charserver.service.internalPort | int }}"

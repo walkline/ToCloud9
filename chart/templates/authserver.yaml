@@ -17,7 +17,7 @@ spec:
       containers:
       - name: {{ .Release.Name }}-authserver
         image: "{{ .Values.authserver.image.repository }}:{{ .Values.authserver.image.tag }}"
-        imagePullPolicy: IfNotPresent
+        imagePullPolicy: {{ .Values.authserver.image.pullPolicy | toString }}
         command: ["./authserver"]
         env:
         - name: PORT

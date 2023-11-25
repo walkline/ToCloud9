@@ -17,7 +17,7 @@ spec:
       containers:
       - name: {{ .Release.Name }}-guidserver
         image: "{{ .Values.guidserver.image.repository }}:{{ .Values.guidserver.image.tag }}"
-        imagePullPolicy: IfNotPresent
+        imagePullPolicy: {{ .Values.guidserver.image.pullPolicy | toString }}
         env:
         - name: PORT
           value: "{{ .Values.guidserver.service.internalPort | int }}"
