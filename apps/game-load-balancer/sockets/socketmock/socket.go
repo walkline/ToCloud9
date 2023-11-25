@@ -6,7 +6,6 @@ import (
 	context "context"
 
 	mock "github.com/stretchr/testify/mock"
-
 	packet "github.com/walkline/ToCloud9/apps/game-load-balancer/packet"
 )
 

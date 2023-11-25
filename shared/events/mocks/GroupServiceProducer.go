@@ -4,7 +4,6 @@ package mocks
 
 import (
 	mock "github.com/stretchr/testify/mock"
-
 	events "github.com/walkline/ToCloud9/shared/events"
 )
 
@@ -131,6 +130,34 @@ func (_m *GroupServiceProducer) MemberAdded(payload *events.GroupEventGroupMembe
 
 	var r0 error
 	if rf, ok := ret.Get(0).(func(*events.GroupEventGroupMemberAddedPayload) error); ok {
+		r0 = rf(payload)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// SendChatMessage provides a mock function with given fields: payload
+func (_m *GroupServiceProducer) SendChatMessage(payload *events.GroupEventNewMessagePayload) error {
+	ret := _m.Called(payload)
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(*events.GroupEventNewMessagePayload) error); ok {
+		r0 = rf(payload)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// TargetIconUpdated provides a mock function with given fields: payload
+func (_m *GroupServiceProducer) TargetIconUpdated(payload *events.GroupEventNewTargetIconPayload) error {
+	ret := _m.Called(payload)
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(*events.GroupEventNewTargetIconPayload) error); ok {
 		r0 = rf(payload)
 	} else {
 		r0 = ret.Error(0)

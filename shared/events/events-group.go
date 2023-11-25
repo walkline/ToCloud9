@@ -32,6 +32,15 @@ const (
 
 	// GroupEventGroupConvertedToRaid group event when the group is converted to a raid
 	GroupEventGroupConvertedToRaid
+
+	// GroupEventNewChatMessage group event when somebody sends group or raid chat message
+	GroupEventNewChatMessage
+
+	// GroupEventNewTargetIcon group event when leader or assistant sets target icon for raid
+	GroupEventNewTargetIcon
+
+	// GroupEventGroupDifficultyChanged group event when dungeon or raid difficulty changed for the group
+	GroupEventGroupDifficultyChanged
 )
 
 // SubjectName is key that nats uses
@@ -55,6 +64,12 @@ func (e GroupServiceEvent) SubjectName() string {
 		return "group.loot.changed"
 	case GroupEventGroupConvertedToRaid:
 		return "group.converted.raid"
+	case GroupEventNewChatMessage:
+		return "group.message.new"
+	case GroupEventNewTargetIcon:
+		return "group.targeticons.new"
+	case GroupEventGroupDifficultyChanged:
+		return "group.difficulty.changed"
 	}
 	panic(fmt.Errorf("unk event %d", e))
 }
@@ -138,9 +153,11 @@ type GroupEventGroupLootTypeChangedPayload struct {
 	ServiceID string
 	RealmID   uint32
 
-	GroupID     uint
-	Leader      uint64
-	NewLootType uint8
+	GroupID uint
+
+	NewLootType        uint8
+	NewLooterGUID      uint64
+	NewLooterThreshold uint8
 
 	OnlineMembers []uint64
 }
@@ -161,6 +178,48 @@ type GroupEventGroupDisbandPayload struct {
 
 	GroupID       uint
 	OnlineMembers []uint64
+}
+
+type GroupEventNewMessagePayload struct {
+	ServiceID string
+	RealmID   uint32
+
+	GroupID uint
+
+	SenderGUID uint64
+	SenderName string
+
+	Language uint32
+	Msg      string
+
+	MessageType uint8
+
+	Receivers []uint64
+}
+
+type GroupEventNewTargetIconPayload struct {
+	ServiceID string
+	RealmID   uint32
+
+	GroupID uint
+	Updater uint64
+	Target  uint64
+	IconID  uint8
+
+	Receivers []uint64
+}
+
+type GroupEventGroupDifficultyChangedPayload struct {
+	ServiceID string
+	RealmID   uint32
+
+	GroupID uint
+	Updater uint64
+
+	DungeonDifficulty *uint8 `json:"DungeonDifficulty,omitempty"`
+	RaidDifficulty    *uint8 `json:"RaidDifficulty,omitempty"`
+
+	Receivers []uint64
 }
 
 type GroupMember struct {

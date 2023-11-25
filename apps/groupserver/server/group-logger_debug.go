@@ -120,3 +120,81 @@ func (g groupDebugLoggerMiddleware) ChangeLeader(ctx context.Context, params *pb
 	res, err = g.realServer.ChangeLeader(ctx, params)
 	return
 }
+
+func (g groupDebugLoggerMiddleware) SendMessage(ctx context.Context, params *pb.SendGroupMessageParams) (res *pb.SendGroupMessageResponse, err error) {
+	defer func(t time.Time) {
+		g.logger.Debug().
+			Uint64("sender", params.SenderGUID).
+			Uint32("msgType", params.MessageType).
+			Err(err).
+			Msgf("Handled SendMessage for %v.", time.Since(t))
+	}(time.Now())
+
+	res, err = g.realServer.SendMessage(ctx, params)
+	return
+}
+
+func (g groupDebugLoggerMiddleware) GetGroupByMember(ctx context.Context, params *pb.GetGroupByMemberRequest) (res *pb.GetGroupResponse, err error) {
+	defer func(t time.Time) {
+		g.logger.Debug().
+			Uint64("player", params.Player).
+			Err(err).
+			Msgf("Handled GetGroupByMember for %v.", time.Since(t))
+	}(time.Now())
+
+	res, err = g.realServer.GetGroupByMember(ctx, params)
+	return
+}
+
+func (g groupDebugLoggerMiddleware) SetGroupTargetIcon(ctx context.Context, params *pb.SetGroupTargetIconRequest) (res *pb.SetGroupTargetIconResponse, err error) {
+	defer func(t time.Time) {
+		g.logger.Debug().
+			Uint64("setter", params.SetterGUID).
+			Uint64("target", params.TargetGUID).
+			Uint32("iconID", params.IconID).
+			Err(err).
+			Msgf("Handled SetGroupTargetIcon for %v.", time.Since(t))
+	}(time.Now())
+
+	res, err = g.realServer.SetGroupTargetIcon(ctx, params)
+	return
+}
+
+func (g groupDebugLoggerMiddleware) SetLootMethod(ctx context.Context, params *pb.SetLootMethodRequest) (res *pb.SetLootMethodResponse, err error) {
+	defer func(t time.Time) {
+		g.logger.Debug().
+			Uint64("updater", params.PlayerGUID).
+			Uint32("method", params.Method).
+			Err(err).
+			Msgf("Handled SetLootMethod for %v.", time.Since(t))
+	}(time.Now())
+
+	res, err = g.realServer.SetLootMethod(ctx, params)
+	return
+}
+
+func (g groupDebugLoggerMiddleware) SetDungeonDifficulty(ctx context.Context, params *pb.SetDungeonDifficultyRequest) (res *pb.SetDungeonDifficultyResponse, err error) {
+	defer func(t time.Time) {
+		g.logger.Debug().
+			Uint64("updater", params.PlayerGUID).
+			Uint32("difficulty", params.Difficulty).
+			Err(err).
+			Msgf("Handled SetDungeonDifficulty for %v.", time.Since(t))
+	}(time.Now())
+
+	res, err = g.realServer.SetDungeonDifficulty(ctx, params)
+	return
+}
+
+func (g groupDebugLoggerMiddleware) SetRaidDifficulty(ctx context.Context, params *pb.SetRaidDifficultyRequest) (res *pb.SetRaidDifficultyResponse, err error) {
+	defer func(t time.Time) {
+		g.logger.Debug().
+			Uint64("updater", params.PlayerGUID).
+			Uint32("difficulty", params.Difficulty).
+			Err(err).
+			Msgf("Handled SetRaidDifficulty for %v.", time.Since(t))
+	}(time.Now())
+
+	res, err = g.realServer.SetRaidDifficulty(ctx, params)
+	return
+}

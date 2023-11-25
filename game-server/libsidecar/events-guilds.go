@@ -12,27 +12,24 @@ import (
 )
 
 // TC9SetOnGuildMemberAddedHook sets hook for guild member added event.
+//
 //export TC9SetOnGuildMemberAddedHook
 func TC9SetOnGuildMemberAddedHook(h C.OnGuildMemberAddedHook) {
 	C.SetOnGuildMemberAddedHook(h)
 }
 
 // TC9SetOnGuildMemberRemovedHook sets hook for guild member removed (kicked) event.
+//
 //export TC9SetOnGuildMemberRemovedHook
 func TC9SetOnGuildMemberRemovedHook(h C.OnGuildMemberRemovedHook) {
 	C.SetOnGuildMemberRemovedHook(h)
 }
 
 // TC9SetOnGuildMemberLeftHook sets hook for guild member left event.
+//
 //export TC9SetOnGuildMemberLeftHook
 func TC9SetOnGuildMemberLeftHook(h C.OnGuildMemberLeftHook) {
 	C.SetOnGuildMemberLeftHook(h)
-}
-
-type eventsHandlerFunc func()
-
-func (f eventsHandlerFunc) Handle() {
-	f()
 }
 
 type guildHandlerFabric struct {

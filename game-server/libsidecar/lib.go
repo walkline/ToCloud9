@@ -18,7 +18,7 @@ const (
 	libVer = "0.0.1"
 )
 
-func initLib() (*config.Config, healthandmetrics.Server, ShutdownFunc) {
+func initLib(realmID uint32) (*config.Config, healthandmetrics.Server, ShutdownFunc) {
 	cfg, err := config.LoadConfig()
 	if err != nil {
 		panic(err)
@@ -39,7 +39,7 @@ func initLib() (*config.Config, healthandmetrics.Server, ShutdownFunc) {
 	healthCheckServer := healthandmetrics.NewServer(cfg.HealthCheckPort, false)
 	go healthCheckServer.ListenAndServe()
 
-	natsConsumer := SetupEventsListener(nc, log)
+	natsConsumer := SetupEventsListener(nc, realmID, log)
 
 	srvRegConn := SetupServersRegistryConnection(cfg)
 
@@ -103,7 +103,7 @@ var shutdownFunc ShutdownFunc
 //
 //export TC9InitLib
 func TC9InitLib(port uint16, realmID uint32, availableMaps *C.char) {
-	cfg, healthCheckServer, shutdown := initLib()
+	cfg, healthCheckServer, shutdown := initLib(realmID)
 	shutdownFunc = shutdown
 
 	SetupGuidProviders(realmID, cfg)

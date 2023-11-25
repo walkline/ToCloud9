@@ -111,7 +111,7 @@ func NewWorldSocketWithAddress(logger *zerolog.Logger, addr string) (sockets.Soc
 	return &WorldSocket{
 		logger:           logger,
 		conn:             net,
-		packetsReader:    sockets.NewPacketsReader(net, 2),
+		packetsReader:    sockets.NewPacketsReader(net, 2, packet.SourceWorldServer),
 		readPacketsChan:  make(chan *packet.Packet, 100),
 		writePacketsChan: make(chan *packet.Packet, 100),
 		address:          addr,
@@ -122,7 +122,7 @@ func NewWorldSocketWithConnection(logger *zerolog.Logger, net net.Conn) (sockets
 	return &WorldSocket{
 		logger:           logger,
 		conn:             net,
-		packetsReader:    sockets.NewPacketsReader(net, 2),
+		packetsReader:    sockets.NewPacketsReader(net, 2, packet.SourceWorldServer),
 		readPacketsChan:  make(chan *packet.Packet, 100),
 		writePacketsChan: make(chan *packet.Packet, 100),
 	}, nil

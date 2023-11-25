@@ -13,14 +13,25 @@ import (
 )
 
 var (
-	ErrAlreadyInGroup = errors.New("player already in group")
-	ErrNoPermissions  = errors.New("player has not enough permissions")
-	ErrGroupFull      = errors.New("group is full")
-	ErrGroupNotFound  = errors.New("group not found")
+	ErrAlreadyInGroup      = errors.New("player already in group")
+	ErrNoPermissions       = errors.New("player has not enough permissions")
+	ErrGroupFull           = errors.New("group is full")
+	ErrGroupNotFound       = errors.New("group not found")
+	ErrGroupMemberNotFound = errors.New("group member not found")
+)
+
+type MessageType uint8
+
+const (
+	MessageTypeGroup       MessageType = 0x2
+	MessageTypeGroupLeader MessageType = 0x33
+	MessageTypeRaid        MessageType = 0x3
+	MessageTypeRaidLeader  MessageType = 0x27
 )
 
 type GroupsService interface {
 	GroupByID(ctx context.Context, realmID uint32, groupID uint) (*repo.Group, error)
+	GroupByMemberGUID(ctx context.Context, realmID uint32, memberGUID uint64) (*repo.Group, error)
 	GroupIDByPlayer(ctx context.Context, realmID uint32, player uint64) (uint, error)
 
 	Invite(ctx context.Context, realmID uint32, inviter, invited uint64, inviterName, invitedName string) error
@@ -31,6 +42,14 @@ type GroupsService interface {
 	ConvertToRaid(ctx context.Context, realmID uint32, player uint64) error
 
 	AcceptInvite(ctx context.Context, realmID uint32, player uint64) error
+
+	SendMessage(ctx context.Context, realmID uint32, senderGUID uint64, message string, lang uint32, messageType MessageType) error
+
+	SetTargetIcon(ctx context.Context, realmID uint32, updaterGUID uint64, iconID uint8, targetGUID uint64) error
+	SetLootMethod(ctx context.Context, realmID uint32, updaterGUID uint64, method uint8, lootMaster uint64, lootThreshold uint8) error
+
+	SetDungeonDifficulty(ctx context.Context, realmID uint32, updaterGUID uint64, difficulty uint8) error
+	SetRaidDifficulty(ctx context.Context, realmID uint32, updaterGUID uint64, difficulty uint8) error
 
 	// LBCharacterLoggedInHandler updates cache with player logged in.
 	events.LBCharacterLoggedInHandler
@@ -56,6 +75,15 @@ func (g groupServiceImpl) GroupIDByPlayer(ctx context.Context, realmID uint32, p
 
 func (g groupServiceImpl) GroupByID(ctx context.Context, realmID uint32, groupID uint) (*repo.Group, error) {
 	return g.r.GroupByID(ctx, realmID, groupID, true)
+}
+
+func (g groupServiceImpl) GroupByMemberGUID(ctx context.Context, realmID uint32, memberGUID uint64) (*repo.Group, error) {
+	groupID, err := g.GroupIDByPlayer(ctx, realmID, memberGUID)
+	if err != nil {
+		return nil, err
+	}
+
+	return g.GroupByID(ctx, realmID, groupID)
 }
 
 func (g groupServiceImpl) Invite(ctx context.Context, realmID uint32, inviter, invited uint64, inviterName, invitedName string) error {
@@ -282,21 +310,9 @@ func (g groupServiceImpl) Leave(ctx context.Context, realmID uint32, player uint
 }
 
 func (g groupServiceImpl) ChangeLeader(ctx context.Context, realmID uint32, player, newLeader uint64) error {
-	groupID, err := g.r.GroupIDByPlayer(ctx, realmID, player)
+	group, err := g.getGroupWithLeader(ctx, realmID, player)
 	if err != nil {
-		return fmt.Errorf("can't get groupID, err: %w", err)
-	}
-	if groupID == 0 {
-		return ErrGroupNotFound
-	}
-
-	group, err := g.r.GroupByID(ctx, realmID, groupID, true)
-	if err != nil {
-		return fmt.Errorf("can't get group, err: %w", err)
-	}
-
-	if group.LeaderGUID != player {
-		return ErrNoPermissions
+		return err
 	}
 
 	newLeaderMember := group.MemberByGUID(newLeader)
@@ -308,21 +324,9 @@ func (g groupServiceImpl) ChangeLeader(ctx context.Context, realmID uint32, play
 }
 
 func (g groupServiceImpl) ConvertToRaid(ctx context.Context, realmID uint32, player uint64) error {
-	groupID, err := g.r.GroupIDByPlayer(ctx, realmID, player)
+	group, err := g.getGroupWithLeader(ctx, realmID, player)
 	if err != nil {
-		return fmt.Errorf("can't get groupID, err: %w", err)
-	}
-	if groupID == 0 {
-		return ErrGroupNotFound
-	}
-
-	group, err := g.r.GroupByID(ctx, realmID, groupID, true)
-	if err != nil {
-		return fmt.Errorf("can't get group, err: %w", err)
-	}
-
-	if group.LeaderGUID != player {
-		return ErrNoPermissions
+		return err
 	}
 
 	group.GroupType |= repo.GroupTypeFlagsRaid
@@ -338,6 +342,203 @@ func (g groupServiceImpl) ConvertToRaid(ctx context.Context, realmID uint32, pla
 	})
 	if err != nil {
 		log.Error().Err(err).Msg("can't create ConvertedToRaid event")
+	}
+
+	return nil
+}
+
+func (g groupServiceImpl) SendMessage(ctx context.Context, realmID uint32, senderGUID uint64, message string, lang uint32, messageType MessageType) error {
+	groupID, err := g.r.GroupIDByPlayer(ctx, realmID, senderGUID)
+	if err != nil {
+		return fmt.Errorf("can't get groupID, err: %w", err)
+	}
+	if groupID == 0 {
+		return ErrGroupNotFound
+	}
+
+	group, err := g.r.GroupByID(ctx, realmID, groupID, true)
+	if err != nil {
+		return fmt.Errorf("can't get group, err: %w", err)
+	}
+
+	if group == nil {
+		return ErrGroupNotFound
+	}
+
+	member := group.MemberByGUID(senderGUID)
+	if member == nil {
+		return ErrGroupMemberNotFound
+	}
+
+	isLeader := false
+	switch messageType {
+	case MessageTypeGroup, MessageTypeRaid:
+		isLeader = false
+	case MessageTypeGroupLeader, MessageTypeRaidLeader:
+		isLeader = true
+	default:
+		return fmt.Errorf("message with type %d unsupported", messageType)
+	}
+
+	if isLeader && group.LeaderGUID != senderGUID {
+		return ErrNoPermissions
+	}
+
+	err = g.ep.SendChatMessage(&events.GroupEventNewMessagePayload{
+		ServiceID:   groupserver.ServiceID,
+		RealmID:     realmID,
+		GroupID:     group.ID,
+		SenderGUID:  senderGUID,
+		SenderName:  member.MemberName,
+		Language:    lang,
+		Msg:         message,
+		MessageType: uint8(messageType),
+		Receivers:   group.OnlineMemberGUIDs(),
+	})
+	if err != nil {
+		log.Error().Err(err).Msg("can't create SendChatMessage event")
+	}
+
+	return nil
+}
+
+func (g groupServiceImpl) SetTargetIcon(ctx context.Context, realmID uint32, updaterGUID uint64, iconID uint8, targetGUID uint64) error {
+	if repo.MaxTargetIcons <= iconID {
+		return fmt.Errorf("iconID (%d) is invalid", iconID)
+	}
+
+	groupID, err := g.r.GroupIDByPlayer(ctx, realmID, updaterGUID)
+	if err != nil {
+		return fmt.Errorf("can't get groupID, err: %w", err)
+	}
+	if groupID == 0 {
+		return ErrGroupNotFound
+	}
+
+	group, err := g.r.GroupByID(ctx, realmID, groupID, true)
+	if err != nil {
+		return fmt.Errorf("can't get group, err: %w", err)
+	}
+
+	if group == nil {
+		return ErrGroupNotFound
+	}
+
+	groupMember := group.MemberByGUID(updaterGUID)
+	if group.IsRaid() && group.LeaderGUID != updaterGUID && !groupMember.IsAssistant() {
+		return ErrNoPermissions
+	}
+
+	for i, target := range group.TargetIcons {
+		if target == targetGUID {
+			group.TargetIcons[i] = 0
+			break
+		}
+	}
+
+	group.TargetIcons[iconID] = targetGUID
+
+	if err = g.r.Update(ctx, realmID, group); err != nil {
+		return fmt.Errorf("can't update icon for the group (%d), err: %w", groupID, err)
+	}
+
+	err = g.ep.TargetIconUpdated(&events.GroupEventNewTargetIconPayload{
+		ServiceID: groupserver.ServiceID,
+		RealmID:   realmID,
+		GroupID:   group.ID,
+		Updater:   updaterGUID,
+		Target:    targetGUID,
+		IconID:    iconID,
+		Receivers: group.OnlineMemberGUIDs(),
+	})
+	if err != nil {
+		log.Error().Err(err).Msg("can't create TargetIconUpdated event")
+	}
+
+	return nil
+}
+
+func (g groupServiceImpl) SetLootMethod(ctx context.Context, realmID uint32, updaterGUID uint64, method uint8, lootMaster uint64, lootThreshold uint8) error {
+	group, err := g.getGroupWithLeader(ctx, realmID, updaterGUID)
+	if err != nil {
+		return err
+	}
+
+	group.LootMethod = method
+	group.LootThreshold = lootThreshold
+	group.LooterGUID = lootMaster
+
+	if err = g.r.Update(ctx, realmID, group); err != nil {
+		return err
+	}
+
+	err = g.ep.LootTypeChanged(&events.GroupEventGroupLootTypeChangedPayload{
+		ServiceID:          groupserver.ServiceID,
+		RealmID:            realmID,
+		GroupID:            group.ID,
+		NewLootType:        group.LootMethod,
+		NewLooterGUID:      group.LooterGUID,
+		NewLooterThreshold: group.LootThreshold,
+		OnlineMembers:      group.OnlineMemberGUIDs(),
+	})
+	if err != nil {
+		log.Error().Err(err).Msg("can't send loot changed event")
+	}
+
+	return nil
+}
+
+func (g groupServiceImpl) SetDungeonDifficulty(ctx context.Context, realmID uint32, updaterGUID uint64, difficulty uint8) error {
+	group, err := g.getGroupWithLeader(ctx, realmID, updaterGUID)
+	if err != nil {
+		return err
+	}
+
+	group.Difficulty = difficulty
+
+	if err = g.r.Update(ctx, realmID, group); err != nil {
+		return err
+	}
+
+	err = g.ep.GroupDifficultyChanged(&events.GroupEventGroupDifficultyChangedPayload{
+		ServiceID:         groupserver.ServiceID,
+		RealmID:           realmID,
+		GroupID:           group.ID,
+		Updater:           updaterGUID,
+		DungeonDifficulty: &difficulty,
+		RaidDifficulty:    nil,
+		Receivers:         group.OnlineMemberGUIDs(),
+	})
+	if err != nil {
+		log.Error().Err(err).Msg("can't send difficulty changed event")
+	}
+
+	return nil
+}
+
+func (g groupServiceImpl) SetRaidDifficulty(ctx context.Context, realmID uint32, updaterGUID uint64, difficulty uint8) error {
+	group, err := g.getGroupWithLeader(ctx, realmID, updaterGUID)
+	if err != nil {
+		return err
+	}
+
+	group.RaidDifficulty = difficulty
+
+	if err = g.r.Update(ctx, realmID, group); err != nil {
+		return err
+	}
+
+	err = g.ep.GroupDifficultyChanged(&events.GroupEventGroupDifficultyChangedPayload{
+		ServiceID:         groupserver.ServiceID,
+		RealmID:           realmID,
+		GroupID:           group.ID,
+		Updater:           updaterGUID,
+		DungeonDifficulty: nil,
+		RaidDifficulty:    &difficulty,
+		Receivers:         group.OnlineMemberGUIDs(),
+	})
+	if err != nil {
+		log.Error().Err(err).Msg("can't send difficulty changed event")
 	}
 
 	return nil
@@ -393,6 +594,31 @@ func (g groupServiceImpl) buildGroupMemberOnlineStatusChangedPayload(realmID uin
 		MemberGUID:    player,
 		OnlineMembers: group.OnlineMemberGUIDs(),
 	}, nil
+}
+
+func (g groupServiceImpl) getGroupWithLeader(ctx context.Context, realmID uint32, leaderGUID uint64) (*repo.Group, error) {
+	groupID, err := g.r.GroupIDByPlayer(ctx, realmID, leaderGUID)
+	if err != nil {
+		return nil, fmt.Errorf("can't get groupID, err: %w", err)
+	}
+	if groupID == 0 {
+		return nil, ErrGroupNotFound
+	}
+
+	group, err := g.r.GroupByID(ctx, realmID, groupID, true)
+	if err != nil {
+		return nil, fmt.Errorf("can't get group, err: %w", err)
+	}
+
+	if group == nil {
+		return nil, ErrGroupNotFound
+	}
+
+	if group.LeaderGUID != leaderGUID {
+		return nil, ErrNoPermissions
+	}
+
+	return group, nil
 }
 
 func (g groupServiceImpl) createGroup(ctx context.Context, realmID uint32, invite *repo.GroupInvite) error {

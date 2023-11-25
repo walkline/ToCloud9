@@ -4,7 +4,6 @@ package mocks
 
 import (
 	mock "github.com/stretchr/testify/mock"
-
 	events "github.com/walkline/ToCloud9/shared/events"
 )
 

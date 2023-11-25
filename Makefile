@@ -37,7 +37,7 @@ build-servers-registry:
 	go build -o $(INSTALL_PATH)/servers-registry apps/servers-registry/cmd/servers-registry/main.go
 
 build-sidecar:
-	go build -o $(INSTALL_PATH)/libsidecar.so -buildmode=c-shared ./game-server/libsidecar/
+	go build -ldflags=-w -o $(INSTALL_PATH)/libsidecar.so -buildmode=c-shared ./game-server/libsidecar/
 
 build-guidserver:
 	go build -o $(INSTALL_PATH)/guidserver apps/guidserver/cmd/guidserver/main.go

@@ -36,6 +36,15 @@ type GroupServiceProducer interface {
 
 	// ConvertedToRaid publishes an event for a group being converted to a raid.
 	ConvertedToRaid(payload *GroupEventGroupConvertedToRaidPayload) error
+
+	// TargetIconUpdated publishes an event for an update of target icon.
+	TargetIconUpdated(payload *GroupEventNewTargetIconPayload) error
+
+	// GroupDifficultyChanged publishes an event for an update of dungeon or raid difficulty
+	GroupDifficultyChanged(payload *GroupEventGroupDifficultyChangedPayload) error
+
+	// SendChatMessage publishes an event for a new chat message in a group or raid.
+	SendChatMessage(payload *GroupEventNewMessagePayload) error
 }
 
 // groupServiceProducerNatsJSON implements the GroupServiceProducer interface using NATS as the underlying message broker.
@@ -86,6 +95,18 @@ func (s *groupServiceProducerNatsJSON) LootTypeChanged(payload *GroupEventGroupL
 
 func (s *groupServiceProducerNatsJSON) ConvertedToRaid(payload *GroupEventGroupConvertedToRaidPayload) error {
 	return s.publish(GroupEventGroupConvertedToRaid, payload)
+}
+
+func (s *groupServiceProducerNatsJSON) SendChatMessage(payload *GroupEventNewMessagePayload) error {
+	return s.publish(GroupEventNewChatMessage, payload)
+}
+
+func (s *groupServiceProducerNatsJSON) TargetIconUpdated(payload *GroupEventNewTargetIconPayload) error {
+	return s.publish(GroupEventNewTargetIcon, payload)
+}
+
+func (s *groupServiceProducerNatsJSON) GroupDifficultyChanged(payload *GroupEventGroupDifficultyChangedPayload) error {
+	return s.publish(GroupEventGroupDifficultyChanged, payload)
 }
 
 func (s *groupServiceProducerNatsJSON) publish(e GroupServiceEvent, payload interface{}) error {

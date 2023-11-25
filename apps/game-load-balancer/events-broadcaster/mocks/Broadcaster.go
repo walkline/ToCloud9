@@ -4,7 +4,6 @@ package mocks
 
 import (
 	mock "github.com/stretchr/testify/mock"
-
 	events_broadcaster "github.com/walkline/ToCloud9/apps/game-load-balancer/events-broadcaster"
 	events "github.com/walkline/ToCloud9/shared/events"
 )
@@ -56,6 +55,16 @@ func (_m *Broadcaster) NewGroupMemberLeftEvent(payload *events.GroupEventGroupMe
 
 // NewGroupMemberOnlineStatusChangedEvent provides a mock function with given fields: payload
 func (_m *Broadcaster) NewGroupMemberOnlineStatusChangedEvent(payload *events.GroupEventGroupMemberOnlineStatusChangedPayload) {
+	_m.Called(payload)
+}
+
+// NewGroupMessageEvent provides a mock function with given fields: payload
+func (_m *Broadcaster) NewGroupMessageEvent(payload *events.GroupEventNewMessagePayload) {
+	_m.Called(payload)
+}
+
+// NewGroupTargetIconEvent provides a mock function with given fields: payload
+func (_m *Broadcaster) NewGroupTargetIconEvent(payload *events.GroupEventNewTargetIconPayload) {
 	_m.Called(payload)
 }
 

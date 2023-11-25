@@ -51,14 +51,18 @@ var HandleMap = map[packet.Opcode]HandlersQueue{
 	packet.MsgMoveWorldPortAck:          NewHandler("MsgMoveWorldPortAck", (*GameSession).InterceptMoveWorldPortAck),
 
 	// Groups
-	packet.CMsgGroupInvite:       NewHandler("CMsgGroupInvite", (*GameSession).HandleGroupInvite),
-	packet.CMsgGroupAccept:       NewHandler("CMsgGroupAccept", (*GameSession).HandleGroupInviteAccept),
-	packet.CMsgGroupDecline:      NewHandler("CMsgGroupDecline", (*GameSession).HandleGroupInviteDeclined),
-	packet.CMsgGroupUnInvite:     NewHandler("CMsgGroupUnInvite", (*GameSession).HandleGroupUninvite),
-	packet.CMsgGroupUnInviteGuid: NewHandler("CMsgGroupUnInviteGuid", (*GameSession).HandleGroupUninviteGUID),
-	packet.CMsgGroupDisband:      NewHandler("CMsgGroupDisband", (*GameSession).HandleGroupLeave),
-	packet.CMsgGroupRaidConvert:  NewHandler("CMsgGroupRaidConvert", (*GameSession).HandleGroupConvertToRaid),
-	packet.CMsgGroupSetLeader:    NewHandler("CMsgGroupSetLeader", (*GameSession).HandleGroupSetLeader),
+	packet.CMsgGroupInvite:         NewHandler("CMsgGroupInvite", (*GameSession).HandleGroupInvite),
+	packet.CMsgGroupAccept:         NewHandler("CMsgGroupAccept", (*GameSession).HandleGroupInviteAccept),
+	packet.CMsgGroupDecline:        NewHandler("CMsgGroupDecline", (*GameSession).HandleGroupInviteDeclined),
+	packet.CMsgGroupUnInvite:       NewHandler("CMsgGroupUnInvite", (*GameSession).HandleGroupUninvite),
+	packet.CMsgGroupUnInviteGuid:   NewHandler("CMsgGroupUnInviteGuid", (*GameSession).HandleGroupUninviteGUID),
+	packet.CMsgGroupDisband:        NewHandler("CMsgGroupDisband", (*GameSession).HandleGroupLeave),
+	packet.CMsgGroupRaidConvert:    NewHandler("CMsgGroupRaidConvert", (*GameSession).HandleGroupConvertToRaid),
+	packet.CMsgGroupSetLeader:      NewHandler("CMsgGroupSetLeader", (*GameSession).HandleGroupSetLeader),
+	packet.MsgRaidTargetUpdate:     NewHandler("MsgRaidTargetUpdate", (*GameSession).HandleSetGroupTargetIcon),
+	packet.CMsgLootMethod:          NewHandler("CMsgLootMethod", (*GameSession).HandleSetLootMethod),
+	packet.MsgSetDungeonDifficulty: NewHandler("MsgSetDungeonDifficulty", (*GameSession).HandleSetDungeonDifficulty),
+	packet.MsgSetRaidDifficulty:    NewHandler("MsgSetRaidDifficulty", (*GameSession).HandleSetRaidDifficulty),
 }
 
 type Handler func(*GameSession, context.Context, *packet.Packet) error

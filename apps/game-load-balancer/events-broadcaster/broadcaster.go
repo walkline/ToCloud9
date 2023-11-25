@@ -31,6 +31,9 @@ const (
 	EventTypeGroupLeaderChanged
 	EventTypeGroupLootTypeChanged
 	EventTypeGroupConvertedToRaid
+	EventTypeGroupNewMessage
+	EventTypeGroupNewTargetIcon
+	EventTypeGroupDifficultyChanged
 )
 
 type IncomingWhisperPayload struct {
@@ -88,6 +91,9 @@ type Broadcaster interface {
 	NewGroupLeaderChangedEvent(payload *events.GroupEventGroupLeaderChangedPayload)
 	NewGroupLootTypeChangedEvent(payload *events.GroupEventGroupLootTypeChangedPayload)
 	NewGroupConvertedToRaidEvent(payload *events.GroupEventGroupConvertedToRaidPayload)
+	NewGroupMessageEvent(payload *events.GroupEventNewMessagePayload)
+	NewGroupTargetIconEvent(payload *events.GroupEventNewTargetIconPayload)
+	NewGroupDifficultyChangedEvent(payload *events.GroupEventGroupDifficultyChangedPayload)
 }
 
 type broadcasterImpl struct {
@@ -340,6 +346,33 @@ func (b *broadcasterImpl) NewGroupConvertedToRaidEvent(payload *events.GroupEven
 	for _, ch := range b.channelsForGUIDs(payload.OnlineMembers) {
 		ch <- Event{
 			Type:    EventTypeGroupConvertedToRaid,
+			Payload: payload,
+		}
+	}
+}
+
+func (b *broadcasterImpl) NewGroupMessageEvent(payload *events.GroupEventNewMessagePayload) {
+	for _, ch := range b.channelsForGUIDs(payload.Receivers) {
+		ch <- Event{
+			Type:    EventTypeGroupNewMessage,
+			Payload: payload,
+		}
+	}
+}
+
+func (b *broadcasterImpl) NewGroupTargetIconEvent(payload *events.GroupEventNewTargetIconPayload) {
+	for _, ch := range b.channelsForGUIDs(payload.Receivers) {
+		ch <- Event{
+			Type:    EventTypeGroupNewTargetIcon,
+			Payload: payload,
+		}
+	}
+}
+
+func (b *broadcasterImpl) NewGroupDifficultyChangedEvent(payload *events.GroupEventGroupDifficultyChangedPayload) {
+	for _, ch := range b.channelsForGUIDs(payload.Receivers) {
+		ch <- Event{
+			Type:    EventTypeGroupDifficultyChanged,
 			Payload: payload,
 		}
 	}

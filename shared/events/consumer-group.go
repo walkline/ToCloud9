@@ -50,6 +50,21 @@ type GroupEventConvertedToRaidHandler interface {
 	GroupConvertedToRaidEvent(payload *GroupEventGroupConvertedToRaidPayload) error
 }
 
+type GroupEventNewMessageHandler interface {
+	// GroupChatMessageReceivedEvent handles new chat message event.
+	GroupChatMessageReceivedEvent(payload *GroupEventNewMessagePayload) error
+}
+
+type GroupEventNewTargetIconHandler interface {
+	// GroupTargetItemSetEvent handles new target icon event.
+	GroupTargetItemSetEvent(payload *GroupEventNewTargetIconPayload) error
+}
+
+type GroupEventGroupDifficultyChangedHandler interface {
+	// GroupDifficultyChangedEvent handles dungeon and raid difficulty changes.
+	GroupDifficultyChangedEvent(payload *GroupEventGroupDifficultyChangedPayload) error
+}
+
 // GroupEventsConsumer listens to group events and handles events if there are handlers.
 type GroupEventsConsumer interface {
 	// Listen is non-blocking operation that listens to the group events.
@@ -77,6 +92,9 @@ func NewGroupEventsConsumer(nc *nats.Conn, options ...GroupEventsConsumerOption)
 		leaderChangedHandler:                  params.leaderChangedHandler,
 		lootTypeChangedHandler:                params.lootTypeChangedHandler,
 		convertedToRaidHandler:                params.convertedToRaidHandler,
+		newMessageHandler:                     params.newMessageHandler,
+		newTargetIconHandler:                  params.newTargetIconHandler,
+		difficultyChangedHandler:              params.difficultyChangedHandler,
 	}
 }
 
@@ -158,6 +176,30 @@ func WithGroupEventConsumerConvertedToRaidHandler(h GroupEventConvertedToRaidHan
 	})
 }
 
+// WithGroupEventNewChatMessageHandler creates group events consumer option with new chat message handler.
+// If not specified, listener will ignore this kind of events.
+func WithGroupEventNewChatMessageHandler(h GroupEventNewMessageHandler) GroupEventsConsumerOption {
+	return newFuncGroupEventsConsumerOption(func(params *groupEventsConsumerParams) {
+		params.newMessageHandler = h
+	})
+}
+
+// WithGroupEventNewTargetIconHandler creates group events consumer option with new target icon handler.
+// If not specified, listener will ignore this kind of events.
+func WithGroupEventNewTargetIconHandler(h GroupEventNewTargetIconHandler) GroupEventsConsumerOption {
+	return newFuncGroupEventsConsumerOption(func(params *groupEventsConsumerParams) {
+		params.newTargetIconHandler = h
+	})
+}
+
+// WithGroupDifficultyChangedHandler creates group events consumer option with difficulty changes handler.
+// If not specified, listener will ignore this kind of events.
+func WithGroupDifficultyChangedHandler(h GroupEventGroupDifficultyChangedHandler) GroupEventsConsumerOption {
+	return newFuncGroupEventsConsumerOption(func(params *groupEventsConsumerParams) {
+		params.difficultyChangedHandler = h
+	})
+}
+
 // funcLoadBalancerConsumerOption wraps a function that modifies funcLoadBalancerConsumerOption into an
 // implementation of the LoadBalancerConsumerOption interface.
 type funcGroupEventsConsumerOption struct {
@@ -185,6 +227,9 @@ type groupEventsConsumerParams struct {
 	leaderChangedHandler                  GroupEventLeaderChangedHandler
 	lootTypeChangedHandler                GroupEventLootTypeChangedHandler
 	convertedToRaidHandler                GroupEventConvertedToRaidHandler
+	newMessageHandler                     GroupEventNewMessageHandler
+	newTargetIconHandler                  GroupEventNewTargetIconHandler
+	difficultyChangedHandler              GroupEventGroupDifficultyChangedHandler
 }
 
 // groupEventsConsumerImpl implementation of GroupEventsConsumer.
@@ -202,6 +247,9 @@ type groupEventsConsumerImpl struct {
 	leaderChangedHandler                  GroupEventLeaderChangedHandler
 	lootTypeChangedHandler                GroupEventLootTypeChangedHandler
 	convertedToRaidHandler                GroupEventConvertedToRaidHandler
+	newMessageHandler                     GroupEventNewMessageHandler
+	newTargetIconHandler                  GroupEventNewTargetIconHandler
+	difficultyChangedHandler              GroupEventGroupDifficultyChangedHandler
 }
 
 // Listen is non-blocking operation that listens to load balancer events.
@@ -394,6 +442,72 @@ func (c *groupEventsConsumerImpl) Listen() error {
 			err = c.convertedToRaidHandler.GroupConvertedToRaidEvent(&payload)
 			if err != nil {
 				log.Error().Err(err).Msg("can't handle GroupEventGroupConvertedToRaid event")
+				return
+			}
+		})
+		if err != nil {
+			return err
+		}
+
+		c.subs = append(c.subs, sub)
+	}
+
+	if c.newMessageHandler != nil {
+		sub, err := c.nc.Subscribe(GroupEventNewChatMessage.SubjectName(), func(msg *nats.Msg) {
+			payload := GroupEventNewMessagePayload{}
+			_, err := Unmarshal(msg.Data, &payload)
+			if err != nil {
+				log.Error().Err(err).Msg("can't read GroupEventNewChatMessage (payload part) event")
+				return
+			}
+
+			err = c.newMessageHandler.GroupChatMessageReceivedEvent(&payload)
+			if err != nil {
+				log.Error().Err(err).Msg("can't handle GroupEventNewChatMessage event")
+				return
+			}
+		})
+		if err != nil {
+			return err
+		}
+
+		c.subs = append(c.subs, sub)
+	}
+
+	if c.newTargetIconHandler != nil {
+		sub, err := c.nc.Subscribe(GroupEventNewTargetIcon.SubjectName(), func(msg *nats.Msg) {
+			payload := GroupEventNewTargetIconPayload{}
+			_, err := Unmarshal(msg.Data, &payload)
+			if err != nil {
+				log.Error().Err(err).Msg("can't read GroupEventNewTargetIconPayload (payload part) event")
+				return
+			}
+
+			err = c.newTargetIconHandler.GroupTargetItemSetEvent(&payload)
+			if err != nil {
+				log.Error().Err(err).Msg("can't handle GroupEventNewChatMessage event")
+				return
+			}
+		})
+		if err != nil {
+			return err
+		}
+
+		c.subs = append(c.subs, sub)
+	}
+
+	if c.difficultyChangedHandler != nil {
+		sub, err := c.nc.Subscribe(GroupEventGroupDifficultyChanged.SubjectName(), func(msg *nats.Msg) {
+			payload := GroupEventGroupDifficultyChangedPayload{}
+			_, err := Unmarshal(msg.Data, &payload)
+			if err != nil {
+				log.Error().Err(err).Msg("can't read GroupEventGroupDifficultyChangedPayload (payload part) event")
+				return
+			}
+
+			err = c.difficultyChangedHandler.GroupDifficultyChangedEvent(&payload)
+			if err != nil {
+				log.Error().Err(err).Msg("can't handle GroupEventGroupDifficultyChanged event")
 				return
 			}
 		})

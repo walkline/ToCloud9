@@ -3,6 +3,7 @@ package session
 import (
 	"context"
 	"fmt"
+	pbGroup "github.com/walkline/ToCloud9/gen/group/pb"
 	"strings"
 
 	root "github.com/walkline/ToCloud9/apps/game-load-balancer"
@@ -26,6 +27,8 @@ const (
 	ChatTypeWhisper
 	ChatTypeWhisperForeign
 	ChatTypeWhisperInform
+	ChatTypeRaidLeader  = 0x27
+	ChatTypePartyLeader = 0x33
 )
 
 func (s *GameSession) SendSysMessage(msg string) {
@@ -113,8 +116,43 @@ func (s *GameSession) HandleChatMessage(ctx context.Context, p *packet.Packet) e
 		resp.String(msg)
 		resp.Uint8(0) // chat tag
 		s.gameSocket.Send(resp)
+	case ChatTypeParty, ChatTypePartyLeader, ChatTypeRaid, ChatTypeRaidLeader:
+		msg = r.String()
 
-	case ChatTypeSay, ChatTypeParty, ChatTypeRaid:
+		handled, err := s.handleCommandMsgIfNeeded(ctx, msg)
+		if err != nil {
+			return err
+		}
+
+		if handled {
+			return nil
+		}
+
+		_, err = s.groupServiceClient.SendMessage(ctx, &pbGroup.SendGroupMessageParams{
+			Api:         root.Ver,
+			RealmID:     root.RealmID,
+			SenderGUID:  s.character.GUID,
+			Language:    lang,
+			Message:     msg,
+			MessageType: msgType,
+		})
+
+		if err != nil {
+			return err
+		}
+
+		resp := packet.NewWriterWithSize(packet.SMsgMessageChat, 0)
+		resp.Uint8(uint8(msgType))
+		resp.Uint32(lang)
+		resp.Uint64(s.character.GUID)
+		resp.Uint32(0) // some flags
+		resp.Uint64(s.character.GUID)
+		resp.Uint32(uint32(len(msg) + 1))
+		resp.String(msg)
+		resp.Uint8(0) // chat tag
+		s.gameSocket.Send(resp)
+
+	case ChatTypeSay:
 		msg = r.String()
 
 		handled, err := s.handleCommandMsgIfNeeded(ctx, msg)

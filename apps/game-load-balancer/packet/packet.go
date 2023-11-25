@@ -37,8 +37,17 @@ const (
 	LoginErrorCodeWarcraftRemote
 )
 
+type Source uint8
+
+const (
+	SourceUnknown = iota
+	SourceGameClient
+	SourceWorldServer
+)
+
 type Packet struct {
 	Opcode Opcode
+	Source Source
 	Size   uint32
 	Data   []byte
 }

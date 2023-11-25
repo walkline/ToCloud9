@@ -29,6 +29,9 @@ var EventsHandleMap = map[eBroadcaster.EventType]EventsHandlersQueue{
 	eBroadcaster.EventTypeGroupLeaderChanged:             NewEventHandler("EventTypeGroupLeaderChanged", (*GameSession).HandleEventGroupLeaderChanged),
 	eBroadcaster.EventTypeGroupLootTypeChanged:           NewEventHandler("EventTypeGroupLootTypeChanged", (*GameSession).HandleEventGroupLootTypeChanged),
 	eBroadcaster.EventTypeGroupConvertedToRaid:           NewEventHandler("EventTypeGroupConvertedToRaid", (*GameSession).HandleEventGroupConvertedToRaid),
+	eBroadcaster.EventTypeGroupNewMessage:                NewEventHandler("EventTypeGroupNewMessage", (*GameSession).HandleEventGroupNewMessage),
+	eBroadcaster.EventTypeGroupNewTargetIcon:             NewEventHandler("EventTypeGroupNewTargetIcon", (*GameSession).HandleEventGroupNewTargetIcon),
+	eBroadcaster.EventTypeGroupDifficultyChanged:         NewEventHandler("EventTypeGroupDifficultyChanged", (*GameSession).HandleEventGroupDifficultyChanged),
 }
 
 type EventHandler func(*GameSession, context.Context, *eBroadcaster.Event) error

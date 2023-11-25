@@ -14,7 +14,16 @@ service GroupService {
   rpc AcceptInvite(AcceptInviteParams) returns (AcceptInviteResponse);
 
   rpc GetGroup(GetGroupRequest) returns (GetGroupResponse);
+  rpc GetGroupByMember(GetGroupByMemberRequest) returns (GetGroupResponse);
   rpc GetGroupIDByPlayer(GetGroupIDByPlayerRequest) returns (GetGroupIDByPlayerResponse);
+
+  rpc SetGroupTargetIcon(SetGroupTargetIconRequest) returns (SetGroupTargetIconResponse);
+  rpc SetLootMethod(SetLootMethodRequest) returns (SetLootMethodResponse);
+
+  rpc SetDungeonDifficulty(SetDungeonDifficultyRequest) returns (SetDungeonDifficultyResponse);
+  rpc SetRaidDifficulty(SetRaidDifficultyRequest) returns (SetRaidDifficultyResponse);
+
+  rpc SendMessage(SendGroupMessageParams) returns (SendGroupMessageResponse);
 }
 
 message InviteParams {
@@ -87,10 +96,18 @@ message GetGroupResponse {
     uint32 difficulty = 7;
     uint32 raidDifficulty = 8;
     uint64 masterLooter = 9;
-    repeated GroupMember members = 10;
+    repeated uint64 targetIconsList = 10;
+    repeated GroupMember members = 11;
   }
 
   Group group = 2;
+}
+
+message GetGroupByMemberRequest {
+  string api = 1;
+
+  uint32 realmID = 2;
+  uint64 player = 3;
 }
 
 message GetGroupIDByPlayerRequest {
@@ -157,5 +174,79 @@ message ChangeLeaderParams {
 }
 
 message ChangeLeaderResponse {
+  string api = 1;
+}
+
+message SendGroupMessageParams {
+  string api = 1;
+  uint32 realmID = 2;
+  uint64 senderGUID = 3;
+  uint32 messageType = 4;
+  string message = 5;
+  uint32 language = 6;
+}
+
+message SendGroupMessageResponse {
+  string api = 1;
+}
+
+message SetGroupTargetIconRequest {
+  string api = 1;
+  uint32 realmID = 2;
+  uint64 setterGUID = 3;
+  uint32 iconID = 4;
+  uint64 targetGUID = 5;
+}
+
+message SetGroupTargetIconResponse {
+  string api = 1;
+}
+
+message GetGroupTargetIconsRequest {
+  string api = 1;
+  uint32 realmID = 2;
+  uint64 playerGUID = 3;
+}
+
+message GetGroupTargetIconsResponse {
+  string api = 1;
+  repeated uint64 targets = 2;
+}
+
+message SetLootMethodRequest {
+  string api = 1;
+  uint32 realmID = 2;
+  uint64 playerGUID = 3;
+
+  uint32 method = 4;
+  uint64 lootMaster = 5;
+  uint32 lootThreshold = 6;
+}
+
+message SetLootMethodResponse {
+  string api = 1;
+}
+
+message SetDungeonDifficultyRequest {
+  string api = 1;
+  uint32 realmID = 2;
+  uint64 playerGUID = 3;
+
+  uint32 difficulty = 4;
+}
+
+message SetDungeonDifficultyResponse {
+  string api = 1;
+}
+
+message SetRaidDifficultyRequest {
+  string api = 1;
+  uint32 realmID = 2;
+  uint64 playerGUID = 3;
+
+  uint32 difficulty = 4;
+}
+
+message SetRaidDifficultyResponse {
   string api = 1;
 }

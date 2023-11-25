@@ -26,6 +26,10 @@ func NewGroupNatsListener(nc *nats.Conn, broadcaster eBroadcaster.Broadcaster) L
 		events.WithGroupEventConsumerGroupDisbandHandler(listener),
 		events.WithGroupEventConsumerConvertedToRaidHandler(listener),
 		events.WithGroupEventConsumerLeaderChangedHandler(listener),
+		events.WithGroupEventConsumerLootTypeChangedHandler(listener),
+		events.WithGroupEventNewChatMessageHandler(listener),
+		events.WithGroupEventNewTargetIconHandler(listener),
+		events.WithGroupDifficultyChangedHandler(listener),
 	)
 
 	return listener
@@ -76,5 +80,25 @@ func (l *groupNatsListener) GroupConvertedToRaidEvent(payload *events.GroupEvent
 
 func (l *groupNatsListener) GroupLeaderChangedEvent(payload *events.GroupEventGroupLeaderChangedPayload) error {
 	l.broadcaster.NewGroupLeaderChangedEvent(payload)
+	return nil
+}
+
+func (l *groupNatsListener) GroupLootTypeChangedEvent(payload *events.GroupEventGroupLootTypeChangedPayload) error {
+	l.broadcaster.NewGroupLootTypeChangedEvent(payload)
+	return nil
+}
+
+func (l *groupNatsListener) GroupChatMessageReceivedEvent(payload *events.GroupEventNewMessagePayload) error {
+	l.broadcaster.NewGroupMessageEvent(payload)
+	return nil
+}
+
+func (l *groupNatsListener) GroupTargetItemSetEvent(payload *events.GroupEventNewTargetIconPayload) error {
+	l.broadcaster.NewGroupTargetIconEvent(payload)
+	return nil
+}
+
+func (l *groupNatsListener) GroupDifficultyChangedEvent(payload *events.GroupEventGroupDifficultyChangedPayload) error {
+	l.broadcaster.NewGroupDifficultyChangedEvent(payload)
 	return nil
 }

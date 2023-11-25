@@ -274,6 +274,193 @@ func (s *GameSession) HandleGroupSetLeader(ctx context.Context, p *packet.Packet
 	return nil
 }
 
+func (s *GameSession) HandleSetGroupTargetIcon(ctx context.Context, p *packet.Packet) error {
+	reader := p.Reader()
+	iconIDOrAction := reader.Uint8()
+	const getListOfTargetIconsAction = 0xFF
+
+	if iconIDOrAction == getListOfTargetIconsAction {
+		return s.sendGroupListOfTargetIcons(ctx)
+	}
+
+	_, err := s.groupServiceClient.SetGroupTargetIcon(ctx, &pb.SetGroupTargetIconRequest{
+		Api:        root.SupportedGroupServiceVer,
+		RealmID:    root.RealmID,
+		SetterGUID: s.character.GUID,
+		IconID:     uint32(iconIDOrAction),
+		TargetGUID: reader.Uint64(),
+	})
+	if err != nil {
+		return NewGroupServiceUnavailableErr(err)
+	}
+
+	return nil
+}
+
+func (s *GameSession) HandleSetLootMethod(ctx context.Context, p *packet.Packet) error {
+	reader := p.Reader()
+
+	method := reader.Uint32()
+	looter := reader.Uint64()
+	threshold := reader.Uint32()
+
+	_, err := s.groupServiceClient.SetLootMethod(ctx, &pb.SetLootMethodRequest{
+		Api:           root.SupportedGroupServiceVer,
+		RealmID:       root.RealmID,
+		PlayerGUID:    s.character.GUID,
+		Method:        method,
+		LootMaster:    looter,
+		LootThreshold: threshold,
+	})
+	if err != nil {
+		return NewGroupServiceUnavailableErr(err)
+	}
+
+	return nil
+}
+
+func (s *GameSession) HandleSetDungeonDifficulty(ctx context.Context, p *packet.Packet) error {
+	if p.Source == packet.SourceWorldServer {
+		s.worldSocket.SendPacket(p)
+		return nil
+	}
+
+	difficulty := p.Reader().Uint32()
+
+	groupResp, err := s.groupServiceClient.GetGroupByMember(ctx, &pb.GetGroupByMemberRequest{
+		Api:     root.SupportedGroupServiceVer,
+		RealmID: root.RealmID,
+		Player:  s.character.GUID,
+	})
+	if err != nil {
+		return NewGroupServiceUnavailableErr(err)
+	}
+
+	if groupResp.Group == nil {
+		s.worldSocket.SendPacket(p)
+		return nil
+	}
+
+	if groupResp.Group.Difficulty == difficulty {
+		return nil
+	}
+
+	_, err = s.groupServiceClient.SetDungeonDifficulty(ctx, &pb.SetDungeonDifficultyRequest{
+		Api:        root.SupportedGroupServiceVer,
+		RealmID:    root.RealmID,
+		PlayerGUID: s.character.GUID,
+		Difficulty: difficulty,
+	})
+
+	return err
+}
+
+func (s *GameSession) HandleSetRaidDifficulty(ctx context.Context, p *packet.Packet) error {
+	if p.Source == packet.SourceWorldServer {
+		s.worldSocket.SendPacket(p)
+		return nil
+	}
+
+	difficulty := p.Reader().Uint32()
+
+	groupResp, err := s.groupServiceClient.GetGroupByMember(ctx, &pb.GetGroupByMemberRequest{
+		Api:     root.SupportedGroupServiceVer,
+		RealmID: root.RealmID,
+		Player:  s.character.GUID,
+	})
+	if err != nil {
+		return NewGroupServiceUnavailableErr(err)
+	}
+
+	if groupResp.Group == nil {
+		s.worldSocket.SendPacket(p)
+		return nil
+	}
+
+	if groupResp.Group.RaidDifficulty == difficulty {
+		return nil
+	}
+
+	_, err = s.groupServiceClient.SetRaidDifficulty(ctx, &pb.SetRaidDifficultyRequest{
+		Api:        root.SupportedGroupServiceVer,
+		RealmID:    root.RealmID,
+		PlayerGUID: s.character.GUID,
+		Difficulty: difficulty,
+	})
+
+	return err
+}
+
+func (s *GameSession) HandleEventGroupNewTargetIcon(ctx context.Context, e *eBroadcaster.Event) error {
+	eventData := e.Payload.(*events.GroupEventNewTargetIconPayload)
+
+	const singleItemPacket = 0
+
+	resp := packet.NewWriterWithSize(packet.MsgRaidTargetUpdate, uint32(1+8+1+8))
+	resp.Uint8(singleItemPacket)
+	resp.Uint64(eventData.Updater)
+	resp.Uint8(eventData.IconID)
+	resp.Uint64(eventData.Target)
+
+	s.gameSocket.Send(resp)
+
+	return nil
+}
+
+func (s *GameSession) HandleEventGroupDifficultyChanged(ctx context.Context, e *eBroadcaster.Event) error {
+	eventData := e.Payload.(*events.GroupEventGroupDifficultyChangedPayload)
+
+	if eventData.DungeonDifficulty != nil {
+		resp := packet.NewWriterWithSize(packet.MsgSetDungeonDifficulty, 12)
+		resp.Uint32(uint32(*eventData.DungeonDifficulty))
+		resp.Uint32(1)
+		resp.Uint32(1)
+		s.gameSocket.Send(resp)
+	}
+
+	if eventData.RaidDifficulty != nil {
+		resp := packet.NewWriterWithSize(packet.MsgSetRaidDifficulty, 12)
+		resp.Uint32(uint32(*eventData.RaidDifficulty))
+		resp.Uint32(1)
+		resp.Uint32(1)
+		s.gameSocket.Send(resp)
+	}
+
+	return nil
+}
+
+func (s *GameSession) sendGroupListOfTargetIcons(ctx context.Context) error {
+	gr, err := s.groupServiceClient.GetGroupByMember(ctx, &pb.GetGroupByMemberRequest{
+		Api:     root.SupportedGroupServiceVer,
+		RealmID: root.RealmID,
+		Player:  s.character.GUID,
+	})
+	if err != nil {
+		return NewGroupServiceUnavailableErr(err)
+	}
+
+	if gr.Group == nil {
+		return nil
+	}
+
+	const isListOfTargets = uint8(1)
+
+	resp := packet.NewWriter(packet.MsgRaidTargetUpdate)
+	resp.Uint8(isListOfTargets)
+	for i, targetGUID := range gr.Group.TargetIconsList {
+		if targetGUID == 0 {
+			continue
+		}
+
+		resp.Uint8(uint8(i))
+		resp.Uint64(targetGUID)
+	}
+
+	s.gameSocket.Send(resp)
+
+	return nil
+}
+
 func (s *GameSession) groupUninviteWithGUID(ctx context.Context, player uint64, playerName, reason string) error {
 	_, err := s.groupServiceClient.Uninvite(ctx, &pb.UninviteParams{
 		Api:       root.SupportedGroupServiceVer,
@@ -354,8 +541,6 @@ func (s *GameSession) SendGroupUpdate(ctx context.Context, groupID uint) error {
 			continue
 		}
 
-		fmt.Println("SendGroupUpdate:", s.character.GUID, s.character.Name, memberItr.Name)
-
 		var onlineFlag uint8 = 0
 		if memberItr.IsOnline {
 			onlineFlag = 1
@@ -385,7 +570,6 @@ func (s *GameSession) SendGroupUpdate(ctx context.Context, groupID uint) error {
 func (s *GameSession) HandleEventGroupMemberLeft(ctx context.Context, e *eBroadcaster.Event) error {
 	eventData := e.Payload.(*events.GroupEventGroupMemberLeftPayload)
 
-	fmt.Println("HandleEventGroupMemberLeft:", s.character.GUID, s.character.Name, eventData.OnlineMembers)
 	if eventData.MemberGUID == s.character.GUID {
 		resp := packet.NewWriterWithSize(packet.SMsgGroupUnInvite, 0)
 		s.gameSocket.Send(resp)
@@ -403,8 +587,18 @@ func (s *GameSession) HandleEventGroupMemberLeft(ctx context.Context, e *eBroadc
 }
 
 func (s *GameSession) HandleEventGroupDisband(ctx context.Context, e *eBroadcaster.Event) error {
-	resp := packet.NewWriterWithSize(packet.SMsgGroupDestroyed, 0)
+	eventData := e.Payload.(*events.GroupEventGroupDisbandPayload)
+
+	s.groupUpdateCounter++
+
+	resp := packet.NewWriterWithSize(packet.SMsgGroupList, 0)
+	resp.Uint8(0x10).Uint8(0).Uint8(0).Uint8(0)
+	resp.Uint64(uint64(eventData.GroupID)).Uint32(s.groupUpdateCounter).Uint32(0).Uint64(0)
 	s.gameSocket.Send(resp)
+
+	resp = packet.NewWriterWithSize(packet.SMsgGroupDestroyed, 0)
+	s.gameSocket.Send(resp)
+
 	return nil
 }
 
@@ -419,10 +613,32 @@ func (s *GameSession) HandleEventGroupLeaderChanged(ctx context.Context, e *eBro
 }
 
 func (s *GameSession) HandleEventGroupLootTypeChanged(ctx context.Context, e *eBroadcaster.Event) error {
-	return nil
+	eventData := e.Payload.(*events.GroupEventGroupLootTypeChangedPayload)
+	return s.SendGroupUpdate(ctx, eventData.GroupID)
 }
 
 func (s *GameSession) HandleEventGroupConvertedToRaid(ctx context.Context, e *eBroadcaster.Event) error {
 	eventData := e.Payload.(*events.GroupEventGroupConvertedToRaidPayload)
 	return s.SendGroupUpdate(ctx, eventData.GroupID)
+}
+
+func (s *GameSession) HandleEventGroupNewMessage(ctx context.Context, e *eBroadcaster.Event) error {
+	eventData := e.Payload.(*events.GroupEventNewMessagePayload)
+
+	if eventData.SenderGUID == s.character.GUID {
+		return nil
+	}
+
+	resp := packet.NewWriterWithSize(packet.SMsgMessageChat, 0)
+	resp.Uint8(eventData.MessageType)
+	resp.Uint32(eventData.Language)
+	resp.Uint64(eventData.SenderGUID)
+	resp.Uint32(0) // some flags
+	resp.Uint64(eventData.SenderGUID)
+	resp.Uint32(uint32(len(eventData.Msg) + 1))
+	resp.String(eventData.Msg)
+	resp.Uint8(0) // chat tag
+	s.gameSocket.Send(resp)
+
+	return nil
 }
