@@ -24,7 +24,7 @@ func (g *loadBalancerInMemRepo) Add(ctx context.Context, server *LoadBalancerSer
 
 	g.counter++
 	server.ID = fmt.Sprintf("%d", g.counter)
-	g.storage[server.Address] = server
+	g.storage[server.HealthCheckAddr] = server
 
 	return server, nil
 }
@@ -36,7 +36,7 @@ func (g *loadBalancerInMemRepo) Update(ctx context.Context, id string, f func(Lo
 	for _, v := range g.storage {
 		if v.ID == id {
 			newVal := f(*v)
-			g.storage[v.Address] = &newVal
+			g.storage[v.HealthCheckAddr] = &newVal
 			return nil
 		}
 	}
@@ -44,11 +44,11 @@ func (g *loadBalancerInMemRepo) Update(ctx context.Context, id string, f func(Lo
 	return nil
 }
 
-func (g *loadBalancerInMemRepo) Remove(ctx context.Context, address string) error {
+func (g *loadBalancerInMemRepo) Remove(ctx context.Context, healthCheckAddress string) error {
 	g.mutex.Lock()
 	defer g.mutex.Unlock()
 
-	delete(g.storage, address)
+	delete(g.storage, healthCheckAddress)
 
 	return nil
 }

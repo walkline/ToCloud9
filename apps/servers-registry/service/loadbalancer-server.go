@@ -122,10 +122,10 @@ func (b *loadBalancerImpl) ListBalancersForRealm(ctx context.Context, realmID ui
 func (b *loadBalancerImpl) onServerUnhealthy(server *repo.LoadBalancerServer, err error) {
 	log.Warn().
 		Err(err).
-		Str("address", server.Address).
+		Str("healthCheckAddress", server.HealthCheckAddr).
 		Msg("Load Balancer unhealthy! Removing...")
 
-	err = b.r.Remove(context.TODO(), server.Address)
+	err = b.r.Remove(context.TODO(), server.HealthCheckAddr)
 	if err != nil {
 		log.Error().Err(err).Msg("can't remove server")
 	}

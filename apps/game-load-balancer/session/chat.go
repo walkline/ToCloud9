@@ -264,7 +264,7 @@ func (s *GameSession) handleCommandMsgListLoadBalancers(ctx context.Context) err
 	for _, server := range resp.LoadBalancers {
 		isCurrentlyUsing := root.RetrievedBalancerID == server.Id
 
-		s.SendSysMessage(fmt.Sprintf("> Node address: %s.", server.Address))
+		s.SendSysMessage(fmt.Sprintf("> Node healthCheckAddress: %s.", server.HealthAddress))
 		s.SendSysMessage(fmt.Sprintf("  Active connections: %d.", server.ActiveConnections))
 		if isCurrentlyUsing {
 			s.SendSysMessage("  You are |cff4CFF00connected |rto this one.")
