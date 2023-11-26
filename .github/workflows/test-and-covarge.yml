@@ -29,29 +29,3 @@ jobs:
           registry: ghcr.io
           username: ${{github.actor}}
           password: ${{secrets.GITHUB_TOKEN}}
-
-      - name: 'Build Images'
-        run: |
-          docker build -t ghcr.io/${{github.actor}}/authserver:${{github.ref_name}} -f apps/authserver/Dockerfile . 
-          docker push ghcr.io/${{github.actor}}/authserver:${{github.ref_name}}
-          
-          docker build -t ghcr.io/${{github.actor}}/charserver:${{github.ref_name}} -f apps/charserver/Dockerfile . 
-          docker push ghcr.io/${{github.actor}}/charserver:${{github.ref_name}}
-          
-          docker build -t ghcr.io/${{github.actor}}/chatserver:${{github.ref_name}} -f apps/chatserver/Dockerfile . 
-          docker push ghcr.io/${{github.actor}}/chatserver:${{github.ref_name}}
-          
-          docker build -t ghcr.io/${{github.actor}}/game-load-balancer:${{github.ref_name}} -f apps/game-load-balancer/Dockerfile . 
-          docker push ghcr.io/${{github.actor}}/game-load-balancer:${{github.ref_name}}
-          
-          docker build -t ghcr.io/${{github.actor}}/guidserver:${{github.ref_name}} -f apps/guidserver/Dockerfile . 
-          docker push ghcr.io/${{github.actor}}/guidserver:${{github.ref_name}}
-          
-          docker build -t ghcr.io/${{github.actor}}/guildserver:${{github.ref_name}} -f apps/guildserver/Dockerfile . 
-          docker push ghcr.io/${{github.actor}}/guildserver:${{github.ref_name}}
-          
-          docker build -t ghcr.io/${{github.actor}}/mailserver:${{github.ref_name}} -f apps/mailserver/Dockerfile . 
-          docker push ghcr.io/${{github.actor}}/mailserver:${{github.ref_name}}
-          
-          docker build -t ghcr.io/${{github.actor}}/servers-registry:${{github.ref_name}} -f apps/servers-registry/Dockerfile . 
-          docker push ghcr.io/${{github.actor}}/servers-registry:${{github.ref_name}}
