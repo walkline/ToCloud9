@@ -92,3 +92,7 @@ spec:
     nodePort: {{ .Values.game_lb.service.externalPort | int  }}
   selector:
     app: {{ $fullname }}-game-lb
+  sessionAffinity: ClientIP
+  sessionAffinityConfig:
+    clientIP:
+      timeoutSeconds: 3600
