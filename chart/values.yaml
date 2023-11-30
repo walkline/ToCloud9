@@ -1,0 +1,143 @@
+# Default values for tocloud9.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+redis:
+  enabled: true
+  architecture: standalone
+  auth:
+    enabled: false
+nats:
+  enabled: true
+mysql:
+  enabled: true
+  global:
+    storageClass: my-storage-class
+  initdbScriptsConfigMap: mysql-init-scripts
+
+databases:
+  db_schema_type: ac # ac / tc
+  db_user: acore
+  db_password: acore
+  db_auth_name: acore_auth
+  db_characters_name: acore_characters
+  db_world_name: acore_world
+  # External DB hostname is optional field to use external database,
+  # will use credentials and databases names from above to build connection string.
+  # Don't forget to disable mysql with mysql.enabled=false.
+  external_db_hostname: ""
+  external_db_port: "3306"
+
+servers_registry:
+  replicaCount: 1
+  image:
+    repository: ghcr.io/walkline/servers-registry
+    pullPolicy: IfNotPresent
+    tag: "v0.0.1"
+  service:
+    type: ClusterIP
+    internalPort: 8999
+    externalPort: 8999
+
+authserver:
+  replicaCount: 1
+  image:
+    repository: ghcr.io/walkline/authserver
+    pullPolicy: IfNotPresent
+    tag: "v0.0.1"
+  service:
+    type: NodePort
+    internalPort: 3724
+    externalPort: 32767
+
+guildserver:
+  replicaCount: 1
+  image:
+    repository: ghcr.io/walkline/guildserver
+    pullPolicy: IfNotPresent
+    tag: "v0.0.1"
+  service:
+    type: ClusterIP
+    internalPort: 8995
+    externalPort: 8995
+
+guidserver:
+  replicaCount: 1
+  image:
+    repository: ghcr.io/walkline/guidserver
+    pullPolicy: IfNotPresent
+    tag: "v0.0.1"
+  service:
+    type: ClusterIP
+    internalPort: 8996
+    externalPort: 8996
+
+chatserver:
+  replicaCount: 1
+  image:
+    repository: ghcr.io/walkline/chatserver
+    pullPolicy: IfNotPresent
+    tag: "v0.0.1"
+  service:
+    type: ClusterIP
+    internalPort: 8992
+    externalPort: 8992
+
+charserver:
+  replicaCount: 1
+  image:
+    repository: ghcr.io/walkline/charserver
+    pullPolicy: IfNotPresent
+    tag: "v0.0.1"
+  service:
+    type: ClusterIP
+    internalPort: 8087
+    externalPort: 8087
+
+mailserver:
+  replicaCount: 1
+  image:
+    repository: ghcr.io/walkline/mailserver
+    pullPolicy: IfNotPresent
+    tag: "v0.0.1"
+  service:
+    type: ClusterIP
+    internalPort: 8997
+    externalPort: 8997
+
+game_lb:
+  replicaCount: 3
+  # IP or domain to access this game-load-balancer.
+  # If empty - uses node IP.
+  hostname: ""
+  # External and internal ports should be the same, so using single value here.
+  port: 32766
+  image:
+    repository: ghcr.io/walkline/game-load-balancer
+    pullPolicy: IfNotPresent
+    tag: "v0.0.1"
+  service:
+    type: NodePort
+
+gameserver_ac:
+  initcontainer:
+    # If true - downloads assets and unzip them if pvc is empty.
+    download_enabled: true
+    download_url: "https://github.com/wowgaming/client-data/releases/download/v16/data.zip"
+    image:
+      repository: alpine
+      pullPolicy: IfNotPresent
+      tag: "latest"
+  replicaCount: 1
+  storageClass: my-storage-class
+  port_soap: 7878
+  port_telnet: 3443
+  port_world: 9601
+  port_health: 9604
+  image:
+    repository: ghcr.io/walkline/gameserver-ac
+    pullPolicy: IfNotPresent
+    tag: "v0.0.1"
+  service:
+    type: ClusterIP
+    internalPort: 9509
+    externalPort: 9509

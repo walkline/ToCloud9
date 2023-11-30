@@ -21,7 +21,13 @@ Also intercepts some packets and uses information from them to sync some states 
 * __guidserver__ provides pool of guids of items and characters to the gameservers.
 * __mailserver__ handles mail opcodes.
 
-## Run with Docker-Compose
+## Deployment
+
+### Kubernetes Cluster
+
+Utilize the [helm chart](chart/) to seamlessly deploy the solution in your Kubernetes cluster. Kudos to [@2o1o0](https://github.com/2o1o0) for the solution.
+
+### Docker-Compose
 
 __Prerequisites:__
 * Database for TrinityCore or AzerothCore;
@@ -39,8 +45,7 @@ $ docker-compose --profile tc up -d
 # For AzerothCore:
 $ docker-compose --profile ac up -d
 ```
-
-## Run without Docker
+### Without Docker/Orchestration
 
 For Windows & AzerothCore [use this guide](doc/RunNonDockerWinWSLAzerothCore.md).
 
