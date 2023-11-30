@@ -21,15 +21,18 @@ databases:
   db_auth_name: acore_auth
   db_characters_name: acore_characters
   db_world_name: acore_world
-  external_db_hostname: "" #set an external db hostname, will use credentials and databases names above to build connection strings. Dont forget to disable mysql.enabled.
+  # External DB hostname is optional field to use external database,
+  # will use credentials and databases names from above to build connection string.
+  # Don't forget to disable mysql with mysql.enabled=false.
+  external_db_hostname: ""
   external_db_port: "3306"
 
 servers_registry:
   replicaCount: 1
   image:
-    repository: 2o1o0/servers-registry
+    repository: ghcr.io/walkline/servers-registry
     pullPolicy: IfNotPresent
-    tag: "latest"
+    tag: "v0.0.1"
   service:
     type: ClusterIP
     internalPort: 8999
@@ -38,9 +41,9 @@ servers_registry:
 authserver:
   replicaCount: 1
   image:
-    repository: 2o1o0/authserver
+    repository: ghcr.io/walkline/authserver
     pullPolicy: IfNotPresent
-    tag: "latest"
+    tag: "v0.0.1"
   service:
     type: NodePort
     internalPort: 3724
@@ -49,9 +52,9 @@ authserver:
 guildserver:
   replicaCount: 1
   image:
-    repository: 2o1o0/guildserver
+    repository: ghcr.io/walkline/guildserver
     pullPolicy: IfNotPresent
-    tag: "latest"
+    tag: "v0.0.1"
   service:
     type: ClusterIP
     internalPort: 8995
@@ -60,9 +63,9 @@ guildserver:
 guidserver:
   replicaCount: 1
   image:
-    repository: 2o1o0/guidserver
+    repository: ghcr.io/walkline/guidserver
     pullPolicy: IfNotPresent
-    tag: "latest"
+    tag: "v0.0.1"
   service:
     type: ClusterIP
     internalPort: 8996
@@ -71,9 +74,9 @@ guidserver:
 chatserver:
   replicaCount: 1
   image:
-    repository: 2o1o0/chatserver
+    repository: ghcr.io/walkline/chatserver
     pullPolicy: IfNotPresent
-    tag: "latest"
+    tag: "v0.0.1"
   service:
     type: ClusterIP
     internalPort: 8992
@@ -82,9 +85,9 @@ chatserver:
 charserver:
   replicaCount: 1
   image:
-    repository: 2o1o0/charserver
+    repository: ghcr.io/walkline/charserver
     pullPolicy: IfNotPresent
-    tag: "latest"
+    tag: "v0.0.1"
   service:
     type: ClusterIP
     internalPort: 8087
@@ -93,29 +96,32 @@ charserver:
 mailserver:
   replicaCount: 1
   image:
-    repository: 2o1o0/mailserver
+    repository: ghcr.io/walkline/mailserver
     pullPolicy: IfNotPresent
-    tag: "latest"
+    tag: "v0.0.1"
   service:
     type: ClusterIP
     internalPort: 8997
     externalPort: 8997
 
 game_lb:
-  replicaCount: 1
-  hostname: "localhost" # If changed to a domain, needs to be updated in auth.realmlist table aswell
+  replicaCount: 3
+  # IP or domain to access this game-load-balancer.
+  # If empty - uses node IP.
+  hostname: ""
+  # External and internal ports should be the same, so using single value here.
+  port: 32766
   image:
-    repository: 2o1o0/game-load-balancer
+    repository: ghcr.io/walkline/game-load-balancer
     pullPolicy: IfNotPresent
-    tag: "latest"
+    tag: "v0.0.1"
   service:
     type: NodePort
-    internalPort: 8085
-    externalPort: 32766
 
 gameserver_ac:
   initcontainer:
-    download_enabled: true # Will download assets and unzip them if pvc is empty
+    # If true - downloads assets and unzip them if pvc is empty.
+    download_enabled: true
     download_url: "https://github.com/wowgaming/client-data/releases/download/v16/data.zip"
     image:
       repository: alpine
@@ -128,9 +134,9 @@ gameserver_ac:
   port_world: 9601
   port_health: 9604
   image:
-    repository: 2o1o0/gameserver_ac
+    repository: ghcr.io/walkline/gameserver-ac
     pullPolicy: IfNotPresent
-    tag: "latest"
+    tag: "v0.0.1"
   service:
     type: ClusterIP
     internalPort: 9509

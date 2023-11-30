@@ -136,22 +136,6 @@ spec:
         resources:
 {{ toYaml .Values.resources | indent 10 }}
 
-# ---
-# apiVersion: v1
-# kind: Service
-# metadata:
-#   name: {{ .Release.Name }}-gameserver-ac
-#   labels:
-#     chart: "{{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}"
-# spec:
-#   type: {{ .Values.gameserver_ac.service.type }}
-#   ports:
-#   - port: {{ .Values.gameserver_ac.service.externalPort }}
-#     targetPort: {{ .Values.gameserver_ac.service.internalPort }}
-#     protocol: TCP
-#   selector:
-#     app: {{ $fullname }}-gameserver-ac
-
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim

@@ -20,13 +20,19 @@ spec:
         imagePullPolicy: {{ .Values.game_lb.image.pullPolicy | toString }}
         env:
         - name: PREFERRED_HOSTNAME
+          {{- if and .Values.game_lb.hostname (ne .Values.game_lb.hostname "") }}
           value: {{ .Values.game_lb.hostname }}
+          {{- else }}
+          valueFrom:
+            fieldRef:
+              fieldPath: status.hostIP
+          {{- end }}
         - name: LOG_LEVEL
           value: "0"
         - name: HEALTH_CHECK_PORT
           value: "8900"
         - name: PORT
-          value: "{{ .Values.game_lb.service.internalPort }}"
+          value: "{{ .Values.game_lb.port }}"
         - name: REDIS_URL
           value: redis://{{ .Release.Name }}-redis-headless:6379/0
         - name: NATS_URL
@@ -55,7 +61,7 @@ spec:
         - name: debug
           containerPort: 8333
         - name: service
-          containerPort: {{ .Values.game_lb.service.internalPort | int  }}
+          containerPort: {{ .Values.game_lb.port | int  }}
         - name: health
           containerPort: 8900
         - containerPort: 4000
@@ -87,8 +93,8 @@ metadata:
 spec:
   type: {{ .Values.game_lb.service.type }}
   ports:
-  - port: {{ .Values.game_lb.service.internalPort | int  }}
-    targetPort: {{ .Values.game_lb.service.internalPort | int  }}
-    nodePort: {{ .Values.game_lb.service.externalPort | int  }}
+  - port: {{ .Values.game_lb.port | int  }}
+    targetPort: {{ .Values.game_lb.port | int  }}
+    nodePort: {{ .Values.game_lb.port | int  }}
   selector:
     app: {{ $fullname }}-game-lb
