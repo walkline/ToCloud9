@@ -1,6 +1,6 @@
 name: Build and Push Go Images
 
-on: [push, pull_request]
+on: [push]
 
 jobs:
   build-and-push:
