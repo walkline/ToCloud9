@@ -28,6 +28,7 @@ func SetupEventsListener(nc *nats.Conn, realmID uint32, log zerolog.Logger) cons
 		nc,
 		NewGuildHandlerFabric(log),
 		NewGroupHandlerFabric(log),
+		NewServerRegistryHandlerFabric(log),
 		eventsHandlersQueue,
 		realmID,
 	)

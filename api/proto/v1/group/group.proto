@@ -237,6 +237,13 @@ message SetDungeonDifficultyRequest {
 
 message SetDungeonDifficultyResponse {
   string api = 1;
+
+  enum Status {
+    Ok = 0;
+    MemberIsInDungeon = 1;
+  }
+
+  Status status = 2;
 }
 
 message SetRaidDifficultyRequest {
@@ -249,4 +256,11 @@ message SetRaidDifficultyRequest {
 
 message SetRaidDifficultyResponse {
   string api = 1;
+
+  enum Status {
+    Ok = 0;
+    MemberIsInRaid = 1;
+  }
+
+  Status status = 2;
 }

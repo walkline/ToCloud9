@@ -40,6 +40,20 @@ func (_m *GroupServiceProducer) GroupCreated(payload *events.GroupEventGroupCrea
 	return r0
 }
 
+// GroupDifficultyChanged provides a mock function with given fields: payload
+func (_m *GroupServiceProducer) GroupDifficultyChanged(payload *events.GroupEventGroupDifficultyChangedPayload) error {
+	ret := _m.Called(payload)
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(*events.GroupEventGroupDifficultyChangedPayload) error); ok {
+		r0 = rf(payload)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
 // GroupDisband provides a mock function with given fields: payload
 func (_m *GroupServiceProducer) GroupDisband(payload *events.GroupEventGroupDisbandPayload) error {
 	ret := _m.Called(payload)

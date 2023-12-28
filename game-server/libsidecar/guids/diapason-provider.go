@@ -24,6 +24,10 @@ func NewItemsGRPCDiapasonsProvider(client pb.GuidServiceClient, realmID uint32, 
 	return NewGRPCDiapasonsProvider(client, realmID, pb.GuidType_Item, desiredPoolSize)
 }
 
+func NewInstancesGRPCDiapasonsProvider(client pb.GuidServiceClient, realmID uint32, desiredPoolSize uint64) DiapasonsProvider {
+	return NewGRPCDiapasonsProvider(client, realmID, pb.GuidType_Instance, desiredPoolSize)
+}
+
 func NewGRPCDiapasonsProvider(client pb.GuidServiceClient, realmID uint32, guidType pb.GuidType, desiredPoolSize uint64) DiapasonsProvider {
 	f := func(ctx context.Context) ([]diapason, error) {
 		resp, err := client.GetGUIDPool(ctx, &pb.GetGUIDPoolRequest{

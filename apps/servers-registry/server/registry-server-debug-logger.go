@@ -68,6 +68,17 @@ func (s *serversRegistryDebugLoggerMiddleware) ListGameServersForRealm(ctx conte
 	return
 }
 
+func (s *serversRegistryDebugLoggerMiddleware) GameServerMapsLoaded(ctx context.Context, request *pb.GameServerMapsLoadedRequest) (resp *pb.GameServerMapsLoadedResponse, err error) {
+	defer func(t time.Time) {
+		s.logger.Debug().
+			Str("timeTook", time.Since(t).String()).
+			Msg("Handled GameServerMapsLoaded")
+	}(time.Now())
+
+	resp, err = s.realService.GameServerMapsLoaded(ctx, request)
+	return
+}
+
 func (s *serversRegistryDebugLoggerMiddleware) RegisterLoadBalancer(ctx context.Context, request *pb.RegisterLoadBalancerRequest) (*pb.RegisterLoadBalancerResponse, error) {
 	// Logs already inside.
 	return s.realService.RegisterLoadBalancer(ctx, request)

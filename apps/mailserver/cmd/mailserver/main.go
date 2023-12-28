@@ -49,7 +49,13 @@ func main() {
 		log.Fatal().Err(err).Msg("can't create guilds repo")
 	}
 
-	nc, err := nats.Connect(cfg.NatsURL, nats.PingInterval(20*time.Second), nats.MaxPingsOutstanding(5), nats.Timeout(10*time.Second))
+	nc, err := nats.Connect(
+		cfg.NatsURL,
+		nats.PingInterval(20*time.Second),
+		nats.MaxPingsOutstanding(5),
+		nats.Timeout(10*time.Second),
+		nats.Name("mailserver"),
+	)
 	if err != nil {
 		log.Fatal().Err(err).Msg("can't connect to nats")
 	}

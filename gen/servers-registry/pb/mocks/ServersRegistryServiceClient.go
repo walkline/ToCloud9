@@ -50,6 +50,39 @@ func (_m *ServersRegistryServiceClient) AvailableGameServersForMapAndRealm(ctx c
 	return r0, r1
 }
 
+// GameServerMapsLoaded provides a mock function with given fields: ctx, in, opts
+func (_m *ServersRegistryServiceClient) GameServerMapsLoaded(ctx context.Context, in *pb.GameServerMapsLoadedRequest, opts ...grpc.CallOption) (*pb.GameServerMapsLoadedResponse, error) {
+	_va := make([]interface{}, len(opts))
+	for _i := range opts {
+		_va[_i] = opts[_i]
+	}
+	var _ca []interface{}
+	_ca = append(_ca, ctx, in)
+	_ca = append(_ca, _va...)
+	ret := _m.Called(_ca...)
+
+	var r0 *pb.GameServerMapsLoadedResponse
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, *pb.GameServerMapsLoadedRequest, ...grpc.CallOption) (*pb.GameServerMapsLoadedResponse, error)); ok {
+		return rf(ctx, in, opts...)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, *pb.GameServerMapsLoadedRequest, ...grpc.CallOption) *pb.GameServerMapsLoadedResponse); ok {
+		r0 = rf(ctx, in, opts...)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*pb.GameServerMapsLoadedResponse)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, *pb.GameServerMapsLoadedRequest, ...grpc.CallOption) error); ok {
+		r1 = rf(ctx, in, opts...)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
 // ListGameServersForRealm provides a mock function with given fields: ctx, in, opts
 func (_m *ServersRegistryServiceClient) ListGameServersForRealm(ctx context.Context, in *pb.ListGameServersForRealmRequest, opts ...grpc.CallOption) (*pb.ListGameServersForRealmResponse, error) {
 	_va := make([]interface{}, len(opts))

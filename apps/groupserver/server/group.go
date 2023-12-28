@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"errors"
 	"github.com/walkline/ToCloud9/apps/groupserver/repo"
 
 	"github.com/walkline/ToCloud9/apps/groupserver"
@@ -181,22 +182,36 @@ func (g GroupServer) SetLootMethod(ctx context.Context, params *pb.SetLootMethod
 func (g GroupServer) SetDungeonDifficulty(ctx context.Context, params *pb.SetDungeonDifficultyRequest) (*pb.SetDungeonDifficultyResponse, error) {
 	err := g.groupService.SetDungeonDifficulty(ctx, params.RealmID, params.PlayerGUID, uint8(params.Difficulty))
 	if err != nil {
+		if errors.Is(err, service.ErrMemberInDungeonOrRaid) {
+			return &pb.SetDungeonDifficultyResponse{
+				Api:    groupserver.Ver,
+				Status: pb.SetDungeonDifficultyResponse_MemberIsInDungeon,
+			}, nil
+		}
 		return nil, err
 	}
 
 	return &pb.SetDungeonDifficultyResponse{
-		Api: groupserver.Ver,
+		Api:    groupserver.Ver,
+		Status: pb.SetDungeonDifficultyResponse_Ok,
 	}, nil
 }
 
 func (g GroupServer) SetRaidDifficulty(ctx context.Context, params *pb.SetRaidDifficultyRequest) (*pb.SetRaidDifficultyResponse, error) {
 	err := g.groupService.SetRaidDifficulty(ctx, params.RealmID, params.PlayerGUID, uint8(params.Difficulty))
 	if err != nil {
+		if errors.Is(err, service.ErrMemberInDungeonOrRaid) {
+			return &pb.SetRaidDifficultyResponse{
+				Api:    groupserver.Ver,
+				Status: pb.SetRaidDifficultyResponse_MemberIsInRaid,
+			}, nil
+		}
 		return nil, err
 	}
 
 	return &pb.SetRaidDifficultyResponse{
-		Api: groupserver.Ver,
+		Api:    groupserver.Ver,
+		Status: pb.SetRaidDifficultyResponse_Ok,
 	}, nil
 }
 

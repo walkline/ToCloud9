@@ -20,7 +20,7 @@ func TestPacketsReader(t *testing.T) {
 		),
 	)
 
-	reader := NewPacketsReader(r, 4)
+	reader := NewPacketsReader(r, 4, packet.SourceUnknown)
 	result := []packet.Packet{}
 	for reader.Next() {
 		result = append(result, *reader.Packet())

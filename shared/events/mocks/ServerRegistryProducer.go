@@ -12,6 +12,20 @@ type ServerRegistryProducer struct {
 	mock.Mock
 }
 
+// GSMapsReassigned provides a mock function with given fields: payload
+func (_m *ServerRegistryProducer) GSMapsReassigned(payload *events.ServerRegistryEventGSMapsReassignedPayload) error {
+	ret := _m.Called(payload)
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(*events.ServerRegistryEventGSMapsReassignedPayload) error); ok {
+		r0 = rf(payload)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
 // LBAdded provides a mock function with given fields: payload
 func (_m *ServerRegistryProducer) LBAdded(payload *events.ServerRegistryEventLBAddedPayload) error {
 	ret := _m.Called(payload)

@@ -29,6 +29,9 @@ type Config struct {
 	// CharacterGuidsBufferSize is the size of the buffer for items guids
 	ItemGuidsBufferSize int `yaml:"itemGuidsBufferSize" env:"ITEM_GUIDS_BUFFER_SIZE" env-default:"200"`
 
+	// InstanceGuidsBufferSize is the size of the buffer for dungeon/raid instances guids
+	InstanceGuidsBufferSize int `yaml:"instanceGuidsBufferSize" env:"INSTANCE_GUIDS_BUFFER_SIZE" env-default:"10"`
+
 	// NatsURL is nats connection url
 	NatsURL string `yaml:"natsUrl" env:"NATS_URL" env-default:"nats://localhost:4222"`
 }

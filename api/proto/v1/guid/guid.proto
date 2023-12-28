@@ -10,6 +10,7 @@ service GuidService {
 enum GuidType {
   Character = 0;
   Item = 1;
+  Instance = 2;
 }
 
 message GetGUIDPoolRequest {

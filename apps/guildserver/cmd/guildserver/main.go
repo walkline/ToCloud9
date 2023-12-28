@@ -47,6 +47,7 @@ func main() {
 		nats.PingInterval(20*time.Second),
 		nats.MaxPingsOutstanding(5),
 		nats.Timeout(10*time.Second),
+		nats.Name("guildserver"),
 	)
 	if err != nil {
 		log.Fatal().Err(err).Msg("can't connect to the Nats")

@@ -20,3 +20,7 @@ type GroupHandlersFabric interface {
 	GroupDifficultyChanged(payload *events.GroupEventGroupDifficultyChangedPayload) queue.Handler
 	GroupConvertedToRaid(payload *events.GroupEventGroupConvertedToRaidPayload) queue.Handler
 }
+
+type ServerRegistryHandlerFabric interface {
+	GameServerMapsReassigned(payload *events.ServerRegistryEventGSMapsReassignedPayload) queue.Handler
+}

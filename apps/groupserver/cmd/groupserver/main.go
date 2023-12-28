@@ -23,6 +23,7 @@ import (
 	"github.com/walkline/ToCloud9/apps/groupserver/repo"
 	"github.com/walkline/ToCloud9/apps/groupserver/server"
 	"github.com/walkline/ToCloud9/apps/groupserver/service"
+	pbChar "github.com/walkline/ToCloud9/gen/characters/pb"
 	"github.com/walkline/ToCloud9/gen/group/pb"
 	"github.com/walkline/ToCloud9/shared/events"
 	shrepo "github.com/walkline/ToCloud9/shared/repo"
@@ -47,6 +48,7 @@ func main() {
 		nats.PingInterval(20*time.Second),
 		nats.MaxPingsOutstanding(5),
 		nats.Timeout(10*time.Second),
+		nats.Name("groupserver"),
 	)
 	if err != nil {
 		log.Fatal().Err(err).Msg("can't connect to the Nats")
@@ -117,7 +119,9 @@ func createGroupService(cfg *config.Config, natsCon *nats.Conn) service.GroupsSe
 		log.Fatal().Err(err).Msg("can't warmup groups cache")
 	}
 
-	s := service.NewGroupsService(cache, events.NewGroupServiceProducerNatsJSON(natsCon, groupserver.Ver))
+	charClient := charService(cfg)
+
+	s := service.NewGroupsService(cache, charClient, events.NewGroupServiceProducerNatsJSON(natsCon, groupserver.Ver))
 
 	// TODO: combine this with consumer for cache
 	err = events.NewLoadBalancerConsumer(
@@ -130,6 +134,15 @@ func createGroupService(cfg *config.Config, natsCon *nats.Conn) service.GroupsSe
 	}
 
 	return s
+}
+
+func charService(cnf *config.Config) pbChar.CharactersServiceClient {
+	conn, err := grpc.Dial(cnf.CharServiceAddress, grpc.WithInsecure())
+	if err != nil {
+		log.Fatal().Err(err).Msg("can't connect to characters service")
+	}
+
+	return pbChar.NewCharactersServiceClient(conn)
 }
 
 func configureDBConn(db *sql.DB) {

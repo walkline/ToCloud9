@@ -52,7 +52,9 @@ func (s *serversRegistry) RegisterGameServer(ctx context.Context, request *pb.Re
 	}
 
 	return &pb.RegisterGameServerResponse{
-		Api: ver,
+		Api:          ver,
+		Id:           gameServer.ID,
+		AssignedMaps: gameServer.AssignedMapsToHandle,
 	}, nil
 }
 
@@ -120,6 +122,17 @@ func (s *serversRegistry) RandomGameServerForRealm(ctx context.Context, request 
 			Address: server.Address,
 			RealmID: server.RealmID,
 		},
+	}, nil
+}
+
+func (s *serversRegistry) GameServerMapsLoaded(ctx context.Context, request *pb.GameServerMapsLoadedRequest) (*pb.GameServerMapsLoadedResponse, error) {
+	_, err := s.gService.MapsLoadedForServer(ctx, request.GameServerID, request.MapsLoaded)
+	if err != nil {
+		return nil, err
+	}
+
+	return &pb.GameServerMapsLoadedResponse{
+		Api: ver,
 	}, nil
 }
 

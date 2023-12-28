@@ -9,15 +9,17 @@ import (
 
 	"github.com/walkline/ToCloud9/apps/groupserver"
 	"github.com/walkline/ToCloud9/apps/groupserver/repo"
+	"github.com/walkline/ToCloud9/gen/characters/pb"
 	"github.com/walkline/ToCloud9/shared/events"
 )
 
 var (
-	ErrAlreadyInGroup      = errors.New("player already in group")
-	ErrNoPermissions       = errors.New("player has not enough permissions")
-	ErrGroupFull           = errors.New("group is full")
-	ErrGroupNotFound       = errors.New("group not found")
-	ErrGroupMemberNotFound = errors.New("group member not found")
+	ErrAlreadyInGroup        = errors.New("player already in group")
+	ErrNoPermissions         = errors.New("player has not enough permissions")
+	ErrGroupFull             = errors.New("group is full")
+	ErrGroupNotFound         = errors.New("group not found")
+	ErrGroupMemberNotFound   = errors.New("group member not found")
+	ErrMemberInDungeonOrRaid = errors.New("group member is in dungeon or raid")
 )
 
 type MessageType uint8
@@ -57,16 +59,19 @@ type GroupsService interface {
 	events.LBCharacterLoggedOutHandler
 }
 
-func NewGroupsService(r repo.GroupsRepo, ep events.GroupServiceProducer) GroupsService {
+func NewGroupsService(r repo.GroupsRepo, charClient pb.CharactersServiceClient, ep events.GroupServiceProducer) GroupsService {
 	return &groupServiceImpl{
-		r:  r,
-		ep: ep,
+		r:          r,
+		ep:         ep,
+		charClient: charClient,
 	}
 }
 
 type groupServiceImpl struct {
 	r  repo.GroupsRepo
 	ep events.GroupServiceProducer
+
+	charClient pb.CharactersServiceClient
 }
 
 func (g groupServiceImpl) GroupIDByPlayer(ctx context.Context, realmID uint32, player uint64) (uint, error) {
@@ -494,6 +499,21 @@ func (g groupServiceImpl) SetDungeonDifficulty(ctx context.Context, realmID uint
 		return err
 	}
 
+	characters, err := g.charClient.ShortOnlineCharactersDataByGUIDs(ctx, &pb.ShortCharactersDataByGUIDsRequest{
+		Api:     groupserver.Ver,
+		RealmID: realmID,
+		GUIDs:   group.OnlineMemberGUIDs(),
+	})
+	if err != nil {
+		return fmt.Errorf("failed to get characters, err: %w", err)
+	}
+
+	for _, char := range characters.Characters {
+		if MapID(int(char.CharMap)).IsDungeon() {
+			return ErrMemberInDungeonOrRaid
+		}
+	}
+
 	group.Difficulty = difficulty
 
 	if err = g.r.Update(ctx, realmID, group); err != nil {
@@ -520,6 +540,21 @@ func (g groupServiceImpl) SetRaidDifficulty(ctx context.Context, realmID uint32,
 	group, err := g.getGroupWithLeader(ctx, realmID, updaterGUID)
 	if err != nil {
 		return err
+	}
+
+	characters, err := g.charClient.ShortOnlineCharactersDataByGUIDs(ctx, &pb.ShortCharactersDataByGUIDsRequest{
+		Api:     groupserver.Ver,
+		RealmID: realmID,
+		GUIDs:   group.OnlineMemberGUIDs(),
+	})
+	if err != nil {
+		return fmt.Errorf("failed to get characters, err: %w", err)
+	}
+
+	for _, char := range characters.Characters {
+		if MapID(int(char.CharMap)).IsRaid() {
+			return ErrMemberInDungeonOrRaid
+		}
 	}
 
 	group.RaidDifficulty = difficulty

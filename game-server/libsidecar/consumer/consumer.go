@@ -18,21 +18,30 @@ type natsConsumer struct {
 	// subs is all subscriptions list.
 	subs []*nats.Subscription
 
-	guildHandlersFabric GuildHandlersFabric
-	groupHandlersFabric GroupHandlersFabric
+	guildHandlersFabric          GuildHandlersFabric
+	groupHandlersFabric          GroupHandlersFabric
+	serverRegistryHandlersFabric ServerRegistryHandlerFabric
 
 	queue queue.HandlersQueue
 
 	realmID uint32
 }
 
-func NewNatsEventsConsumer(nc *nats.Conn, guildHandlersFabric GuildHandlersFabric, groupHandlersFabric GroupHandlersFabric, queue queue.HandlersQueue, realmID uint32) Consumer {
+func NewNatsEventsConsumer(
+	nc *nats.Conn,
+	guildHandlersFabric GuildHandlersFabric,
+	groupHandlersFabric GroupHandlersFabric,
+	serverRegistryHandlersFabric ServerRegistryHandlerFabric,
+	queue queue.HandlersQueue,
+	realmID uint32,
+) Consumer {
 	return &natsConsumer{
-		nc:                  nc,
-		guildHandlersFabric: guildHandlersFabric,
-		groupHandlersFabric: groupHandlersFabric,
-		queue:               queue,
-		realmID:             realmID,
+		nc:                           nc,
+		guildHandlersFabric:          guildHandlersFabric,
+		groupHandlersFabric:          groupHandlersFabric,
+		serverRegistryHandlersFabric: serverRegistryHandlersFabric,
+		queue:                        queue,
+		realmID:                      realmID,
 	}
 }
 
@@ -233,6 +242,22 @@ func (c *natsConsumer) Start() error {
 		}
 
 		c.queue.Push(c.groupHandlersFabric.GroupConvertedToRaid(&p))
+	})
+	if err != nil {
+		return err
+	}
+
+	c.subs = append(c.subs, sub)
+
+	sub, err = c.nc.Subscribe(events.ServerRegistryEventGSMapsReassigned.SubjectName(), func(msg *nats.Msg) {
+		p := events.ServerRegistryEventGSMapsReassignedPayload{}
+		_, err := events.Unmarshal(msg.Data, &p)
+		if err != nil {
+			log.Error().Err(err).Msg("can't read ServerRegistryEventGSMapsReassigned (payload part) event")
+			return
+		}
+
+		c.queue.Push(c.serverRegistryHandlersFabric.GameServerMapsReassigned(&p))
 	})
 	if err != nil {
 		return err

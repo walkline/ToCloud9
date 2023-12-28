@@ -10,6 +10,7 @@ import (
 type ServerRegistryProducer interface {
 	LBAdded(payload *ServerRegistryEventLBAddedPayload) error
 	LBRemovedUnhealthy(payload *ServerRegistryEventLBRemovedUnhealthyPayload) error
+	GSMapsReassigned(payload *ServerRegistryEventGSMapsReassignedPayload) error
 }
 
 type serverRegistryProducerNatsJSON struct {
@@ -30,6 +31,10 @@ func (s serverRegistryProducerNatsJSON) LBAdded(payload *ServerRegistryEventLBAd
 
 func (s serverRegistryProducerNatsJSON) LBRemovedUnhealthy(payload *ServerRegistryEventLBRemovedUnhealthyPayload) error {
 	return s.publish(ServerRegistryEventLBRemovedUnhealthy, payload)
+}
+
+func (s serverRegistryProducerNatsJSON) GSMapsReassigned(payload *ServerRegistryEventGSMapsReassignedPayload) error {
+	return s.publish(ServerRegistryEventGSMapsReassigned, payload)
 }
 
 func (s *serverRegistryProducerNatsJSON) publish(e ServerRegistryEvent, payload interface{}) error {

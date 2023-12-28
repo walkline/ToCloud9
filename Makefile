@@ -6,6 +6,7 @@ generate:
 	mockery --dir=gen/characters/pb --output=gen/characters/pb/mocks --name=CharactersServiceClient --structname=CharactersServiceClient
 	mockery --dir=gen/worldserver/pb --output=gen/worldserver/pb/mocks --name=WorldServerServiceClient --structname=WorldServerServiceClient
 	mockery --dir=gen/mail/pb --output=gen/mail/pb/mocks --name=MailServiceClient --structname=MailServiceClient
+	mockery --dir=gen/group/pb --output=gen/group/pb/mocks --name=GroupServiceClient --structname=GroupServiceClient
 	protoc --proto_path=api/proto/v1/characters --go_out=plugins=grpc:. characters.proto
 	protoc --proto_path=api/proto/v1/servers-registry --go_out=plugins=grpc:. registry.proto
 	protoc --proto_path=api/proto/v1/chat --go_out=plugins=grpc:. chat.proto

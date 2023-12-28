@@ -162,6 +162,98 @@ func (UninviteResponse_Status) EnumDescriptor() ([]byte, []int) {
 	return file_group_proto_rawDescGZIP(), []int{10, 0}
 }
 
+type SetDungeonDifficultyResponse_Status int32
+
+const (
+	SetDungeonDifficultyResponse_Ok                SetDungeonDifficultyResponse_Status = 0
+	SetDungeonDifficultyResponse_MemberIsInDungeon SetDungeonDifficultyResponse_Status = 1
+)
+
+// Enum value maps for SetDungeonDifficultyResponse_Status.
+var (
+	SetDungeonDifficultyResponse_Status_name = map[int32]string{
+		0: "Ok",
+		1: "MemberIsInDungeon",
+	}
+	SetDungeonDifficultyResponse_Status_value = map[string]int32{
+		"Ok":                0,
+		"MemberIsInDungeon": 1,
+	}
+)
+
+func (x SetDungeonDifficultyResponse_Status) Enum() *SetDungeonDifficultyResponse_Status {
+	p := new(SetDungeonDifficultyResponse_Status)
+	*p = x
+	return p
+}
+
+func (x SetDungeonDifficultyResponse_Status) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (SetDungeonDifficultyResponse_Status) Descriptor() protoreflect.EnumDescriptor {
+	return file_group_proto_enumTypes[3].Descriptor()
+}
+
+func (SetDungeonDifficultyResponse_Status) Type() protoreflect.EnumType {
+	return &file_group_proto_enumTypes[3]
+}
+
+func (x SetDungeonDifficultyResponse_Status) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use SetDungeonDifficultyResponse_Status.Descriptor instead.
+func (SetDungeonDifficultyResponse_Status) EnumDescriptor() ([]byte, []int) {
+	return file_group_proto_rawDescGZIP(), []int{26, 0}
+}
+
+type SetRaidDifficultyResponse_Status int32
+
+const (
+	SetRaidDifficultyResponse_Ok             SetRaidDifficultyResponse_Status = 0
+	SetRaidDifficultyResponse_MemberIsInRaid SetRaidDifficultyResponse_Status = 1
+)
+
+// Enum value maps for SetRaidDifficultyResponse_Status.
+var (
+	SetRaidDifficultyResponse_Status_name = map[int32]string{
+		0: "Ok",
+		1: "MemberIsInRaid",
+	}
+	SetRaidDifficultyResponse_Status_value = map[string]int32{
+		"Ok":             0,
+		"MemberIsInRaid": 1,
+	}
+)
+
+func (x SetRaidDifficultyResponse_Status) Enum() *SetRaidDifficultyResponse_Status {
+	p := new(SetRaidDifficultyResponse_Status)
+	*p = x
+	return p
+}
+
+func (x SetRaidDifficultyResponse_Status) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (SetRaidDifficultyResponse_Status) Descriptor() protoreflect.EnumDescriptor {
+	return file_group_proto_enumTypes[4].Descriptor()
+}
+
+func (SetRaidDifficultyResponse_Status) Type() protoreflect.EnumType {
+	return &file_group_proto_enumTypes[4]
+}
+
+func (x SetRaidDifficultyResponse_Status) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use SetRaidDifficultyResponse_Status.Descriptor instead.
+func (SetRaidDifficultyResponse_Status) EnumDescriptor() ([]byte, []int) {
+	return file_group_proto_rawDescGZIP(), []int{28, 0}
+}
+
 type InviteParams struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
@@ -1781,7 +1873,8 @@ type SetDungeonDifficultyResponse struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Api string `protobuf:"bytes,1,opt,name=api,proto3" json:"api,omitempty"`
+	Api    string                              `protobuf:"bytes,1,opt,name=api,proto3" json:"api,omitempty"`
+	Status SetDungeonDifficultyResponse_Status `protobuf:"varint,2,opt,name=status,proto3,enum=v1.SetDungeonDifficultyResponse_Status" json:"status,omitempty"`
 }
 
 func (x *SetDungeonDifficultyResponse) Reset() {
@@ -1821,6 +1914,13 @@ func (x *SetDungeonDifficultyResponse) GetApi() string {
 		return x.Api
 	}
 	return ""
+}
+
+func (x *SetDungeonDifficultyResponse) GetStatus() SetDungeonDifficultyResponse_Status {
+	if x != nil {
+		return x.Status
+	}
+	return SetDungeonDifficultyResponse_Ok
 }
 
 type SetRaidDifficultyRequest struct {
@@ -1899,7 +1999,8 @@ type SetRaidDifficultyResponse struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Api string `protobuf:"bytes,1,opt,name=api,proto3" json:"api,omitempty"`
+	Api    string                           `protobuf:"bytes,1,opt,name=api,proto3" json:"api,omitempty"`
+	Status SetRaidDifficultyResponse_Status `protobuf:"varint,2,opt,name=status,proto3,enum=v1.SetRaidDifficultyResponse_Status" json:"status,omitempty"`
 }
 
 func (x *SetRaidDifficultyResponse) Reset() {
@@ -1939,6 +2040,13 @@ func (x *SetRaidDifficultyResponse) GetApi() string {
 		return x.Api
 	}
 	return ""
+}
+
+func (x *SetRaidDifficultyResponse) GetStatus() SetRaidDifficultyResponse_Status {
+	if x != nil {
+		return x.Status
+	}
+	return SetRaidDifficultyResponse_Ok
 }
 
 type GetGroupResponse_GroupMember struct {
@@ -2358,22 +2466,35 @@ var file_group_proto_rawDesc = []byte{
 	0x72, 0x47, 0x55, 0x49, 0x44, 0x18, 0x03, 0x20, 0x01, 0x28, 0x04, 0x52, 0x0a, 0x70, 0x6c, 0x61,
 	0x79, 0x65, 0x72, 0x47, 0x55, 0x49, 0x44, 0x12, 0x1e, 0x0a, 0x0a, 0x64, 0x69, 0x66, 0x66, 0x69,
 	0x63, 0x75, 0x6c, 0x74, 0x79, 0x18, 0x04, 0x20, 0x01, 0x28, 0x0d, 0x52, 0x0a, 0x64, 0x69, 0x66,
-	0x66, 0x69, 0x63, 0x75, 0x6c, 0x74, 0x79, 0x22, 0x30, 0x0a, 0x1c, 0x53, 0x65, 0x74, 0x44, 0x75,
-	0x6e, 0x67, 0x65, 0x6f, 0x6e, 0x44, 0x69, 0x66, 0x66, 0x69, 0x63, 0x75, 0x6c, 0x74, 0x79, 0x52,
-	0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x10, 0x0a, 0x03, 0x61, 0x70, 0x69, 0x18, 0x01,
-	0x20, 0x01, 0x28, 0x09, 0x52, 0x03, 0x61, 0x70, 0x69, 0x22, 0x86, 0x01, 0x0a, 0x18, 0x53, 0x65,
-	0x74, 0x52, 0x61, 0x69, 0x64, 0x44, 0x69, 0x66, 0x66, 0x69, 0x63, 0x75, 0x6c, 0x74, 0x79, 0x52,
-	0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x12, 0x10, 0x0a, 0x03, 0x61, 0x70, 0x69, 0x18, 0x01, 0x20,
-	0x01, 0x28, 0x09, 0x52, 0x03, 0x61, 0x70, 0x69, 0x12, 0x18, 0x0a, 0x07, 0x72, 0x65, 0x61, 0x6c,
-	0x6d, 0x49, 0x44, 0x18, 0x02, 0x20, 0x01, 0x28, 0x0d, 0x52, 0x07, 0x72, 0x65, 0x61, 0x6c, 0x6d,
-	0x49, 0x44, 0x12, 0x1e, 0x0a, 0x0a, 0x70, 0x6c, 0x61, 0x79, 0x65, 0x72, 0x47, 0x55, 0x49, 0x44,
-	0x18, 0x03, 0x20, 0x01, 0x28, 0x04, 0x52, 0x0a, 0x70, 0x6c, 0x61, 0x79, 0x65, 0x72, 0x47, 0x55,
-	0x49, 0x44, 0x12, 0x1e, 0x0a, 0x0a, 0x64, 0x69, 0x66, 0x66, 0x69, 0x63, 0x75, 0x6c, 0x74, 0x79,
-	0x18, 0x04, 0x20, 0x01, 0x28, 0x0d, 0x52, 0x0a, 0x64, 0x69, 0x66, 0x66, 0x69, 0x63, 0x75, 0x6c,
-	0x74, 0x79, 0x22, 0x2d, 0x0a, 0x19, 0x53, 0x65, 0x74, 0x52, 0x61, 0x69, 0x64, 0x44, 0x69, 0x66,
-	0x66, 0x69, 0x63, 0x75, 0x6c, 0x74, 0x79, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12,
-	0x10, 0x0a, 0x03, 0x61, 0x70, 0x69, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x03, 0x61, 0x70,
-	0x69, 0x32, 0xd8, 0x07, 0x0a, 0x0c, 0x47, 0x72, 0x6f, 0x75, 0x70, 0x53, 0x65, 0x72, 0x76, 0x69,
+	0x66, 0x69, 0x63, 0x75, 0x6c, 0x74, 0x79, 0x22, 0x9a, 0x01, 0x0a, 0x1c, 0x53, 0x65, 0x74, 0x44,
+	0x75, 0x6e, 0x67, 0x65, 0x6f, 0x6e, 0x44, 0x69, 0x66, 0x66, 0x69, 0x63, 0x75, 0x6c, 0x74, 0x79,
+	0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x10, 0x0a, 0x03, 0x61, 0x70, 0x69, 0x18,
+	0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x03, 0x61, 0x70, 0x69, 0x12, 0x3f, 0x0a, 0x06, 0x73, 0x74,
+	0x61, 0x74, 0x75, 0x73, 0x18, 0x02, 0x20, 0x01, 0x28, 0x0e, 0x32, 0x27, 0x2e, 0x76, 0x31, 0x2e,
+	0x53, 0x65, 0x74, 0x44, 0x75, 0x6e, 0x67, 0x65, 0x6f, 0x6e, 0x44, 0x69, 0x66, 0x66, 0x69, 0x63,
+	0x75, 0x6c, 0x74, 0x79, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x2e, 0x53, 0x74, 0x61,
+	0x74, 0x75, 0x73, 0x52, 0x06, 0x73, 0x74, 0x61, 0x74, 0x75, 0x73, 0x22, 0x27, 0x0a, 0x06, 0x53,
+	0x74, 0x61, 0x74, 0x75, 0x73, 0x12, 0x06, 0x0a, 0x02, 0x4f, 0x6b, 0x10, 0x00, 0x12, 0x15, 0x0a,
+	0x11, 0x4d, 0x65, 0x6d, 0x62, 0x65, 0x72, 0x49, 0x73, 0x49, 0x6e, 0x44, 0x75, 0x6e, 0x67, 0x65,
+	0x6f, 0x6e, 0x10, 0x01, 0x22, 0x86, 0x01, 0x0a, 0x18, 0x53, 0x65, 0x74, 0x52, 0x61, 0x69, 0x64,
+	0x44, 0x69, 0x66, 0x66, 0x69, 0x63, 0x75, 0x6c, 0x74, 0x79, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73,
+	0x74, 0x12, 0x10, 0x0a, 0x03, 0x61, 0x70, 0x69, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x03,
+	0x61, 0x70, 0x69, 0x12, 0x18, 0x0a, 0x07, 0x72, 0x65, 0x61, 0x6c, 0x6d, 0x49, 0x44, 0x18, 0x02,
+	0x20, 0x01, 0x28, 0x0d, 0x52, 0x07, 0x72, 0x65, 0x61, 0x6c, 0x6d, 0x49, 0x44, 0x12, 0x1e, 0x0a,
+	0x0a, 0x70, 0x6c, 0x61, 0x79, 0x65, 0x72, 0x47, 0x55, 0x49, 0x44, 0x18, 0x03, 0x20, 0x01, 0x28,
+	0x04, 0x52, 0x0a, 0x70, 0x6c, 0x61, 0x79, 0x65, 0x72, 0x47, 0x55, 0x49, 0x44, 0x12, 0x1e, 0x0a,
+	0x0a, 0x64, 0x69, 0x66, 0x66, 0x69, 0x63, 0x75, 0x6c, 0x74, 0x79, 0x18, 0x04, 0x20, 0x01, 0x28,
+	0x0d, 0x52, 0x0a, 0x64, 0x69, 0x66, 0x66, 0x69, 0x63, 0x75, 0x6c, 0x74, 0x79, 0x22, 0x91, 0x01,
+	0x0a, 0x19, 0x53, 0x65, 0x74, 0x52, 0x61, 0x69, 0x64, 0x44, 0x69, 0x66, 0x66, 0x69, 0x63, 0x75,
+	0x6c, 0x74, 0x79, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x10, 0x0a, 0x03, 0x61,
+	0x70, 0x69, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x03, 0x61, 0x70, 0x69, 0x12, 0x3c, 0x0a,
+	0x06, 0x73, 0x74, 0x61, 0x74, 0x75, 0x73, 0x18, 0x02, 0x20, 0x01, 0x28, 0x0e, 0x32, 0x24, 0x2e,
+	0x76, 0x31, 0x2e, 0x53, 0x65, 0x74, 0x52, 0x61, 0x69, 0x64, 0x44, 0x69, 0x66, 0x66, 0x69, 0x63,
+	0x75, 0x6c, 0x74, 0x79, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x2e, 0x53, 0x74, 0x61,
+	0x74, 0x75, 0x73, 0x52, 0x06, 0x73, 0x74, 0x61, 0x74, 0x75, 0x73, 0x22, 0x24, 0x0a, 0x06, 0x53,
+	0x74, 0x61, 0x74, 0x75, 0x73, 0x12, 0x06, 0x0a, 0x02, 0x4f, 0x6b, 0x10, 0x00, 0x12, 0x12, 0x0a,
+	0x0e, 0x4d, 0x65, 0x6d, 0x62, 0x65, 0x72, 0x49, 0x73, 0x49, 0x6e, 0x52, 0x61, 0x69, 0x64, 0x10,
+	0x01, 0x32, 0xd8, 0x07, 0x0a, 0x0c, 0x47, 0x72, 0x6f, 0x75, 0x70, 0x53, 0x65, 0x72, 0x76, 0x69,
 	0x63, 0x65, 0x12, 0x2e, 0x0a, 0x06, 0x49, 0x6e, 0x76, 0x69, 0x74, 0x65, 0x12, 0x10, 0x2e, 0x76,
 	0x31, 0x2e, 0x49, 0x6e, 0x76, 0x69, 0x74, 0x65, 0x50, 0x61, 0x72, 0x61, 0x6d, 0x73, 0x1a, 0x12,
 	0x2e, 0x76, 0x31, 0x2e, 0x49, 0x6e, 0x76, 0x69, 0x74, 0x65, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e,
@@ -2451,83 +2572,87 @@ func file_group_proto_rawDescGZIP() []byte {
 	return file_group_proto_rawDescData
 }
 
-var file_group_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
+var file_group_proto_enumTypes = make([]protoimpl.EnumInfo, 5)
 var file_group_proto_msgTypes = make([]protoimpl.MessageInfo, 31)
 var file_group_proto_goTypes = []interface{}{
-	(InviteResponse_Status)(0),           // 0: v1.InviteResponse.Status
-	(AcceptInviteResponse_Status)(0),     // 1: v1.AcceptInviteResponse.Status
-	(UninviteResponse_Status)(0),         // 2: v1.UninviteResponse.Status
-	(*InviteParams)(nil),                 // 3: v1.InviteParams
-	(*InviteResponse)(nil),               // 4: v1.InviteResponse
-	(*AcceptInviteParams)(nil),           // 5: v1.AcceptInviteParams
-	(*AcceptInviteResponse)(nil),         // 6: v1.AcceptInviteResponse
-	(*GetGroupRequest)(nil),              // 7: v1.GetGroupRequest
-	(*GetGroupResponse)(nil),             // 8: v1.GetGroupResponse
-	(*GetGroupByMemberRequest)(nil),      // 9: v1.GetGroupByMemberRequest
-	(*GetGroupIDByPlayerRequest)(nil),    // 10: v1.GetGroupIDByPlayerRequest
-	(*GetGroupIDByPlayerResponse)(nil),   // 11: v1.GetGroupIDByPlayerResponse
-	(*UninviteParams)(nil),               // 12: v1.UninviteParams
-	(*UninviteResponse)(nil),             // 13: v1.UninviteResponse
-	(*GroupLeaveParams)(nil),             // 14: v1.GroupLeaveParams
-	(*GroupLeaveResponse)(nil),           // 15: v1.GroupLeaveResponse
-	(*ConvertToRaidParams)(nil),          // 16: v1.ConvertToRaidParams
-	(*ConvertToRaidResponse)(nil),        // 17: v1.ConvertToRaidResponse
-	(*ChangeLeaderParams)(nil),           // 18: v1.ChangeLeaderParams
-	(*ChangeLeaderResponse)(nil),         // 19: v1.ChangeLeaderResponse
-	(*SendGroupMessageParams)(nil),       // 20: v1.SendGroupMessageParams
-	(*SendGroupMessageResponse)(nil),     // 21: v1.SendGroupMessageResponse
-	(*SetGroupTargetIconRequest)(nil),    // 22: v1.SetGroupTargetIconRequest
-	(*SetGroupTargetIconResponse)(nil),   // 23: v1.SetGroupTargetIconResponse
-	(*GetGroupTargetIconsRequest)(nil),   // 24: v1.GetGroupTargetIconsRequest
-	(*GetGroupTargetIconsResponse)(nil),  // 25: v1.GetGroupTargetIconsResponse
-	(*SetLootMethodRequest)(nil),         // 26: v1.SetLootMethodRequest
-	(*SetLootMethodResponse)(nil),        // 27: v1.SetLootMethodResponse
-	(*SetDungeonDifficultyRequest)(nil),  // 28: v1.SetDungeonDifficultyRequest
-	(*SetDungeonDifficultyResponse)(nil), // 29: v1.SetDungeonDifficultyResponse
-	(*SetRaidDifficultyRequest)(nil),     // 30: v1.SetRaidDifficultyRequest
-	(*SetRaidDifficultyResponse)(nil),    // 31: v1.SetRaidDifficultyResponse
-	(*GetGroupResponse_GroupMember)(nil), // 32: v1.GetGroupResponse.GroupMember
-	(*GetGroupResponse_Group)(nil),       // 33: v1.GetGroupResponse.Group
+	(InviteResponse_Status)(0),               // 0: v1.InviteResponse.Status
+	(AcceptInviteResponse_Status)(0),         // 1: v1.AcceptInviteResponse.Status
+	(UninviteResponse_Status)(0),             // 2: v1.UninviteResponse.Status
+	(SetDungeonDifficultyResponse_Status)(0), // 3: v1.SetDungeonDifficultyResponse.Status
+	(SetRaidDifficultyResponse_Status)(0),    // 4: v1.SetRaidDifficultyResponse.Status
+	(*InviteParams)(nil),                     // 5: v1.InviteParams
+	(*InviteResponse)(nil),                   // 6: v1.InviteResponse
+	(*AcceptInviteParams)(nil),               // 7: v1.AcceptInviteParams
+	(*AcceptInviteResponse)(nil),             // 8: v1.AcceptInviteResponse
+	(*GetGroupRequest)(nil),                  // 9: v1.GetGroupRequest
+	(*GetGroupResponse)(nil),                 // 10: v1.GetGroupResponse
+	(*GetGroupByMemberRequest)(nil),          // 11: v1.GetGroupByMemberRequest
+	(*GetGroupIDByPlayerRequest)(nil),        // 12: v1.GetGroupIDByPlayerRequest
+	(*GetGroupIDByPlayerResponse)(nil),       // 13: v1.GetGroupIDByPlayerResponse
+	(*UninviteParams)(nil),                   // 14: v1.UninviteParams
+	(*UninviteResponse)(nil),                 // 15: v1.UninviteResponse
+	(*GroupLeaveParams)(nil),                 // 16: v1.GroupLeaveParams
+	(*GroupLeaveResponse)(nil),               // 17: v1.GroupLeaveResponse
+	(*ConvertToRaidParams)(nil),              // 18: v1.ConvertToRaidParams
+	(*ConvertToRaidResponse)(nil),            // 19: v1.ConvertToRaidResponse
+	(*ChangeLeaderParams)(nil),               // 20: v1.ChangeLeaderParams
+	(*ChangeLeaderResponse)(nil),             // 21: v1.ChangeLeaderResponse
+	(*SendGroupMessageParams)(nil),           // 22: v1.SendGroupMessageParams
+	(*SendGroupMessageResponse)(nil),         // 23: v1.SendGroupMessageResponse
+	(*SetGroupTargetIconRequest)(nil),        // 24: v1.SetGroupTargetIconRequest
+	(*SetGroupTargetIconResponse)(nil),       // 25: v1.SetGroupTargetIconResponse
+	(*GetGroupTargetIconsRequest)(nil),       // 26: v1.GetGroupTargetIconsRequest
+	(*GetGroupTargetIconsResponse)(nil),      // 27: v1.GetGroupTargetIconsResponse
+	(*SetLootMethodRequest)(nil),             // 28: v1.SetLootMethodRequest
+	(*SetLootMethodResponse)(nil),            // 29: v1.SetLootMethodResponse
+	(*SetDungeonDifficultyRequest)(nil),      // 30: v1.SetDungeonDifficultyRequest
+	(*SetDungeonDifficultyResponse)(nil),     // 31: v1.SetDungeonDifficultyResponse
+	(*SetRaidDifficultyRequest)(nil),         // 32: v1.SetRaidDifficultyRequest
+	(*SetRaidDifficultyResponse)(nil),        // 33: v1.SetRaidDifficultyResponse
+	(*GetGroupResponse_GroupMember)(nil),     // 34: v1.GetGroupResponse.GroupMember
+	(*GetGroupResponse_Group)(nil),           // 35: v1.GetGroupResponse.Group
 }
 var file_group_proto_depIdxs = []int32{
 	0,  // 0: v1.InviteResponse.status:type_name -> v1.InviteResponse.Status
 	1,  // 1: v1.AcceptInviteResponse.status:type_name -> v1.AcceptInviteResponse.Status
-	33, // 2: v1.GetGroupResponse.group:type_name -> v1.GetGroupResponse.Group
+	35, // 2: v1.GetGroupResponse.group:type_name -> v1.GetGroupResponse.Group
 	2,  // 3: v1.UninviteResponse.status:type_name -> v1.UninviteResponse.Status
-	32, // 4: v1.GetGroupResponse.Group.members:type_name -> v1.GetGroupResponse.GroupMember
-	3,  // 5: v1.GroupService.Invite:input_type -> v1.InviteParams
-	12, // 6: v1.GroupService.Uninvite:input_type -> v1.UninviteParams
-	14, // 7: v1.GroupService.Leave:input_type -> v1.GroupLeaveParams
-	16, // 8: v1.GroupService.ConvertToRaid:input_type -> v1.ConvertToRaidParams
-	18, // 9: v1.GroupService.ChangeLeader:input_type -> v1.ChangeLeaderParams
-	5,  // 10: v1.GroupService.AcceptInvite:input_type -> v1.AcceptInviteParams
-	7,  // 11: v1.GroupService.GetGroup:input_type -> v1.GetGroupRequest
-	9,  // 12: v1.GroupService.GetGroupByMember:input_type -> v1.GetGroupByMemberRequest
-	10, // 13: v1.GroupService.GetGroupIDByPlayer:input_type -> v1.GetGroupIDByPlayerRequest
-	22, // 14: v1.GroupService.SetGroupTargetIcon:input_type -> v1.SetGroupTargetIconRequest
-	26, // 15: v1.GroupService.SetLootMethod:input_type -> v1.SetLootMethodRequest
-	28, // 16: v1.GroupService.SetDungeonDifficulty:input_type -> v1.SetDungeonDifficultyRequest
-	30, // 17: v1.GroupService.SetRaidDifficulty:input_type -> v1.SetRaidDifficultyRequest
-	20, // 18: v1.GroupService.SendMessage:input_type -> v1.SendGroupMessageParams
-	4,  // 19: v1.GroupService.Invite:output_type -> v1.InviteResponse
-	13, // 20: v1.GroupService.Uninvite:output_type -> v1.UninviteResponse
-	15, // 21: v1.GroupService.Leave:output_type -> v1.GroupLeaveResponse
-	17, // 22: v1.GroupService.ConvertToRaid:output_type -> v1.ConvertToRaidResponse
-	19, // 23: v1.GroupService.ChangeLeader:output_type -> v1.ChangeLeaderResponse
-	6,  // 24: v1.GroupService.AcceptInvite:output_type -> v1.AcceptInviteResponse
-	8,  // 25: v1.GroupService.GetGroup:output_type -> v1.GetGroupResponse
-	8,  // 26: v1.GroupService.GetGroupByMember:output_type -> v1.GetGroupResponse
-	11, // 27: v1.GroupService.GetGroupIDByPlayer:output_type -> v1.GetGroupIDByPlayerResponse
-	23, // 28: v1.GroupService.SetGroupTargetIcon:output_type -> v1.SetGroupTargetIconResponse
-	27, // 29: v1.GroupService.SetLootMethod:output_type -> v1.SetLootMethodResponse
-	29, // 30: v1.GroupService.SetDungeonDifficulty:output_type -> v1.SetDungeonDifficultyResponse
-	31, // 31: v1.GroupService.SetRaidDifficulty:output_type -> v1.SetRaidDifficultyResponse
-	21, // 32: v1.GroupService.SendMessage:output_type -> v1.SendGroupMessageResponse
-	19, // [19:33] is the sub-list for method output_type
-	5,  // [5:19] is the sub-list for method input_type
-	5,  // [5:5] is the sub-list for extension type_name
-	5,  // [5:5] is the sub-list for extension extendee
-	0,  // [0:5] is the sub-list for field type_name
+	3,  // 4: v1.SetDungeonDifficultyResponse.status:type_name -> v1.SetDungeonDifficultyResponse.Status
+	4,  // 5: v1.SetRaidDifficultyResponse.status:type_name -> v1.SetRaidDifficultyResponse.Status
+	34, // 6: v1.GetGroupResponse.Group.members:type_name -> v1.GetGroupResponse.GroupMember
+	5,  // 7: v1.GroupService.Invite:input_type -> v1.InviteParams
+	14, // 8: v1.GroupService.Uninvite:input_type -> v1.UninviteParams
+	16, // 9: v1.GroupService.Leave:input_type -> v1.GroupLeaveParams
+	18, // 10: v1.GroupService.ConvertToRaid:input_type -> v1.ConvertToRaidParams
+	20, // 11: v1.GroupService.ChangeLeader:input_type -> v1.ChangeLeaderParams
+	7,  // 12: v1.GroupService.AcceptInvite:input_type -> v1.AcceptInviteParams
+	9,  // 13: v1.GroupService.GetGroup:input_type -> v1.GetGroupRequest
+	11, // 14: v1.GroupService.GetGroupByMember:input_type -> v1.GetGroupByMemberRequest
+	12, // 15: v1.GroupService.GetGroupIDByPlayer:input_type -> v1.GetGroupIDByPlayerRequest
+	24, // 16: v1.GroupService.SetGroupTargetIcon:input_type -> v1.SetGroupTargetIconRequest
+	28, // 17: v1.GroupService.SetLootMethod:input_type -> v1.SetLootMethodRequest
+	30, // 18: v1.GroupService.SetDungeonDifficulty:input_type -> v1.SetDungeonDifficultyRequest
+	32, // 19: v1.GroupService.SetRaidDifficulty:input_type -> v1.SetRaidDifficultyRequest
+	22, // 20: v1.GroupService.SendMessage:input_type -> v1.SendGroupMessageParams
+	6,  // 21: v1.GroupService.Invite:output_type -> v1.InviteResponse
+	15, // 22: v1.GroupService.Uninvite:output_type -> v1.UninviteResponse
+	17, // 23: v1.GroupService.Leave:output_type -> v1.GroupLeaveResponse
+	19, // 24: v1.GroupService.ConvertToRaid:output_type -> v1.ConvertToRaidResponse
+	21, // 25: v1.GroupService.ChangeLeader:output_type -> v1.ChangeLeaderResponse
+	8,  // 26: v1.GroupService.AcceptInvite:output_type -> v1.AcceptInviteResponse
+	10, // 27: v1.GroupService.GetGroup:output_type -> v1.GetGroupResponse
+	10, // 28: v1.GroupService.GetGroupByMember:output_type -> v1.GetGroupResponse
+	13, // 29: v1.GroupService.GetGroupIDByPlayer:output_type -> v1.GetGroupIDByPlayerResponse
+	25, // 30: v1.GroupService.SetGroupTargetIcon:output_type -> v1.SetGroupTargetIconResponse
+	29, // 31: v1.GroupService.SetLootMethod:output_type -> v1.SetLootMethodResponse
+	31, // 32: v1.GroupService.SetDungeonDifficulty:output_type -> v1.SetDungeonDifficultyResponse
+	33, // 33: v1.GroupService.SetRaidDifficulty:output_type -> v1.SetRaidDifficultyResponse
+	23, // 34: v1.GroupService.SendMessage:output_type -> v1.SendGroupMessageResponse
+	21, // [21:35] is the sub-list for method output_type
+	7,  // [7:21] is the sub-list for method input_type
+	7,  // [7:7] is the sub-list for extension type_name
+	7,  // [7:7] is the sub-list for extension extendee
+	0,  // [0:7] is the sub-list for field type_name
 }
 
 func init() { file_group_proto_init() }
@@ -2914,7 +3039,7 @@ func file_group_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: file_group_proto_rawDesc,
-			NumEnums:      3,
+			NumEnums:      5,
 			NumMessages:   31,
 			NumExtensions: 0,
 			NumServices:   1,
