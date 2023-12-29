@@ -51,6 +51,11 @@ jobs:
           docker build -t ghcr.io/${{github.actor}}/mailserver:${{github.ref_name}} -f apps/mailserver/Dockerfile . 
           docker push ghcr.io/${{github.actor}}/mailserver:${{github.ref_name}}
 
+      - name: 'Build and push "groupserver" image'
+        run: |
+          docker build -t ghcr.io/${{github.actor}}/groupserver:${{github.ref_name}} -f apps/groupserver/Dockerfile . 
+          docker push ghcr.io/${{github.actor}}/groupserver:${{github.ref_name}}
+
       - name: 'Build and push "servers-registry" image'
         run: |
           docker build -t ghcr.io/${{github.actor}}/servers-registry:${{github.ref_name}} -f apps/servers-registry/Dockerfile . 

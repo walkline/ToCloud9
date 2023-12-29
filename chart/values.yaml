@@ -93,6 +93,17 @@ charserver:
     internalPort: 8087
     externalPort: 8087
 
+groupserver:
+  replicaCount: 1
+  image:
+    repository: ghcr.io/walkline/groupserver
+    pullPolicy: IfNotPresent
+    tag: "v0.0.1"
+  service:
+    type: ClusterIP
+    internalPort: 8998
+    externalPort: 8998
+
 mailserver:
   replicaCount: 1
   image:
