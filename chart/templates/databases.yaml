@@ -1,0 +1,50 @@
+# TODO: convert to secret
+kind: ConfigMap
+apiVersion: v1
+metadata:
+  name: mysql-init-scripts
+  namespace: {{ .Release.Namespace }}
+data:
+  000_init.sql: |
+    DROP USER IF EXISTS '{{ .Values.databases.db_user }}';
+    CREATE USER '{{ .Values.databases.db_user }}' IDENTIFIED BY '{{ .Values.databases.db_password }}' WITH MAX_QUERIES_PER_HOUR 0 MAX_CONNECTIONS_PER_HOUR 0 MAX_UPDATES_PER_HOUR 0;
+
+    GRANT ALL PRIVILEGES ON * . * TO '{{ .Values.databases.db_user }}' WITH GRANT OPTION;
+
+    CREATE DATABASE `{{ .Values.databases.db_world_name }}` DEFAULT CHARACTER SET UTF8MB4 COLLATE utf8mb4_unicode_ci;
+
+    CREATE DATABASE `{{ .Values.databases.acore_characters }}` DEFAULT CHARACTER SET UTF8MB4 COLLATE utf8mb4_unicode_ci;
+
+    CREATE DATABASE `{{ .Values.databases.acore_auth }}` DEFAULT CHARACTER SET UTF8MB4 COLLATE utf8mb4_unicode_ci;
+
+    GRANT ALL PRIVILEGES ON `{{ .Values.databases.db_world_name }}` . * TO '{{ .Values.databases.db_user }}' WITH GRANT OPTION;
+
+    GRANT ALL PRIVILEGES ON `{{ .Values.databases.acore_characters }}` . * TO '{{ .Values.databases.db_user }}' WITH GRANT OPTION;
+
+    GRANT ALL PRIVILEGES ON `{{ .Values.databases.acore_auth }}` . * TO '{{ .Values.databases.db_user }}' WITH GRANT OPTION;
+
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ .Release.Name }}-databases-config
+type: Opaque
+stringData:
+  user: "{{ .Values.databases.db_user }}"
+  password: "{{ .Values.databases.db_password }}"
+  schema_type: "{{ .Values.databases.db_schema_type }}"
+{{- if ne .Values.mysql.external_db_hostname "" }}
+  AUTH_DB_CONNECTION: "{{ .Values.databases.db_user }}:{{ .Values.databases.db_password }}@tcp({{ .Values.databases.external_db_hostname }}:{{ .Values.databases.external_db_port }})/{{ .Values.databases.db_auth_name }}"
+  CHAR_DB_CONNECTION: "{{ .Values.databases.db_user }}:{{ .Values.databases.db_password }}@tcp({{ .Values.databases.external_db_hostname }}:{{ .Values.databases.external_db_port }})/{{ .Values.databases.db_characters_name }}"
+  WORLD_DB_CONNECTION: "{{ .Values.databases.db_user }}:{{ .Values.databases.db_password }}@tcp({{ .Values.databases.external_db_hostname }}:{{ .Values.databases.external_db_port }})/{{ .Values.databases.db_world_name }}"
+  AC_LOGIN_DATABASE_INFO: "{{ .Values.databases.external_db_hostname }};{{ .Values.databases.external_db_port }};{{ .Values.databases.db_user }};{{ .Values.databases.db_password }};{{ .Values.databases.db_auth_name }}"
+  AC_WORLD_DATABASE_INFO: "{{ .Values.databases.external_db_hostname }};{{ .Values.databases.external_db_port }};{{ .Values.databases.db_user }};{{ .Values.databases.db_password }};{{ .Values.databases.db_world_name }}"
+  AC_CHARACTER_DATABASE_INFO: "{{ .Values.databases.external_db_hostname }};{{ .Values.databases.external_db_port }};{{ .Values.databases.db_user }};{{ .Values.databases.db_password }};{{ .Values.databases.db_characters_name }}"
+{{ else }}
+  AUTH_DB_CONNECTION: "{{ .Values.databases.db_user }}:{{ .Values.databases.db_password }}@tcp({{ .Release.Name }}-mysql-headless:3306)/{{ .Values.databases.db_auth_name }}"
+  CHAR_DB_CONNECTION: "{{ .Values.databases.db_user }}:{{ .Values.databases.db_password }}@tcp({{ .Release.Name }}-mysql-headless:3306)/{{ .Values.databases.db_characters_name }}"
+  WORLD_DB_CONNECTION: "{{ .Values.databases.db_user }}:{{ .Values.databases.db_password }}@tcp({{ .Release.Name }}-mysql-headless:3306)/{{ .Values.databases.db_world_name }}"
+  AC_LOGIN_DATABASE_INFO: "{{ .Release.Name }}-mysql-headless;3306;{{ .Values.databases.db_user }};{{ .Values.databases.db_password }};{{ .Values.databases.db_auth_name }}"
+  AC_WORLD_DATABASE_INFO: "{{ .Release.Name }}-mysql-headless;3306;{{ .Values.databases.db_user }};{{ .Values.databases.db_password }};{{ .Values.databases.db_world_name }}"
+  AC_CHARACTER_DATABASE_INFO: "{{ .Release.Name }}-mysql-headless;3306;{{ .Values.databases.db_user }};{{ .Values.databases.db_password }};{{ .Values.databases.db_characters_name }}"
+{{ end }}

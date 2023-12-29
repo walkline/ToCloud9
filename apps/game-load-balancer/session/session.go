@@ -54,6 +54,8 @@ type GameSession struct {
 
 	groupUpdateCounter uint32
 
+	packetProcessTimeout time.Duration
+
 	authPacket *packet.Packet
 
 	pingToWorldServerStarted time.Time
@@ -75,6 +77,7 @@ type GameSessionParams struct {
 	CharsUpdsBarrier      *service.CharactersUpdatesBarrier
 	EventsBroadcaster     eBroadcaster.Broadcaster
 	GameServerGRPCConnMgr service.GameServerGRPCConnMgr
+	PacketProcessTimeout  time.Duration
 }
 
 func NewGameSession(
@@ -82,6 +85,12 @@ func NewGameSession(
 	gameSocket sockets.Socket, accountID uint32,
 	authPacket *packet.Packet, params GameSessionParams,
 ) *GameSession {
+	const defaultPacketProcessingTimeout = time.Second * 5
+	packetProcessTimeout := params.PacketProcessTimeout
+	if packetProcessTimeout == 0 {
+		packetProcessTimeout = defaultPacketProcessingTimeout
+	}
+
 	s := &GameSession{
 		ctx:                   ctx,
 		logger:                logger,
@@ -99,6 +108,7 @@ func NewGameSession(
 		charsUpdsBarrier:      params.CharsUpdsBarrier,
 		gameServerGRPCConnMgr: params.GameServerGRPCConnMgr,
 		sessionSafeFuChan:     make(chan func(*GameSession), 100),
+		packetProcessTimeout:  packetProcessTimeout,
 	}
 	return s
 }
@@ -124,17 +134,11 @@ func (s *GameSession) HandlePackets(ctx context.Context) {
 		} else {
 			worldReadChan = nil
 		}
-
-		pCtx, pCancel := context.WithTimeout(c, time.Second*20)
-		// Defer in for loop will leak mem.
-		//defer pCancel()
-
 		select {
 		case f := <-s.sessionSafeFuChan:
 			f(s)
 		case p, ok := <-s.gameSocket.ReadChannel():
 			if !ok {
-				pCancel()
 				return
 			}
 			handler, found := HandleMap[p.Opcode]
@@ -142,9 +146,10 @@ func (s *GameSession) HandlePackets(ctx context.Context) {
 				if s.worldSocket != nil {
 					s.worldSocket.WriteChannel() <- p
 				}
-				pCancel()
 				break
 			}
+
+			pCtx, pCancel := context.WithTimeout(c, s.packetProcessTimeout)
 			if err = handler.Handle(pCtx, s, p); err != nil {
 				s.logger.Error().Err(err).Msgf("can't handle packet with name %s", handler.name)
 				if userFriendlyErr, ok := err.(*UserFriendlyError); ok {
@@ -153,12 +158,13 @@ func (s *GameSession) HandlePackets(ctx context.Context) {
 					}
 				}
 			}
+			pCancel()
+
 		// worldReadChan can be nil and can be forever blocked
 		case p, ok := <-worldReadChan:
 			if !ok {
 				s.worldSocket = nil
 				s.onWorldSocketClosed()
-				pCancel()
 				break
 			}
 			handler, found := HandleMap[p.Opcode]
@@ -166,27 +172,30 @@ func (s *GameSession) HandlePackets(ctx context.Context) {
 				if s.gameSocket != nil {
 					s.gameSocket.WriteChannel() <- p
 				}
-				pCancel()
 				break
 			}
+
+			pCtx, pCancel := context.WithTimeout(c, s.packetProcessTimeout)
 			if err = handler.Handle(pCtx, s, p); err != nil {
 				s.logger.Error().Err(err).Msgf("can't handle packet with name %s", handler.name)
 			}
+			pCancel()
+
 		case event := <-s.eventsChan:
 			handler, found := EventsHandleMap[event.Type]
 			if !found {
-				pCancel()
 				break
 			}
+
+			pCtx, pCancel := context.WithTimeout(c, s.packetProcessTimeout)
 			if err = handler.Handle(pCtx, s, &event); err != nil {
 				s.logger.Error().Err(err).Msgf("can't handle event with name %s", handler.name)
 			}
-		case <-c.Done():
 			pCancel()
+
+		case <-c.Done():
 			return
 		}
-
-		pCancel()
 	}
 }
 
@@ -204,7 +213,7 @@ func (s *GameSession) Login(ctx context.Context, p *packet.Packet) error {
 		resp := packet.NewWriterWithSize(packet.SMsgCharacterLoginFailed, 1)
 		resp.Uint8(uint8(code))
 		s.gameSocket.Send(resp)
-		return err
+		return fmt.Errorf("failed to connect to game server, err: %w", err)
 	}
 
 	s.character = char
@@ -392,7 +401,7 @@ func (s *GameSession) connectToGameServer(ctx context.Context, characterGUID uin
 	})
 
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("can't get characters to login, err: %w", err)
 	}
 
 	if r.Character == nil {
@@ -411,7 +420,7 @@ func (s *GameSession) connectToGameServer(ctx context.Context, characterGUID uin
 	})
 
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("can't get available game servers for map, err: %w", err)
 	}
 
 	if len(serversResult.GameServers) == 0 {

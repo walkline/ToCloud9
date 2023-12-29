@@ -1,0 +1,12 @@
+dependencies:
+- name: nats
+  repository: https://nats-io.github.io/k8s/helm/charts/
+  version: 1.1.5
+- name: redis
+  repository: https://charts.bitnami.com/bitnami
+  version: 18.4.0
+- name: mysql
+  repository: https://charts.bitnami.com/bitnami
+  version: 9.14.3
+digest: sha256:808e95ad8dcfb99e1b75fd06f50b9695e350eb768bc08eb957ab5f72a58bd4e7
+generated: "2023-11-16T21:07:35.87621062+01:00"

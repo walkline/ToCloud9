@@ -56,6 +56,7 @@ game-load-balancer:
   chatServiceAddress: "localhost:8992"
   guildsServiceAddress: "localhost:8995"
   mailServiceAddress: "localhost:8997"
+  packetProcessTimeoutSecs: 20
   natsUrl: *defaultNatsUrl
   logging: *defaultLogging
 

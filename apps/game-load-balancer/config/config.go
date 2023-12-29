@@ -49,6 +49,9 @@ type Config struct {
 
 	// NatsURL is nats connection url
 	NatsURL string `yaml:"natsUrl" env:"NATS_URL" env-default:"nats://nats:4222"`
+
+	// PacketProcessTimeoutSecs is the time given to process single opcode (if it's not forwarded to game server).
+	PacketProcessTimeoutSecs uint32 `yaml:"packetProcessTimeoutSecs" env:"PACKET_PROCESS_TIMEOUT_SECS" env-default:"20"`
 }
 
 func (c Config) PortInt() (p int) {

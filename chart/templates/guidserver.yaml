@@ -1,0 +1,65 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata: {{ $fullname := printf "%s-%s" .Release.Name .Chart.Name | trunc 63 | trimSuffix "-" }}
+  name: {{ $fullname }}-guidserver
+  labels:
+    chart: "{{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}"
+spec:
+  selector:
+    matchLabels:
+      app: {{ $fullname }}-guidserver
+  replicas: {{ default 1 .Values.guidserver.replicaCount | int }}
+  template:
+    metadata:
+      labels:
+        app: {{ $fullname }}-guidserver
+    spec:
+      containers:
+      - name: {{ .Release.Name }}-guidserver
+        image: "{{ .Values.guidserver.image.repository }}:{{ .Values.guidserver.image.tag }}"
+        imagePullPolicy: {{ .Values.guidserver.image.pullPolicy | toString }}
+        env:
+        - name: PORT
+          value: "{{ .Values.guidserver.service.internalPort | int }}"
+        - name: REDIS_URL
+          value: redis://{{ .Release.Name }}-redis-headless:6379/0
+        - name: CHAR_DB_CONNECTION
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Release.Name }}-databases-config
+              key: CHAR_DB_CONNECTION
+        ports:
+        - containerPort: {{ .Values.guidserver.service.internalPort | int  }}
+        # livenessProbe:
+        #   httpGet:
+        #     path: /
+        #     port: {{ .Values.guidserver.service.internalPort | int }}
+        # readinessProbe:
+        #   httpGet:
+        #     path: /
+        #     port: {{ .Values.guidserver.service.internalPort | int }}
+        securityContext:
+          capabilities:
+            drop: ["ALL"]
+          seccompProfile:
+            type: RuntimeDefault
+          # runAsNonRoot: true
+          allowPrivilegeEscalation: false
+        resources:
+{{ toYaml .Values.resources | indent 10 }}
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-guidserver
+  labels:
+    chart: "{{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}"
+spec:
+  type: {{ .Values.guidserver.service.type }}
+  ports:
+  - port: {{ .Values.guidserver.service.externalPort | int  }}
+    targetPort: {{ .Values.guidserver.service.internalPort | int  }}
+    protocol: TCP
+  selector:
+    app: {{ $fullname }}-guidserver

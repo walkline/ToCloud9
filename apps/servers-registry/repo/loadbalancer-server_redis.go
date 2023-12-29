@@ -21,8 +21,8 @@ func NewLoadBalancerRedisRepo(rdb *redis.Client) LoadBalancerRepo {
 }
 
 func (g *loadBalancerRedisRepo) Add(ctx context.Context, server *LoadBalancerServer) (*LoadBalancerServer, error) {
-	server.Address = strings.ToLower(server.Address)
-	server.ID = g.generateID(server.Address)
+	server.HealthCheckAddr = strings.ToLower(server.HealthCheckAddr)
+	server.ID = g.generateID(server.HealthCheckAddr)
 
 	d, err := json.Marshal(server)
 	if err != nil {
@@ -67,8 +67,8 @@ func (g *loadBalancerRedisRepo) Update(ctx context.Context, id string, f func(Lo
 	return status.Err()
 }
 
-func (g *loadBalancerRedisRepo) Remove(ctx context.Context, address string) error {
-	key := g.key(g.generateID(address))
+func (g *loadBalancerRedisRepo) Remove(ctx context.Context, healthCheckAddress string) error {
+	key := g.key(g.generateID(healthCheckAddress))
 	res := g.rdb.Get(ctx, key)
 	if res.Err() != nil {
 		return res.Err()

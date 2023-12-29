@@ -1,0 +1,24 @@
+name: Build and Push Gameserver Images
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          fetch-depth: 2
+      - name: 'Login to GitHub Container Registry'
+        uses: docker/login-action@v1
+        with:
+          registry: ghcr.io
+          username: ${{github.actor}}
+          password: ${{secrets.GITHUB_TOKEN}}
+
+      - name: 'Build and push AzerothCore gameserver image'
+        run: |
+          docker build -t ghcr.io/${{github.actor}}/gameserver-ac:${{github.ref_name}} -f game-server/azerothcore/Dockerfile . 
+          docker push ghcr.io/${{github.actor}}/gameserver-ac:${{github.ref_name}}
+

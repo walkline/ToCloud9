@@ -1,0 +1,57 @@
+name: Build and Push Go Images
+
+on: [push]
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          fetch-depth: 2
+      - name: 'Login to GitHub Container Registry'
+        uses: docker/login-action@v1
+        with:
+          registry: ghcr.io
+          username: ${{github.actor}}
+          password: ${{secrets.GITHUB_TOKEN}}
+
+      - name: 'Build and push "authserver" image'
+        run: |
+          docker build -t ghcr.io/${{github.actor}}/authserver:${{github.ref_name}} -f apps/authserver/Dockerfile . 
+          docker push ghcr.io/${{github.actor}}/authserver:${{github.ref_name}}
+
+      - name: 'Build and push "charserver" image'
+        run: |          
+          docker build -t ghcr.io/${{github.actor}}/charserver:${{github.ref_name}} -f apps/charserver/Dockerfile . 
+          docker push ghcr.io/${{github.actor}}/charserver:${{github.ref_name}}
+
+      - name: 'Build and push "chatserver" image'
+        run: |   
+          docker build -t ghcr.io/${{github.actor}}/chatserver:${{github.ref_name}} -f apps/chatserver/Dockerfile . 
+          docker push ghcr.io/${{github.actor}}/chatserver:${{github.ref_name}}
+
+      - name: 'Build and push "game-load-balancer" image'
+        run: |
+          docker build -t ghcr.io/${{github.actor}}/game-load-balancer:${{github.ref_name}} -f apps/game-load-balancer/Dockerfile . 
+          docker push ghcr.io/${{github.actor}}/game-load-balancer:${{github.ref_name}}
+
+      - name: 'Build and push "guidserver" image'
+        run: |  
+          docker build -t ghcr.io/${{github.actor}}/guidserver:${{github.ref_name}} -f apps/guidserver/Dockerfile . 
+          docker push ghcr.io/${{github.actor}}/guidserver:${{github.ref_name}}
+
+      - name: 'Build and push "guildserver" image'
+        run: |
+          docker build -t ghcr.io/${{github.actor}}/guildserver:${{github.ref_name}} -f apps/guildserver/Dockerfile . 
+          docker push ghcr.io/${{github.actor}}/guildserver:${{github.ref_name}}
+
+      - name: 'Build and push "mailserver" image'
+        run: |
+          docker build -t ghcr.io/${{github.actor}}/mailserver:${{github.ref_name}} -f apps/mailserver/Dockerfile . 
+          docker push ghcr.io/${{github.actor}}/mailserver:${{github.ref_name}}
+
+      - name: 'Build and push "servers-registry" image'
+        run: |
+          docker build -t ghcr.io/${{github.actor}}/servers-registry:${{github.ref_name}} -f apps/servers-registry/Dockerfile . 
+          docker push ghcr.io/${{github.actor}}/servers-registry:${{github.ref_name}}

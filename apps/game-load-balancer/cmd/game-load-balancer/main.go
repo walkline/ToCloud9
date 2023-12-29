@@ -146,6 +146,7 @@ func main() {
 			EventsBroadcaster:     broadcaster,
 			CharsUpdsBarrier:      charsUpdsBarrier,
 			GameServerGRPCConnMgr: service.DefaultGameServerGRPCConnMgr,
+			PacketProcessTimeout:  time.Second * time.Duration(conf.PacketProcessTimeoutSecs),
 		})
 		go func() {
 			healthandmetrics.ActiveConnectionsMetrics.Inc()

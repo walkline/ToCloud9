@@ -1,0 +1,162 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata: {{ $fullname := printf "%s-%s" .Release.Name .Chart.Name | trunc 63 | trimSuffix "-" }}
+  name: {{ $fullname }}-gameserver-ac
+  labels:
+    chart: "{{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}"
+spec:
+  selector:
+    matchLabels:
+      app: {{ $fullname }}-gameserver-ac
+  replicas: {{ default 1 .Values.gameserver_ac.replicaCount | int }}
+  template:
+    metadata:
+      labels:
+        app: {{ $fullname }}-gameserver-ac
+    spec:
+      volumes:
+        - name: etc-vol
+          configMap:
+            name: {{ $fullname }}-worldserver-conf
+        - name: data-vol
+          persistentVolumeClaim:
+            claimName: {{ $fullname }}-gameserver-ac-data-shared-pv-claim
+      initContainers:
+        - name: check-data
+          image: "{{ .Values.gameserver_ac.initcontainer.image.repository }}:{{ .Values.gameserver_ac.initcontainer.image.tag }}"
+          imagePullPolicy: {{ .Values.gameserver_ac.initcontainer.image.pullPolicy }}
+          volumeMounts:
+            - name: data-vol
+              mountPath: /data
+          command: ["/bin/sh", "-c"]
+          env:
+            - name: DOWNLOAD_ENABLED
+              value: "{{ .Values.gameserver_ac.initcontainer.download_enabled }}"
+            - name: DOWNLOAD_URL
+              value: "{{ .Values.gameserver_ac.initcontainer.download_url }}"
+          args:
+            - |
+              if [ -z "$(ls -A /data)" ] && [ "$DOWNLOAD_ENABLED" = "true" ]; then
+                apk add --no-cache unzip curl && \
+                cd /data && \
+                curl -L -o data.zip $DOWNLOAD_URL && \
+                unzip -q data.zip && \
+                rm -f data.zip
+              fi
+      containers:
+      - name: {{ .Release.Name }}-gameserver-ac
+        image: "{{ .Values.gameserver_ac.image.repository }}:{{ .Values.gameserver_ac.image.tag }}"
+        imagePullPolicy: {{ .Values.gameserver_ac.image.pullPolicy }}
+        tty: true
+        stdin: true
+        env:
+        - name: PORT
+          value: "{{ .Values.gameserver_ac.service.internalPort | int }}"
+        - name: GUID_PROVIDER_SERVICE_ADDRESS
+          value: {{ .Release.Name }}-guidserver:{{ .Values.guidserver.service.externalPort}}
+        - name: SERVERS_REGISTRY_SERVICE_ADDRESS
+          value: {{ .Release.Name }}-servers-registry:{{ .Values.servers_registry.service.externalPort}}
+        - name: NATS_URL
+          value: nats://{{ .Release.Name }}-nats:4222
+        - name: DB_SCHEMA_TYPE
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Release.Name }}-databases-config
+              key: schema_type
+        - name: CHAR_DB_CONNECTION
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Release.Name }}-databases-config
+              key: CHAR_DB_CONNECTION
+        - name: WORLD_DB_CONNECTION
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Release.Name }}-databases-config
+              key: WORLD_DB_CONNECTION
+        - name: AUTH_DB_CONNECTION
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Release.Name }}-databases-config
+              key: AUTH_DB_CONNECTION
+        - name: AC_LOGIN_DATABASE_INFO
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Release.Name }}-databases-config
+              key: AC_LOGIN_DATABASE_INFO
+        - name: AC_WORLD_DATABASE_INFO
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Release.Name }}-databases-config
+              key: AC_WORLD_DATABASE_INFO
+        - name: AC_CHARACTER_DATABASE_INFO
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Release.Name }}-databases-config
+              key: AC_CHARACTER_DATABASE_INFO
+        - name: AC_CONSOLE_ENABLE
+          value: "1"
+        - name: AC_DATA_DIR
+          value: /data
+        - name: AC_CLUSTER_ENABLED
+          value: "1"
+        - name: AC_WORLD_SERVER_PORT
+          value: "{{ .Values.gameserver_ac.port_world | int }}"
+        - name: CHARACTER_GUIDS_BUFFER_SIZE
+          value: "5"
+        - name: ITEM_GUIDS_BUFFER_SIZE
+          value: "50"
+        - name: GRPC_PORT
+          value: "{{ .Values.gameserver_ac.service.internalPort | int }}"
+        - name: HEALTH_CHECK_PORT
+          value: "{{ .Values.gameserver_ac.port_health | int }}"
+        volumeMounts:
+          - name: etc-vol
+            mountPath: /repo/bin/etc
+          - name: data-vol
+            mountPath: /data
+        ports:
+        - name: world
+          containerPort: {{ .Values.gameserver_ac.port_world | int  }}
+        - name: service
+          containerPort: {{ .Values.gameserver_ac.service.internalPort | int  }}
+        - name: health
+          containerPort: {{ .Values.gameserver_ac.port_health | int  }}
+        - name: soap
+          containerPort: {{ .Values.gameserver_ac.port_soap | int  }}
+        - name: telnet
+          containerPort: {{ .Values.gameserver_ac.port_telnet | int  }}
+        # livenessProbe:
+        #   httpGet:
+        #     path: /
+        #     port: {{ .Values.gameserver_ac.service.internalPort | int }}
+        # readinessProbe:
+        #   httpGet:
+        #     path: /
+        #     port: {{ .Values.gameserver_ac.service.internalPort | int }}
+        resources:
+{{ toYaml .Values.resources | indent 10 }}
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ $fullname }}-gameserver-ac-data-shared-pv-claim
+spec:
+  storageClassName: {{ .Values.gameserver_ac.storageClass }}
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      # storage: 15Gi
+      storage: 10Gi
+
+---
+kind: ConfigMap
+apiVersion: v1
+metadata:
+  name: {{ $fullname }}-worldserver-conf
+  labels:
+    chart: "{{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}"
+data:
+  worldserver.conf: |
+{{ $.Files.Get "files/worldserver.conf" | indent 4 }}
