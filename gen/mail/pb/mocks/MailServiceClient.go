@@ -5,8 +5,9 @@ package mocks
 import (
 	context "context"
 
-	mock "github.com/stretchr/testify/mock"
 	grpc "google.golang.org/grpc"
+
+	mock "github.com/stretchr/testify/mock"
 
 	pb "github.com/walkline/ToCloud9/gen/mail/pb"
 )

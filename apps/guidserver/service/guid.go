@@ -17,6 +17,7 @@ type GuidType uint8
 const (
 	GuidTypeCharacter GuidType = iota
 	GuidTypeItem
+	GuidTypeInstance
 	GuidTypeMax
 )
 
@@ -64,6 +65,24 @@ func NewGuidService(ctx context.Context, mysql repo.MaxGuidProvider, redisStorag
 
 		if max == 0 {
 			max, err = mysql.MaxGuidForItems(ctx, realmID)
+			if err != nil {
+				return nil, err
+			}
+
+			err = redisStorage.SetMaxGuidForItems(ctx, realmID, max)
+			if err != nil {
+				return nil, err
+			}
+		}
+
+		// Inits instances max guids in redis if needed.
+		max, err = redisStorage.MaxGuidForInstances(ctx, realmID)
+		if err != nil {
+			return nil, err
+		}
+
+		if max == 0 {
+			max, err = mysql.MaxGuidForInstances(ctx, realmID)
 			if err != nil {
 				return nil, err
 			}
@@ -196,10 +215,13 @@ func (g *guidServiceImpl) startProcessingGoroutines(ctx context.Context, process
 
 func (g *guidServiceImpl) requestProcessor(requests <-chan guidsRequest, response chan<- guidsResponse) {
 	for r := range requests {
+		var newMax uint64
+		var err error
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+
 		switch r.guidType {
 		case GuidTypeCharacter:
-			ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
-			newMax, err := g.maxGuidsStorage.IncreaseMaxGuidForCharacters(ctx, r.realmID, r.desiredAmount)
+			newMax, err = g.maxGuidsStorage.IncreaseMaxGuidForCharacters(ctx, r.realmID, r.desiredAmount)
 			cancel()
 			if err != nil {
 				log.Err(err).Msg("can't increase characters guid")
@@ -210,32 +232,42 @@ func (g *guidServiceImpl) requestProcessor(requests <-chan guidsRequest, respons
 				continue
 			}
 
-			response <- guidsResponse{
-				request: r,
-				newGuids: GuidDiapason{
-					Start: newMax - r.desiredAmount + 1,
-					End:   newMax,
-				},
-			}
-
 		case GuidTypeItem:
-			ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
-			newMax, err := g.maxGuidsStorage.IncreaseMaxGuidForItems(ctx, r.realmID, r.desiredAmount)
+			newMax, err = g.maxGuidsStorage.IncreaseMaxGuidForItems(ctx, r.realmID, r.desiredAmount)
 			cancel()
 			if err != nil {
 				log.Err(err).Msg("can't increase items guid")
+				response <- guidsResponse{
+					request:  r,
+					newGuids: GuidDiapason{},
+				}
 				continue
 			}
 
-			response <- guidsResponse{
-				request: r,
-				newGuids: GuidDiapason{
-					Start: newMax - r.desiredAmount + 1,
-					End:   newMax,
-				},
+		case GuidTypeInstance:
+			newMax, err = g.maxGuidsStorage.IncreaseMaxGuidForInstances(ctx, r.realmID, r.desiredAmount)
+			cancel()
+			if err != nil {
+				log.Err(err).Msg("can't increase instances guid")
+				response <- guidsResponse{
+					request:  r,
+					newGuids: GuidDiapason{},
+				}
+				continue
 			}
+
 		default:
 			log.Err(fmt.Errorf("unk guid type: %d", r.guidType))
+			cancel()
+			continue
+		}
+
+		response <- guidsResponse{
+			request: r,
+			newGuids: GuidDiapason{
+				Start: newMax - r.desiredAmount + 1,
+				End:   newMax,
+			},
 		}
 	}
 }

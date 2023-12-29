@@ -1,0 +1,266 @@
+syntax = "proto3";
+package v1;
+
+option go_package = "gen/group/pb";
+
+service GroupService {
+  rpc Invite(InviteParams) returns (InviteResponse);
+  rpc Uninvite(UninviteParams) returns (UninviteResponse);
+  rpc Leave(GroupLeaveParams) returns (GroupLeaveResponse);
+
+  rpc ConvertToRaid(ConvertToRaidParams) returns (ConvertToRaidResponse);
+  rpc ChangeLeader(ChangeLeaderParams) returns (ChangeLeaderResponse);
+
+  rpc AcceptInvite(AcceptInviteParams) returns (AcceptInviteResponse);
+
+  rpc GetGroup(GetGroupRequest) returns (GetGroupResponse);
+  rpc GetGroupByMember(GetGroupByMemberRequest) returns (GetGroupResponse);
+  rpc GetGroupIDByPlayer(GetGroupIDByPlayerRequest) returns (GetGroupIDByPlayerResponse);
+
+  rpc SetGroupTargetIcon(SetGroupTargetIconRequest) returns (SetGroupTargetIconResponse);
+  rpc SetLootMethod(SetLootMethodRequest) returns (SetLootMethodResponse);
+
+  rpc SetDungeonDifficulty(SetDungeonDifficultyRequest) returns (SetDungeonDifficultyResponse);
+  rpc SetRaidDifficulty(SetRaidDifficultyRequest) returns (SetRaidDifficultyResponse);
+
+  rpc SendMessage(SendGroupMessageParams) returns (SendGroupMessageResponse);
+}
+
+message InviteParams {
+  string api = 1;
+
+  uint32 realmID = 2;
+
+  uint64 inviter = 3;
+  uint64 invited = 4;
+
+  string inviterName = 5;
+  string invitedName = 6;
+}
+
+message InviteResponse {
+  enum Status {
+    Ok = 0;
+    Error = 1;
+  }
+
+  string api = 1;
+
+  Status status = 2;
+}
+
+message AcceptInviteParams {
+  string api = 1;
+
+  uint32 realmID = 2;
+  uint64 player = 3;
+}
+
+message AcceptInviteResponse {
+  enum Status {
+    Ok = 0;
+    Error = 1;
+  }
+
+  string api = 1;
+
+  Status status = 2;
+}
+
+message GetGroupRequest {
+  string api = 1;
+
+  uint32 realmID = 2;
+  uint32 groupID = 3;
+}
+
+message GetGroupResponse {
+  string api = 1;
+
+  message GroupMember {
+    uint64 guid = 1;
+    uint32 flags = 2;
+    string name = 3;
+    bool isOnline = 4;
+    uint32 subGroup = 5;
+    uint32 roles = 6;
+  }
+
+  message Group {
+    uint32  id = 1;
+    uint64 leader = 2;
+    uint32 lootMethod = 3;
+    uint64 looter = 4;
+    uint32 lootThreshold = 5;
+    uint32 groupType = 6;
+    uint32 difficulty = 7;
+    uint32 raidDifficulty = 8;
+    uint64 masterLooter = 9;
+    repeated uint64 targetIconsList = 10;
+    repeated GroupMember members = 11;
+  }
+
+  Group group = 2;
+}
+
+message GetGroupByMemberRequest {
+  string api = 1;
+
+  uint32 realmID = 2;
+  uint64 player = 3;
+}
+
+message GetGroupIDByPlayerRequest {
+  string api = 1;
+
+  uint32 realmID = 2;
+  uint64 player = 3;
+}
+
+message GetGroupIDByPlayerResponse {
+  string api = 1;
+
+  uint32 groupID = 2;
+}
+
+message UninviteParams {
+  string api = 1;
+
+  uint32 realmID = 2;
+  uint64 initiator = 3;
+  uint64 target = 4;
+  string reason = 5;
+}
+
+message UninviteResponse {
+  enum Status {
+    Ok = 0;
+    Error = 1;
+  }
+
+  string api = 1;
+
+  Status status = 2;
+}
+
+message GroupLeaveParams {
+  string api = 1;
+
+  uint32 realmID = 2;
+  uint64 player = 3;
+}
+
+message GroupLeaveResponse {
+  string api = 1;
+}
+
+message ConvertToRaidParams {
+  string api = 1;
+
+  uint32 realmID = 2;
+  uint64 player = 3;
+}
+
+message ConvertToRaidResponse {
+  string api = 1;
+}
+
+message ChangeLeaderParams {
+  string api = 1;
+
+  uint32 realmID = 2;
+  uint64 player = 3;
+  uint64 newLeader = 4;
+}
+
+message ChangeLeaderResponse {
+  string api = 1;
+}
+
+message SendGroupMessageParams {
+  string api = 1;
+  uint32 realmID = 2;
+  uint64 senderGUID = 3;
+  uint32 messageType = 4;
+  string message = 5;
+  uint32 language = 6;
+}
+
+message SendGroupMessageResponse {
+  string api = 1;
+}
+
+message SetGroupTargetIconRequest {
+  string api = 1;
+  uint32 realmID = 2;
+  uint64 setterGUID = 3;
+  uint32 iconID = 4;
+  uint64 targetGUID = 5;
+}
+
+message SetGroupTargetIconResponse {
+  string api = 1;
+}
+
+message GetGroupTargetIconsRequest {
+  string api = 1;
+  uint32 realmID = 2;
+  uint64 playerGUID = 3;
+}
+
+message GetGroupTargetIconsResponse {
+  string api = 1;
+  repeated uint64 targets = 2;
+}
+
+message SetLootMethodRequest {
+  string api = 1;
+  uint32 realmID = 2;
+  uint64 playerGUID = 3;
+
+  uint32 method = 4;
+  uint64 lootMaster = 5;
+  uint32 lootThreshold = 6;
+}
+
+message SetLootMethodResponse {
+  string api = 1;
+}
+
+message SetDungeonDifficultyRequest {
+  string api = 1;
+  uint32 realmID = 2;
+  uint64 playerGUID = 3;
+
+  uint32 difficulty = 4;
+}
+
+message SetDungeonDifficultyResponse {
+  string api = 1;
+
+  enum Status {
+    Ok = 0;
+    MemberIsInDungeon = 1;
+  }
+
+  Status status = 2;
+}
+
+message SetRaidDifficultyRequest {
+  string api = 1;
+  uint32 realmID = 2;
+  uint64 playerGUID = 3;
+
+  uint32 difficulty = 4;
+}
+
+message SetRaidDifficultyResponse {
+  string api = 1;
+
+  enum Status {
+    Ok = 0;
+    MemberIsInRaid = 1;
+  }
+
+  Status status = 2;
+}

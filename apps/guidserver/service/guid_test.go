@@ -10,11 +10,13 @@ import (
 )
 
 type MaxGuidStorageMock struct {
-	charCounter []uint64
-	itemCounter []uint64
+	charCounter      []uint64
+	itemCounter      []uint64
+	instancesCounter []uint64
 
-	charLock sync.RWMutex
-	itemLock sync.RWMutex
+	charLock      sync.RWMutex
+	itemLock      sync.RWMutex
+	instancesLock sync.RWMutex
 
 	increaseDelay time.Duration
 
@@ -35,6 +37,13 @@ func (m *MaxGuidStorageMock) MaxGuidForItems(ctx context.Context, realmID uint32
 	return m.itemCounter[realmID], nil
 }
 
+func (m *MaxGuidStorageMock) MaxGuidForInstances(ctx context.Context, realmID uint32) (uint64, error) {
+	m.instancesLock.RLock()
+	defer m.instancesLock.RUnlock()
+
+	return m.instancesCounter[realmID], nil
+}
+
 func (m *MaxGuidStorageMock) SetMaxGuidForCharacters(ctx context.Context, realmID uint32, value uint64) error {
 	m.charLock.Lock()
 	defer m.charLock.Unlock()
@@ -48,6 +57,14 @@ func (m *MaxGuidStorageMock) SetMaxGuidForItems(ctx context.Context, realmID uin
 	defer m.itemLock.Unlock()
 
 	m.itemCounter[realmID] = value
+	return nil
+}
+
+func (m *MaxGuidStorageMock) SetMaxGuidForInstances(ctx context.Context, realmID uint32, value uint64) error {
+	m.instancesLock.Lock()
+	defer m.instancesLock.Unlock()
+
+	m.instancesCounter[realmID] = value
 	return nil
 }
 
@@ -83,6 +100,22 @@ func (m *MaxGuidStorageMock) IncreaseMaxGuidForItems(ctx context.Context, realmI
 	return m.itemCounter[realmID], nil
 }
 
+func (m *MaxGuidStorageMock) IncreaseMaxGuidForInstances(ctx context.Context, realmID uint32, increaseAmount uint64) (uint64, error) {
+	m.instancesLock.Lock()
+	defer m.instancesLock.Unlock()
+
+	if m.increaseDelay > 0 {
+		time.Sleep(m.increaseDelay)
+	}
+
+	m.counterLock.Lock()
+	m.requestsCounter++
+	m.counterLock.Unlock()
+
+	m.instancesCounter[realmID] += increaseAmount
+	return m.instancesCounter[realmID], nil
+}
+
 func (m *MaxGuidStorageMock) GetRequestsCounter() int {
 	m.counterLock.Lock()
 	defer m.counterLock.Unlock()
@@ -94,8 +127,9 @@ func Test_guidServiceImpl_GetGuids(t *testing.T) {
 	defer cancel()
 
 	mock := &MaxGuidStorageMock{
-		charCounter: []uint64{1000, 1000, 1000},
-		itemCounter: []uint64{1, 1, 1},
+		charCounter:      []uint64{1000, 1000, 1000},
+		itemCounter:      []uint64{1, 1, 1},
+		instancesCounter: []uint64{1, 1, 1},
 		//increaseDelay: time.Microsecond * 1,
 	}
 
@@ -116,26 +150,29 @@ func Test_guidServiceImpl_GetGuids(t *testing.T) {
 	//time.Sleep(time.Second)
 }
 
-func Test_guidServiceImpl_GetGuids_TwoTypes(t *testing.T) {
+func Test_guidServiceImpl_GetGuids_ThreeTypes(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	mock := &MaxGuidStorageMock{
-		charCounter:   []uint64{1000, 1000, 1000},
-		itemCounter:   []uint64{1, 1, 1},
-		increaseDelay: time.Millisecond * 1,
+		charCounter:      []uint64{1000, 1000, 1000},
+		itemCounter:      []uint64{1, 1, 1},
+		instancesCounter: []uint64{50, 50, 50},
+		increaseDelay:    time.Millisecond * 1,
 	}
 
 	expCharDiapasons := []GuidDiapason{{1001, 1001}, {1002, 1002}, {1003, 1003}, {1004, 1004}, {1005, 1005}, {1006, 1006}}
 	expItemDiapasons := []GuidDiapason{{2, 2}, {3, 3}, {4, 4}, {5, 5}, {6, 6}, {7, 7}}
+	expInstancesDiapasons := []GuidDiapason{{51, 51}, {52, 52}, {53, 53}, {54, 54}, {55, 55}, {56, 56}}
 
 	charDiapasons := []GuidDiapason{}
 	itemDiapasons := []GuidDiapason{}
+	instancesDiapasons := []GuidDiapason{}
 
 	s, err := NewGuidService(ctx, nil, mock, []uint32{1, 2}, 4)
 	assert.NoError(t, err)
 	wg := sync.WaitGroup{}
-	wg.Add(2)
+	wg.Add(3)
 	go func() {
 		for i := 0; i < 6; i++ {
 			diapason, err := s.GetGuids(ctx, 1, uint8(GuidTypeCharacter), 1)
@@ -152,8 +189,17 @@ func Test_guidServiceImpl_GetGuids_TwoTypes(t *testing.T) {
 		}
 		wg.Done()
 	}()
+	go func() {
+		for i := 0; i < 6; i++ {
+			diapason, err := s.GetGuids(ctx, 1, uint8(GuidTypeInstance), 1)
+			assert.NoError(t, err)
+			instancesDiapasons = append(instancesDiapasons, diapason...)
+		}
+		wg.Done()
+	}()
 	wg.Wait()
 
 	assert.Equal(t, expCharDiapasons, charDiapasons)
 	assert.Equal(t, expItemDiapasons, itemDiapasons)
+	assert.Equal(t, expInstancesDiapasons, instancesDiapasons)
 }

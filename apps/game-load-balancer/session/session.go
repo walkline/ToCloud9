@@ -16,6 +16,7 @@ import (
 	"github.com/walkline/ToCloud9/apps/game-load-balancer/sockets/worldsocket"
 	pbChar "github.com/walkline/ToCloud9/gen/characters/pb"
 	pbChat "github.com/walkline/ToCloud9/gen/chat/pb"
+	pbGroup "github.com/walkline/ToCloud9/gen/group/pb"
 	pbGuild "github.com/walkline/ToCloud9/gen/guilds/pb"
 	pbMail "github.com/walkline/ToCloud9/gen/mail/pb"
 	pbServ "github.com/walkline/ToCloud9/gen/servers-registry/pb"
@@ -44,11 +45,14 @@ type GameSession struct {
 	chatServiceClient     pbChat.ChatServiceClient
 	guildServiceClient    pbGuild.GuildServiceClient
 	mailServiceClient     pbMail.MailServiceClient
+	groupServiceClient    pbGroup.GroupServiceClient
 	gameServerGRPCClient  pbGameServ.WorldServerServiceClient
 	eventsProducer        events.LoadBalancerProducer
 	eventsBroadcaster     eBroadcaster.Broadcaster
 	charsUpdsBarrier      *service.CharactersUpdatesBarrier
 	gameServerGRPCConnMgr service.GameServerGRPCConnMgr
+
+	groupUpdateCounter uint32
 
 	packetProcessTimeout time.Duration
 
@@ -68,6 +72,7 @@ type GameSessionParams struct {
 	ChatServiceClient     pbChat.ChatServiceClient
 	GuildsServiceClient   pbGuild.GuildServiceClient
 	MailServiceClient     pbMail.MailServiceClient
+	GroupServiceClient    pbGroup.GroupServiceClient
 	EventsProducer        events.LoadBalancerProducer
 	CharsUpdsBarrier      *service.CharactersUpdatesBarrier
 	EventsBroadcaster     eBroadcaster.Broadcaster
@@ -97,6 +102,7 @@ func NewGameSession(
 		chatServiceClient:     params.ChatServiceClient,
 		guildServiceClient:    params.GuildsServiceClient,
 		mailServiceClient:     params.MailServiceClient,
+		groupServiceClient:    params.GroupServiceClient,
 		eventsProducer:        params.EventsProducer,
 		eventsBroadcaster:     params.EventsBroadcaster,
 		charsUpdsBarrier:      params.CharsUpdsBarrier,
@@ -242,6 +248,10 @@ func (s *GameSession) Login(ctx context.Context, p *packet.Packet) error {
 		return err
 	}
 
+	if err = s.LoadGroupForPlayer(ctx); err != nil {
+		return err
+	}
+
 	return err
 }
 
@@ -364,12 +374,11 @@ func (s *GameSession) HandlePing(ctx context.Context, p *packet.Packet) error {
 	s.pingToWorldServerStarted = time.Now()
 	if s.worldSocket != nil {
 		s.worldSocket.WriteChannel() <- p
+	} else {
+		resp := packet.NewWriterWithSize(packet.SMsgPong, 4)
+		resp.Uint32(p.Reader().Uint32())
+		s.gameSocket.Send(resp)
 	}
-
-	// Would show ping to our load balancer.
-	//resp := packet.NewWriterWithSize(packet.SMsgPong, 4)
-	//resp.Uint32(p.Reader().Uint32())
-	//s.gameSocket.Send(resp)
 
 	return nil
 }

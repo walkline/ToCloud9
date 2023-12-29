@@ -23,10 +23,11 @@ type PacketsReader struct {
 
 	err error
 
-	packet *packet.Packet
+	packet     *packet.Packet
+	sourceType packet.Source
 }
 
-func NewPacketsReader(r io.Reader, opcodeSize uint32) *PacketsReader {
+func NewPacketsReader(r io.Reader, opcodeSize uint32, sourceType packet.Source) *PacketsReader {
 	return &PacketsReader{
 		r:            r,
 		opcodeSize:   opcodeSize,
@@ -35,7 +36,9 @@ func NewPacketsReader(r io.Reader, opcodeSize uint32) *PacketsReader {
 }
 
 func (p *PacketsReader) Next() bool {
-	pack := packet.Packet{}
+	pack := packet.Packet{
+		Source: p.sourceType,
+	}
 	for {
 		if len(p.headerBuffer) > p.hWritePos {
 			n, err := p.r.Read(p.headerBuffer[p.hWritePos:])

@@ -12,6 +12,7 @@ import (
 var eventsHandlersQueue queue.HandlersQueue
 
 // TC9ProcessEventsHooks calls all events hooks.
+//
 //export TC9ProcessEventsHooks
 func TC9ProcessEventsHooks() {
 	handler := eventsHandlersQueue.Pop()
@@ -21,12 +22,25 @@ func TC9ProcessEventsHooks() {
 	}
 }
 
-func SetupEventsListener(nc *nats.Conn, log zerolog.Logger) consumer.Consumer {
+func SetupEventsListener(nc *nats.Conn, realmID uint32, log zerolog.Logger) consumer.Consumer {
 	eventsHandlersQueue = queue.NewHandlersFIFOQueue()
-	natsConsumer := consumer.NewNatsEventsConsumer(nc, NewGuildHandlerFabric(log), eventsHandlersQueue)
+	natsConsumer := consumer.NewNatsEventsConsumer(
+		nc,
+		NewGuildHandlerFabric(log),
+		NewGroupHandlerFabric(log),
+		NewServerRegistryHandlerFabric(log),
+		eventsHandlersQueue,
+		realmID,
+	)
 	if err := natsConsumer.Start(); err != nil {
 		log.Fatal().Err(err).Msg("can't start nats consumer")
 	}
 
 	return natsConsumer
+}
+
+type eventsHandlerFunc func()
+
+func (f eventsHandlerFunc) Handle() {
+	f()
 }

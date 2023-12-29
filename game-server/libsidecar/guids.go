@@ -13,19 +13,29 @@ import (
 )
 
 // TC9GetNextAvailableCharacterGuid returns next available characters GUID. Thread unsafe.
+//
 //export TC9GetNextAvailableCharacterGuid
 func TC9GetNextAvailableCharacterGuid() uint64 {
 	return charactersGuidsIterator.Next()
 }
 
 // TC9GetNextAvailableItemGuid returns next available item GUID. Thread unsafe.
+//
 //export TC9GetNextAvailableItemGuid
 func TC9GetNextAvailableItemGuid() uint64 {
 	return itemsGuidsIterator.Next()
 }
 
+// TC9GetNextAvailableInstanceGuid returns next available dungeon/raid instance GUID. Thread unsafe.
+//
+//export TC9GetNextAvailableInstanceGuid
+func TC9GetNextAvailableInstanceGuid() uint64 {
+	return instancesGuidsIterator.Next()
+}
+
 var charactersGuidsIterator guids.GuidProvider
 var itemsGuidsIterator guids.GuidProvider
+var instancesGuidsIterator guids.GuidProvider
 
 func SetupGuidProviders(realmID uint32, cfg *config.Config) {
 	// pctToTriggerUpdate is percent of used guids to trigger
@@ -45,6 +55,15 @@ func SetupGuidProviders(realmID uint32, cfg *config.Config) {
 	itemsGuidsIterator, err = guids.NewThreadUnsafeGuidProvider(
 		context.Background(),
 		guids.NewItemsGRPCDiapasonsProvider(guidServiceClient, realmID, uint64(cfg.ItemGuidsBufferSize)),
+		pctToTriggerUpdate,
+	)
+	if err != nil {
+		log.Fatal().Err(err).Msg("can't create items guid provider")
+	}
+
+	instancesGuidsIterator, err = guids.NewThreadUnsafeGuidProvider(
+		context.Background(),
+		guids.NewInstancesGRPCDiapasonsProvider(guidServiceClient, realmID, uint64(cfg.InstanceGuidsBufferSize)),
 		pctToTriggerUpdate,
 	)
 	if err != nil {

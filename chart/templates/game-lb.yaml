@@ -47,6 +47,8 @@ spec:
           value: {{ .Release.Name }}-guildserver:{{ .Values.guildserver.service.externalPort}}
         - name: MAIL_SERVICE_ADDRESS
           value: {{ .Release.Name }}-mailserver:{{ .Values.mailserver.service.externalPort}}
+        - name: GROUP_SERVICE_ADDRESS
+          value: {{ .Release.Name }}-groupserver:{{ .Values.groupserver.service.externalPort}}
         - name: DB_SCHEMA_TYPE
           valueFrom:
             secretKeyRef:

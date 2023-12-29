@@ -23,12 +23,14 @@ RUN update-alternatives --install /usr/bin/c++ c++ /usr/bin/clang 100
 RUN mkdir repo
 RUN cd repo && git init && \
     git remote add origin https://github.com/walkline/azerothcore-wotlk.git && \
-    git fetch --depth 1 origin 902118f002cab4268bcdc7e2d9e55c7b3d832379 && \
+    git fetch --depth 1 origin 446debad6af3214b699511c0cf426298b43930b3 && \
     git checkout FETCH_HEAD
 
 COPY --from=build-sidecar ./go/src/github.com/walkline/ToCloud9/libsidecar.so ./repo/deps/libsidecar/libsidecar.so
 COPY --from=build-sidecar ./go/src/github.com/walkline/ToCloud9/libsidecar.h ./repo/deps/libsidecar/include/libsidecar.h
 COPY --from=build-sidecar ./go/src/github.com/walkline/ToCloud9/game-server/libsidecar/events-guild.h ./repo/deps/libsidecar/include/events-guild.h
+COPY --from=build-sidecar ./go/src/github.com/walkline/ToCloud9/game-server/libsidecar/events-group.h ./repo/deps/libsidecar/include/events-group.h
+COPY --from=build-sidecar ./go/src/github.com/walkline/ToCloud9/game-server/libsidecar/events-servers-registry.h ./repo/deps/libsidecar/include/events-servers-registry.h
 COPY --from=build-sidecar ./go/src/github.com/walkline/ToCloud9/game-server/libsidecar/player-items-api.h ./repo/deps/libsidecar/include/player-items-api.h
 COPY --from=build-sidecar ./go/src/github.com/walkline/ToCloud9/game-server/libsidecar/player-money-api.h ./repo/deps/libsidecar/include/player-money-api.h
 COPY --from=build-sidecar ./go/src/github.com/walkline/ToCloud9/game-server/libsidecar/player-interactions-api.h ./repo/deps/libsidecar/include/player-interactions-api.h

@@ -17,6 +17,8 @@ import (
 	mocks "github.com/walkline/ToCloud9/apps/game-load-balancer/sockets/socketmock"
 	pbChar "github.com/walkline/ToCloud9/gen/characters/pb"
 	charMocks "github.com/walkline/ToCloud9/gen/characters/pb/mocks"
+	pbGroup "github.com/walkline/ToCloud9/gen/group/pb"
+	groupMocks "github.com/walkline/ToCloud9/gen/group/pb/mocks"
 	pbMail "github.com/walkline/ToCloud9/gen/mail/pb"
 	mailMocks "github.com/walkline/ToCloud9/gen/mail/pb/mocks"
 	pbServ "github.com/walkline/ToCloud9/gen/servers-registry/pb"
@@ -345,6 +347,11 @@ func TestGameSessionLogin(t *testing.T) {
 	mailServiceMock := &mailMocks.MailServiceClient{}
 	mailServiceMock.On("MailsForPlayer", mock.Anything, mock.Anything).Return(&pbMail.MailsForPlayerResponse{}, nil)
 
+	groupServiceMock := &groupMocks.GroupServiceClient{}
+	groupServiceMock.On("GetGroupIDByPlayer", mock.Anything, mock.Anything).Return(&pbGroup.GetGroupIDByPlayerResponse{
+		GroupID: 0,
+	}, nil)
+
 	producer := &lbProducerMock.LoadBalancerProducer{}
 	producer.On("CharacterLoggedIn", mock.MatchedBy(func(p *events.LBEventCharacterLoggedInPayload) bool {
 		return p.CharGUID == charID
@@ -381,6 +388,7 @@ func TestGameSessionLogin(t *testing.T) {
 			EventsProducer:        producer,
 			EventsBroadcaster:     broadcaster,
 			MailServiceClient:     mailServiceMock,
+			GroupServiceClient:    groupServiceMock,
 			GameServerGRPCConnMgr: &GameGRPCConnMgrMock{
 				connToReturn: &wsMocks.WorldServerServiceClient{},
 			},

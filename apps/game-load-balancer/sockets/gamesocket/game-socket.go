@@ -52,7 +52,7 @@ func NewGameSocket(
 ) sockets.Socket {
 	return &GameSocket{
 		conn:          c,
-		packetsReader: sockets.NewPacketsReader(c, 4),
+		packetsReader: sockets.NewPacketsReader(c, 4, packet.SourceGameClient),
 		sendChan:      make(chan *packet.Packet, 10),
 		readChan:      make(chan *packet.Packet, 10),
 		logger:        log.Logger,

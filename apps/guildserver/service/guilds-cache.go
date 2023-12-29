@@ -10,7 +10,7 @@ import (
 // GuildsCache is cached proxy of guilds repo.
 type GuildsCache interface {
 
-	// Since cache is also a proxy we need to have same interface.
+	// GuildsRepo Since cache is also a proxy we need to have same interface.
 	repo.GuildsRepo
 
 	// LBCharacterLoggedInHandler updates cache with player logged in.

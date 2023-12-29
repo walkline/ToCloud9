@@ -8,6 +8,7 @@ service ServersRegistryService {
   rpc AvailableGameServersForMapAndRealm(AvailableGameServersForMapAndRealmRequest) returns (AvailableGameServersForMapAndRealmResponse);
   rpc RandomGameServerForRealm(RandomGameServerForRealmRequest) returns (RandomGameServerForRealmResponse);
   rpc ListGameServersForRealm(ListGameServersForRealmRequest) returns (ListGameServersForRealmResponse);
+  rpc GameServerMapsLoaded(GameServerMapsLoadedRequest) returns (GameServerMapsLoadedResponse);
 
   rpc RegisterLoadBalancer(RegisterLoadBalancerRequest) returns (RegisterLoadBalancerResponse);
   rpc LoadBalancerForRealms(LoadBalancerForRealmsRequest) returns (LoadBalancerForRealmsResponse);
@@ -30,6 +31,9 @@ message RegisterGameServerRequest{
 
 message RegisterGameServerResponse{
   string api = 1;
+
+  string id = 2;
+  repeated uint32 assignedMaps = 3;
 }
 
 //
@@ -85,6 +89,20 @@ message ListGameServersForRealmResponse {
   string api = 1;
 
   repeated GameServerDetailed gameServers = 2;
+}
+
+//
+// GameServerMapsLoaded
+//
+message GameServerMapsLoadedRequest {
+  string api = 1;
+
+  string gameServerID = 2;
+  repeated uint32 mapsLoaded = 3;
+}
+
+message GameServerMapsLoadedResponse {
+  string api = 1;
 }
 
 //

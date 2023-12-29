@@ -30,6 +30,8 @@ type CharactersOnline interface {
 	OneByRealmAndGUID(ctx context.Context, realmID uint32, guid uint64) (*Character, error)
 	OneByRealmAndName(ctx context.Context, realmID uint32, name string) (*Character, error)
 
+	CharactersByRealmAndGUIDs(ctx context.Context, realmID uint32, guids []uint64) ([]Character, error)
+
 	// LBCharacterLoggedInHandler updates cache with player logged in.
 	events.LBCharacterLoggedInHandler
 	// LBCharacterLoggedOutHandler updates cache with player logged out.

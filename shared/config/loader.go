@@ -48,7 +48,10 @@ func LoadConfig(cfg interface{}) error {
 	if file == "" {
 		path, err := os.Executable()
 		if err != nil {
-			return err
+			path, err = filepath.EvalSymlinks(path)
+			if err != nil {
+				return err
+			}
 		}
 
 		defaultExecutableConfigPath := filepath.Join(filepath.Dir(path), DefaultConfigName)

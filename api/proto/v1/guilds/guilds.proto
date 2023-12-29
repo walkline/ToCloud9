@@ -248,6 +248,3 @@ message SendGuildMessageParams {
 message SendGuildMessageResponse {
   string api = 1;
 }
-
-
-

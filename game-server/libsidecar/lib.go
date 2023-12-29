@@ -5,20 +5,29 @@ import (
 	"context"
 	"strconv"
 	"time"
+	"unsafe"
 
 	"github.com/nats-io/nats.go"
+	
+	"github.com/walkline/ToCloud9/gen/servers-registry/pb"
+	"github.com/walkline/ToCloud9/shared/healthandmetrics"
+)
+
+/*
+#include <stdint.h>
+*/
+import "C"
+import (
 	"github.com/rs/zerolog/log"
 
 	"github.com/walkline/ToCloud9/game-server/libsidecar/config"
-	"github.com/walkline/ToCloud9/gen/servers-registry/pb"
-	"github.com/walkline/ToCloud9/shared/healthandmetrics"
 )
 
 const (
 	libVer = "0.0.1"
 )
 
-func initLib() (*config.Config, healthandmetrics.Server, ShutdownFunc) {
+func initLib(realmID uint32) (*config.Config, healthandmetrics.Server, ShutdownFunc) {
 	cfg, err := config.LoadConfig()
 	if err != nil {
 		panic(err)
@@ -31,6 +40,7 @@ func initLib() (*config.Config, healthandmetrics.Server, ShutdownFunc) {
 		nats.PingInterval(20*time.Second),
 		nats.MaxPingsOutstanding(5),
 		nats.Timeout(10*time.Second),
+		nats.Name("gameserver"),
 	)
 	if err != nil {
 		log.Fatal().Err(err).Msg("can't connect to the Nats")
@@ -39,7 +49,7 @@ func initLib() (*config.Config, healthandmetrics.Server, ShutdownFunc) {
 	healthCheckServer := healthandmetrics.NewServer(cfg.HealthCheckPort, false)
 	go healthCheckServer.ListenAndServe()
 
-	natsConsumer := SetupEventsListener(nc, log)
+	natsConsumer := SetupEventsListener(nc, realmID, log)
 
 	srvRegConn := SetupServersRegistryConnection(cfg)
 
@@ -98,12 +108,15 @@ type ShutdownFunc func()
 
 var shutdownFunc ShutdownFunc
 
+// AssignedGameServerID is ID assigned by servers registry to this game server.
+var AssignedGameServerID string
+
 // TC9InitLib inits lib by starting services like grpc and healthcheck.
 // Adds game server to the servers registry that will make this server visible for game load balancer.
 //
 //export TC9InitLib
-func TC9InitLib(port uint16, realmID uint32, availableMaps *C.char) {
-	cfg, healthCheckServer, shutdown := initLib()
+func TC9InitLib(port uint16, realmID uint32, availableMaps *C.char, assignedMaps **C.uint32_t, assignedMapsSize *C.int) {
+	cfg, healthCheckServer, shutdown := initLib(realmID)
 	shutdownFunc = shutdown
 
 	SetupGuidProviders(realmID, cfg)
@@ -118,7 +131,7 @@ func TC9InitLib(port uint16, realmID uint32, availableMaps *C.char) {
 		panic(err)
 	}
 
-	_, err = registryClient.RegisterGameServer(context.TODO(), &pb.RegisterGameServerRequest{
+	res, err := registryClient.RegisterGameServer(context.TODO(), &pb.RegisterGameServerRequest{
 		Api:               libVer,
 		GamePort:          uint32(port),
 		HealthPort:        uint32(healthPort),
@@ -130,6 +143,19 @@ func TC9InitLib(port uint16, realmID uint32, availableMaps *C.char) {
 	if err != nil {
 		log.Fatal().Err(err).Msg("couldn't register game server")
 	}
+
+	AssignedGameServerID = res.Id
+
+	if len(res.AssignedMaps) > 0 {
+		*assignedMaps = (*C.uint32_t)(C.malloc(C.size_t(len(res.AssignedMaps)) * C.size_t(unsafe.Sizeof(C.uint32_t(0)))))
+		pItr := (*C.uint32_t)(unsafe.Pointer(*assignedMaps))
+		for _, assignedMap := range res.AssignedMaps {
+			*pItr = C.uint32_t(assignedMap)
+			pItr = (*C.uint32_t)(unsafe.Pointer(uintptr(unsafe.Pointer(pItr)) + uintptr(unsafe.Sizeof(C.uint32_t(0)))))
+		}
+	}
+
+	*assignedMapsSize = C.int(len(res.AssignedMaps))
 }
 
 // TC9GracefulShutdown gracefully stops all running services.
@@ -137,4 +163,27 @@ func TC9InitLib(port uint16, realmID uint32, availableMaps *C.char) {
 //export TC9GracefulShutdown
 func TC9GracefulShutdown() {
 	shutdownFunc()
+}
+
+// TC9ReadyToAcceptPlayersFromMaps notifies servers registry that this server
+// loaded maps related data and ready to accept players from those maps.
+//
+//export TC9ReadyToAcceptPlayersFromMaps
+func TC9ReadyToAcceptPlayersFromMaps(maps *C.uint32_t, mapsLen C.int) {
+	mapsSlice := make([]uint32, int(mapsLen))
+	pItr := (*C.uint32_t)(unsafe.Pointer(maps))
+	for i := range mapsSlice {
+		mapsSlice[i] = uint32(*pItr)
+		pItr = (*C.uint32_t)(unsafe.Pointer(uintptr(unsafe.Pointer(pItr)) + uintptr(unsafe.Sizeof(C.uint32_t(0)))))
+	}
+	go func() {
+		_, err := registryClient.GameServerMapsLoaded(context.Background(), &pb.GameServerMapsLoadedRequest{
+			Api:          libVer,
+			GameServerID: AssignedGameServerID,
+			MapsLoaded:   mapsSlice,
+		})
+		if err != nil {
+			log.Err(err).Msg("can't mark maps as loaded failed")
+		}
+	}()
 }

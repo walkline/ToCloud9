@@ -76,6 +76,26 @@ func (c *charactersOnlineInMem) OneByRealmAndName(_ context.Context, realmID uin
 	return v, nil
 }
 
+func (c *charactersOnlineInMem) CharactersByRealmAndGUIDs(ctx context.Context, realmID uint32, guids []uint64) ([]Character, error) {
+	c.m.RLock()
+	defer c.m.RUnlock()
+	s, found := c.guidStorage[realmID]
+	if !found {
+		return nil, nil
+	}
+
+	res := make([]Character, 0, len(guids))
+	for _, guid := range guids {
+		v, found := s[guid]
+		if !found {
+			continue
+		}
+
+		res = append(res, *v)
+	}
+	return res, nil
+}
+
 func (c *charactersOnlineInMem) HandleCharacterLoggedIn(payload events.LBEventCharacterLoggedInPayload) error {
 	return c.Add(context.TODO(), &Character{
 		RealmID:        payload.RealmID,

@@ -94,5 +94,6 @@ gameserver:
   guidProviderServiceAddress: "localhost:8996"
   characterGuidsBufferSize: 50
   itemGuidsBufferSize: 200
+  instanceGuidsBufferSize: 10
   natsUrl: *defaultNatsUrl
   logging: *defaultLogging

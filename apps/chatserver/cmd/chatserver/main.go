@@ -29,7 +29,13 @@ func main() {
 	log.Logger = cfg.Logger()
 
 	// nats setup
-	nc, err := nats.Connect(cfg.NatsURL, nats.PingInterval(20*time.Second), nats.MaxPingsOutstanding(5), nats.Timeout(10*time.Second))
+	nc, err := nats.Connect(
+		cfg.NatsURL,
+		nats.PingInterval(20*time.Second),
+		nats.MaxPingsOutstanding(5),
+		nats.Timeout(10*time.Second),
+		nats.Name("chatserver"),
+	)
 	if err != nil {
 		log.Fatal().Err(err).Msg("can't connect to the Nats")
 	}

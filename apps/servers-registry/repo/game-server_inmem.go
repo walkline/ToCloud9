@@ -18,17 +18,21 @@ func (g *gameServerInMemRepo) Upsert(ctx context.Context, server *GameServer) er
 	g.mutex.Lock()
 	defer g.mutex.Unlock()
 
+	if server.ID == "" {
+		server.ID = server.Address
+	}
+
 	g.storage = append(g.storage, *server)
 
 	return nil
 }
 
-func (g *gameServerInMemRepo) Remove(ctx context.Context, address string) error {
+func (g *gameServerInMemRepo) Remove(ctx context.Context, id string) error {
 	g.mutex.Lock()
 	defer g.mutex.Unlock()
 
 	for i := range g.storage {
-		if g.storage[i].Address == address {
+		if g.storage[i].ID == id {
 			g.storage = append(g.storage[:i], g.storage[i+1:]...)
 			return nil
 		}
@@ -48,4 +52,16 @@ func (g *gameServerInMemRepo) ListByRealm(ctx context.Context, realmID uint32) (
 		}
 	}
 	return result, nil
+}
+
+func (g *gameServerInMemRepo) One(ctx context.Context, id string) (*GameServer, error) {
+	g.mutex.RLock()
+	defer g.mutex.RUnlock()
+
+	for i := range g.storage {
+		if g.storage[i].ID == id {
+			return &g.storage[i], nil
+		}
+	}
+	return nil, nil
 }

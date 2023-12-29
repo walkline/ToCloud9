@@ -11,17 +11,23 @@ import (
 type MaxGuidStorage interface {
 	MaxGuidProvider
 
-	// SetMaxGuidForCharacters sets max guid for characters. Unsafe fpr concurrent usage. Use IncreaseMaxGuidForCharacters instead.
+	// SetMaxGuidForCharacters sets max guid for characters. Unsafe for concurrent usage. Use IncreaseMaxGuidForCharacters instead.
 	SetMaxGuidForCharacters(ctx context.Context, realmID uint32, value uint64) error
 
-	// SetMaxGuidForItems sets max guid for items. Unsafe fpr concurrent usage. Use IncreaseMaxGuidForItems instead.
+	// SetMaxGuidForItems sets max guid for items. Unsafe for concurrent usage. Use IncreaseMaxGuidForItems instead.
 	SetMaxGuidForItems(ctx context.Context, realmID uint32, value uint64) error
+
+	// SetMaxGuidForInstances sets max guid for dungeon/raid instance. Unsafe for concurrent usage. Use IncreaseMaxGuidForItems instead.
+	SetMaxGuidForInstances(ctx context.Context, realmID uint32, value uint64) error
 
 	// IncreaseMaxGuidForCharacters increases max character guid to increaseAmount value and returns new max guid.
 	IncreaseMaxGuidForCharacters(ctx context.Context, realmID uint32, increaseAmount uint64) (uint64, error)
 
 	// IncreaseMaxGuidForItems increases max item guid to increaseAmount value and returns new max guid.
 	IncreaseMaxGuidForItems(ctx context.Context, realmID uint32, increaseAmount uint64) (uint64, error)
+
+	// IncreaseMaxGuidForInstances increases max dungeon/raid instance guid to increaseAmount value and returns new max guid.
+	IncreaseMaxGuidForInstances(ctx context.Context, realmID uint32, increaseAmount uint64) (uint64, error)
 }
 
 // NewRedisMaxGuidStorage returns new redis max guids storage.
@@ -45,6 +51,10 @@ func (r *redisMaxGuidStorage) SetMaxGuidForItems(ctx context.Context, realmID ui
 	return r.rdb.Set(ctx, r.itemKey(realmID), value, 0).Err()
 }
 
+func (r *redisMaxGuidStorage) SetMaxGuidForInstances(ctx context.Context, realmID uint32, value uint64) error {
+	return r.rdb.Set(ctx, r.instanceKey(realmID), value, 0).Err()
+}
+
 func (r *redisMaxGuidStorage) MaxGuidForCharacters(ctx context.Context, realmID uint32) (uint64, error) {
 	v, err := r.rdb.Get(ctx, r.characterKey(realmID)).Uint64()
 	if err != nil && err != redis.Nil {
@@ -61,12 +71,24 @@ func (r *redisMaxGuidStorage) MaxGuidForItems(ctx context.Context, realmID uint3
 	return v, nil
 }
 
+func (r *redisMaxGuidStorage) MaxGuidForInstances(ctx context.Context, realmID uint32) (uint64, error) {
+	v, err := r.rdb.Get(ctx, r.instanceKey(realmID)).Uint64()
+	if err != nil && err != redis.Nil {
+		return 0, err
+	}
+	return v, nil
+}
+
 func (r *redisMaxGuidStorage) IncreaseMaxGuidForCharacters(ctx context.Context, realmID uint32, increaseAmount uint64) (uint64, error) {
 	return r.increaseKey(ctx, r.characterKey(realmID), increaseAmount)
 }
 
 func (r *redisMaxGuidStorage) IncreaseMaxGuidForItems(ctx context.Context, realmID uint32, increaseAmount uint64) (uint64, error) {
 	return r.increaseKey(ctx, r.itemKey(realmID), increaseAmount)
+}
+
+func (r *redisMaxGuidStorage) IncreaseMaxGuidForInstances(ctx context.Context, realmID uint32, increaseAmount uint64) (uint64, error) {
+	return r.increaseKey(ctx, r.instanceKey(realmID), increaseAmount)
 }
 
 func (r *redisMaxGuidStorage) increaseKey(ctx context.Context, key string, increaseAmount uint64) (uint64, error) {
@@ -113,4 +135,8 @@ func (r *redisMaxGuidStorage) itemKey(realmID uint32) string {
 
 func (r *redisMaxGuidStorage) characterKey(realmID uint32) string {
 	return fmt.Sprintf("realm:%d:maxChar", realmID)
+}
+
+func (r *redisMaxGuidStorage) instanceKey(realmID uint32) string {
+	return fmt.Sprintf("realm:%d:maxInstance", realmID)
 }

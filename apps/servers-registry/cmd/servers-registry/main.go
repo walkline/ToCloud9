@@ -42,7 +42,13 @@ func main() {
 		log.Fatal().Err(err).Msg("can't listen for incoming connections")
 	}
 
-	nc, err := nats.Connect(conf.NatsURL, nats.PingInterval(20*time.Second), nats.MaxPingsOutstanding(5), nats.Timeout(10*time.Second))
+	nc, err := nats.Connect(
+		conf.NatsURL,
+		nats.PingInterval(20*time.Second),
+		nats.MaxPingsOutstanding(5),
+		nats.Timeout(10*time.Second),
+		nats.Name("servers-registry"),
+	)
 	if err != nil {
 		log.Fatal().Err(err).Msg("can't connect to nats")
 	}
@@ -72,6 +78,7 @@ func main() {
 		repo.NewGameServerRedisRepo(rdb),
 		healthChecker,
 		binpack.NewBinPackBalancer(binpack.DefaultMapsWeight), // TODO: implement providing custom maps weight list.
+		events.NewServerRegistryProducerNatsJSON(nc, "0.0.1"),
 		supportedRealms,
 	)
 	if err != nil {

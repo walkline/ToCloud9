@@ -21,6 +21,10 @@ func NewHandlersFIFOQueue() HandlersQueue {
 }
 
 func (h *handlersFIFOQueue) Push(handler Handler) {
+	if handler == nil {
+		return
+	}
+
 	h.queue <- handler
 }
 

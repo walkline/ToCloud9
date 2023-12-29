@@ -346,3 +346,39 @@ func (c *CharServer) CharacterByName(ctx context.Context, request *pb.CharacterB
 		},
 	}, nil
 }
+
+func (c *CharServer) ShortOnlineCharactersDataByGUIDs(ctx context.Context, request *pb.ShortCharactersDataByGUIDsRequest) (*pb.ShortCharactersDataByGUIDsResponse, error) {
+	defer func(t time.Time) {
+		log.Debug().
+			Int("guidsSize", len(request.GUIDs)).
+			Uint32("realmID", request.RealmID).
+			Str("timeTook", time.Since(t).String()).
+			Msg("Handled short characters by guids")
+	}(time.Now())
+
+	chars, err := c.onlineChars.CharactersByRealmAndGUIDs(ctx, request.RealmID, request.GUIDs)
+	if err != nil {
+		return nil, err
+	}
+
+	res := make([]*pb.ShortCharactersDataByGUIDsResponse_ShortCharData, len(chars))
+	for i, char := range chars {
+		res[i] = &pb.ShortCharactersDataByGUIDsResponse_ShortCharData{
+			RealmID:        char.RealmID,
+			IsOnline:       true,
+			LoadBalancerID: char.LoadBalancerID,
+			CharGUID:       char.CharGUID,
+			CharName:       char.CharName,
+			CharLvl:        uint32(char.CharLevel),
+			CharZone:       char.CharZone,
+			CharMap:        char.CharMap,
+			CharGuildID:    uint64(char.CharGuildID),
+			AccountID:      char.AccountID,
+		}
+	}
+
+	return &pb.ShortCharactersDataByGUIDsResponse{
+		Api:        ver,
+		Characters: res,
+	}, nil
+}
