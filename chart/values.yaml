@@ -31,8 +31,8 @@ servers_registry:
   replicaCount: 1
   image:
     repository: ghcr.io/walkline/servers-registry
-    pullPolicy: IfNotPresent
-    tag: "v0.0.1"
+    pullPolicy: Always
+    tag: "v0.0.2"
   service:
     type: ClusterIP
     internalPort: 8999
@@ -42,8 +42,8 @@ authserver:
   replicaCount: 1
   image:
     repository: ghcr.io/walkline/authserver
-    pullPolicy: IfNotPresent
-    tag: "v0.0.1"
+    pullPolicy: Always
+    tag: "v0.0.2"
   service:
     type: NodePort
     internalPort: 3724
@@ -53,8 +53,8 @@ guildserver:
   replicaCount: 1
   image:
     repository: ghcr.io/walkline/guildserver
-    pullPolicy: IfNotPresent
-    tag: "v0.0.1"
+    pullPolicy: Always
+    tag: "v0.0.2"
   service:
     type: ClusterIP
     internalPort: 8995
@@ -64,8 +64,8 @@ guidserver:
   replicaCount: 1
   image:
     repository: ghcr.io/walkline/guidserver
-    pullPolicy: IfNotPresent
-    tag: "v0.0.1"
+    pullPolicy: Always
+    tag: "v0.0.2"
   service:
     type: ClusterIP
     internalPort: 8996
@@ -75,8 +75,8 @@ chatserver:
   replicaCount: 1
   image:
     repository: ghcr.io/walkline/chatserver
-    pullPolicy: IfNotPresent
-    tag: "v0.0.1"
+    pullPolicy: Always
+    tag: "v0.0.2"
   service:
     type: ClusterIP
     internalPort: 8992
@@ -86,8 +86,8 @@ charserver:
   replicaCount: 1
   image:
     repository: ghcr.io/walkline/charserver
-    pullPolicy: IfNotPresent
-    tag: "v0.0.1"
+    pullPolicy: Always
+    tag: "v0.0.2"
   service:
     type: ClusterIP
     internalPort: 8087
@@ -97,8 +97,8 @@ groupserver:
   replicaCount: 1
   image:
     repository: ghcr.io/walkline/groupserver
-    pullPolicy: IfNotPresent
-    tag: "v0.0.1"
+    pullPolicy: Always
+    tag: "v0.0.2"
   service:
     type: ClusterIP
     internalPort: 8998
@@ -108,8 +108,8 @@ mailserver:
   replicaCount: 1
   image:
     repository: ghcr.io/walkline/mailserver
-    pullPolicy: IfNotPresent
-    tag: "v0.0.1"
+    pullPolicy: Always
+    tag: "v0.0.2"
   service:
     type: ClusterIP
     internalPort: 8997
@@ -124,8 +124,8 @@ game_lb:
   port: 32766
   image:
     repository: ghcr.io/walkline/game-load-balancer
-    pullPolicy: IfNotPresent
-    tag: "v0.0.1"
+    pullPolicy: Always
+    tag: "v0.0.2"
   service:
     type: NodePort
 
@@ -146,8 +146,8 @@ gameserver_ac:
   port_health: 9604
   image:
     repository: ghcr.io/walkline/gameserver-ac
-    pullPolicy: IfNotPresent
-    tag: "v0.0.1"
+    pullPolicy: Always
+    tag: "v0.0.2"
   service:
     type: ClusterIP
     internalPort: 9509

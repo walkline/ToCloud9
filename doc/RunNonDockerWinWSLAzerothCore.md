@@ -23,9 +23,10 @@ go build -o bin/game-load-balancer.exe apps/game-load-balancer/cmd/game-load-bal
 go build -o bin/servers-registry.exe apps/servers-registry/cmd/servers-registry/main.go
 go build -o bin/guidserver.exe apps/guidserver/cmd/guidserver/main.go
 go build -o bin/guildserver.exe apps/guildserver/cmd/guildserver/main.go
+go build -o bin/groupserver.exe apps/guildserver/cmd/groupserver/main.go
 go build -o bin/mailserver.exe apps/mailserver/cmd/mailserver/main.go
 ```
-4. Now in `bin` directory you should see 8 .exe files. We will get back to them on Setup & Run steps.
+4. Now in `bin` directory you should see 9 .exe files. We will get back to them on Setup & Run steps.
 
 ### Build AzerothCore
 
@@ -88,6 +89,7 @@ Then run the rest of exe files:
    * chatserver.exe
    * game-load-balancer.exe
    * guildserver.exe
+   * groupserver.exe
    * mailserver.exe
 
 At this point, you should be able to log in to your account (if you have any in the database) and see the list of your characters. 

@@ -23,6 +23,11 @@ spec:
           value: "{{ .Values.groupserver.service.internalPort | int }}"
         - name: NATS_URL
           value: nats://{{ .Release.Name }}-nats:4222
+        - name: CHAR_DB_CONNECTION
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Release.Name }}-databases-config
+              key: CHAR_DB_CONNECTION
         - name: CHAR_SERVICE_ADDRESS
           value: {{ .Release.Name }}-charserver:{{ .Values.charserver.service.externalPort}}
         ports:

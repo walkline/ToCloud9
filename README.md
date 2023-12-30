@@ -1,25 +1,44 @@
 # ToCloud9
 
-**ToCloud9** is an attempt to make [TrinityCore](https://github.com/TrinityCore/TrinityCore) and its forks scalable and cloud-native. 
-The project is at the beginning of development and has limited functionality. 
+**ToCloud9** provides a variety of microservices that operate alongside AzerothCore/TrinityCore and enable clustering support, making the system scalable and highly available.
 
-The current architecture described (in simplified form) in the image bellow:
+## Architecture
+The primary concept underlying the current architecture is to enhance the scalability of TrinityCore/AzerothCore with minimal modifications on their end.
+
+To fulfill these objectives, a game-load-balancer microservice has been developed.
+Functioning akin to an API Gateway, the game-load-balancer analyzes packets and strategically routes them to the Gameserver or generates requests to other services for handling.
+
+The simplified architecture described below.
+
 ![](.github/images/tc9.svg "architecture")
-Since project is at beginning of development more components would be added and modified.
 
-At the moment, it supports 3.3.5 client and has the next applications:
-* __authserver__ authorizes players, provides realmlist and connects a game client to the "smart" game load balancer with the least active connections;
-* __game-load-balancer__ holds game client TCP connection, offloads encryption, reads packets and routes requests to other services.
-For every character creates connection to the game server (TrinityCore) that Servers Registry provides. 
-Also intercepts some packets and uses information from them to sync some states between services. 
-* __servers-registry__ holds information about every running instance of Game Load Balancer and Game Server (TrinityCore world server).
-  Makes health checks and collects necessary metrics (active connections at the moment). Assigns maps to Game Server instances. 
-* __chatserver__ at the moments holds characters online and handles "whisper" messages;
-* __charserver__ provides information to handle SMsgCharEnum opcode. Holds information about connected players. Handles Who opcode.
-* __gameserver__ is modified TrinityCore world server with `sidecar` library, that registers GameServer in Servers Registry and handles health checks.
-* __guildserver__ handles some guild opcodes. Still misses guild creation and guildbank functionality.
-* __guidserver__ provides pool of guids of items and characters to the gameservers.
-* __mailserver__ handles mail opcodes.
+If you'd like to read more, you can take a look at the pillars that form the foundation of ToCloud9 **[here](https://github.com/azerothcore/azerothcore-wotlk/discussions/16748)**.
+
+## Current state
+Currently, it is possible to play the game, but some functionalities still do not support a distributed architecture (clustering). Here is a list of features/tasks that, once completed, will enable it to replace the widely used unscalable monolith (vanilla TrinityCore/AzerothCore). The status is relevant for integration with AzerothCore.
+
+| Feature/Task 	                                                | Status	 |                                                                                                            Comment 	                                                                                                             |
+|---------------------------------------------------------------|---------|:--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------:|
+| Gameservers and other services discovery                      | ✅       |                                                                                                                	                                                                                                                 |
+| Services communication with NATS and gRPC                     | ✅	      |                                                                                                                	                                                                                                                 |
+| Redirect players from one gameserver to another on map change | ✅	      |                                                                                                                	                                                                                                                 |
+| Gameservers crash recovery                                    | ✅	      |                                                                              Players would be redirected <br/>to the another available gameserver	                                                                               |
+| Automatic load balancing maps between gameservers             | ✅	      |                                                                                                                	                                                                                                                 |
+| Shared pool of GUIDs                                          | ✅	      |                                                                                             Sharing Players, Items, Instance GUIDs	                                                                                              |
+| "Who" opcode handling                                         | ✅	      |                                                                                                                	                                                                                                                 |
+| Whispering in cluster support                                 | ✅	      |                                                                                                                	                                                                                                                 |
+| Guilds in cluster support                                     | 90%	    |                                                                              Guild creation functionality is missing                              	                                                                              |
+| Guild bank in cluster support                                 | 0%	     |                                                                                                                	                                                                                                                 |
+| Mail in cluster support                                       | ✅	      |                                                                                                                	                                                                                                                 |
+| Auction house in cluster support                              | 0%	     |                                                                                                                	                                                                                                                 |
+| Friends list in cluster support                               | 0%	     |                                                                                                                	                                                                                                                 |
+| Global channels in cluster support                            | 0%	     |                                                                                                                	                                                                                                                 |
+| Parties and raids in cluster support                          | 80%	    | **Not implemented:** <br/>ready checks, instances reset on player request, <br/>prolonging instance bind, <br/>moving raid members between groups, <br/>and updating group members state <br/>like health when on different maps |
+| Battlegrounds in cluster support                              | 0%	     |                                                                                                                	                                                                                                                 |
+| Arenas in cluster support                                     | 0%	     |                                                                                                                	                                                                                                                 |
+| LFG in cluster support                                        | 0%	     |                                                                                                                	                                                                                                                 |
+| Sync transports between gameservers                           | ✅	      |                                                                                                                	                                                                                                                 |
+| Helm chart support                                            | ✅	      |                                                                                                                	                                                                                                                 |
 
 ## Deployment
 
