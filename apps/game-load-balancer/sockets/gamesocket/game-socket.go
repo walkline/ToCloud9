@@ -358,7 +358,9 @@ func (s *GameSocket) sendOriginalPacket(p *packet.Packet) error {
 func (s *GameSocket) processPacket(p *packet.Packet) error {
 	switch p.Opcode {
 	case packet.CMsgAuthSession:
-		return s.AuthSession(p)
+		if s.session == nil {
+			return s.AuthSession(p)
+		}
 	default:
 		s.readChan <- p
 	}

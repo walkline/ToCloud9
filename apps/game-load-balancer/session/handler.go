@@ -11,9 +11,9 @@ import (
 )
 
 var HandleMap = map[packet.Opcode]HandlersQueue{
-	packet.CMsgCharCreate:               NewHandler("CMsgCharCreate", ForwardPacketToRandomGameServer(packet.SMsgCharCreate)),
+	packet.CMsgCharCreate:               NewHandler("CMsgCharCreate", (*GameSession).CreateCharacter),
 	packet.CMsgPlayerLogin:              NewHandler("CMsgPlayerLogin", (*GameSession).Login),
-	packet.CMsgCharDelete:               NewHandler("CMsgCharDelete", ForwardPacketToRandomGameServer(packet.SMsgCharDelete)),
+	packet.CMsgCharDelete:               NewHandler("CMsgCharDelete", (*GameSession).DeleteCharacter),
 	packet.CMsgCharEnum:                 NewHandler("CMsgCharEnum", (*GameSession).CharactersList),
 	packet.CMsgRealmSplit:               NewHandler("CMsgRealmSplit", (*GameSession).RealmSplit),
 	packet.CMsgReadyForAccountDataTimes: NewHandler("CMsgReadyForAccountDataTimes", (*GameSession).ReadyForAccountDataTimes),
@@ -149,7 +149,6 @@ func ForwardPacketToRandomGameServer(waitOpcodeToClose packet.Opcode) Handler {
 		} else {
 			socket.Close()
 		}
-
 		return nil
 	}
 }
