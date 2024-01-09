@@ -1,4 +1,4 @@
-CREATE TABLE `group_invites` (
+CREATE TABLE IF NOT EXISTS `group_invites` (
     `invited` int unsigned NOT NULL DEFAULT '0',
     `inviter` int unsigned NOT NULL DEFAULT '0',
     `groupId` int unsigned NOT NULL DEFAULT '0',

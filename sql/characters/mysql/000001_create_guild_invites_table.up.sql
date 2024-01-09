@@ -1,4 +1,4 @@
-CREATE TABLE `guild_invites` (
+CREATE TABLE IF NOT EXISTS `guild_invites` (
     `charGuid` int unsigned NOT NULL DEFAULT '0',
     `guildId` int unsigned NOT NULL DEFAULT '0',
     PRIMARY KEY (`charGuid`)
