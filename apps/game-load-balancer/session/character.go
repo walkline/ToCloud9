@@ -109,9 +109,10 @@ func (s *GameSession) CreateCharacter(ctx context.Context, p *packet.Packet) err
 
 	go socket.ListenAndProcess(s.ctx)
 	newCtx, cancel := context.WithTimeout(s.ctx, time.Second*5)
+	defer cancel()
+
 	waitDone := make(chan struct{})
 	go func() {
-		defer cancel()
 		defer func() { waitDone <- struct{}{} }()
 
 		for {
@@ -143,6 +144,13 @@ func (s *GameSession) CreateCharacter(ctx context.Context, p *packet.Packet) err
 	socket.SendPacket(p)
 
 	<-waitDone
+
+	select {
+	case <-newCtx.Done():
+		sendCreateFailed()
+		return fmt.Errorf("character creation timeouted, gameserver: %s", serverResult.GameServer.Address)
+	default:
+	}
 
 	return nil
 }
@@ -177,9 +185,10 @@ func (s *GameSession) DeleteCharacter(ctx context.Context, p *packet.Packet) err
 
 	go socket.ListenAndProcess(s.ctx)
 	newCtx, cancel := context.WithTimeout(s.ctx, time.Second*5)
+	defer cancel()
+
 	waitDone := make(chan struct{})
 	go func() {
-		defer cancel()
 		defer func() { waitDone <- struct{}{} }()
 
 		for {
@@ -212,8 +221,15 @@ func (s *GameSession) DeleteCharacter(ctx context.Context, p *packet.Packet) err
 
 	<-waitDone
 
+	select {
+	case <-newCtx.Done():
+		sendDelFailed()
+		return fmt.Errorf("character deletion timeouted, gameserver: %s", serverResult.GameServer.Address)
+	default:
+	}
+
 	// Let's wait some moment because delete command may take some time on worldserver side.
-	time.Sleep(time.Second * 2)
+	time.Sleep(time.Second * 1)
 
 	return nil
 }
