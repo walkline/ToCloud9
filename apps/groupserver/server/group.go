@@ -11,6 +11,7 @@ import (
 )
 
 type GroupServer struct {
+	pb.UnimplementedGroupServiceServer
 	groupService service.GroupsService
 }
 

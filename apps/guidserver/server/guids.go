@@ -10,6 +10,7 @@ import (
 
 // GuidServer is guild server that handles grpc requests.
 type GuidServer struct {
+	pb.UnimplementedGuidServiceServer
 	guildsService service.GuidService
 }
 

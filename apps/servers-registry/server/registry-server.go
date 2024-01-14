@@ -17,6 +17,7 @@ import (
 const ver = "0.0.1"
 
 type serversRegistry struct {
+	pb.UnimplementedServersRegistryServiceServer
 	gService  service.GameServer
 	lbService service.LoadBalancer
 }

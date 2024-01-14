@@ -11,6 +11,7 @@ import (
 
 // guidServerLoggerMiddleware is guild server logger.
 type guidServerLoggerMiddleware struct {
+	pb.UnimplementedGuidServiceServer
 	realService pb.GuidServiceServer
 	logger      zerolog.Logger
 }

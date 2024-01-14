@@ -10,6 +10,7 @@ import (
 )
 
 type MailServer struct {
+	pb.UnimplementedMailServiceServer
 	service *service.MailService
 }
 

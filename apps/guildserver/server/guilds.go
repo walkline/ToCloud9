@@ -10,6 +10,7 @@ import (
 
 // GuildServer is guild server that handles grpc requests.
 type GuildServer struct {
+	pb.UnimplementedGuildServiceServer
 	guildsService service.GuildService
 }
 

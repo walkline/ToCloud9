@@ -11,6 +11,7 @@ import (
 
 // serversRegistryDebugLoggerMiddleware middleware that adds debug logs for pb.ServersRegistryServiceServer.
 type serversRegistryDebugLoggerMiddleware struct {
+	pb.UnimplementedServersRegistryServiceServer
 	realService pb.ServersRegistryServiceServer
 	logger      zerolog.Logger
 }

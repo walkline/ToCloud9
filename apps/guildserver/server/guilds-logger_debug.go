@@ -11,6 +11,7 @@ import (
 
 // guildDebugLoggerMiddleware middleware that adds debug logs for pb.GuildServiceServer.
 type guildDebugLoggerMiddleware struct {
+	pb.UnimplementedGuildServiceServer
 	realService pb.GuildServiceServer
 	logger      zerolog.Logger
 }

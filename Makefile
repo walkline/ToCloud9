@@ -7,14 +7,18 @@ generate:
 	mockery --dir=gen/worldserver/pb --output=gen/worldserver/pb/mocks --name=WorldServerServiceClient --structname=WorldServerServiceClient
 	mockery --dir=gen/mail/pb --output=gen/mail/pb/mocks --name=MailServiceClient --structname=MailServiceClient
 	mockery --dir=gen/group/pb --output=gen/group/pb/mocks --name=GroupServiceClient --structname=GroupServiceClient
-	protoc --proto_path=api/proto/v1/characters --go_out=plugins=grpc:. characters.proto
-	protoc --proto_path=api/proto/v1/servers-registry --go_out=plugins=grpc:. registry.proto
-	protoc --proto_path=api/proto/v1/chat --go_out=plugins=grpc:. chat.proto
-	protoc --proto_path=api/proto/v1/guilds --go_out=plugins=grpc:. guilds.proto
-	protoc --proto_path=api/proto/v1/guid --go_out=plugins=grpc:. guid.proto
-	protoc --proto_path=api/proto/v1/mail --go_out=plugins=grpc:. mail.proto
-	protoc --proto_path=api/proto/v1/worldserver --go_out=plugins=grpc:. worldserver.proto
-	protoc --proto_path=api/proto/v1/group --go_out=plugins=grpc:. group.proto
+	# Preferred protobuf versions:
+	# 	brew install protobuf@3
+	# 	go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.32
+	# 	go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.60.1
+	protoc --proto_path=api/proto/v1/characters --go-grpc_out=. --go_out=. characters.proto
+	protoc --proto_path=api/proto/v1/servers-registry --go-grpc_out=. --go_out=. registry.proto
+	protoc --proto_path=api/proto/v1/chat --go-grpc_out=. --go_out=. chat.proto
+	protoc --proto_path=api/proto/v1/guilds --go-grpc_out=. --go_out=. guilds.proto
+	protoc --proto_path=api/proto/v1/guid --go-grpc_out=. --go_out=. guid.proto
+	protoc --proto_path=api/proto/v1/mail --go-grpc_out=. --go_out=. mail.proto
+	protoc --proto_path=api/proto/v1/worldserver --go-grpc_out=. --go_out=. worldserver.proto
+	protoc --proto_path=api/proto/v1/group --go-grpc_out=. --go_out=. group.proto
 
 migrate-characters:
 	migrate -database "mysql://trinity:trinity@tcp(localhost:3306)/characters" -path sql/characters/mysql up

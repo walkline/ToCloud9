@@ -15,6 +15,7 @@ const (
 )
 
 type CharServer struct {
+	pb.UnimplementedCharactersServiceServer
 	repo          repo.Characters
 	whoHandler    repo.WhoHandler
 	itemsTemplate repo.ItemsTemplate

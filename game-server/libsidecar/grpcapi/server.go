@@ -16,6 +16,7 @@ type RequestQueue struct {
 }
 
 type WorldServerGRPCAPI struct {
+	pb.UnimplementedWorldServerServiceServer
 	bindings   CppBindings
 	timeout    time.Duration
 	readQueue  queue.HandlersQueue

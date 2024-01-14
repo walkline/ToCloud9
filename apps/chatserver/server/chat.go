@@ -11,6 +11,7 @@ import (
 )
 
 type ChatService struct {
+	pb.UnimplementedChatServiceServer
 	charRepo repo.CharactersRepo
 }
 

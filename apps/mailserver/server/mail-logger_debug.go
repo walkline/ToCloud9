@@ -11,6 +11,7 @@ import (
 
 // mailDebugLoggerMiddleware middleware that adds debug logs for pb.MailServiceServer.
 type mailDebugLoggerMiddleware struct {
+	pb.UnimplementedMailServiceServer
 	mailServer pb.MailServiceServer
 	logger     zerolog.Logger
 }
