@@ -10,7 +10,7 @@ generate:
 	# Preferred protobuf versions:
 	# 	brew install protobuf@3
 	# 	go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.32
-	# 	go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.60.1
+	# 	go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.3
 	protoc --proto_path=api/proto/v1/characters --go-grpc_out=. --go_out=. characters.proto
 	protoc --proto_path=api/proto/v1/servers-registry --go-grpc_out=. --go_out=. registry.proto
 	protoc --proto_path=api/proto/v1/chat --go-grpc_out=. --go_out=. chat.proto
