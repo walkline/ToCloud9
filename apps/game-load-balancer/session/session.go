@@ -64,20 +64,27 @@ type GameSession struct {
 	character *pbChar.LogInCharacter
 
 	teleportingToNewMap *uint32
+
+	packetSendingControl PacketSendingControl
+
+	// showGameserverConnChangeToClient when enabled sends chat system message
+	// to the player with information about connection change.
+	showGameserverConnChangeToClient bool
 }
 
 type GameSessionParams struct {
-	CharServiceClient     pbChar.CharactersServiceClient
-	ServersRegistryClient pbServ.ServersRegistryServiceClient
-	ChatServiceClient     pbChat.ChatServiceClient
-	GuildsServiceClient   pbGuild.GuildServiceClient
-	MailServiceClient     pbMail.MailServiceClient
-	GroupServiceClient    pbGroup.GroupServiceClient
-	EventsProducer        events.LoadBalancerProducer
-	CharsUpdsBarrier      *service.CharactersUpdatesBarrier
-	EventsBroadcaster     eBroadcaster.Broadcaster
-	GameServerGRPCConnMgr service.GameServerGRPCConnMgr
-	PacketProcessTimeout  time.Duration
+	CharServiceClient                pbChar.CharactersServiceClient
+	ServersRegistryClient            pbServ.ServersRegistryServiceClient
+	ChatServiceClient                pbChat.ChatServiceClient
+	GuildsServiceClient              pbGuild.GuildServiceClient
+	MailServiceClient                pbMail.MailServiceClient
+	GroupServiceClient               pbGroup.GroupServiceClient
+	EventsProducer                   events.LoadBalancerProducer
+	CharsUpdsBarrier                 *service.CharactersUpdatesBarrier
+	EventsBroadcaster                eBroadcaster.Broadcaster
+	GameServerGRPCConnMgr            service.GameServerGRPCConnMgr
+	PacketProcessTimeout             time.Duration
+	ShowGameserverConnChangeToClient bool
 }
 
 func NewGameSession(
@@ -92,23 +99,26 @@ func NewGameSession(
 	}
 
 	s := &GameSession{
-		ctx:                   ctx,
-		logger:                logger,
-		gameSocket:            gameSocket,
-		authPacket:            authPacket,
-		accountID:             accountID,
-		charServiceClient:     params.CharServiceClient,
-		serversRegistryClient: params.ServersRegistryClient,
-		chatServiceClient:     params.ChatServiceClient,
-		guildServiceClient:    params.GuildsServiceClient,
-		mailServiceClient:     params.MailServiceClient,
-		groupServiceClient:    params.GroupServiceClient,
-		eventsProducer:        params.EventsProducer,
-		eventsBroadcaster:     params.EventsBroadcaster,
-		charsUpdsBarrier:      params.CharsUpdsBarrier,
-		gameServerGRPCConnMgr: params.GameServerGRPCConnMgr,
-		sessionSafeFuChan:     make(chan func(*GameSession), 100),
-		packetProcessTimeout:  packetProcessTimeout,
+		ctx:        ctx,
+		logger:     logger,
+		gameSocket: gameSocket,
+		authPacket: authPacket,
+		accountID:  accountID,
+
+		charServiceClient:                params.CharServiceClient,
+		serversRegistryClient:            params.ServersRegistryClient,
+		chatServiceClient:                params.ChatServiceClient,
+		guildServiceClient:               params.GuildsServiceClient,
+		mailServiceClient:                params.MailServiceClient,
+		groupServiceClient:               params.GroupServiceClient,
+		eventsProducer:                   params.EventsProducer,
+		eventsBroadcaster:                params.EventsBroadcaster,
+		charsUpdsBarrier:                 params.CharsUpdsBarrier,
+		gameServerGRPCConnMgr:            params.GameServerGRPCConnMgr,
+		showGameserverConnChangeToClient: params.ShowGameserverConnChangeToClient,
+
+		sessionSafeFuChan:    make(chan func(*GameSession), 100),
+		packetProcessTimeout: packetProcessTimeout,
 	}
 	return s
 }
@@ -251,6 +261,9 @@ func (s *GameSession) Login(ctx context.Context, p *packet.Packet) error {
 	if err = s.LoadGroupForPlayer(ctx); err != nil {
 		return err
 	}
+
+	// Reset sending control for new login.
+	s.packetSendingControl = PacketSendingControl{}
 
 	return err
 }
@@ -429,12 +442,16 @@ func (s *GameSession) onWorldSocketClosed() {
 		resp.Float32(0.0)
 		s.gameSocket.Send(resp)
 
-		s.SendSysMessage("Connection recovered! Sorry for inconvenience.")
-
 		// we need to modify session in a safe thread (goroutine)
 		s.sessionSafeFuChan <- func(session *GameSession) {
 			if session.character != nil {
 				session.worldSocket = socket
+			}
+
+			if session.showGameserverConnChangeToClient {
+				session.SendSysMessage(fmt.Sprintf("Connection recovered! New gameserver: %s. Sorry for inconvenience.", s.worldSocket.Address()))
+			} else {
+				session.SendSysMessage("Connection recovered! Sorry for inconvenience.")
 			}
 		}
 	}(s.character.GUID)
@@ -457,3 +474,11 @@ func (s *GameSession) onLoggedOut() {
 }
 
 var WorldSocketCreator = worldsocket.NewWorldSocketWithAddress
+
+// PacketSendingControl contains flags to track sending of some packets
+// that needs to be sent only once or similar to that.
+type PacketSendingControl struct {
+	motdSent                    bool
+	accountDataTimesGlobalSent  bool
+	accountDataTimesPerCharSent bool
+}

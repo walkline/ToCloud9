@@ -52,6 +52,9 @@ type Config struct {
 
 	// PacketProcessTimeoutSecs is the time given to process single opcode (if it's not forwarded to game server).
 	PacketProcessTimeoutSecs uint32 `yaml:"packetProcessTimeoutSecs" env:"PACKET_PROCESS_TIMEOUT_SECS" env-default:"20"`
+
+	// ShowGameserverConnChangeToClient when enabled sends chat system message to the player with information about connection change.
+	ShowGameserverConnChangeToClient bool `yaml:"showGameserverConnChangeToClient" env:"SHOW_GAMESERVER_CONN_CHANGE_TO_CLIENT" env-default:"true"`
 }
 
 func (c Config) PortInt() (p int) {

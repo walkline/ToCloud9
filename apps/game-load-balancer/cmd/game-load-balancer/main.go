@@ -136,17 +136,18 @@ func main() {
 		//pprof.Lookup("goroutine").WriteTo(os.Stdout, 1)
 
 		s := gamesocket.NewGameSocket(conn, accountRepo, session.GameSessionParams{
-			CharServiceClient:     charClient,
-			ServersRegistryClient: servRegistryClient,
-			ChatServiceClient:     chatClient,
-			GuildsServiceClient:   guildClient,
-			MailServiceClient:     mailClient,
-			GroupServiceClient:    groupClient,
-			EventsProducer:        producer,
-			EventsBroadcaster:     broadcaster,
-			CharsUpdsBarrier:      charsUpdsBarrier,
-			GameServerGRPCConnMgr: service.DefaultGameServerGRPCConnMgr,
-			PacketProcessTimeout:  time.Second * time.Duration(conf.PacketProcessTimeoutSecs),
+			CharServiceClient:                charClient,
+			ServersRegistryClient:            servRegistryClient,
+			ChatServiceClient:                chatClient,
+			GuildsServiceClient:              guildClient,
+			MailServiceClient:                mailClient,
+			GroupServiceClient:               groupClient,
+			EventsProducer:                   producer,
+			EventsBroadcaster:                broadcaster,
+			CharsUpdsBarrier:                 charsUpdsBarrier,
+			GameServerGRPCConnMgr:            service.DefaultGameServerGRPCConnMgr,
+			PacketProcessTimeout:             time.Second * time.Duration(conf.PacketProcessTimeoutSecs),
+			ShowGameserverConnChangeToClient: conf.ShowGameserverConnChangeToClient,
 		})
 		go func() {
 			healthandmetrics.ActiveConnectionsMetrics.Inc()

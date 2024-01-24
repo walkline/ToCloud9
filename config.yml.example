@@ -58,6 +58,7 @@ game-load-balancer:
   mailServiceAddress: "localhost:8997"
   groupServiceAddress: "localhost:8998"
   packetProcessTimeoutSecs: 20
+  showGameserverConnChangeToClient: true
   natsUrl: *defaultNatsUrl
   logging: *defaultLogging
 

@@ -49,6 +49,8 @@ var HandleMap = map[packet.Opcode]HandlersQueue{
 	packet.MsgGuildPermissions:          NewHandler("MsgGuildPermissions", (*GameSession).HandleGuildPermissions),
 	packet.MsgGuildBankMoneyWithdrawn:   NewHandler("MsgGuildBankMoneyWithdrawn", (*GameSession).HandleGuildBankMoneyWithdrawn),
 	packet.MsgMoveWorldPortAck:          NewHandler("MsgMoveWorldPortAck", (*GameSession).InterceptMoveWorldPortAck),
+	packet.SMsgMOTD:                     NewHandler("SMsgMOTD", (*GameSession).InterceptMessageOfTheDay),
+	packet.SMsgAccountDataTimes:         NewHandler("SMsgAccountDataTimes", (*GameSession).InterceptAccountDataTimes),
 
 	// Groups
 	packet.CMsgGroupInvite:         NewHandler("CMsgGroupInvite", (*GameSession).HandleGroupInvite),

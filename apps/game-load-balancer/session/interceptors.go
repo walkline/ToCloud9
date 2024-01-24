@@ -80,7 +80,10 @@ func (s *GameSession) InterceptMoveWorldPortAck(ctx context.Context, p *packet.P
 		return fmt.Errorf("%w, mapID %v", worldConnectErrInstanceNotFound, mapID)
 	}
 
-	if serversResult.GameServers[0].Address == s.worldSocket.Address() {
+	oldServerAddress := s.worldSocket.Address()
+	desiredServerAddress := serversResult.GameServers[0].Address
+
+	if desiredServerAddress == oldServerAddress {
 		return nil
 	}
 
@@ -140,8 +143,51 @@ func (s *GameSession) InterceptMoveWorldPortAck(ctx context.Context, p *packet.P
 			if session.character != nil {
 				session.worldSocket = socket
 			}
+
+			if session.showGameserverConnChangeToClient {
+				session.SendSysMessage(fmt.Sprintf("You have been redirected from %s to %s gameserver.", oldServerAddress, desiredServerAddress))
+			}
 		}
 	}(s.character.GUID)
 
+	return nil
+}
+
+func (s *GameSession) InterceptMessageOfTheDay(ctx context.Context, p *packet.Packet) error {
+	if s.packetSendingControl.motdSent {
+		return nil
+	}
+
+	s.packetSendingControl.motdSent = true
+
+	s.gameSocket.SendPacket(p)
+	return nil
+}
+
+func (s *GameSession) InterceptAccountDataTimes(ctx context.Context, p *packet.Packet) error {
+	r := p.Reader()
+	/*unixTime*/ _ = r.Uint32()
+	/*someFlag*/ _ = r.Uint8()
+	mask := r.Uint32()
+
+	const (
+		globalMask  = 0x15
+		perCharMask = 0xEA
+	)
+
+	switch mask {
+	case globalMask:
+		if s.packetSendingControl.accountDataTimesGlobalSent {
+			return nil
+		}
+		s.packetSendingControl.accountDataTimesGlobalSent = true
+	case perCharMask:
+		if s.packetSendingControl.accountDataTimesPerCharSent {
+			return nil
+		}
+		s.packetSendingControl.accountDataTimesPerCharSent = true
+	default:
+	}
+	s.gameSocket.SendPacket(p)
 	return nil
 }
