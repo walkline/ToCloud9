@@ -3,7 +3,7 @@
 Perun, named after the Slavic god, is a tool for managing multiple applications. 
 It provides features like running several apps simultaneously, auto-restarting apps upon failure, logging app output to files, and live viewing of logs from all apps.
 
-![](./../../github/images/perun.png "Perun console")
+![](https://raw.githubusercontent.com/walkline/ToCloud9/master/.github/images/perun.png "Perun console")
 
 ## Configuration
 
