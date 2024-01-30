@@ -106,3 +106,59 @@ gameserver:
   instanceGuidsBufferSize: 10
   natsUrl: *defaultNatsUrl
   logging: *defaultLogging
+
+# Optional. More details here https://github.com/walkline/ToCloud9/tree/master/apps/perun.
+# Requires `binary` field update for windows.
+perun:
+  apps:
+    - name: "servers-registry"
+      alias:
+        - "sr"
+      binary: "./servers-registry"
+      startupTimeoutSecs: 10
+    - name: "guidserver"
+      alias:
+        - "guid"
+      binary: "./guidserver"
+      startupTimeoutSecs: 10
+    - name: "authserver"
+      alias:
+        - "as"
+        - "auth"
+      binary: "./authserver"
+      startupTimeoutSecs: 10
+    - name: "charserver"
+      alias:
+        - "char"
+        - "c"
+      binary: "./charserver"
+      startupTimeoutSecs: 10
+    - name: "guildserver"
+      alias:
+        - "guild"
+      binary: "./guildserver"
+      startupTimeoutSecs: 10
+    - name: "chatserver"
+      alias:
+        - "chat"
+      binary: "./chatserver"
+      startupTimeoutSecs: 10
+    - name: "mailserver"
+      alias:
+        - "m"
+        - "mail"
+      binary: "./mailserver"
+      startupTimeoutSecs: 10
+    - name: "groupserver"
+      alias:
+        - "group"
+        - "gr"
+      binary: "./groupserver"
+      startupTimeoutSecs: 10
+    - name: "game-load-balancer"
+      alias:
+        - "lb"
+        - "glb"
+        - "gamelb"
+      binary: "./game-load-balancer"
+      startupTimeoutSecs: 10

@@ -56,6 +56,9 @@ build-mailserver:
 build-groupserver:
 	go build -o $(INSTALL_PATH)/groupserver apps/groupserver/cmd/groupserver/main.go
 
+build-perun:
+	cd apps/perun && go build -o ../../$(INSTALL_PATH)/perun cmd/perun/main.go && cd ../..
+
 compose-rebuild-lb:
 	docker-compose up -d --build --no-deps game-load-balancer
 
@@ -86,4 +89,4 @@ compose-rebuild-groupserver:
 compose-rebuild-gameserver:
 	docker-compose up -d --build --no-deps gameserver
 
-install: build-authserver build-charserver build-chatserver build-game-load-balancer build-servers-registry build-sidecar build-guidserver build-guildserver build-mailserver build-groupserver
+install: build-authserver build-charserver build-chatserver build-game-load-balancer build-servers-registry build-sidecar build-guidserver build-guildserver build-mailserver build-groupserver build-perun

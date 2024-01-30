@@ -70,6 +70,8 @@ For Windows & AzerothCore [use this guide](doc/RunNonDockerWinWSLAzerothCore.md)
 
 For Linux and Mac - TBD.
 
+You can utilise [Perun tool](https://github.com/walkline/ToCloud9/tree/master/apps/perun) to simplify managing of all apps/microservices.  
+
 ## Community
 
 We have the next [Discord channel](https://discord.gg/QxfBD9uGbN) where you can ask any questions and share your feedback.
