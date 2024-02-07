@@ -59,7 +59,8 @@ message AcceptInviteParams {
 message AcceptInviteResponse {
   enum Status {
     Ok = 0;
-    Error = 1;
+    InviteNotFound = 1;
+    Error = 2;
   }
 
   string api = 1;

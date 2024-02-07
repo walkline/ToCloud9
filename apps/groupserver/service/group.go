@@ -20,6 +20,7 @@ var (
 	ErrGroupNotFound         = errors.New("group not found")
 	ErrGroupMemberNotFound   = errors.New("group member not found")
 	ErrMemberInDungeonOrRaid = errors.New("group member is in dungeon or raid")
+	ErrInviteNotFound        = errors.New("invite not found")
 )
 
 type MessageType uint8
@@ -183,6 +184,10 @@ func (g groupServiceImpl) AcceptInvite(ctx context.Context, realmID uint32, play
 	invite, err := g.r.GetInviteByInvitedPlayer(ctx, realmID, player)
 	if err != nil {
 		return err
+	}
+
+	if invite == nil {
+		return ErrInviteNotFound
 	}
 
 	if invite.GroupID == 0 {

@@ -38,7 +38,9 @@ func (l *AppLogger) StartupLogMsgChan() <-chan []byte {
 func (l *AppLogger) ResetForNewRun() {
 	l.startupContextLoc.Lock()
 	defer l.startupContextLoc.Unlock()
-	close(l.startupLogMsgsChan)
+	if !l.startupChannelClosed {
+		close(l.startupLogMsgsChan)
+	}
 
 	l.startupMsgReceived = false
 	l.startupLogMsgsChan = make(chan []byte, 100)
@@ -49,7 +51,7 @@ func (l *AppLogger) StopSendingStartupLogs() {
 	l.startupContextLoc.Lock()
 	defer l.startupContextLoc.Unlock()
 
-	l.startupChannelClosed = false
+	l.startupMsgReceived = true
 }
 
 func (l *AppLogger) SetConsoleWriter(w io.Writer) {

@@ -80,12 +80,15 @@ func (g GroupServer) Invite(ctx context.Context, params *pb.InviteParams) (*pb.I
 }
 
 func (g GroupServer) AcceptInvite(ctx context.Context, params *pb.AcceptInviteParams) (*pb.AcceptInviteResponse, error) {
+	status := pb.AcceptInviteResponse_Ok
 	err := g.groupService.AcceptInvite(ctx, params.RealmID, params.Player)
 	if err != nil {
-		return nil, err
+		if errors.Is(err, service.ErrInviteNotFound) {
+			status = pb.AcceptInviteResponse_InviteNotFound
+		} else {
+			return nil, err
+		}
 	}
-
-	status := pb.AcceptInviteResponse_Ok
 
 	return &pb.AcceptInviteResponse{
 		Api:    groupserver.Ver,

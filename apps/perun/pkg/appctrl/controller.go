@@ -62,6 +62,11 @@ func (a *AppController) SetConsoleOutput(w io.Writer) {
 }
 
 func (a *AppController) Start() error {
+	if a.cmd != nil {
+		a.cmd.Stderr = nil
+		a.cmd.Stdout = nil
+	}
+
 	a.appLogger.ResetForNewRun()
 
 	a.cmd = exec.Command(a.binaryPath)
@@ -104,6 +109,7 @@ func (a *AppController) Start() error {
 			return fmt.Errorf("startup timeouted")
 		case msg := <-a.appLogger.startupLogMsgsChan:
 			if strings.Contains(strings.ToLower(string(msg)), a.partOfStartupMsg) {
+				a.appLogger.StopSendingStartupLogs()
 				a.triggerStopChan = make(chan struct{}, 1)
 				a.startRestarter(a.triggerStopChan)
 				return nil
