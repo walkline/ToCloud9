@@ -1,6 +1,10 @@
 package repo
 
-import "fmt"
+import (
+	"fmt"
+
+	shrepo "github.com/walkline/ToCloud9/shared/repo"
+)
 
 // CharsPreparedStatements represents prepared statements for the characters database.
 // Implements sharedrepo.PreparedStatement interface.
@@ -40,38 +44,14 @@ func (s CharsPreparedStatements) ID() uint32 {
 	return uint32(s)
 }
 
-// Stmt returns prepared statement as string.
-func (s CharsPreparedStatements) Stmt() string {
-	switch s {
-	case StmtReplaceGroupInvite:
-		return "REPLACE INTO group_invites (invited, inviter, groupId, invitedName, inviterName) VALUES (?, ?, ?, ?, ?)"
-	case StmtSelectGroupInviteByInvited:
-		return "SELECT inviter, groupId, invitedName, inviterName FROM group_invites WHERE invited = ?"
-	case StmtInsertNewGroup:
-		return `INSERT INTO 
-    				` + "`groups`" + `(leaderGuid, lootMethod, looterGuid, lootThreshold, icon1, icon2, icon3, icon4, icon5, icon6, icon7, icon8, groupType, difficulty, raidDifficulty, masterLooterGuid) 
-				VALUES 
-				    (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-	case StmtUpdateGroupWithID:
-		return "UPDATE `groups` " + `
-				SET 
-                  leaderGuid = ?, lootMethod = ?, looterGuid = ?, lootThreshold = ?, 
-                  icon1 = ?, icon2 = ?, icon3 = ?, icon4 = ?, icon5 = ?, icon6 = ?, icon7 = ?, icon8 = ?, 
-                  groupType = ?, difficulty = ?, raidDifficulty = ?, masterLooterGuid = ? 
-                WHERE guid = ?`
-	case StmtInsertNewGroupMember:
-		return `INSERT INTO group_member(guid, memberGuid, memberFlags, subgroup, roles)
-				VALUES (?, ?, ?, ?, ?)`
-	case StmtUpdateGroupMemberWithID:
-		return `UPDATE group_member 
-				SET guid = ?, memberFlags = ?, subgroup = ?, roles = ?
-				WHERE memberGuid = ?`
-	case StmtDeleteGroupMemberWithID:
-		return "DELETE FROM group_member WHERE memberGuid = ?"
-	case StmtDeleteGroupWithID:
-		return "DELETE FROM `groups` WHERE guid = ?"
-	case StmtDeleteGroupMembersWithGroupID:
-		return "DELETE FROM group_member WHERE guid = ?"
+// SchemeStatement returns prepared statement for given schema.
+func (s CharsPreparedStatements) SchemeStatement(schemaType shrepo.SupportedSchemaType) shrepo.PreparedStatement {
+	switch schemaType {
+	case shrepo.SupportedSchemaTypeTrinityCore, shrepo.SupportedSchemaTypeAzerothCore:
+		return shrepo.NewGenericPreparedStatement(s.ID(), s.tcAcScheme())
+	case shrepo.SupportedSchemaTypeCMaNGOS:
+		return shrepo.NewGenericPreparedStatement(s.ID(), s.cmangosScheme())
 	}
-	panic(fmt.Errorf("unk stmt %d", s))
+
+	panic(fmt.Errorf("unk scheme %s", schemaType))
 }

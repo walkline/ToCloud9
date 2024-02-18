@@ -5,6 +5,7 @@ db:
   # Supported 2 schema types:
   #   tc - TrinityCore
   #   ac - AzerothCore
+  #   cm - CMaNGOS
   schemaType: &defaultSchemaType "tc"
 
 nats: &defaultNatsUrl "nats://localhost:4222"
@@ -33,6 +34,7 @@ auth:
 
 characters:
   port: 8991
+  dbSchemaType: *defaultSchemaType
   charactersDB: *defaultCharactersDB
   worldDB: *defaultWorldDB
   natsUrl: *defaultNatsUrl
@@ -85,6 +87,7 @@ mail:
 group:
   port: 8998
   natsUrl: *defaultNatsUrl
+  dbSchemaType: *defaultSchemaType
   charactersDB: *defaultCharactersDB
   charactersServiceAddress: "localhost:8991"
   logging: *defaultLogging

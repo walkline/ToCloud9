@@ -42,15 +42,17 @@ const (
 )
 
 type Group struct {
-	ID               uint
-	LeaderGUID       uint64
-	LootMethod       uint8
-	LooterGUID       uint64
-	LootThreshold    uint8
-	TargetIcons      [MaxTargetIcons]uint64
-	GroupType        GroupTypeFlags
-	Difficulty       uint8
-	RaidDifficulty   uint8
+	ID             uint
+	LeaderGUID     uint64
+	LootMethod     uint8
+	LooterGUID     uint64
+	LootThreshold  uint8
+	TargetIcons    [MaxTargetIcons]uint64
+	GroupType      GroupTypeFlags
+	Difficulty     uint8
+	RaidDifficulty uint8
+
+	// TODO: Refactor this to make this and other roles compatible with cmangos, tc & ac.
 	MasterLooterGuid uint64
 
 	Members []GroupMember

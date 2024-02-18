@@ -51,7 +51,7 @@ func main() {
 
 	//configureDBConn(authDB)
 
-	accountRepo, err := repo.NewAccountMySQLRepo(authDB, repo.StatementsBuilderForSchema(sharedRepo.ParseSchemaType(conf.DBSchemaType)))
+	accountRepo, err := repo.NewAccountMySQLRepo(authDB, repo.StatementsBuilderForSchema(sharedRepo.ParseSchemaType(conf.DBSchemaType)), sharedRepo.ParseSchemaType(conf.DBSchemaType))
 	if err != nil {
 		log.Fatal().Err(err).Msg("can't create account repo")
 	}

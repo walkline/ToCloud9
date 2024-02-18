@@ -2,7 +2,6 @@ package repo
 
 import (
 	"context"
-	"fmt"
 	"strconv"
 	"strings"
 	"unicode"
@@ -10,49 +9,15 @@ import (
 	shrepo "github.com/walkline/ToCloud9/shared/repo"
 )
 
-type CharactersPreparedStatements uint32
-
-func (s CharactersPreparedStatements) Stmt() string {
-	switch s {
-	case StmtListCharactersToLogin:
-		return `SELECT c.guid, c.account, c.name, c.race, c.class, c.gender, c.skin, c.face, c.hairStyle, c.hairColor, c.facialStyle, c.level, c.zone, c.map, c.position_x, c.position_y, c.position_z, 
-		IFNULL(gm.guildid, 0), c.playerFlags, c.at_login, IFNULL(cp.entry, 0), IFNULL(cp.modelid, 0), IFNULL(cp.level, 0), c.equipmentCache, IFNULL(cb.guid, 0) 
-		FROM characters AS c LEFT JOIN character_pet AS cp ON c.guid = cp.owner AND cp.slot = ? LEFT JOIN guild_member AS gm ON c.guid = gm.guid 
-		LEFT JOIN character_banned AS cb ON c.guid = cb.guid AND cb.active = 1 WHERE c.account = ? AND c.deleteInfos_Name IS NULL ORDER BY c.guid`
-	case StmtCharacterToLogin:
-		return `SELECT c.guid, c.account, c.name, c.race, c.class, c.gender, c.skin, c.face, c.hairStyle, c.hairColor, c.facialStyle, c.level, c.zone, c.map, c.position_x, c.position_y, c.position_z, 
-		IFNULL(gm.guildid, 0), c.playerFlags, c.at_login, IFNULL(cp.entry, 0), IFNULL(cp.modelid, 0), IFNULL(cp.level, 0), c.equipmentCache, IFNULL(cb.guid, 0) 
-		FROM characters AS c LEFT JOIN character_pet AS cp ON c.guid = cp.owner AND cp.slot = ? LEFT JOIN guild_member AS gm ON c.guid = gm.guid 
-		LEFT JOIN character_banned AS cb ON c.guid = cb.guid AND cb.active = 1 WHERE c.guid = ? AND c.deleteInfos_Name IS NULL`
-	case StmtSelectAccountData:
-		return "SELECT type, time, data FROM account_data WHERE accountId = ?"
-	case StmtSelectCharacterWithName:
-		return "SELECT c.guid, account, race, class, gender, level, zone, map, position_x, position_y, position_z, IFNULL(gm.guildid, 0) FROM characters AS c LEFT JOIN guild_member AS gm ON c.guid = gm.guid WHERE name = ?"
-	}
-
-	panic(fmt.Errorf("unk stmt %d", s))
-}
-
-func (s CharactersPreparedStatements) ID() uint32 {
-	return uint32(s)
-}
-
-const (
-	StmtListCharactersToLogin CharactersPreparedStatements = iota
-	StmtCharacterToLogin
-	StmtSelectAccountData
-	StmtSelectCharacterWithName
-)
-
 type CharactersMYSQL struct {
 	db shrepo.CharactersDB
 }
 
-func NewCharactersMYSQL(db shrepo.CharactersDB) Characters {
-	db.SetPreparedStatement(StmtListCharactersToLogin)
-	db.SetPreparedStatement(StmtSelectAccountData)
-	db.SetPreparedStatement(StmtCharacterToLogin)
-	db.SetPreparedStatement(StmtSelectCharacterWithName)
+func NewCharactersMYSQL(db shrepo.CharactersDB, schemaType shrepo.SupportedSchemaType) Characters {
+	db.SetPreparedStatement(StmtListCharactersToLogin.SchemeStatement(schemaType))
+	db.SetPreparedStatement(StmtSelectAccountData.SchemeStatement(schemaType))
+	db.SetPreparedStatement(StmtCharacterToLogin.SchemeStatement(schemaType))
+	db.SetPreparedStatement(StmtSelectCharacterWithName.SchemeStatement(schemaType))
 
 	return &CharactersMYSQL{
 		db: db,
@@ -91,7 +56,7 @@ func (c CharactersMYSQL) ListCharactersToLogIn(ctx context.Context, realmID, acc
 		item.Equipments = make([]uint32, 23)
 		item.Enchants = make([]uint32, 23)
 
-		for i, j := 0, 0; j < 23; i, j = i+2, j+1 {
+		for i, j := 0, 0; j < 23 && i < len(strs); i, j = i+2, j+1 {
 			equip, _ := strconv.Atoi(strs[i])
 			item.Equipments[j] = uint32(equip)
 
@@ -139,7 +104,7 @@ func (c CharactersMYSQL) CharacterToLogInByGUID(ctx context.Context, realmID uin
 		item.Equipments = make([]uint32, 23)
 		item.Enchants = make([]uint32, 23)
 
-		for i, j := 0, 0; j < 23; i, j = i+2, j+1 {
+		for i, j := 0, 0; j < 23 && i < len(strs); i, j = i+2, j+1 {
 			equip, _ := strconv.Atoi(strs[i])
 			item.Equipments[j] = uint32(equip)
 

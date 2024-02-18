@@ -117,12 +117,21 @@ func (s *GameSession) InterceptMoveWorldPortAck(ctx context.Context, p *packet.P
 	// Waits till new value in chan.
 	isReadyForRedirect := <-confirmationIsSuccessfulChan
 	if !isReadyForRedirect {
-
 		return fmt.Errorf("failed to redirect player with account %d, world server failed to prepare", s.accountID)
 	}
 
 	s.worldSocket.Close()
 	s.worldSocket = nil
+
+	waitCtx, cancel := context.WithTimeout(ctx, time.Second*5)
+	defer cancel()
+
+	// Let's make sure that mapid changed in the DB, since some cores (like cmangos) can't track saving progress.
+	err = s.waitUntilSameMapForPlayerInDB(waitCtx, mapID)
+	if err != nil {
+		// Just log the error and continue redirect.
+		s.logger.Err(err).Msg("failed to confirm that player saved and ready for redirect")
+	}
 
 	go func(charGUID uint64) {
 		var err error

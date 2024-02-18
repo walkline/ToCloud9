@@ -10,22 +10,32 @@ import (
 
 type groupsRepoMysql struct {
 	db shrepo.CharactersDB
+
+	schema shrepo.SupportedSchemaType
 }
 
-func NewMysqlGroupsRepo(db shrepo.CharactersDB) GroupsRepo {
-	db.SetPreparedStatement(StmtReplaceGroupInvite)
-	db.SetPreparedStatement(StmtSelectGroupInviteByInvited)
-	db.SetPreparedStatement(StmtInsertNewGroup)
-	db.SetPreparedStatement(StmtInsertNewGroupMember)
-	db.SetPreparedStatement(StmtUpdateGroupWithID)
-	db.SetPreparedStatement(StmtUpdateGroupMemberWithID)
-	db.SetPreparedStatement(StmtDeleteGroupMembersWithGroupID)
-	db.SetPreparedStatement(StmtDeleteGroupWithID)
-	db.SetPreparedStatement(StmtDeleteGroupMemberWithID)
+func NewMysqlGroupsRepo(db shrepo.CharactersDB, schemaType shrepo.SupportedSchemaType) GroupsRepo {
+	db.SetPreparedStatement(StmtReplaceGroupInvite.SchemeStatement(schemaType))
+	db.SetPreparedStatement(StmtSelectGroupInviteByInvited.SchemeStatement(schemaType))
+	db.SetPreparedStatement(StmtInsertNewGroup.SchemeStatement(schemaType))
+	db.SetPreparedStatement(StmtInsertNewGroupMember.SchemeStatement(schemaType))
+	db.SetPreparedStatement(StmtUpdateGroupWithID.SchemeStatement(schemaType))
+	db.SetPreparedStatement(StmtUpdateGroupMemberWithID.SchemeStatement(schemaType))
+	db.SetPreparedStatement(StmtDeleteGroupMembersWithGroupID.SchemeStatement(schemaType))
+	db.SetPreparedStatement(StmtDeleteGroupWithID.SchemeStatement(schemaType))
+	db.SetPreparedStatement(StmtDeleteGroupMemberWithID.SchemeStatement(schemaType))
 
-	return &groupsRepoMysql{
-		db: db,
+	repo := groupsRepoMysql{
+		db:     db,
+		schema: schemaType,
 	}
+
+	if schemaType == shrepo.SupportedSchemaTypeCMaNGOS {
+		return &groupsRepoMysqlCmangos{
+			groupsRepoMysql: repo,
+		}
+	}
+	return &repo
 }
 
 func (g groupsRepoMysql) LoadAllForRealm(ctx context.Context, realmID uint32) (map[uint]*Group, error) {

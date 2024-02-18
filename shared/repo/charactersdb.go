@@ -5,10 +5,15 @@ import (
 	"fmt"
 )
 
-// PreparedStatement represents prepared statement with id.
-type PreparedStatement interface {
+// PreparedStatementID represents id of prepared statement.
+type PreparedStatementID interface {
 	// ID returns identifier of prepared statement.
 	ID() uint32
+}
+
+// PreparedStatement represents prepared statement with id.
+type PreparedStatement interface {
+	PreparedStatementID
 
 	// Stmt returns prepared statement as string.
 	Stmt() string
@@ -18,7 +23,7 @@ type CharactersDB interface {
 	DBByRealm(realmID uint32) *sql.DB
 	SetDBForRealm(realmID uint32, db *sql.DB)
 
-	PreparedStatement(realm uint32, stmt PreparedStatement) *sql.Stmt
+	PreparedStatement(realm uint32, stmt PreparedStatementID) *sql.Stmt
 	SetPreparedStatement(stmt PreparedStatement)
 }
 
@@ -49,7 +54,7 @@ func (c *characterDBImpl) SetDBForRealm(realmID uint32, db *sql.DB) {
 	}
 }
 
-func (c *characterDBImpl) PreparedStatement(realm uint32, stmt PreparedStatement) *sql.Stmt {
+func (c *characterDBImpl) PreparedStatement(realm uint32, stmt PreparedStatementID) *sql.Stmt {
 	return c.dbByReam[realm].stmts[stmt.ID()]
 }
 
@@ -61,4 +66,24 @@ func (c *characterDBImpl) SetPreparedStatement(stmt PreparedStatement) {
 		}
 		c.dbByReam[i].stmts[stmt.ID()] = s
 	}
+}
+
+type genericPreparedStatement struct {
+	id   uint32
+	stmt string
+}
+
+func NewGenericPreparedStatement(id uint32, stmt string) PreparedStatement {
+	return &genericPreparedStatement{
+		id:   id,
+		stmt: stmt,
+	}
+}
+
+func (s genericPreparedStatement) ID() uint32 {
+	return s.id
+}
+
+func (s genericPreparedStatement) Stmt() string {
+	return s.stmt
 }

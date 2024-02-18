@@ -35,7 +35,7 @@ func main() {
 
 	stmtsBuilder := repo.StatementsBuilderForSchema(sharedRepo.ParseSchemaType(conf.DBSchemaType))
 
-	authRepo, err := repo.NewAccountMySQLRepo(authDB, stmtsBuilder)
+	authRepo, err := repo.NewAccountMySQLRepo(authDB, stmtsBuilder, sharedRepo.ParseSchemaType(conf.DBSchemaType))
 	if err != nil {
 		log.Fatal().Err(err).Msg("can't create auth repo")
 	}

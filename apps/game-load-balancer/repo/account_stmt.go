@@ -20,6 +20,8 @@ func StatementsBuilderForSchema(schemaType repo.SupportedSchemaType) StatementsB
 		return trinityCoreStatementsBuilder{}
 	case repo.SupportedSchemaTypeAzerothCore:
 		return azerothCoreStatementsBuilder{}
+	case repo.SupportedSchemaTypeCMaNGOS:
+		return cmangosStatementsBuilder{}
 	}
 	panic("unk schema type")
 }

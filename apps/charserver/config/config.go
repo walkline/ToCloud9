@@ -11,6 +11,9 @@ type Config struct {
 	// Port is port that would be used to serve grpc server
 	Port string `yaml:"port" env:"PORT" env-default:"8991"`
 
+	// DBSchemaType is the schema type of database. Supported values: "tc", "ac", "cm".
+	DBSchemaType string `yaml:"dbSchemaType" env:"DB_SCHEMA_TYPE" env-default:"tc"`
+
 	// CharDBConnection is connection string to the characters database
 	CharDBConnection string `yaml:"charactersDB" env:"CHAR_DB_CONNECTION" env-default:"trinity:trinity@tcp(127.0.0.1:3306)/characters"`
 

@@ -64,7 +64,7 @@ func main() {
 
 	charDB := shrepo.NewCharactersDB()
 	charDB.SetDBForRealm(1, cdb)
-	charRepo := repo.NewCharactersMYSQL(charDB)
+	charRepo := repo.NewCharactersMYSQL(charDB, shrepo.ParseSchemaType(conf.DBSchemaType))
 
 	onlineCharsRepo := repo.NewCharactersOnlineInMem()
 	lbEventsConsumer := events.NewLoadBalancerConsumer(

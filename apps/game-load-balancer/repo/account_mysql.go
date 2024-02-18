@@ -3,15 +3,20 @@ package repo
 import (
 	"context"
 	"database/sql"
+
+	shrepo "github.com/walkline/ToCloud9/shared/repo"
+	"github.com/walkline/ToCloud9/shared/slices"
 )
 
 type accountMySQLRepo struct {
 	db *sql.DB
 
 	accountByUserStmt *sql.Stmt
+
+	schemaType shrepo.SupportedSchemaType
 }
 
-func NewAccountMySQLRepo(db *sql.DB, stmtBuilder StatementsBuilder) (AccountRepo, error) {
+func NewAccountMySQLRepo(db *sql.DB, stmtBuilder StatementsBuilder, schemaType shrepo.SupportedSchemaType) (AccountRepo, error) {
 	accountByUserStmt, err := db.Prepare(stmtBuilder.StmtForType(AuthStmtTypeGetAccountByUsername))
 	if err != nil {
 		return nil, err
@@ -20,6 +25,7 @@ func NewAccountMySQLRepo(db *sql.DB, stmtBuilder StatementsBuilder) (AccountRepo
 	return &accountMySQLRepo{
 		db:                db,
 		accountByUserStmt: accountByUserStmt,
+		schemaType:        schemaType,
 	}, nil
 }
 
@@ -33,5 +39,12 @@ func (r *accountMySQLRepo) AccountByUserName(ctx context.Context, username strin
 		}
 		return nil, err
 	}
+
+	if r.schemaType == shrepo.SupportedSchemaTypeCMaNGOS {
+		slices.ReverseBytes(account.Salt)
+		slices.ReverseBytes(account.Verifier)
+		slices.ReverseBytes(account.SessionKeyAuth)
+	}
+
 	return account, nil
 }

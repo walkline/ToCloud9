@@ -121,8 +121,8 @@ func (s *GameSession) CreateCharacter(ctx context.Context, p *packet.Packet) err
 				if !open {
 					return
 				}
-				s.gameSocket.WriteChannel() <- p
 				if p.Opcode == packet.SMsgCharCreate {
+					s.gameSocket.WriteChannel() <- p
 					socket.Close()
 					return
 				}
@@ -197,8 +197,8 @@ func (s *GameSession) DeleteCharacter(ctx context.Context, p *packet.Packet) err
 				if !open {
 					return
 				}
-				s.gameSocket.WriteChannel() <- p
 				if p.Opcode == packet.SMsgCharDelete {
+					s.gameSocket.WriteChannel() <- p
 					socket.Close()
 					return
 				}
@@ -232,4 +232,23 @@ func (s *GameSession) DeleteCharacter(ctx context.Context, p *packet.Packet) err
 	time.Sleep(time.Second * 1)
 
 	return nil
+}
+
+func (s *GameSession) waitUntilSameMapForPlayerInDB(ctx context.Context, mapID uint32) error {
+	for {
+		r, err := s.charServiceClient.CharactersToLoginByGUID(ctx, &pbChar.CharactersToLoginByGUIDRequest{
+			Api:           root.SupportedCharServiceVer,
+			CharacterGUID: s.character.GUID,
+			RealmID:       root.RealmID,
+		})
+		if err != nil {
+			return err
+		}
+
+		if r.Character.Map == mapID {
+			return nil
+		}
+
+		time.Sleep(time.Millisecond * 100)
+	}
 }

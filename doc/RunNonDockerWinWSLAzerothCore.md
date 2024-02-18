@@ -55,13 +55,13 @@ sudo cp $PATH_TOCLOUD9_DIR/bin/libsidecar.so /usr/lib/libsidecar.so
 
 ### Setup & Run
 
-1. Apply database migrations (2 migrations to the acore_characters db at the moment of writing) from `sql/characters/mysql` folder. 
+1. Apply database migrations (2 migrations to the acore_characters db at the moment of writing) from `sql/characters/trinitycore_azerothcore/mysql` folder. 
 
     *a*. Since there are a few of them, you can apply them manually just by executing the content of `*.up.sql` files.
     
     *b*. Or you can use tool like [this](https://github.com/golang-migrate/migrate) and execute similar command:
 ```
-migrate -database "mysql://acore:acore@tcp(localhost:3306)/acore_characters" -path sql/characters/mysql up
+migrate -database "mysql://acore:acore@tcp(localhost:3306)/acore_characters" -path sql/trinitycore_azerothcore/characters/mysql up
 ```
 2. On Windows go the ToCloud9 folder and copy `config.yml.example` file into `bin` subdirectory and rename it to `config.yml`.
 3. Edit content of this new file by updating at least `db:` section. DB section should look like this:

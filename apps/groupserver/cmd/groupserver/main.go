@@ -102,7 +102,7 @@ func createGroupService(cfg *config.Config, natsCon *nats.Conn) service.GroupsSe
 
 	charDB := shrepo.NewCharactersDB()
 	charDB.SetDBForRealm(1, cdb)
-	groupsRepo := repo.NewMysqlGroupsRepo(charDB)
+	groupsRepo := repo.NewMysqlGroupsRepo(charDB, shrepo.ParseSchemaType(cfg.DBSchemaType))
 
 	cache := service.NewInMemGroupsCache(groupsRepo)
 	err = events.NewLoadBalancerConsumer(

@@ -7,6 +7,7 @@ type SupportedSchemaType string
 const (
 	SupportedSchemaTypeTrinityCore SupportedSchemaType = "tc"
 	SupportedSchemaTypeAzerothCore SupportedSchemaType = "ac"
+	SupportedSchemaTypeCMaNGOS     SupportedSchemaType = "cm"
 )
 
 func ParseSchemaType(s string) SupportedSchemaType {
@@ -15,6 +16,8 @@ func ParseSchemaType(s string) SupportedSchemaType {
 		return SupportedSchemaTypeTrinityCore
 	case "ac", "acore", "azeroth", "azerothcore":
 		return SupportedSchemaTypeAzerothCore
+	case "cm", "cmangos", "continued mangos":
+		return SupportedSchemaTypeCMaNGOS
 	}
 	return SupportedSchemaTypeTrinityCore
 }

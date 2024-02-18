@@ -11,7 +11,7 @@ type Config struct {
 	// Port is port that would be used to listen the game client
 	Port string `yaml:"port" env:"PORT" env-default:"3724"`
 
-	// DBSchemaType is the schema type of database. Supported values: "tc", "ac".
+	// DBSchemaType is the schema type of database. Supported values: "tc", "ac", "cm".
 	DBSchemaType string `yaml:"dbSchemaType" env:"DB_SCHEMA_TYPE" env-default:"tc"`
 
 	// AuthDBConnection is connection string to the auth database

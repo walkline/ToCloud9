@@ -3,6 +3,9 @@ package repo
 import (
 	"context"
 	"database/sql"
+
+	shrepo "github.com/walkline/ToCloud9/shared/repo"
+	"github.com/walkline/ToCloud9/shared/slices"
 )
 
 type accountMySQLRepo struct {
@@ -10,9 +13,11 @@ type accountMySQLRepo struct {
 
 	accountByUserStmt *sql.Stmt
 	updateAccountStmt *sql.Stmt
+
+	schemaType shrepo.SupportedSchemaType
 }
 
-func NewAccountMySQLRepo(db *sql.DB, stmtBuilder StatementsBuilder) (AccountRepo, error) {
+func NewAccountMySQLRepo(db *sql.DB, stmtBuilder StatementsBuilder, schemaType shrepo.SupportedSchemaType) (AccountRepo, error) {
 	accountByUserStmt, err := db.Prepare(stmtBuilder.StmtForType(AuthStmtTypeGetAccountByUsername))
 	if err != nil {
 		return nil, err
@@ -27,6 +32,7 @@ func NewAccountMySQLRepo(db *sql.DB, stmtBuilder StatementsBuilder) (AccountRepo
 		db:                db,
 		accountByUserStmt: accountByUserStmt,
 		updateAccountStmt: updateAccountStmt,
+		schemaType:        schemaType,
 	}, nil
 }
 
@@ -40,10 +46,33 @@ func (r *accountMySQLRepo) AccountByUserName(ctx context.Context, username strin
 		}
 		return nil, err
 	}
+
+	if r.schemaType == shrepo.SupportedSchemaTypeCMaNGOS {
+		slices.ReverseBytes(account.Verifier)
+		slices.ReverseBytes(account.Salt)
+		slices.ReverseBytes(account.SessionKeyAuth)
+	}
+
 	return account, nil
 }
 
 func (r *accountMySQLRepo) UpdateAccount(ctx context.Context, a *Account) error {
-	_, err := r.updateAccountStmt.ExecContext(ctx, a.Username, a.Salt, a.Verifier, a.SessionKeyAuth, a.Locked, a.LastIP, a.ID)
+	var salt, verifier, sessionKey []byte
+	if r.schemaType == shrepo.SupportedSchemaTypeCMaNGOS {
+		salt = make([]byte, len(a.Salt))
+		verifier = make([]byte, len(a.Verifier))
+		sessionKey = make([]byte, len(a.SessionKeyAuth))
+		copy(salt, a.Salt)
+		copy(verifier, a.Verifier)
+		copy(sessionKey, a.SessionKeyAuth)
+		slices.ReverseBytes(salt)
+		slices.ReverseBytes(verifier)
+		slices.ReverseBytes(sessionKey)
+	} else {
+		salt = a.Salt
+		verifier = a.Verifier
+		sessionKey = a.SessionKeyAuth
+	}
+	_, err := r.updateAccountStmt.ExecContext(ctx, a.Username, salt, verifier, sessionKey, a.Locked, a.LastIP, a.ID)
 	return err
 }
