@@ -572,7 +572,6 @@ func (s *GameSession) HandleGuildDemote(ctx context.Context, p *packet.Packet) e
 
 func (s *GameSession) HandleGuildQuery(ctx context.Context, p *packet.Packet) error {
 	guildID := p.Reader().Uint32()
-	fmt.Println("HandleGuildQuery", guildID)
 	guildResp, err := s.guildServiceClient.GetGuildInfo(ctx, &pbGuild.GetInfoParams{
 		Api:     root.Ver,
 		RealmID: root.RealmID,

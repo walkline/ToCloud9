@@ -64,8 +64,8 @@ func (s *WorldSocket) ListenAndProcess(ctx context.Context) error {
 }
 
 func (s *WorldSocket) SendPacket(p *packet.Packet) {
-	if e := s.logger.Debug(); e.Enabled() {
-		s.logger.Debug().
+	if e := s.logger.Trace(); e.Enabled() {
+		s.logger.Trace().
 			Str("opcode", fmt.Sprintf("%s (0x%X)", p.Opcode.String(), uint16(p.Opcode))).
 			Uint32("size", p.Size).
 			Msg("📦 Balancer=>World")

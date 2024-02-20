@@ -126,6 +126,8 @@ func NewGameSession(
 // HandlePackets handles game and world packets, as well as general events (like messages).
 // Has infinite loop that can be broken with ctx or by closing gameSocket read channel.
 func (s *GameSession) HandlePackets(ctx context.Context) {
+	s.logger.Debug().Msg("Starting to handle session packets...")
+
 	c, cancel := context.WithCancel(ctx)
 	defer cancel()
 	defer s.logger.Debug().Msg("Stopped to handle packets")
@@ -251,7 +253,9 @@ func (s *GameSession) Login(ctx context.Context, p *packet.Packet) error {
 	s.eventsChan = s.eventsBroadcaster.RegisterCharacter(char.GUID)
 
 	if s.character.GuildID != 0 {
-		return s.GuildLoginCommand(ctx)
+		if err = s.GuildLoginCommand(ctx); err != nil {
+			s.logger.Err(err).Msg("can't process guild login command")
+		}
 	}
 
 	if err = s.HandleQueryNextMailTime(ctx, p); err != nil {
@@ -264,6 +268,8 @@ func (s *GameSession) Login(ctx context.Context, p *packet.Packet) error {
 
 	// Reset sending control for new login.
 	s.packetSendingControl = PacketSendingControl{}
+
+	s.logger.Debug().Msgf("Player '%s' (GUID: %d) logged in.", s.character.Name, s.character.GUID)
 
 	return err
 }

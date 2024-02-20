@@ -120,8 +120,8 @@ func (s *GameSocket) ListenAndProcess(ctx context.Context) error {
 
 	for s.packetsReader.Next() {
 		p := s.packetsReader.Packet()
-		if e := s.logger.Debug(); e.Enabled() {
-			s.logger.Debug().
+		if e := s.logger.Trace(); e.Enabled() {
+			s.logger.Trace().
 				Str("opcode", fmt.Sprintf("%s (0x%X)", p.Opcode.String(), uint16(p.Opcode))).
 				Uint32("size", p.Size).
 				Msg("📦 Game=>Balancer")
@@ -319,7 +319,7 @@ func (s *GameSocket) handleAddons(b []byte) error {
 		}
 		w.Uint8(0)
 
-		s.logger.Debug().
+		s.logger.Trace().
 			Str("name", addonName).
 			Bool("hasKey", hasKey == 1).
 			Uint32("publicKeyCRC", publicKeyCRC).
@@ -334,9 +334,9 @@ func (s *GameSocket) handleAddons(b []byte) error {
 }
 
 func (s *GameSocket) sendOriginalPacket(p *packet.Packet) error {
-	if e := s.logger.Debug(); e.Enabled() {
+	if e := s.logger.Trace(); e.Enabled() {
 		s.logger.
-			Debug().
+			Trace().
 			Str("opcode", fmt.Sprintf("%s (0x%X)", p.Opcode.String(), uint16(p.Opcode))).
 			Int("size", len(p.Data)).
 			Msg("📦 Balancer=>Game")
