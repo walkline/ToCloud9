@@ -52,7 +52,7 @@ func (m *gameServerGRPCConnMgrImpl) GRPCConnByGameServerAddress(address string) 
 		conn, err = m.establishConn(connAddress)
 		if err == nil {
 			m.lock.Lock()
-			m.addressWithConn[address] = conn
+			m.addressWithConn[connAddress] = conn
 			m.lock.Unlock()
 		}
 	}
