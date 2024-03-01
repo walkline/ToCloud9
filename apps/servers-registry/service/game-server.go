@@ -196,6 +196,11 @@ func (g *gameServerImpl) onServerUnhealthy(server *repo.GameServer, err error) {
 		return
 	}
 
+	err = g.metrics.RemoveMetricsObservable(server)
+	if err != nil {
+		log.Error().Err(err).Msg("can't remove gameserver from metrics consumer")
+	}
+
 	wsList, err := g.ListForRealm(context.Background(), server.RealmID)
 	if err != nil {
 		log.Error().Err(err).Msg("can't list servers")
