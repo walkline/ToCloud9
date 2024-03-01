@@ -67,6 +67,13 @@ func (m *metricsConsumerImpl) AddMetricsObservable(observable MetricsObservable)
 	m.objectsMu.Lock()
 	defer m.objectsMu.Unlock()
 
+	// Check if we already have this observable.
+	for _, object := range m.objects {
+		if object.MetricsAddress() == observable.MetricsAddress() {
+			return nil
+		}
+	}
+
 	m.objects = append(m.objects, observable)
 	return nil
 }

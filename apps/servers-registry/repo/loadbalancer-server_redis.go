@@ -3,6 +3,7 @@ package repo
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"hash/fnv"
 	"strconv"
@@ -71,6 +72,9 @@ func (g *loadBalancerRedisRepo) Remove(ctx context.Context, healthCheckAddress s
 	key := g.key(g.generateID(healthCheckAddress))
 	res := g.rdb.Get(ctx, key)
 	if res.Err() != nil {
+		if errors.Is(res.Err(), redis.Nil) {
+			return nil
+		}
 		return res.Err()
 	}
 

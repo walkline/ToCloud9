@@ -3,6 +3,7 @@ package repo
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"hash/fnv"
 	"strconv"
@@ -73,6 +74,10 @@ func (g *gameServerRedisRepo) Remove(ctx context.Context, id string) error {
 	key := g.key(id)
 	res := g.rdb.Get(ctx, key)
 	if res.Err() != nil {
+		if errors.Is(res.Err(), redis.Nil) {
+			return nil
+		}
+
 		return res.Err()
 	}
 

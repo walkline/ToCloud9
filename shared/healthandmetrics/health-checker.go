@@ -62,6 +62,13 @@ func (h *healthChecker) AddHealthCheckObject(object HealthCheckObject) error {
 	h.objectsMu.Lock()
 	defer h.objectsMu.Unlock()
 
+	// Check if we already have this observable.
+	for _, o := range h.objects {
+		if o.HealthCheckAddress() == object.HealthCheckAddress() {
+			return nil
+		}
+	}
+
 	h.objects = append(h.objects, object)
 	return nil
 }
