@@ -1,5 +1,5 @@
 # syntax = docker/dockerfile:1-experimental
-FROM --platform=${BUILDPLATFORM} golang:1.19-alpine AS build
+FROM --platform=${BUILDPLATFORM} golang:1.21-alpine AS build
 
 # runs from project directory
 WORKDIR /
@@ -11,7 +11,7 @@ COPY . .
 
 RUN go build /apps/game-load-balancer/cmd/game-load-balancer/main.go
 
-FROM alpine:3.14
+FROM alpine:3.19
 
 WORKDIR /
 

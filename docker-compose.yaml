@@ -186,7 +186,7 @@ services:
       - ac
 
   nats:
-    image: 'nats:2.9.20'
+    image: nats:2.10-alpine
     expose:
       - "4222"
     ports:
@@ -195,7 +195,7 @@ services:
     hostname: nats-server
 
   redis:
-    image: redis:7.0.8-alpine
+    image: redis:7.2-alpine
     ports:
       - '6379:6379'
     command: redis-server --save 20 1 --loglevel warning

@@ -18,45 +18,36 @@ jobs:
 
       - name: 'Build and push "authserver" image'
         run: |
-          docker build -t ghcr.io/${{github.actor}}/authserver:${{github.ref_name}} -f apps/authserver/Dockerfile . 
-          docker push ghcr.io/${{github.actor}}/authserver:${{github.ref_name}}
+          docker buildx build --push --platform linux/amd64,linux/arm64 -t ghcr.io/${{github.actor}}/authserver:${{github.ref_name}} -f apps/authserver/Dockerfile . 
 
       - name: 'Build and push "charserver" image'
         run: |          
-          docker build -t ghcr.io/${{github.actor}}/charserver:${{github.ref_name}} -f apps/charserver/Dockerfile . 
-          docker push ghcr.io/${{github.actor}}/charserver:${{github.ref_name}}
+          docker buildx build --push --platform linux/amd64,linux/arm64 -t ghcr.io/${{github.actor}}/charserver:${{github.ref_name}} -f apps/charserver/Dockerfile . 
 
       - name: 'Build and push "chatserver" image'
-        run: |   
-          docker build -t ghcr.io/${{github.actor}}/chatserver:${{github.ref_name}} -f apps/chatserver/Dockerfile . 
-          docker push ghcr.io/${{github.actor}}/chatserver:${{github.ref_name}}
+        run: |
+          docker buildx build --push --platform linux/amd64,linux/arm64 -t ghcr.io/${{github.actor}}/chatserver:${{github.ref_name}} -f apps/chatserver/Dockerfile . 
 
       - name: 'Build and push "game-load-balancer" image'
         run: |
-          docker build -t ghcr.io/${{github.actor}}/game-load-balancer:${{github.ref_name}} -f apps/game-load-balancer/Dockerfile . 
-          docker push ghcr.io/${{github.actor}}/game-load-balancer:${{github.ref_name}}
+          docker buildx build --push --platform linux/amd64,linux/arm64 -t ghcr.io/${{github.actor}}/game-load-balancer:${{github.ref_name}} -f apps/game-load-balancer/Dockerfile . 
 
       - name: 'Build and push "guidserver" image'
-        run: |  
-          docker build -t ghcr.io/${{github.actor}}/guidserver:${{github.ref_name}} -f apps/guidserver/Dockerfile . 
-          docker push ghcr.io/${{github.actor}}/guidserver:${{github.ref_name}}
+        run: |
+          docker buildx build --push --platform linux/amd64,linux/arm64 -t ghcr.io/${{github.actor}}/guidserver:${{github.ref_name}} -f apps/guidserver/Dockerfile . 
 
       - name: 'Build and push "guildserver" image'
         run: |
-          docker build -t ghcr.io/${{github.actor}}/guildserver:${{github.ref_name}} -f apps/guildserver/Dockerfile . 
-          docker push ghcr.io/${{github.actor}}/guildserver:${{github.ref_name}}
+          docker buildx build --push --platform linux/amd64,linux/arm64 -t ghcr.io/${{github.actor}}/guildserver:${{github.ref_name}} -f apps/guildserver/Dockerfile . 
 
       - name: 'Build and push "mailserver" image'
         run: |
-          docker build -t ghcr.io/${{github.actor}}/mailserver:${{github.ref_name}} -f apps/mailserver/Dockerfile . 
-          docker push ghcr.io/${{github.actor}}/mailserver:${{github.ref_name}}
+          docker buildx build --push --platform linux/amd64,linux/arm64 -t ghcr.io/${{github.actor}}/mailserver:${{github.ref_name}} -f apps/mailserver/Dockerfile . 
 
       - name: 'Build and push "groupserver" image'
         run: |
-          docker build -t ghcr.io/${{github.actor}}/groupserver:${{github.ref_name}} -f apps/groupserver/Dockerfile . 
-          docker push ghcr.io/${{github.actor}}/groupserver:${{github.ref_name}}
+          docker buildx build --push --platform linux/amd64,linux/arm64 -t ghcr.io/${{github.actor}}/groupserver:${{github.ref_name}} -f apps/groupserver/Dockerfile . 
 
       - name: 'Build and push "servers-registry" image'
         run: |
-          docker build -t ghcr.io/${{github.actor}}/servers-registry:${{github.ref_name}} -f apps/servers-registry/Dockerfile . 
-          docker push ghcr.io/${{github.actor}}/servers-registry:${{github.ref_name}}
+          docker buildx build --push --platform linux/amd64,linux/arm64 -t ghcr.io/${{github.actor}}/servers-registry:${{github.ref_name}} -f apps/servers-registry/Dockerfile . 

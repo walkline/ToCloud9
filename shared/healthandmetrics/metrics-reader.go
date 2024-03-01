@@ -186,7 +186,7 @@ func (h httpPrometheusMetricsReader) Read(observable MetricsObservable) (*Metric
 	}
 
 	metrics := []dto.MetricFamily{}
-	dec := expfmt.NewDecoder(resp.Body, expfmt.FmtText)
+	dec := expfmt.NewDecoder(resp.Body, expfmt.NewFormat(expfmt.TypeTextPlain))
 
 	for {
 		result := dto.MetricFamily{}

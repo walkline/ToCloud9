@@ -1,4 +1,4 @@
-FROM  --platform=${BUILDPLATFORM} golang:1.19-alpine AS build
+FROM  --platform=${BUILDPLATFORM} golang:1.21-alpine AS build
 
 # runs from project directory
 WORKDIR /
@@ -8,7 +8,7 @@ COPY . .
 RUN go mod download
 RUN go build /apps/mailserver/cmd/mailserver/main.go
 
-FROM alpine:3.14
+FROM alpine:3.19
 
 WORKDIR /
 

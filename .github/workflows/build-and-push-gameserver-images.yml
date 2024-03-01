@@ -19,6 +19,5 @@ jobs:
 
       - name: 'Build and push AzerothCore gameserver image'
         run: |
-          docker build -t ghcr.io/${{github.actor}}/gameserver-ac:${{github.ref_name}} -f game-server/azerothcore/Dockerfile . 
-          docker push ghcr.io/${{github.actor}}/gameserver-ac:${{github.ref_name}}
+          docker buildx build --push --platform linux/amd64,linux/arm64 -t ghcr.io/${{github.actor}}/gameserver-ac:${{github.ref_name}} -f game-server/azerothcore/Dockerfile . 
 
