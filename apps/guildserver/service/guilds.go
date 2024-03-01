@@ -406,7 +406,7 @@ func (g *guildServiceImpl) SetMemberPublicNote(ctx context.Context, realmID uint
 		return err
 	}
 
-	rank := g.rankForMember(guild, updaterGuildID)
+	rank := g.rankForMember(guild, updaterGUID)
 	if !rank.HasRight(repo.RightEditPublicNote) {
 		return ErrNotEnoughRight
 	}

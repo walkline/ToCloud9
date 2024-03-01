@@ -251,7 +251,9 @@ func (s *GameSession) Login(ctx context.Context, p *packet.Packet) error {
 	s.eventsChan = s.eventsBroadcaster.RegisterCharacter(char.GUID)
 
 	if s.character.GuildID != 0 {
-		return s.GuildLoginCommand(ctx)
+		if err = s.GuildLoginCommand(ctx); err != nil {
+			s.logger.Err(err).Msg("can't process guild login command")
+		}
 	}
 
 	if err = s.HandleQueryNextMailTime(ctx, p); err != nil {
