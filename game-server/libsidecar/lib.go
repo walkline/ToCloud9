@@ -8,7 +8,7 @@ import (
 	"unsafe"
 
 	"github.com/nats-io/nats.go"
-	
+
 	"github.com/walkline/ToCloud9/gen/servers-registry/pb"
 	"github.com/walkline/ToCloud9/shared/healthandmetrics"
 )
@@ -46,7 +46,10 @@ func initLib(realmID uint32) (*config.Config, healthandmetrics.Server, ShutdownF
 		log.Fatal().Err(err).Msg("can't connect to the Nats")
 	}
 
-	healthCheckServer := healthandmetrics.NewServer(cfg.HealthCheckPort, false)
+	healthandmetrics.EnableActiveConnectionsMetrics()
+	healthandmetrics.EnableDelayMetrics()
+
+	healthCheckServer := healthandmetrics.NewServer(cfg.HealthCheckPort, monitoringHttpHandler())
 	go healthCheckServer.ListenAndServe()
 
 	natsConsumer := SetupEventsListener(nc, realmID, log)
@@ -163,6 +166,55 @@ func TC9InitLib(port uint16, realmID uint32, availableMaps *C.char, assignedMaps
 //export TC9GracefulShutdown
 func TC9GracefulShutdown() {
 	shutdownFunc()
+}
+
+// TC9ProcessGRPCOrHTTPRequests calls all grpc or http handlers in queue.
+//
+//export TC9ProcessGRPCOrHTTPRequests
+func TC9ProcessGRPCOrHTTPRequests() {
+	// Parallel read processing disabled, since goroutines setup time is bigger than benefits for the low amount of requests.
+	// Can be enabled if read requests increase.
+
+	//// TODO: make this configurable.
+	//const readGoroutineCount = 4
+	//
+	//// Handle read operations.
+	//// Read operation is safe to process in parallel.
+	//wg := sync.WaitGroup{}
+	//wg.Add(readGoroutineCount)
+	//for i := 0; i < readGoroutineCount; i++ {
+	//	go func() {
+	//		defer wg.Done()
+	//
+	//		handler := readRequestsQueue.Pop()
+	//		for handler != nil {
+	//			handler.Handle()
+	//			handler = readRequestsQueue.Pop()
+	//		}
+	//	}()
+	//}
+	//
+	//wg.Wait()
+	//
+	//// Handle write operations.
+	//// Since TC is not tread-safe for write operations, we can have only 1 goroutine to process.
+	//handler := writeRequestsQueue.Pop()
+	//for handler != nil {
+	//	handler.Handle()
+	//	handler = writeRequestsQueue.Pop()
+	//}
+
+	handler := readRequestsQueue.Pop()
+	for handler != nil {
+		handler.Handle()
+		handler = readRequestsQueue.Pop()
+	}
+
+	handler = writeRequestsQueue.Pop()
+	for handler != nil {
+		handler.Handle()
+		handler = writeRequestsQueue.Pop()
+	}
 }
 
 // TC9ReadyToAcceptPlayersFromMaps notifies servers registry that this server

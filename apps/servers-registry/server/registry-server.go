@@ -89,12 +89,20 @@ func (s *serversRegistry) ListGameServersForRealm(ctx context.Context, request *
 	respServers := make([]*pb.GameServerDetailed, len(servers))
 	for i := range servers {
 		respServers[i] = &pb.GameServerDetailed{
-			Address:       servers[i].Address,
-			HealthAddress: servers[i].HealthCheckAddr,
-			GrpcAddress:   servers[i].GRPCAddress,
-			RealmID:       servers[i].RealmID,
-			AvailableMaps: servers[i].AvailableMaps,
-			AssignedMaps:  servers[i].AssignedMapsToHandle,
+			Address:           servers[i].Address,
+			HealthAddress:     servers[i].HealthCheckAddr,
+			GrpcAddress:       servers[i].GRPCAddress,
+			RealmID:           servers[i].RealmID,
+			ActiveConnections: servers[i].ActiveConnections,
+			AvailableMaps:     servers[i].AvailableMaps,
+			AssignedMaps:      servers[i].AssignedMapsToHandle,
+			Diff: &pb.GameServerDetailed_Diff{
+				Mean:         servers[i].Diff.Mean,
+				Median:       servers[i].Diff.Median,
+				Percentile95: servers[i].Diff.Percentile95,
+				Percentile99: servers[i].Diff.Percentile99,
+				Max:          servers[i].Diff.Max,
+			},
 		}
 	}
 

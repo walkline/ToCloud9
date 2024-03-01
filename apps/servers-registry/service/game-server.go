@@ -25,6 +25,7 @@ type GameServer interface {
 type gameServerImpl struct {
 	r           repo.GameServerRepo
 	checker     healthandmetrics.HealthChecker
+	metrics     healthandmetrics.MetricsConsumer
 	mapBalancer mapbalancing.MapDistributor
 	eProducer   events.ServerRegistryProducer
 }
@@ -33,6 +34,7 @@ func NewGameServer(
 	ctx context.Context,
 	r repo.GameServerRepo,
 	checker healthandmetrics.HealthChecker,
+	metrics healthandmetrics.MetricsConsumer,
 	mapBalancer mapbalancing.MapDistributor,
 	eProducer events.ServerRegistryProducer,
 	supportedRealmIDs []uint32,
@@ -40,6 +42,7 @@ func NewGameServer(
 	service := &gameServerImpl{
 		r:           r,
 		checker:     checker,
+		metrics:     metrics,
 		mapBalancer: mapBalancer,
 		eProducer:   eProducer,
 	}
@@ -47,6 +50,12 @@ func NewGameServer(
 	checker.AddFailedObserver(func(object healthandmetrics.HealthCheckObject, err error) {
 		if gs, ok := object.(*repo.GameServer); ok {
 			service.onServerUnhealthy(gs, err)
+		}
+	})
+
+	metrics.AddObserver(func(observable healthandmetrics.MetricsObservable, read *healthandmetrics.MetricsRead) {
+		if gs, ok := observable.(*repo.GameServer); ok {
+			service.onMetricsUpdate(gs, read)
 		}
 	})
 
@@ -58,6 +67,11 @@ func NewGameServer(
 
 		for i := range servers {
 			if err = checker.AddHealthCheckObject(&servers[i]); err != nil {
+				return nil, err
+			}
+
+			err = metrics.AddMetricsObservable(&servers[i])
+			if err != nil {
 				return nil, err
 			}
 		}
@@ -72,6 +86,10 @@ func (g *gameServerImpl) Register(ctx context.Context, server *repo.GameServer) 
 	})
 
 	if err := g.checker.AddHealthCheckObject(server); err != nil {
+		return err
+	}
+
+	if err := g.metrics.AddMetricsObservable(server); err != nil {
 		return err
 	}
 
@@ -242,4 +260,19 @@ func (g *gameServerImpl) distributeMapsToServers(ctx context.Context, servers []
 	}
 
 	return distributed, nil
+}
+
+func (g *gameServerImpl) onMetricsUpdate(server *repo.GameServer, m *healthandmetrics.MetricsRead) {
+	err := g.r.Update(context.Background(), server.ID, func(s *repo.GameServer) *repo.GameServer {
+		s.ActiveConnections = uint32(m.ActiveConnections)
+		s.Diff.Mean = uint32(m.DelayMean)
+		s.Diff.Median = uint32(m.DelayMedian)
+		s.Diff.Percentile99 = uint32(m.Delay99Percentile)
+		s.Diff.Percentile95 = uint32(m.Delay95Percentile)
+		s.Diff.Max = uint32(m.DelayMax)
+		return s
+	})
+	if err != nil {
+		log.Error().Err(err).Msg("can't update metrics for game server")
+	}
 }

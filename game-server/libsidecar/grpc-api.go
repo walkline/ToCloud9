@@ -14,8 +14,8 @@ import (
 	"github.com/walkline/ToCloud9/gen/worldserver/pb"
 )
 
-var grpcReadRequestsQueue = queue.NewHandlersFIFOQueue()
-var grpcWriteRequestsQueue = queue.NewHandlersFIFOQueue()
+var readRequestsQueue = queue.NewHandlersFIFOQueue()
+var writeRequestsQueue = queue.NewHandlersFIFOQueue()
 
 func SetupGRPCService(conf *config.Config) (net.Listener, *grpc.Server) {
 	grpcapi.LibVer = libVer
@@ -39,59 +39,10 @@ func SetupGRPCService(conf *config.Config) (net.Listener, *grpc.Server) {
 				CanPlayerInteractWithGO:        CanPlayerInteractWithGOAndTypeHandler,
 			},
 			time.Second*5,
-			grpcReadRequestsQueue,
-			grpcWriteRequestsQueue,
+			readRequestsQueue,
+			writeRequestsQueue,
 		),
 	)
 
 	return lis, grpcServer
-}
-
-// TC9ProcessGRPCRequests calls all grpc handlers in queue.
-//
-//export TC9ProcessGRPCRequests
-func TC9ProcessGRPCRequests() {
-	// Parallel read processing disabled, since goroutines setup time is bigger than benefits for the low amount of requests.
-	// Can be enabled if read requests increase.
-
-	//// TODO: make this configurable.
-	//const readGoroutineCount = 4
-	//
-	//// Handle read operations.
-	//// Read operation is safe to process in parallel.
-	//wg := sync.WaitGroup{}
-	//wg.Add(readGoroutineCount)
-	//for i := 0; i < readGoroutineCount; i++ {
-	//	go func() {
-	//		defer wg.Done()
-	//
-	//		handler := grpcReadRequestsQueue.Pop()
-	//		for handler != nil {
-	//			handler.Handle()
-	//			handler = grpcReadRequestsQueue.Pop()
-	//		}
-	//	}()
-	//}
-	//
-	//wg.Wait()
-	//
-	//// Handle write operations.
-	//// Since TC is not tread-safe for write operations, we can have only 1 goroutine to process.
-	//handler := grpcWriteRequestsQueue.Pop()
-	//for handler != nil {
-	//	handler.Handle()
-	//	handler = grpcWriteRequestsQueue.Pop()
-	//}
-
-	handler := grpcReadRequestsQueue.Pop()
-	for handler != nil {
-		handler.Handle()
-		handler = grpcReadRequestsQueue.Pop()
-	}
-
-	handler = grpcWriteRequestsQueue.Pop()
-	for handler != nil {
-		handler.Handle()
-		handler = grpcWriteRequestsQueue.Pop()
-	}
 }

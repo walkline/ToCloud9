@@ -77,12 +77,22 @@ message ListGameServersForRealmRequest {
 }
 
 message GameServerDetailed {
+  message Diff {
+    uint32 mean = 1;
+    uint32 median = 2;
+    uint32 percentile95 = 3;
+    uint32 percentile99 = 4;
+    uint32 max = 5;
+  };
+
   string address = 1;
   string healthAddress = 2;
   string grpcAddress = 3;
   uint32 realmID = 4;
-  repeated uint32 availableMaps = 5;
-  repeated uint32 assignedMaps = 6;
+  uint32 activeConnections = 5;
+  Diff diff = 6;
+  repeated uint32 availableMaps = 7;
+  repeated uint32 assignedMaps = 8;
 }
 
 message ListGameServersForRealmResponse {

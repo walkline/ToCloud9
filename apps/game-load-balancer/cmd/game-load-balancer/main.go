@@ -8,6 +8,7 @@ import (
 
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/nats-io/nats.go"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/rs/zerolog/log"
 	"google.golang.org/grpc"
 
@@ -70,7 +71,7 @@ func main() {
 	groupClient := groupService(conf)
 
 	healthandmetrics.EnableActiveConnectionsMetrics()
-	healthCheckServer := healthandmetrics.NewServer(conf.HealthCheckPort, true)
+	healthCheckServer := healthandmetrics.NewServer(conf.HealthCheckPort, promhttp.Handler())
 
 	go func() {
 		err = healthCheckServer.ListenAndServe()

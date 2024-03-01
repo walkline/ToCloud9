@@ -3,13 +3,13 @@ package session
 import (
 	"context"
 	"fmt"
-	pbGroup "github.com/walkline/ToCloud9/gen/group/pb"
 	"strings"
 
 	root "github.com/walkline/ToCloud9/apps/game-load-balancer"
 	eBroadcaster "github.com/walkline/ToCloud9/apps/game-load-balancer/events-broadcaster"
 	"github.com/walkline/ToCloud9/apps/game-load-balancer/packet"
 	pbChat "github.com/walkline/ToCloud9/gen/chat/pb"
+	pbGroup "github.com/walkline/ToCloud9/gen/group/pb"
 	pbGuild "github.com/walkline/ToCloud9/gen/guilds/pb"
 	pbServ "github.com/walkline/ToCloud9/gen/servers-registry/pb"
 )
@@ -277,6 +277,14 @@ func (s *GameSession) handleCommandMsgListGameServers(ctx context.Context) error
 		s.SendSysMessage(fmt.Sprintf("> Node address: %s.", server.Address))
 		s.SendSysMessage(fmt.Sprintf("  Available maps: %s.", mapsAvailable))
 		s.SendSysMessage(fmt.Sprintf("  Assigned maps: %s.", assignedMaps))
+		s.SendSysMessage(fmt.Sprintf("  Active connections: %d.", server.ActiveConnections))
+		s.SendSysMessage(
+			fmt.Sprintf(
+				"  Diff (mean, median, 95, 99, max): %dms, %dms, %dms, %dms, %dms.",
+				server.Diff.Mean, server.Diff.Median, server.Diff.Percentile95,
+				server.Diff.Percentile99, server.Diff.Max,
+			),
+		)
 
 		if isCurrentlyUsing {
 			s.SendSysMessage("  You are |cff4CFF00connected |rto this one.")

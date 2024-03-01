@@ -5,6 +5,14 @@ import (
 	"sort"
 )
 
+type DiffData struct {
+	Mean         uint32
+	Median       uint32
+	Percentile95 uint32
+	Percentile99 uint32
+	Max          uint32
+}
+
 type GameServer struct {
 	ID              string
 	Address         string
@@ -12,6 +20,9 @@ type GameServer struct {
 	GRPCAddress     string
 	RealmID         uint32
 	AvailableMaps   []uint32
+
+	ActiveConnections uint32
+	Diff              DiffData
 
 	// AssignedMapsToHandle list of maps that loadbalancer algorithm assigned for this server.
 	AssignedMapsToHandle []uint32
@@ -23,6 +34,10 @@ type GameServer struct {
 }
 
 func (g *GameServer) HealthCheckAddress() string {
+	return g.HealthCheckAddr
+}
+
+func (g *GameServer) MetricsAddress() string {
 	return g.HealthCheckAddr
 }
 
@@ -55,6 +70,7 @@ func (g *GameServer) Copy() GameServer {
 
 type GameServerRepo interface {
 	Upsert(context.Context, *GameServer) error
+	Update(ctx context.Context, id string, f func(*GameServer) *GameServer) error
 	Remove(ctx context.Context, id string) error
 	ListByRealm(ctx context.Context, realmID uint32) ([]GameServer, error)
 	One(ctx context.Context, id string) (*GameServer, error)

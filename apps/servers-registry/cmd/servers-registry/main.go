@@ -77,6 +77,7 @@ func main() {
 		mainContext,
 		repo.NewGameServerRedisRepo(rdb),
 		healthChecker,
+		metricsConsumer,
 		binpack.NewBinPackBalancer(binpack.DefaultMapsWeight), // TODO: implement providing custom maps weight list.
 		events.NewServerRegistryProducerNatsJSON(nc, "0.0.1"),
 		supportedRealms,

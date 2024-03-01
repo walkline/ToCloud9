@@ -23,7 +23,7 @@ RUN update-alternatives --install /usr/bin/c++ c++ /usr/bin/clang 100
 RUN mkdir repo
 RUN cd repo && git init && \
     git remote add origin https://github.com/walkline/azerothcore-wotlk.git && \
-    git fetch --depth 1 origin 6db9abf503ba09a665cc3b65e2d4db1da013da4c  && \
+    git fetch --depth 1 origin f41e5d6c8d4026f6326fbeaa30f867a9c767d246  && \
     git checkout FETCH_HEAD
 
 COPY --from=build-sidecar ./go/src/github.com/walkline/ToCloud9/libsidecar.so ./repo/deps/libsidecar/libsidecar.so

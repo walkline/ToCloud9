@@ -108,7 +108,7 @@ func (s *GameSession) CreateCharacter(ctx context.Context, p *packet.Packet) err
 	}
 
 	go socket.ListenAndProcess(s.ctx)
-	newCtx, cancel := context.WithTimeout(s.ctx, time.Second*5)
+	newCtx, cancel := context.WithTimeout(s.ctx, time.Second*20)
 	defer cancel()
 
 	waitDone := make(chan struct{})

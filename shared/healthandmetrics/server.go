@@ -3,8 +3,6 @@ package healthandmetrics
 import (
 	"context"
 	"net/http"
-
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 var (
@@ -25,14 +23,14 @@ type server struct {
 	port string
 }
 
-func NewServer(port string, enableMetrics bool) Server {
+func NewServer(port string, metricsHandler http.Handler) Server {
 	mux := http.NewServeMux()
 	mux.HandleFunc(HealthCheckURL, func(w http.ResponseWriter, r *http.Request) {
 		w.Write(healthCheckOKPayload)
 	})
 
-	if enableMetrics {
-		mux.Handle(MetricsURL, promhttp.Handler())
+	if metricsHandler != nil {
+		mux.Handle(MetricsURL, metricsHandler)
 	}
 
 	return &server{
@@ -44,6 +42,6 @@ func NewServer(port string, enableMetrics bool) Server {
 	}
 }
 
-func (s server) Port() string {
+func (s *server) Port() string {
 	return s.port
 }

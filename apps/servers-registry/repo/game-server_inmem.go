@@ -27,6 +27,20 @@ func (g *gameServerInMemRepo) Upsert(ctx context.Context, server *GameServer) er
 	return nil
 }
 
+func (g *gameServerInMemRepo) Update(ctx context.Context, id string, f func(*GameServer) *GameServer) error {
+	g.mutex.Lock()
+	defer g.mutex.Unlock()
+
+	for i := range g.storage {
+		if g.storage[i].ID == id {
+			g.storage[i] = *f(&g.storage[i])
+			return nil
+		}
+	}
+
+	return nil
+}
+
 func (g *gameServerInMemRepo) Remove(ctx context.Context, id string) error {
 	g.mutex.Lock()
 	defer g.mutex.Unlock()

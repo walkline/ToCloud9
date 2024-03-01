@@ -33,7 +33,7 @@ func (l Logging) Logger() zerolog.Logger {
 			TimeFormat: "15:04:05.000",
 		}).Level(l.LogLevel)
 	case LoggingFormatJSON:
-		log.Logger = zerolog.New(os.Stderr).With().Timestamp().Logger()
+		log.Logger = zerolog.New(os.Stderr).With().Timestamp().Logger().Level(l.LogLevel)
 	}
 	return log.Logger
 }

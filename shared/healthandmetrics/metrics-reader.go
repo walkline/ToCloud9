@@ -19,6 +19,12 @@ type MetricsObservable interface {
 type MetricsRead struct {
 	ActiveConnections int
 
+	DelayMean         int
+	DelayMedian       int
+	Delay95Percentile int
+	Delay99Percentile int
+	DelayMax          int
+
 	Raw []dto.MetricFamily
 }
 
@@ -198,8 +204,23 @@ func (h httpPrometheusMetricsReader) Read(observable MetricsObservable) (*Metric
 		Raw: metrics,
 	}
 	for _, result := range metrics {
-		if result.Name != nil && *result.Name == activeConnectionMetricsName && len(result.Metric) > 0 {
+		if result.Name == nil || len(result.Metric) == 0 {
+			continue
+		}
+
+		switch *result.Name {
+		case activeConnectionMetricsName:
 			results.ActiveConnections = int(*result.Metric[0].Gauge.Value)
+		case delayMeanMetricsName:
+			results.DelayMean = int(*result.Metric[0].Gauge.Value)
+		case delayMedianMetricsName:
+			results.DelayMedian = int(*result.Metric[0].Gauge.Value)
+		case delay95PercentileMetricsName:
+			results.Delay95Percentile = int(*result.Metric[0].Gauge.Value)
+		case delay99PercentileMetricsName:
+			results.Delay99Percentile = int(*result.Metric[0].Gauge.Value)
+		case delayMaxMetricsName:
+			results.DelayMax = int(*result.Metric[0].Gauge.Value)
 		}
 	}
 

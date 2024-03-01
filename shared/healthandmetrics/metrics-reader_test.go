@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -15,7 +16,7 @@ func (o observable) MetricsAddress() string {
 }
 
 func Test_httpPrometheusMetricsReader_Read(t *testing.T) {
-	server := NewServer("9132", true)
+	server := NewServer("9132", promhttp.Handler())
 	go server.ListenAndServe()
 	defer server.Shutdown(context.Background())
 

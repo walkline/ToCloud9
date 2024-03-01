@@ -46,6 +46,29 @@ func (g *gameServerRedisRepo) Upsert(ctx context.Context, server *GameServer) er
 	return nil
 }
 
+func (g *gameServerRedisRepo) Update(ctx context.Context, id string, f func(*GameServer) *GameServer) error {
+	res := g.rdb.Get(ctx, g.key(id))
+	if res.Err() != nil {
+		return res.Err()
+	}
+
+	v := &GameServer{}
+	err := json.Unmarshal([]byte(res.Val()), v)
+	if err != nil {
+		return err
+	}
+
+	newV := f(v)
+	d, err := json.Marshal(newV)
+	if err != nil {
+		return err
+	}
+
+	key := g.key(newV.ID)
+	status := g.rdb.Set(ctx, key, d, 0)
+	return status.Err()
+}
+
 func (g *gameServerRedisRepo) Remove(ctx context.Context, id string) error {
 	key := g.key(id)
 	res := g.rdb.Get(ctx, key)
