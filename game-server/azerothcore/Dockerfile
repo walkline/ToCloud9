@@ -1,4 +1,4 @@
-FROM --platform=${BUILDPLATFORM} golang:1.19 AS build-sidecar
+FROM --platform=${BUILDPLATFORM} golang:1.21 AS build-sidecar
 
 # runs from project directory
 WORKDIR $GOPATH/src/github.com/walkline/ToCloud9
@@ -9,7 +9,7 @@ RUN go mod download
 
 RUN go build -o libsidecar.so -buildmode=c-shared ./game-server/libsidecar/
 
-FROM --platform=${BUILDPLATFORM} ubuntu:22.04
+FROM --platform=${BUILDPLATFORM} ubuntu:22.04 AS build-core
 
 ENV DEBIAN_FRONTEND=noninteractive
 
@@ -38,15 +38,39 @@ COPY --from=build-sidecar ./go/src/github.com/walkline/ToCloud9/game-server/libs
 WORKDIR /repo
 
 RUN cd bin && \
-    cmake .. -DUSE_REAL_LIBSIDECAR=ON -DWITH_WARNINGS=1 -DWITH_COREDEBUG=0 -DUSE_COREPCH=1 -DUSE_SCRIPTPCH=1 -DTOOLS=0 -DSCRIPTS=static -DSERVERS=1 -DCMAKE_INSTALL_PREFIX=/repo/bin -DBUILD_TESTING=0
+    cmake .. -DUSE_REAL_LIBSIDECAR=ON \
+        -DBoost_USE_STATIC_LIBS=ON \
+        -DWITH_WARNINGS=1 \
+        -DWITH_COREDEBUG=0 \
+        -DUSE_COREPCH=1 \
+        -DUSE_SCRIPTPCH=1 \
+        -DTOOLS=0 \
+        -DSCRIPTS=static \
+        -DSERVERS=1 \
+        -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+        -DCMAKE_INSTALL_PREFIX=/repo/bin \
+        -DBUILD_TESTING=0
 
 RUN cp deps/libsidecar/libsidecar.so /usr/lib/libsidecar.so
 
 WORKDIR /repo/bin
 
-RUN make -j 8 -k
-RUN make install
+RUN cmake --build . --config "RelWithDebInfo" -j $(($(nproc) + 1))
+RUN cmake --install . --config "RelWithDebInfo"
 
-WORKDIR /repo/bin/src/server/apps
+FROM --platform=${BUILDPLATFORM} ubuntu:22.04
+
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+      libmysqlclient21 libreadline8 \
+      gettext-base default-mysql-client && \
+    rm -rf /var/lib/apt/lists/*
+
+COPY --from=build-sidecar ./go/src/github.com/walkline/ToCloud9/libsidecar.so /usr/lib/libsidecar.so
+
+COPY --from=build-core /repo/bin/etc/worldserver.conf.dist /repo/bin/etc/worldserver.conf
+COPY --from=build-core /repo/bin/bin/worldserver /repo/bin/worldserver
+
+WORKDIR /repo/bin
 
 ENTRYPOINT ["./worldserver"]
