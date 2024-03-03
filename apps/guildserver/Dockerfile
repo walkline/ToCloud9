@@ -1,12 +1,15 @@
 FROM  --platform=${BUILDPLATFORM} golang:1.21-alpine AS build
 
+ARG TARGETOS
+ARG TARGETARCH
+
 # runs from project directory
 WORKDIR /
 
 COPY . .
 
 RUN go mod download
-RUN go build /apps/guildserver/cmd/guildserver/main.go
+RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -ldflags="-w -s" /apps/guildserver/cmd/guildserver/main.go
 
 FROM alpine:3.19
 

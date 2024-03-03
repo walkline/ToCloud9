@@ -1,6 +1,9 @@
 # syntax = docker/dockerfile:1-experimental
 FROM --platform=${BUILDPLATFORM} golang:1.21-alpine AS build
 
+ARG TARGETOS
+ARG TARGETARCH
+
 # runs from project directory
 WORKDIR /
 
@@ -9,7 +12,7 @@ RUN go mod download
 
 COPY . .
 
-RUN go build /apps/servers-registry/cmd/servers-registry/main.go
+RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -ldflags="-w -s" /apps/servers-registry/cmd/servers-registry/main.go
 
 FROM alpine:3.19
 

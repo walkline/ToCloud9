@@ -1,4 +1,4 @@
-FROM --platform=${BUILDPLATFORM} golang:1.21 AS build-sidecar
+FROM golang:1.21 AS build-sidecar
 
 # runs from project directory
 WORKDIR $GOPATH/src/github.com/walkline/ToCloud9
@@ -9,7 +9,7 @@ RUN go mod download
 
 RUN go build -o libsidecar.so -buildmode=c-shared ./game-server/libsidecar/
 
-FROM --platform=${BUILDPLATFORM} ubuntu:22.04 AS build-core
+FROM ubuntu:22.04 AS build-core
 
 ENV DEBIAN_FRONTEND=noninteractive
 
@@ -58,7 +58,7 @@ WORKDIR /repo/bin
 RUN cmake --build . --config "RelWithDebInfo" -j $(($(nproc) + 1))
 RUN cmake --install . --config "RelWithDebInfo"
 
-FROM --platform=${BUILDPLATFORM} ubuntu:22.04
+FROM ubuntu:22.04
 
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
