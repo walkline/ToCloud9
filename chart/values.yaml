@@ -1,6 +1,8 @@
 # Default values for tocloud9.
 # This is a YAML-formatted file.
 # Declare variables to be passed into your templates.
+tc9ImagesTag: &defaultImagesTag "v0.0.3"
+
 redis:
   enabled: true
   architecture: standalone
@@ -32,7 +34,7 @@ servers_registry:
   image:
     repository: ghcr.io/walkline/servers-registry
     pullPolicy: Always
-    tag: "v0.0.2"
+    tag: *defaultImagesTag
   service:
     type: ClusterIP
     internalPort: 8999
@@ -43,7 +45,7 @@ authserver:
   image:
     repository: ghcr.io/walkline/authserver
     pullPolicy: Always
-    tag: "v0.0.2"
+    tag: *defaultImagesTag
   service:
     type: NodePort
     internalPort: 3724
@@ -54,7 +56,7 @@ guildserver:
   image:
     repository: ghcr.io/walkline/guildserver
     pullPolicy: Always
-    tag: "v0.0.2"
+    tag: *defaultImagesTag
   service:
     type: ClusterIP
     internalPort: 8995
@@ -65,7 +67,7 @@ guidserver:
   image:
     repository: ghcr.io/walkline/guidserver
     pullPolicy: Always
-    tag: "v0.0.2"
+    tag: *defaultImagesTag
   service:
     type: ClusterIP
     internalPort: 8996
@@ -76,7 +78,7 @@ chatserver:
   image:
     repository: ghcr.io/walkline/chatserver
     pullPolicy: Always
-    tag: "v0.0.2"
+    tag: *defaultImagesTag
   service:
     type: ClusterIP
     internalPort: 8992
@@ -87,7 +89,7 @@ charserver:
   image:
     repository: ghcr.io/walkline/charserver
     pullPolicy: Always
-    tag: "v0.0.2"
+    tag: *defaultImagesTag
   service:
     type: ClusterIP
     internalPort: 8087
@@ -98,7 +100,7 @@ groupserver:
   image:
     repository: ghcr.io/walkline/groupserver
     pullPolicy: Always
-    tag: "v0.0.2"
+    tag: *defaultImagesTag
   service:
     type: ClusterIP
     internalPort: 8998
@@ -109,7 +111,7 @@ mailserver:
   image:
     repository: ghcr.io/walkline/mailserver
     pullPolicy: Always
-    tag: "v0.0.2"
+    tag: *defaultImagesTag
   service:
     type: ClusterIP
     internalPort: 8997
@@ -125,7 +127,7 @@ game_lb:
   image:
     repository: ghcr.io/walkline/game-load-balancer
     pullPolicy: Always
-    tag: "v0.0.2"
+    tag: *defaultImagesTag
   service:
     type: NodePort
 
@@ -147,7 +149,7 @@ gameserver_ac:
   image:
     repository: ghcr.io/walkline/gameserver-ac
     pullPolicy: Always
-    tag: "v0.0.2"
+    tag: *defaultImagesTag
   service:
     type: ClusterIP
     internalPort: 9509
