@@ -362,12 +362,14 @@ func TestGameSessionLogin(t *testing.T) {
 		return id == charID
 	})).Return((<-chan eBroadcaster.Event)(make(chan eBroadcaster.Event)))
 
+	worldSocketReadChan := make(chan *packet.Packet, 100)
+	worldSocketReadChan <- packet.NewWriter(packet.SMsgAuthChallenge).ToPacket()
 	worldSocket := &mocks.Socket{}
 	worldSocket.On("SendPacket", mock.Anything).Return()
 	worldSocket.On("Send", mock.MatchedBy(func(wr *packet.Writer) bool {
 		return wr.Opcode == packet.CMsgAuthSession || wr.Opcode == packet.CMsgPlayerLogin || wr.Opcode == packet.MsgQueryNextMailTime
 	})).Return()
-	worldSocket.On("ReadChannel").Return((<-chan *packet.Packet)(make(chan *packet.Packet, 100)))
+	worldSocket.On("ReadChannel").Return((<-chan *packet.Packet)(worldSocketReadChan))
 	worldSocket.On("ListenAndProcess", mock.Anything).Return(nil)
 
 	gameSocket := &mocks.Socket{}
