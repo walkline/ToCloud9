@@ -210,6 +210,9 @@ func (s *GameSession) HandlePackets(ctx context.Context) {
 }
 
 func (s *GameSession) Login(ctx context.Context, p *packet.Packet) error {
+	// Reset sending control for new login.
+	s.packetSendingControl = PacketSendingControl{}
+
 	char, socket, err := s.connectToGameServer(ctx, p.Reader().Uint64(), nil)
 	if err != nil {
 		code := packet.LoginErrorCodeLoginFailed
@@ -263,9 +266,6 @@ func (s *GameSession) Login(ctx context.Context, p *packet.Packet) error {
 	if err = s.LoadGroupForPlayer(ctx); err != nil {
 		return err
 	}
-
-	// Reset sending control for new login.
-	s.packetSendingControl = PacketSendingControl{}
 
 	return err
 }
@@ -394,8 +394,20 @@ func (s *GameSession) connectToGameServer(ctx context.Context, characterGUID uin
 
 	socket.SendPacket(s.authPacket)
 
+	select {
+	case p, open := <-socket.ReadChannel():
+		if !open {
+			return nil, nil, fmt.Errorf("world socket closed")
+		}
+		if p.Opcode != packet.SMsgAuthChallenge {
+			socket.WriteChannel() <- p
+		}
+	case <-ctx.Done():
+		return nil, nil, ctx.Err()
+	}
+
 	// we need give some time to add session on the world side
-	time.Sleep(time.Millisecond * 100)
+	time.Sleep(time.Millisecond * 200)
 
 	resp := packet.NewWriterWithSize(packet.CMsgPlayerLogin, 8)
 	resp.Uint64(characterGUID)
