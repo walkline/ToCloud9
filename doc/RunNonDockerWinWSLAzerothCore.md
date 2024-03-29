@@ -37,7 +37,7 @@ Let's start with building libsidecar.
 1. To build libsidecar you need to have Go installed in WSL as well. So please follow *Linux* instructions described here: https://go.dev/doc/install.
 2. Open ToCloud9 folder downloaded from previous steps in WSL terminal and run the next command:
 ```
-build -o bin/libsidecar.so -buildmode=c-shared ./game-server/libsidecar/
+go build -o bin/libsidecar.so -buildmode=c-shared ./game-server/libsidecar/
 ```
 3. Download AzerothCore sources with cluster mode support using git in some folder, example:
 ```
