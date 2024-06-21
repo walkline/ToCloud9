@@ -70,6 +70,7 @@ COPY --from=build-sidecar ./go/src/github.com/walkline/ToCloud9/libsidecar.so /u
 
 COPY --from=build-core /repo/bin/etc/worldserver.conf.dist /repo/bin/etc/worldserver.conf
 COPY --from=build-core /repo/bin/bin/worldserver /repo/bin/worldserver
+COPY --from=build-core /repo/data/sql/ /repo/data/sql/
 
 WORKDIR /repo/bin
 
