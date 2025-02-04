@@ -1,6 +1,6 @@
 module github.com/walkline/ToCloud9
 
-go 1.23
+go 1.22
 
 require (
 	github.com/go-mysql-org/go-mysql v1.10.1-0.20241221150101-2f4217957dd5
