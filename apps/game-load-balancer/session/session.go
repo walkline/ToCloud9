@@ -19,9 +19,11 @@ import (
 	pbGroup "github.com/walkline/ToCloud9/gen/group/pb"
 	pbGuild "github.com/walkline/ToCloud9/gen/guilds/pb"
 	pbMail "github.com/walkline/ToCloud9/gen/mail/pb"
+	pbMatchmaking "github.com/walkline/ToCloud9/gen/matchmaking/pb"
 	pbServ "github.com/walkline/ToCloud9/gen/servers-registry/pb"
 	pbGameServ "github.com/walkline/ToCloud9/gen/worldserver/pb"
 	"github.com/walkline/ToCloud9/shared/events"
+	"github.com/walkline/ToCloud9/shared/gameserver/conn"
 )
 
 var (
@@ -40,17 +42,19 @@ type GameSession struct {
 	eventsChan        <-chan eBroadcaster.Event
 	sessionSafeFuChan chan func(*GameSession)
 
-	charServiceClient     pbChar.CharactersServiceClient
-	serversRegistryClient pbServ.ServersRegistryServiceClient
-	chatServiceClient     pbChat.ChatServiceClient
-	guildServiceClient    pbGuild.GuildServiceClient
-	mailServiceClient     pbMail.MailServiceClient
-	groupServiceClient    pbGroup.GroupServiceClient
-	gameServerGRPCClient  pbGameServ.WorldServerServiceClient
-	eventsProducer        events.LoadBalancerProducer
-	eventsBroadcaster     eBroadcaster.Broadcaster
-	charsUpdsBarrier      *service.CharactersUpdatesBarrier
-	gameServerGRPCConnMgr service.GameServerGRPCConnMgr
+	charServiceClient        pbChar.CharactersServiceClient
+	serversRegistryClient    pbServ.ServersRegistryServiceClient
+	chatServiceClient        pbChat.ChatServiceClient
+	guildServiceClient       pbGuild.GuildServiceClient
+	mailServiceClient        pbMail.MailServiceClient
+	groupServiceClient       pbGroup.GroupServiceClient
+	gameServerGRPCClient     pbGameServ.WorldServerServiceClient
+	matchmakingServiceClient pbMatchmaking.MatchmakingServiceClient
+	eventsProducer           events.LoadBalancerProducer
+	eventsBroadcaster        eBroadcaster.Broadcaster
+	charsUpdsBarrier         *service.CharactersUpdatesBarrier
+	realmNamesService        *service.RealmNamesService
+	gameServerGRPCConnMgr    conn.GameServerGRPCConnMgr
 
 	groupUpdateCounter uint32
 
@@ -61,7 +65,7 @@ type GameSession struct {
 	pingToWorldServerStarted time.Time
 
 	accountID uint32
-	character *pbChar.LogInCharacter
+	character *LoggedInCharacter
 
 	teleportingToNewMap *uint32
 
@@ -78,11 +82,13 @@ type GameSessionParams struct {
 	ChatServiceClient                pbChat.ChatServiceClient
 	GuildsServiceClient              pbGuild.GuildServiceClient
 	MailServiceClient                pbMail.MailServiceClient
+	MatchmakingServiceClient         pbMatchmaking.MatchmakingServiceClient
 	GroupServiceClient               pbGroup.GroupServiceClient
 	EventsProducer                   events.LoadBalancerProducer
 	CharsUpdsBarrier                 *service.CharactersUpdatesBarrier
+	RealmNamesService                *service.RealmNamesService
 	EventsBroadcaster                eBroadcaster.Broadcaster
-	GameServerGRPCConnMgr            service.GameServerGRPCConnMgr
+	GameServerGRPCConnMgr            conn.GameServerGRPCConnMgr
 	PacketProcessTimeout             time.Duration
 	ShowGameserverConnChangeToClient bool
 }
@@ -110,10 +116,12 @@ func NewGameSession(
 		chatServiceClient:                params.ChatServiceClient,
 		guildServiceClient:               params.GuildsServiceClient,
 		mailServiceClient:                params.MailServiceClient,
+		matchmakingServiceClient:         params.MatchmakingServiceClient,
 		groupServiceClient:               params.GroupServiceClient,
 		eventsProducer:                   params.EventsProducer,
 		eventsBroadcaster:                params.EventsBroadcaster,
 		charsUpdsBarrier:                 params.CharsUpdsBarrier,
+		realmNamesService:                params.RealmNamesService,
 		gameServerGRPCConnMgr:            params.GameServerGRPCConnMgr,
 		showGameserverConnChangeToClient: params.ShowGameserverConnChangeToClient,
 
@@ -229,7 +237,33 @@ func (s *GameSession) Login(ctx context.Context, p *packet.Packet) error {
 		return fmt.Errorf("failed to connect to game server, err: %w", err)
 	}
 
-	s.character = char
+	s.character = &LoggedInCharacter{
+		GUID:                    char.GUID,
+		Name:                    char.Name,
+		Race:                    uint8(char.Race),
+		Class:                   uint8(char.Class),
+		Gender:                  uint8(char.Gender),
+		Skin:                    uint8(char.Skin),
+		Face:                    uint8(char.Face),
+		HairStyle:               uint8(char.HairStyle),
+		HairColor:               uint8(char.HairColor),
+		FacialStyle:             uint8(char.FacialStyle),
+		Level:                   uint8(char.Level),
+		Zone:                    char.Zone,
+		Map:                     char.Map,
+		PositionX:               char.PositionX,
+		PositionY:               char.PositionY,
+		PositionZ:               char.PositionZ,
+		GuildID:                 char.GuildID,
+		PlayerFlags:             char.PlayerFlags,
+		AtLogin:                 char.AtLogin,
+		PetEntry:                char.PetEntry,
+		PetModelID:              char.PetModelID,
+		PetLevel:                char.PetLevel,
+		Banned:                  char.Banned,
+		AccountID:               char.AccountID,
+		GroupMangedByGameServer: false,
+	}
 	s.worldSocket = socket
 
 	err = s.eventsProducer.CharacterLoggedIn(&events.LBEventCharacterLoggedInPayload{
@@ -374,10 +408,6 @@ func (s *GameSession) connectToGameServer(ctx context.Context, characterGUID uin
 		return nil, nil, fmt.Errorf("%w, mapID %v", worldConnectErrInstanceNotFound, mapIDToLogin)
 	}
 
-	s.logger.Debug().
-		Str("address", serversResult.GameServers[0].Address).
-		Msg("Connecting to the world server")
-
 	s.gameServerGRPCConnMgr.AddAddressMapping(serversResult.GameServers[0].Address, serversResult.GameServers[0].GrpcAddress)
 
 	s.gameServerGRPCClient, err = s.gameServerGRPCConnMgr.GRPCConnByGameServerAddress(serversResult.GameServers[0].Address)
@@ -385,9 +415,18 @@ func (s *GameSession) connectToGameServer(ctx context.Context, characterGUID uin
 		return nil, nil, fmt.Errorf("can't get game server grpc client, err: %w", err)
 	}
 
-	socket, err := WorldSocketCreator(s.logger, serversResult.GameServers[0].Address)
+	socket, err := s.connectToGameServerWithAddress(ctx, characterGUID, serversResult.GameServers[0].Address)
+	return r.Character, socket, err
+}
+
+func (s *GameSession) connectToGameServerWithAddress(ctx context.Context, characterGUID uint64, gameserverAddress string) (sockets.Socket, error) {
+	s.logger.Debug().
+		Str("address", gameserverAddress).
+		Msg("Connecting to the world server")
+
+	socket, err := WorldSocketCreator(s.logger, gameserverAddress)
 	if err != nil {
-		return nil, nil, fmt.Errorf("can't connect to the world server, err: %w", err)
+		return nil, fmt.Errorf("can't connect to the world server, err: %w", err)
 	}
 
 	go socket.ListenAndProcess(s.ctx)
@@ -397,13 +436,13 @@ func (s *GameSession) connectToGameServer(ctx context.Context, characterGUID uin
 	select {
 	case p, open := <-socket.ReadChannel():
 		if !open {
-			return nil, nil, fmt.Errorf("world socket closed")
+			return nil, fmt.Errorf("world socket closed")
 		}
 		if p.Opcode != packet.SMsgAuthChallenge {
 			socket.WriteChannel() <- p
 		}
 	case <-ctx.Done():
-		return nil, nil, ctx.Err()
+		return nil, ctx.Err()
 	}
 
 	// we need give some time to add session on the world side
@@ -412,7 +451,33 @@ func (s *GameSession) connectToGameServer(ctx context.Context, characterGUID uin
 	resp := packet.NewWriterWithSize(packet.CMsgPlayerLogin, 8)
 	resp.Uint64(characterGUID)
 	socket.Send(resp)
-	return r.Character, socket, nil
+
+	return socket, nil
+}
+
+func (s *GameSession) processWorldPacketsInPlace(ctx context.Context, f func(*packet.Packet) (stopProcessing bool, err error)) error {
+	if s.worldSocket == nil {
+		return nil
+	}
+
+	for {
+		select {
+		case p, open := <-s.worldSocket.ReadChannel():
+			if !open {
+				return fmt.Errorf("world socket closed")
+			}
+
+			stop, err := f(p)
+			if err != nil {
+				return err
+			}
+			if stop {
+				return nil
+			}
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
 }
 
 func (s *GameSession) onWorldSocketClosed() {
@@ -472,6 +537,10 @@ func (s *GameSession) onWorldSocketClosed() {
 }
 
 func (s *GameSession) onLoggedOut() {
+	if s.character == nil {
+		return
+	}
+	
 	err := s.eventsProducer.CharacterLoggedOut(&events.LBEventCharacterLoggedOutPayload{
 		CharGUID:    s.character.GUID,
 		CharName:    s.character.Name,
@@ -495,4 +564,50 @@ type PacketSendingControl struct {
 	motdSent                    bool
 	accountDataTimesGlobalSent  bool
 	accountDataTimesPerCharSent bool
+}
+
+// LoggedInCharacter represents a character that is logged in and bound to the session.
+// Some values are cached values and can be not actual values from gameserver.
+type LoggedInCharacter struct {
+	GUID        uint64
+	Name        string
+	Race        uint8
+	Class       uint8
+	Gender      uint8
+	Skin        uint8
+	Face        uint8
+	HairStyle   uint8
+	HairColor   uint8
+	FacialStyle uint8
+	Level       uint8
+	Zone        uint32
+	Map         uint32
+	PositionX   float32
+	PositionY   float32
+	PositionZ   float32
+	GuildID     uint32
+	PlayerFlags uint32
+	AtLogin     uint32
+	PetEntry    uint32
+	PetModelID  uint32
+	PetLevel    uint32
+	Banned      bool
+	AccountID   uint32
+
+	// GroupMangedByGameServer tracks cases when player joined e.g. battleground
+	// and the group is managed by game server but not group server.
+	GroupMangedByGameServer bool
+
+	ignoreNextInterceptToNewMap *uint32
+
+	// bgInviteOrderingFix handles race conditions between Invite and JoinToQueue events
+	// for battleground queuing. It contains state to ensure correct event ordering:
+	//   - waitingJoinToQueue: indicates if we're waiting for a JoinToQueue event
+	//   - pendingInvitePacket: stores an Invite packet that arrived before JoinToQueue
+	// This prevents issues where a player might receive an Invite before their
+	// JoinToQueue event is processed, which results on not displaying invite on client side.
+	bgInviteOrderingFix struct {
+		waitingJoinToQueue  bool
+		pendingInvitePacket *packet.Packet
+	}
 }

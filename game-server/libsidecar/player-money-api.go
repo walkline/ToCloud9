@@ -4,6 +4,7 @@ package main
 #include "player-money-api.h"
 */
 import "C"
+
 import "github.com/walkline/ToCloud9/game-server/libsidecar/grpcapi"
 
 // TC9SetGetMoneyForPlayerHandler sets handler for getting money for player request.

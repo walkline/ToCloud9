@@ -1,0 +1,132 @@
+syntax = "proto3";
+package v1;
+
+option go_package = "gen/matchmaking/pb";
+
+service MatchmakingService {
+  rpc EnqueueToBattleground(EnqueueToBattlegroundRequest) returns (EnqueueToBattlegroundResponse);
+  rpc RemovePlayerFromQueue(RemovePlayerFromQueueRequest) returns (RemovePlayerFromQueueResponse);
+
+  rpc BattlegroundQueueDataForPlayer(BattlegroundQueueDataForPlayerRequest) returns (BattlegroundQueueDataForPlayerResponse);
+
+  rpc PlayerLeftBattleground(PlayerLeftBattlegroundRequest) returns (PlayerLeftBattlegroundResponse);
+  rpc PlayerJoinedBattleground(PlayerJoinedBattlegroundRequest) returns (PlayerJoinedBattlegroundResponse);
+  rpc BattlegroundStatusChanged(BattlegroundStatusChangedRequest) returns (BattlegroundStatusChangedResponse);
+}
+
+enum PVPTeamID {
+  Any = 0;
+  Alliance = 1;
+  Horde = 2;
+}
+
+enum PlayerQueueStatus {
+  NotInQueue = 0;
+  InQueue = 1;
+  Invited = 2;
+  InProgress = 3;
+}
+
+message EnqueueToBattlegroundRequest {
+  string api = 1;
+  uint32 realmID = 2;
+
+  uint64 leaderGUID = 3;
+  repeated uint64 partyMembers = 4;
+
+  uint32 leadersLvl = 5;
+
+  uint32 bgTypeID = 6;
+  PVPTeamID teamID = 7;
+}
+
+message EnqueueToBattlegroundResponse {
+  string api = 1;
+}
+
+message RemovePlayerFromQueueRequest {
+  string api = 1;
+
+  uint32 realmID = 2;
+  uint64 playerGUID = 3;
+  uint32 battlegroundType = 4;
+}
+
+message RemovePlayerFromQueueResponse {
+  string api = 1;
+}
+
+message BattlegroundQueueDataForPlayerRequest {
+  string api = 1;
+
+  uint32 realmID = 2;
+  uint64 playerGUID = 3;
+}
+
+message BattlegroundQueueDataForPlayerResponse {
+  string api = 1;
+
+  message AssignedBattlegroundData {
+    uint32 assignedBattlegroundInstanceID = 1;
+    uint32 mapID = 2;
+    uint32 battlegroupID = 3;
+    string gameserverAddress = 4;
+    string gameserverGRPCAddress = 5;
+  }
+
+  message QueueSlot {
+    uint32 bgTypeID = 1;
+    PlayerQueueStatus status = 2;
+    optional AssignedBattlegroundData assignedBattlegroundData = 3;
+  };
+
+  repeated QueueSlot slots = 2;
+}
+
+message PlayerLeftBattlegroundRequest {
+  string api = 1;
+
+  uint32 realmID = 2;
+  uint64 playerGUID = 3;
+  uint32 instanceID = 4;
+  bool   isCrossRealm = 5;
+}
+
+message PlayerLeftBattlegroundResponse {
+  string api = 1;
+}
+
+message PlayerJoinedBattlegroundRequest {
+  string api = 1;
+
+  uint32 realmID = 2;
+  uint64 playerGUID = 3;
+  uint32 instanceID = 4;
+  bool   isCrossRealm = 5;
+}
+
+message PlayerJoinedBattlegroundResponse {
+  string api = 1;
+}
+
+message BattlegroundStatusChangedRequest {
+  string api = 1;
+
+  uint32 realmID = 2;
+  uint32 instanceID = 3;
+  bool   isCrossRealm = 4;
+
+  // Use the same statuses as in gameserver (AC/TC)
+  enum Status {
+    None       = 0; // unused
+    WaitQueue  = 1; // unused
+    WaitJoin   = 2; // unused
+    InProgress = 3;
+    Ended      = 4;
+  }
+  Status status = 5;
+}
+
+message BattlegroundStatusChangedResponse {
+  string api = 1;
+}

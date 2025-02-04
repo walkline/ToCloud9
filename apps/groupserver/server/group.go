@@ -3,9 +3,9 @@ package server
 import (
 	"context"
 	"errors"
-	"github.com/walkline/ToCloud9/apps/groupserver/repo"
 
 	"github.com/walkline/ToCloud9/apps/groupserver"
+	"github.com/walkline/ToCloud9/apps/groupserver/repo"
 	"github.com/walkline/ToCloud9/apps/groupserver/service"
 	"github.com/walkline/ToCloud9/gen/group/pb"
 )

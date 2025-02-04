@@ -1,11 +1,12 @@
 db:
   auth: &defaultAuthDB "trinity:trinity@tcp(127.0.0.1:3306)/auth"
-  characters: &defaultCharactersDB "trinity:trinity@tcp(127.0.0.1:3306)/characters"
+  characters: &defaultCharactersDB
+    1: "trinity:trinity@tcp(127.0.0.1:3306)/characters"
   world: &defaultWorldDB "trinity:trinity@tcp(127.0.0.1:3306)/world"
   # Supported 2 schema types:
   #   tc - TrinityCore
   #   ac - AzerothCore
-  schemaType: &defaultSchemaType "tc"
+  schemaType: &defaultSchemaType "ac"
 
 nats: &defaultNatsUrl "nats://localhost:4222"
 redis: &defaultRedisUrl "redis://:@localhost:6379/0"
@@ -57,6 +58,7 @@ game-load-balancer:
   guildsServiceAddress: "localhost:8995"
   mailServiceAddress: "localhost:8997"
   groupServiceAddress: "localhost:8998"
+  matchmakingServiceAddress: "localhost:8994"
   packetProcessTimeoutSecs: 20
   showGameserverConnChangeToClient: true
   natsUrl: *defaultNatsUrl
@@ -94,6 +96,17 @@ servers-registry:
   redisUrl: *defaultRedisUrl
   natsUrl: *defaultNatsUrl
   logging: *defaultLogging
+  realmsID:
+    - 1
+
+matchmakingserver:
+  port: 8994
+  natsUrl: *defaultNatsUrl
+  logging: *defaultLogging
+  worldDB: *defaultWorldDB
+  charactersDB: *defaultCharactersDB
+  battleGroups:
+    1: "1"
 
 gameserver:
   grpcPort: 9501
@@ -101,6 +114,7 @@ gameserver:
   preferredHostname: ""
   serversRegistryServiceAddress: "localhost:8999"
   guidProviderServiceAddress: "localhost:8996"
+  matchmakingServiceAddress: "localhost:8994"
   characterGuidsBufferSize: 50
   itemGuidsBufferSize: 200
   instanceGuidsBufferSize: 10
@@ -111,6 +125,21 @@ gameserver:
 # Requires `binary` field update for windows.
 perun:
   apps:
+# Optional, if you want to run redis and nats using perun.
+#  - name: "redis"
+#    alias:
+#      - "r"
+#    binary: "/opt/homebrew/bin/redis-server"
+#    startupTimeoutSecs: 10
+#    partOfAppStartedLogMsg: "Ready to accept connections tcp"
+#  - name: "nats"
+#    alias:
+#      - "n"
+#    binary: "/opt/homebrew/bin/nats-server"
+##      args:
+##        - "--trace"
+#    startupTimeoutSecs: 10
+#    partOfAppStartedLogMsg: "Server is ready"
     - name: "servers-registry"
       alias:
         - "sr"

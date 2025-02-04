@@ -97,6 +97,5 @@ spec:
   ports:
   - port: {{ .Values.game_lb.port | int  }}
     targetPort: {{ .Values.game_lb.port | int  }}
-    nodePort: {{ .Values.game_lb.port | int  }}
   selector:
     app: {{ $fullname }}-game-lb

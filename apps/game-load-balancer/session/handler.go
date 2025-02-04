@@ -52,6 +52,10 @@ var HandleMap = map[packet.Opcode]HandlersQueue{
 	packet.SMsgMOTD:                     NewHandler("SMsgMOTD", (*GameSession).InterceptMessageOfTheDay),
 	packet.SMsgAccountDataTimes:         NewHandler("SMsgAccountDataTimes", (*GameSession).InterceptAccountDataTimes),
 
+	packet.TC9SMsgReadyForRedirect: NewHandler("TC9SMsgReadyForRedirect", (*GameSession).HandleReadyForRedirectRequest),
+
+	packet.SMsgNameQueryResponse: NewHandler("SMsgNameQueryResponse", (*GameSession).InterceptSMsgNameQueryResponse),
+
 	// Groups
 	packet.CMsgGroupInvite:         NewHandler("CMsgGroupInvite", (*GameSession).HandleGroupInvite),
 	packet.CMsgGroupAccept:         NewHandler("CMsgGroupAccept", (*GameSession).HandleGroupInviteAccept),
@@ -65,6 +69,10 @@ var HandleMap = map[packet.Opcode]HandlersQueue{
 	packet.CMsgLootMethod:          NewHandler("CMsgLootMethod", (*GameSession).HandleSetLootMethod),
 	packet.MsgSetDungeonDifficulty: NewHandler("MsgSetDungeonDifficulty", (*GameSession).HandleSetDungeonDifficulty),
 	packet.MsgSetRaidDifficulty:    NewHandler("MsgSetRaidDifficulty", (*GameSession).HandleSetRaidDifficulty),
+
+	// Battlegrounds
+	packet.CMsgBattleMasterJoin: NewHandler("CMsgBattleMasterJoin", (*GameSession).HandleEnqueueToBattleground),
+	packet.CMsgBattlefieldPort:  NewHandler("CMsgBattlefieldPort", (*GameSession).HandleBattlegroundPort),
 }
 
 type Handler func(*GameSession, context.Context, *packet.Packet) error

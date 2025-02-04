@@ -27,6 +27,7 @@ type Character struct {
 type CharactersOnline interface {
 	Add(context.Context, *Character) error
 	Remove(ctx context.Context, realmID uint32, guid uint64) error
+	RemoveAllWithLoadBalancerID(ctx context.Context, realmID uint32, loadBalancerID string) ([]uint64, error)
 	OneByRealmAndGUID(ctx context.Context, realmID uint32, guid uint64) (*Character, error)
 	OneByRealmAndName(ctx context.Context, realmID uint32, name string) (*Character, error)
 

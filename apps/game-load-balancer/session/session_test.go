@@ -30,6 +30,12 @@ import (
 )
 
 func TestGameSessionHandlePacketsWorldPacketsRoute(t *testing.T) {
+	lbEventProducerMock := &lbProducerMock.LoadBalancerProducer{}
+	lbEventProducerMock.On("CharacterLoggedOut", mock.Anything).Return(nil)
+
+	broadcasterMock := &ebroadMock.Broadcaster{}
+	broadcasterMock.On("UnregisterCharacter", mock.Anything).Return(nil)
+
 	worldReadChan := make(chan *packet.Packet)
 	gameWriteChan := make(chan *packet.Packet, 100)
 
@@ -50,10 +56,14 @@ func TestGameSessionHandlePacketsWorldPacketsRoute(t *testing.T) {
 		gameSocket,
 		1,
 		&packet.Packet{},
-		GameSessionParams{},
+		GameSessionParams{
+			EventsProducer:    lbEventProducerMock,
+			EventsBroadcaster: broadcasterMock,
+		},
 	)
 
 	session.worldSocket = worldSocket
+	session.character = &LoggedInCharacter{}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	go func() {
@@ -430,6 +440,9 @@ type GameGRPCConnMgrMock struct {
 
 func (m GameGRPCConnMgrMock) AddAddressMapping(gameServerAddress, grpcServerAddress string) {
 
+}
+func (m GameGRPCConnMgrMock) GRPCAddressForGameServer(gameServerAddress string) string {
+	return ""
 }
 
 func (m GameGRPCConnMgrMock) GRPCConnByGameServerAddress(address string) (pb.WorldServerServiceClient, error) {

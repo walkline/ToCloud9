@@ -4,6 +4,7 @@ package main
 #include "player-interactions-api.h"
 */
 import "C"
+
 import (
 	"github.com/walkline/ToCloud9/game-server/libsidecar/grpcapi"
 )

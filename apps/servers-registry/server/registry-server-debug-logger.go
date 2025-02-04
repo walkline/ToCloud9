@@ -58,17 +58,28 @@ func (s *serversRegistryDebugLoggerMiddleware) RandomGameServerForRealm(ctx cont
 	return
 }
 
-func (s *serversRegistryDebugLoggerMiddleware) ListGameServersForRealm(ctx context.Context, request *pb.ListGameServersForRealmRequest) (resp *pb.ListGameServersForRealmResponse, err error) {
+func (s *serversRegistryDebugLoggerMiddleware) ListGameServersForRealm(ctx context.Context, request *pb.ListGameServersForRealmRequest) (resp *pb.ListGameServersResponse, err error) {
 	defer func(t time.Time) {
 		s.logger.Debug().
+			Uint32("realmID", request.RealmID).
 			Str("timeTook", time.Since(t).String()).
-			Msg("Handled list game servers")
+			Msg("Handled list game servers for realm")
 	}(time.Now())
 
 	resp, err = s.realService.ListGameServersForRealm(ctx, request)
 	return
 }
+func (s *serversRegistryDebugLoggerMiddleware) ListAllGameServers(ctx context.Context, request *pb.ListAllGameServersRequest) (resp *pb.ListGameServersResponse, err error) {
+	defer func(t time.Time) {
+		s.logger.Debug().
+			Str("timeTook", time.Since(t).String()).
+			Msg("Handled list all game servers")
+	}(time.Now())
 
+	resp, err = s.realService.ListAllGameServers(ctx, request)
+	return
+
+}
 func (s *serversRegistryDebugLoggerMiddleware) GameServerMapsLoaded(ctx context.Context, request *pb.GameServerMapsLoadedRequest) (resp *pb.GameServerMapsLoadedResponse, err error) {
 	defer func(t time.Time) {
 		s.logger.Debug().

@@ -1,8 +1,9 @@
 package main
 
 import "C"
+
 import (
-	"github.com/nats-io/nats.go"
+	nats "github.com/nats-io/nats.go"
 	"github.com/rs/zerolog"
 
 	"github.com/walkline/ToCloud9/game-server/libsidecar/consumer"

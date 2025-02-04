@@ -442,6 +442,20 @@ func (g groupServiceImpl) SetTargetIcon(ctx context.Context, realmID uint32, upd
 	for i, target := range group.TargetIcons {
 		if target == targetGUID {
 			group.TargetIcons[i] = 0
+
+			err = g.ep.TargetIconUpdated(&events.GroupEventNewTargetIconPayload{
+				ServiceID: groupserver.ServiceID,
+				RealmID:   realmID,
+				GroupID:   group.ID,
+				Updater:   0,
+				Target:    0,
+				IconID:    uint8(i),
+				Receivers: group.OnlineMemberGUIDs(),
+			})
+			if err != nil {
+				log.Error().Err(err).Msg("can't create TargetIconUpdated clear event")
+			}
+
 			break
 		}
 	}

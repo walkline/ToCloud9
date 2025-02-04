@@ -12,7 +12,7 @@ import (
 	pbMail "github.com/walkline/ToCloud9/gen/mail/pb"
 	"github.com/walkline/ToCloud9/gen/worldserver/pb"
 	"github.com/walkline/ToCloud9/shared/events"
-	"github.com/walkline/ToCloud9/shared/guid"
+	"github.com/walkline/ToCloud9/shared/wow/guid"
 )
 
 const MaxVisibleMailsCount = 100

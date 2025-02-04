@@ -12,6 +12,7 @@ type HealthCheckObject interface {
 }
 
 type HealthCheckSuccessObserver func(HealthCheckObject)
+
 type HealthCheckFailedObserver func(HealthCheckObject, error)
 
 type HealthChecker interface {

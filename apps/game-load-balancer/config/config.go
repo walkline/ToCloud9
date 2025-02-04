@@ -38,6 +38,9 @@ type Config struct {
 	// ChatServiceAddress is address of chat service
 	ChatServiceAddress string `yaml:"chatServiceAddress" env:"CHAT_SERVICE_ADDRESS" env-default:"localhost:8992"`
 
+	// MatchmakingServiceAddress is address of matchmaking service.
+	MatchmakingServiceAddress string `yaml:"matchmakingServiceAddress" env:"MATCHMAKING_SERVICE_ADDRESS" env-default:"localhost:8994"`
+
 	// GuildsServiceAddress is address of guilds service
 	GuildsServiceAddress string `yaml:"guildsServiceAddress" env:"GUILDS_SERVICE_ADDRESS" env-default:"localhost:8995"`
 

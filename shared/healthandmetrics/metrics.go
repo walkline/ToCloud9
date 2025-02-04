@@ -17,15 +17,23 @@ func EnableActiveConnectionsMetrics() {
 }
 
 const delayMeanMetricsName = "delay_mean"
+
 const delayMedianMetricsName = "delay_median"
+
 const delay95PercentileMetricsName = "delay_95_percentile"
+
 const delay99PercentileMetricsName = "delay_99_percentile"
+
 const delayMaxMetricsName = "delay_max"
 
 var DelayMeanMetrics prometheus.Gauge
+
 var DelayMedianMetrics prometheus.Gauge
+
 var Delay95PercentileMetrics prometheus.Gauge
+
 var Delay99PercentileMetrics prometheus.Gauge
+
 var DelayMaxMetrics prometheus.Gauge
 
 func EnableDelayMetrics() {

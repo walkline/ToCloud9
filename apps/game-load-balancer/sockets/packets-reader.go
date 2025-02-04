@@ -32,6 +32,7 @@ func NewPacketsReader(r io.Reader, opcodeSize uint32, sourceType packet.Source) 
 		r:            r,
 		opcodeSize:   opcodeSize,
 		headerBuffer: make([]byte, 2+opcodeSize),
+		sourceType:   sourceType,
 	}
 }
 

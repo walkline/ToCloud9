@@ -7,6 +7,7 @@ type MapsWeight map[uint32]uint32
 var DefaultMapsWeight MapsWeight = map[uint32]uint32{
 	0:   100, // Eastern Kingdoms
 	1:   100, // Kalimdor
+	30:  1,
 	33:  1,
 	34:  1,
 	36:  1,
@@ -35,7 +36,9 @@ var DefaultMapsWeight MapsWeight = map[uint32]uint32{
 	450: 1,
 	451: 1,
 	469: 1,
+	489: 1,
 	509: 1,
+	529: 1,
 	530: 50, // Outlands
 	531: 1,
 	532: 1,
@@ -57,9 +60,12 @@ var DefaultMapsWeight MapsWeight = map[uint32]uint32{
 	556: 1,
 	557: 1,
 	558: 1,
+	559: 1,
 	560: 1,
+	562: 1,
 	564: 1,
 	565: 1,
+	566: 1,
 	568: 1,
 	571: 120, // Northrend
 	572: 1,
@@ -95,6 +101,8 @@ var DefaultMapsWeight MapsWeight = map[uint32]uint32{
 	614: 1,
 	615: 1,
 	616: 1,
+	617: 1,
+	618: 1,
 	619: 1,
 	620: 1,
 	621: 1,

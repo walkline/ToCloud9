@@ -93,19 +93,20 @@ func main() {
 }
 
 func createGroupService(cfg *config.Config, natsCon *nats.Conn) service.GroupsService {
-	cdb, err := sql.Open("mysql", cfg.CharDBConnection)
-	if err != nil {
-		log.Fatal().Err(err).Msg("can't connect to char db")
+	charDB := shrepo.NewCharactersDB()
+	for realmID, connStr := range cfg.CharDBConnection {
+		cdb, err := sql.Open("mysql", connStr)
+		if err != nil {
+			log.Fatal().Err(err).Uint32("realmID", realmID).Msg("can't connect to char db")
+		}
+		configureDBConn(cdb)
+		charDB.SetDBForRealm(realmID, cdb)
 	}
 
-	configureDBConn(cdb)
-
-	charDB := shrepo.NewCharactersDB()
-	charDB.SetDBForRealm(1, cdb)
 	groupsRepo := repo.NewMysqlGroupsRepo(charDB)
 
 	cache := service.NewInMemGroupsCache(groupsRepo)
-	err = events.NewLoadBalancerConsumer(
+	err := events.NewLoadBalancerConsumer(
 		natsCon,
 		events.WithLBConsumerLoggedInHandler(cache),
 		events.WithLBConsumerLoggedOutHandler(cache),

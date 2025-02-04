@@ -38,6 +38,14 @@ func NewFromCounter(hi HighGuid, counter LowType) ObjectGuid {
 	return ObjectGuid{guid: guid}
 }
 
+func NewCrossrealmPlayerGUID(realmID uint16, counter LowType) ObjectGuid {
+	var guid uint64
+	if counter != 0 {
+		guid = uint64(counter) | (uint64(realmID) << 32) | (uint64(Player) << 48)
+	}
+	return ObjectGuid{guid: guid}
+}
+
 func NewFromEntryAndCounter(hi HighGuid, entry uint32, counter LowType) ObjectGuid {
 	var guid uint64
 	if counter != 0 {
@@ -66,6 +74,10 @@ func (g ObjectGuid) GetCounter() LowType {
 		return LowType(g.guid & 0x0000000000FFFFFF)
 	}
 	return LowType(g.guid & 0x00000000FFFFFFFF)
+}
+
+func (g ObjectGuid) GetRealmID() uint16 {
+	return uint16((g.guid >> 32) & 0xFFFF)
 }
 
 func (g ObjectGuid) GetMaxCounter(high HighGuid) LowType {

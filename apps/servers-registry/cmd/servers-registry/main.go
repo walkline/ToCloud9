@@ -10,8 +10,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/nats-io/nats.go"
-	"github.com/redis/go-redis/v9"
+	nats "github.com/nats-io/nats.go"
+	redis "github.com/redis/go-redis/v9"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"google.golang.org/grpc"
@@ -72,7 +72,7 @@ func main() {
 	metricsConsumer := healthandmetrics.NewMetricsConsumer(time.Second*5, 3, healthandmetrics.NewHttpPrometheusMetricsReader(time.Second))
 	go metricsConsumer.Start()
 
-	supportedRealms := []uint32{1} // TODO: implement fetching realms list
+	supportedRealms := conf.RealmsID
 	gameServersService, err := service.NewGameServer(
 		mainContext,
 		repo.NewGameServerRedisRepo(rdb),

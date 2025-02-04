@@ -133,6 +133,37 @@ func (r *Reader) Read(data interface{}) {
 	r.err = binary.Read(r.data, r.order, data)
 }
 
+func (r *Reader) ReadGUID() uint64 {
+	if r.err != nil {
+		return 0
+	}
+
+	var guid uint64
+	var guidMark uint8
+
+	guidMark, err := r.data.ReadByte()
+	if err != nil {
+		r.err = err
+		return 0
+	}
+
+	for i := 0; i < 8; i++ {
+		if (guidMark & (1 << i)) != 0 {
+			b, err := r.data.ReadByte()
+			if err != nil {
+				r.err = err
+				return 0
+			}
+
+			// Read the next byte and update the guid
+			bit := uint64(b)
+			guid |= bit << (i * 8)
+		}
+	}
+
+	return guid
+}
+
 func (r *Reader) Left() int {
 	return r.data.Len()
 }

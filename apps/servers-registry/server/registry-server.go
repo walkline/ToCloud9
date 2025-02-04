@@ -44,6 +44,7 @@ func (s *serversRegistry) RegisterGameServer(ctx context.Context, request *pb.Re
 		HealthCheckAddr: fmt.Sprintf("%s:%d", host, request.HealthPort),
 		GRPCAddress:     fmt.Sprintf("%s:%d", host, request.GrpcPort),
 		RealmID:         request.RealmID,
+		IsCrossRealm:    request.IsCrossRealm,
 		AvailableMaps:   stringToAvailableMaps(request.AvailableMaps),
 	}
 
@@ -60,7 +61,7 @@ func (s *serversRegistry) RegisterGameServer(ctx context.Context, request *pb.Re
 }
 
 func (s *serversRegistry) AvailableGameServersForMapAndRealm(ctx context.Context, request *pb.AvailableGameServersForMapAndRealmRequest) (*pb.AvailableGameServersForMapAndRealmResponse, error) {
-	servers, err := s.gService.AvailableForMapAndRealm(ctx, request.MapID, request.RealmID)
+	servers, err := s.gService.AvailableForMapAndRealm(ctx, request.MapID, request.RealmID, request.IsCrossRealm)
 	if err != nil {
 		return nil, err
 	}
@@ -68,9 +69,10 @@ func (s *serversRegistry) AvailableGameServersForMapAndRealm(ctx context.Context
 	resultServers := make([]*pb.Server, 0, len(servers))
 	for i := range servers {
 		resultServers = append(resultServers, &pb.Server{
-			Address:     servers[i].Address,
-			RealmID:     servers[i].RealmID,
-			GrpcAddress: servers[i].GRPCAddress,
+			Address:      servers[i].Address,
+			RealmID:      servers[i].RealmID,
+			IsCrossRealm: servers[i].IsCrossRealm,
+			GrpcAddress:  servers[i].GRPCAddress,
 		})
 	}
 
@@ -80,8 +82,17 @@ func (s *serversRegistry) AvailableGameServersForMapAndRealm(ctx context.Context
 	}, nil
 }
 
-func (s *serversRegistry) ListGameServersForRealm(ctx context.Context, request *pb.ListGameServersForRealmRequest) (*pb.ListGameServersForRealmResponse, error) {
-	servers, err := s.gService.ListForRealm(ctx, request.RealmID)
+func (s *serversRegistry) ListGameServersForRealm(ctx context.Context, request *pb.ListGameServersForRealmRequest) (*pb.ListGameServersResponse, error) {
+	var (
+		servers []repo.GameServer
+		err     error
+	)
+
+	if request.IsCrossRealm {
+		servers, err = s.gService.ListOfCrossRealms(ctx)
+	} else {
+		servers, err = s.gService.ListForRealm(ctx, request.RealmID)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -89,10 +100,12 @@ func (s *serversRegistry) ListGameServersForRealm(ctx context.Context, request *
 	respServers := make([]*pb.GameServerDetailed, len(servers))
 	for i := range servers {
 		respServers[i] = &pb.GameServerDetailed{
+			ID:                servers[i].ID,
 			Address:           servers[i].Address,
 			HealthAddress:     servers[i].HealthCheckAddr,
 			GrpcAddress:       servers[i].GRPCAddress,
 			RealmID:           servers[i].RealmID,
+			IsCrossRealm:      servers[i].IsCrossRealm,
 			ActiveConnections: servers[i].ActiveConnections,
 			AvailableMaps:     servers[i].AvailableMaps,
 			AssignedMaps:      servers[i].AssignedMapsToHandle,
@@ -106,7 +119,40 @@ func (s *serversRegistry) ListGameServersForRealm(ctx context.Context, request *
 		}
 	}
 
-	return &pb.ListGameServersForRealmResponse{
+	return &pb.ListGameServersResponse{
+		Api:         ver,
+		GameServers: respServers,
+	}, nil
+}
+func (s *serversRegistry) ListAllGameServers(ctx context.Context, request *pb.ListAllGameServersRequest) (*pb.ListGameServersResponse, error) {
+	servers, err := s.gService.ListAll(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	respServers := make([]*pb.GameServerDetailed, len(servers))
+	for i := range servers {
+		respServers[i] = &pb.GameServerDetailed{
+			ID:                servers[i].ID,
+			Address:           servers[i].Address,
+			HealthAddress:     servers[i].HealthCheckAddr,
+			GrpcAddress:       servers[i].GRPCAddress,
+			RealmID:           servers[i].RealmID,
+			IsCrossRealm:      servers[i].IsCrossRealm,
+			ActiveConnections: servers[i].ActiveConnections,
+			AvailableMaps:     servers[i].AvailableMaps,
+			AssignedMaps:      servers[i].AssignedMapsToHandle,
+			Diff: &pb.GameServerDetailed_Diff{
+				Mean:         servers[i].Diff.Mean,
+				Median:       servers[i].Diff.Median,
+				Percentile95: servers[i].Diff.Percentile95,
+				Percentile99: servers[i].Diff.Percentile99,
+				Max:          servers[i].Diff.Max,
+			},
+		}
+	}
+
+	return &pb.ListGameServersResponse{
 		Api:         ver,
 		GameServers: respServers,
 	}, nil

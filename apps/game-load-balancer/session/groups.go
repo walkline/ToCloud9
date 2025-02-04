@@ -492,7 +492,7 @@ func (s *GameSession) LoadGroupForPlayer(ctx context.Context) error {
 	if err != nil {
 		return NewGroupServiceUnavailableErr(err)
 	}
-
+	
 	if res.GroupID == 0 {
 		return nil
 	}

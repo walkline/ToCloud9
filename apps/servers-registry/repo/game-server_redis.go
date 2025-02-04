@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/redis/go-redis/v9"
+	redis "github.com/redis/go-redis/v9"
 	"github.com/rs/zerolog/log"
 )
 
@@ -38,7 +38,7 @@ func (g *gameServerRedisRepo) Upsert(ctx context.Context, server *GameServer) er
 		return status.Err()
 	}
 
-	res := g.rdb.SAdd(ctx, g.realmIndexKey(server.RealmID), key)
+	res := g.rdb.SAdd(ctx, g.realmIndexKey(server.RealmID, server.IsCrossRealm), key)
 	if res.Err() != nil {
 		g.rdb.Del(ctx, key)
 		return res.Err()
@@ -87,7 +87,7 @@ func (g *gameServerRedisRepo) Remove(ctx context.Context, id string) error {
 		return err
 	}
 
-	delRes := g.rdb.SRem(ctx, g.realmIndexKey(v.RealmID), key)
+	delRes := g.rdb.SRem(ctx, g.realmIndexKey(v.RealmID, v.IsCrossRealm), key)
 	if delRes.Err() != nil {
 		return delRes.Err()
 	}
@@ -97,7 +97,56 @@ func (g *gameServerRedisRepo) Remove(ctx context.Context, id string) error {
 }
 
 func (g *gameServerRedisRepo) ListByRealm(ctx context.Context, realmID uint32) ([]GameServer, error) {
-	res := g.rdb.SMembers(ctx, g.realmIndexKey(realmID))
+	return g.listForRealmOrCrossRealm(ctx, realmID, false)
+}
+
+func (g *gameServerRedisRepo) ListOfCrossRealms(ctx context.Context) ([]GameServer, error) {
+	return g.listForRealmOrCrossRealm(ctx, 0, true)
+}
+
+func (g *gameServerRedisRepo) ListAll(ctx context.Context) ([]GameServer, error) {
+	pattern := "ws:*"
+
+	var cursor uint64
+	var keys []string
+
+	// Use SCAN to find all keys matching the pattern
+	for {
+		// Scan with the current cursor value
+		var newKeys []string
+		var err error
+		newKeys, cursor, err = g.rdb.Scan(ctx, cursor, pattern, 10).Result()
+		if err != nil {
+			return nil, err
+		}
+
+		keys = append(keys, newKeys...)
+
+		if cursor == 0 {
+			break
+		}
+	}
+
+	// Retrieve values for all matching keys
+	result := make([]GameServer, 0, len(keys))
+	for _, key := range keys {
+		value, err := g.rdb.Get(ctx, key).Result()
+		if err != nil {
+			continue
+		}
+
+		obj := &GameServer{}
+		if err := json.Unmarshal([]byte(value), obj); err != nil {
+			return nil, err
+		}
+		result = append(result, *obj)
+	}
+
+	return result, nil
+}
+
+func (g *gameServerRedisRepo) listForRealmOrCrossRealm(ctx context.Context, realmID uint32, isCrossRealm bool) ([]GameServer, error) {
+	res := g.rdb.SMembers(ctx, g.realmIndexKey(realmID, isCrossRealm))
 	if res.Err() != nil {
 		return nil, res.Err()
 	}
@@ -131,7 +180,7 @@ func (g *gameServerRedisRepo) ListByRealm(ctx context.Context, realmID uint32) (
 func (g *gameServerRedisRepo) One(ctx context.Context, id string) (*GameServer, error) {
 	getRes := g.rdb.Get(ctx, g.key(id))
 	if getRes.Err() != nil {
-		if getRes.Err() == redis.Nil {
+		if errors.Is(getRes.Err(), redis.Nil) {
 			return nil, nil
 		}
 		return nil, getRes.Err()
@@ -150,7 +199,10 @@ func (g *gameServerRedisRepo) One(ctx context.Context, id string) (*GameServer, 
 	return obj, nil
 }
 
-func (g *gameServerRedisRepo) realmIndexKey(realmID uint32) string {
+func (g *gameServerRedisRepo) realmIndexKey(realmID uint32, isCrossRealm bool) string {
+	if isCrossRealm {
+		return "crossrealm:wss"
+	}
 	return fmt.Sprintf("realm:%d:wss", realmID)
 }
 

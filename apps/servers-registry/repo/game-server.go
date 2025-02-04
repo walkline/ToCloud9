@@ -18,8 +18,12 @@ type GameServer struct {
 	Address         string
 	HealthCheckAddr string
 	GRPCAddress     string
-	RealmID         uint32
-	AvailableMaps   []uint32
+
+	// If it's cross-realm then RealmID should be 0.
+	RealmID      uint32
+	IsCrossRealm bool
+
+	AvailableMaps []uint32
 
 	ActiveConnections uint32
 	Diff              DiffData
@@ -73,5 +77,7 @@ type GameServerRepo interface {
 	Update(ctx context.Context, id string, f func(*GameServer) *GameServer) error
 	Remove(ctx context.Context, id string) error
 	ListByRealm(ctx context.Context, realmID uint32) ([]GameServer, error)
+	ListOfCrossRealms(ctx context.Context) ([]GameServer, error)
+	ListAll(ctx context.Context) ([]GameServer, error)
 	One(ctx context.Context, id string) (*GameServer, error)
 }

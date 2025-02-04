@@ -132,6 +132,28 @@ func (w *Writer) Bytes(v []byte) *Writer {
 	return w
 }
 
+func (w *Writer) GUID(guid uint64) *Writer {
+	if w.err != nil {
+		return w
+	}
+
+	packGUID := make([]byte, 8+1)
+	packGUID[0] = 0
+	size := 1
+
+	for i := uint8(0); guid != 0; i++ {
+		if guid&0xFF != 0 {
+			packGUID[0] |= uint8(1 << i)
+			packGUID[size] = uint8(guid & 0xFF)
+			size++
+		}
+
+		guid >>= 8
+	}
+
+	return w.Bytes(packGUID[:size])
+}
+
 func (w *Writer) SetByteOrder(order binary.ByteOrder) *Writer {
 	w.order = order
 	return w

@@ -1,5 +1,8 @@
 package main
 
+/*
+#include <stdint.h>
+*/
 import "C"
 import (
 	"context"
@@ -8,26 +11,28 @@ import (
 	"unsafe"
 
 	"github.com/nats-io/nats.go"
+	"github.com/rs/zerolog/log"
 
+	"github.com/walkline/ToCloud9/game-server/libsidecar/config"
 	"github.com/walkline/ToCloud9/gen/servers-registry/pb"
 	"github.com/walkline/ToCloud9/shared/healthandmetrics"
 )
 
-/*
-#include <stdint.h>
-*/
-import "C"
-import (
-	"github.com/rs/zerolog/log"
-
-	"github.com/walkline/ToCloud9/game-server/libsidecar/config"
-)
-
 const (
 	libVer = "0.0.1"
+	matchmakingSupportedVer
+)
+
+var (
+	RealmID      uint32
+	IsCrossRealm bool
 )
 
 func initLib(realmID uint32) (*config.Config, healthandmetrics.Server, ShutdownFunc) {
+	ctx, cancel := context.WithCancel(context.Background())
+
+	RealmID = realmID
+
 	cfg, err := config.LoadConfig()
 	if err != nil {
 		panic(err)
@@ -58,15 +63,22 @@ func initLib(realmID uint32) (*config.Config, healthandmetrics.Server, ShutdownF
 
 	guidConn := SetupGuidServiceConnection(cfg)
 
+	SetupMatchmakingConnection(ctx, cfg)
+
 	grpcListener, grpcServer := SetupGRPCService(cfg)
 	go func() {
+		log.Info().Msg("🚀 gRPC Service started...")
 		if err := grpcServer.Serve(grpcListener); err != nil {
 			log.Fatal().Err(err).Msg("can't serve grpc server")
 		}
 	}()
 
+	// TODO: replace closing part with context
+
 	return cfg, healthCheckServer, func() {
 		log.Info().Msg("🧨 Attempting graceful shutdown sidecar...")
+
+		cancel()
 
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
 		defer cancel()
@@ -118,7 +130,9 @@ var AssignedGameServerID string
 // Adds game server to the servers registry that will make this server visible for game load balancer.
 //
 //export TC9InitLib
-func TC9InitLib(port uint16, realmID uint32, availableMaps *C.char, assignedMaps **C.uint32_t, assignedMapsSize *C.int) {
+func TC9InitLib(port uint16, realmID uint32, isCrossRealm bool, availableMaps *C.char, assignedMaps **C.uint32_t, assignedMapsSize *C.int) {
+	IsCrossRealm = isCrossRealm
+
 	cfg, healthCheckServer, shutdown := initLib(realmID)
 	shutdownFunc = shutdown
 
@@ -140,6 +154,7 @@ func TC9InitLib(port uint16, realmID uint32, availableMaps *C.char, assignedMaps
 		HealthPort:        uint32(healthPort),
 		GrpcPort:          uint32(grpcPort),
 		RealmID:           realmID,
+		IsCrossRealm:      isCrossRealm,
 		AvailableMaps:     C.GoString(availableMaps),
 		PreferredHostName: cfg.PreferredHostname,
 	})

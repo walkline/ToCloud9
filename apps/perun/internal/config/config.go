@@ -27,7 +27,7 @@ type AppConfig struct {
 	Binary string `yaml:"binary"`
 
 	// Args is app argument variables that will be passed on launch.
-	Args string `yaml:"args"`
+	Args []string `yaml:"args"`
 
 	// Env is environment variables to pass to the app.
 	Env map[string]string `yaml:"env"`

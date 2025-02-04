@@ -132,6 +132,28 @@ func (c *charactersOnlineInMem) HandleCharactersUpdates(payload events.LBEventCh
 	return nil
 }
 
+func (c *charactersOnlineInMem) RemoveAllWithLoadBalancerID(ctx context.Context, realmID uint32, loadBalancerID string) ([]uint64, error) {
+	charsToDelete := make([]uint64, 0, 20)
+
+	c.m.Lock()
+	storage := c.guidStorage[realmID]
+	namesStorage := c.nameStorage[realmID]
+
+	for guid, char := range storage {
+		if char.LoadBalancerID == loadBalancerID {
+			charsToDelete = append(charsToDelete, guid)
+		}
+	}
+
+	for _, guid := range charsToDelete {
+		delete(namesStorage, storage[guid].CharName)
+		delete(storage, guid)
+	}
+	c.m.Unlock()
+
+	return charsToDelete, nil
+}
+
 func applyCharUpdate(c *Character, upd *events.CharacterUpdate) {
 	if upd.Zone != nil {
 		c.CharZone = *upd.Zone

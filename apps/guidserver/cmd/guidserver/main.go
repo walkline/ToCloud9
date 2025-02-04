@@ -9,9 +9,10 @@ import (
 	"os/signal"
 	"sync"
 	"syscall"
+	"time"
 
 	_ "github.com/go-sql-driver/mysql"
-	"github.com/redis/go-redis/v9"
+	redis "github.com/redis/go-redis/v9"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"google.golang.org/grpc"
@@ -70,14 +71,17 @@ func main() {
 }
 
 func createGuidService(cfg *config.Config) service.GuidService {
-	cdb, err := sql.Open("mysql", cfg.CharDBConnection)
-	if err != nil {
-		log.Fatal().Err(err).Msg("can't connect to char db")
-	}
-	defer cdb.Close()
-
+	realms := []uint32{}
 	charDB := shrepo.NewCharactersDB()
-	charDB.SetDBForRealm(1, cdb)
+	for realmID, connStr := range cfg.CharDBConnection {
+		cdb, err := sql.Open("mysql", connStr)
+		if err != nil {
+			log.Fatal().Err(err).Uint32("realmID", realmID).Msg("can't connect to char db")
+		}
+		configureDBConn(cdb)
+		charDB.SetDBForRealm(realmID, cdb)
+		realms = append(realms, realmID)
+	}
 
 	charRepo, err := repo.NewMysqlMaxGuidRepo(charDB)
 	if err != nil {
@@ -91,10 +95,17 @@ func createGuidService(cfg *config.Config) service.GuidService {
 
 	rdb := redis.NewClient(opt)
 
-	service, err := service.NewGuidService(context.Background(), charRepo, repo.NewRedisMaxGuidStorage(rdb, 10), []uint32{1}, 4)
+	service, err := service.NewGuidService(context.Background(), charRepo, repo.NewRedisMaxGuidStorage(rdb, 10), realms, 4)
 	if err != nil {
 		log.Fatal().Err(err).Msg("can't create guid service")
 	}
 
 	return service
+}
+
+func configureDBConn(db *sql.DB) {
+	db.SetMaxIdleConns(5)
+	db.SetMaxOpenConns(10)
+	db.SetConnMaxLifetime(time.Minute * 4)
+	db.SetConnMaxIdleTime(time.Minute * 8)
 }

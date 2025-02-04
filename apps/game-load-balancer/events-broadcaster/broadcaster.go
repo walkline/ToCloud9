@@ -3,7 +3,9 @@ package events_broadcaster
 import (
 	"sync"
 
+	gameloadbalancer "github.com/walkline/ToCloud9/apps/game-load-balancer"
 	"github.com/walkline/ToCloud9/shared/events"
+	"github.com/walkline/ToCloud9/shared/wow/guid"
 )
 
 type EventType int
@@ -34,6 +36,9 @@ const (
 	EventTypeGroupNewMessage
 	EventTypeGroupNewTargetIcon
 	EventTypeGroupDifficultyChanged
+	EventTypeMMJoinedPVPQueue
+	EventTypeMMInvitedToBGOrArena
+	EventTypeMMInviteToBGOrArenaExpired
 )
 
 type IncomingWhisperPayload struct {
@@ -94,6 +99,10 @@ type Broadcaster interface {
 	NewGroupMessageEvent(payload *events.GroupEventNewMessagePayload)
 	NewGroupTargetIconEvent(payload *events.GroupEventNewTargetIconPayload)
 	NewGroupDifficultyChangedEvent(payload *events.GroupEventGroupDifficultyChangedPayload)
+
+	NewMatchmakingJoinedPVPQueueEvent(payload *events.MatchmakingEventPlayersQueuedPayload)
+	NewMatchmakingInvitedToBGOrArenaEvent(payload *events.MatchmakingEventPlayersInvitedPayload)
+	NewMatchmakingInviteToBGOrArenaExpiredEvent(payload *events.MatchmakingEventPlayersInviteExpiredPayload)
 }
 
 type broadcasterImpl struct {
@@ -378,6 +387,45 @@ func (b *broadcasterImpl) NewGroupDifficultyChangedEvent(payload *events.GroupEv
 	}
 }
 
+func (b *broadcasterImpl) NewMatchmakingJoinedPVPQueueEvent(payload *events.MatchmakingEventPlayersQueuedPayload) {
+	if payload.RealmID != gameloadbalancer.RealmID {
+		return
+	}
+
+	for _, ch := range b.channelsForGUIDs(convertLowGUIDsToUint64(payload.PlayersGUID)) {
+		ch <- Event{
+			Type:    EventTypeMMJoinedPVPQueue,
+			Payload: payload,
+		}
+	}
+}
+
+func (b *broadcasterImpl) NewMatchmakingInvitedToBGOrArenaEvent(payload *events.MatchmakingEventPlayersInvitedPayload) {
+	if payload.RealmID != gameloadbalancer.RealmID {
+		return
+	}
+
+	for _, ch := range b.channelsForGUIDs(convertLowGUIDsToUint64(payload.PlayersGUID)) {
+		ch <- Event{
+			Type:    EventTypeMMInvitedToBGOrArena,
+			Payload: payload,
+		}
+	}
+}
+
+func (b *broadcasterImpl) NewMatchmakingInviteToBGOrArenaExpiredEvent(payload *events.MatchmakingEventPlayersInviteExpiredPayload) {
+	if payload.RealmID != gameloadbalancer.RealmID {
+		return
+	}
+
+	for _, ch := range b.channelsForGUIDs(convertLowGUIDsToUint64(payload.PlayersGUID)) {
+		ch <- Event{
+			Type:    EventTypeMMInviteToBGOrArenaExpired,
+			Payload: payload,
+		}
+	}
+}
+
 func (b *broadcasterImpl) channelsForGUIDs(guids []uint64) []chan Event {
 	channels := make([]chan Event, 0, len(guids))
 	b.channelsMu.RLock()
@@ -391,4 +439,12 @@ func (b *broadcasterImpl) channelsForGUIDs(guids []uint64) []chan Event {
 	b.channelsMu.RUnlock()
 
 	return channels
+}
+
+func convertLowGUIDsToUint64(s []guid.LowType) []uint64 {
+	r := make([]uint64, len(s))
+	for i, lowType := range s {
+		r[i] = uint64(lowType)
+	}
+	return r
 }

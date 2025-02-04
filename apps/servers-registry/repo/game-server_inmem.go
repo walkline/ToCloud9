@@ -68,6 +68,31 @@ func (g *gameServerInMemRepo) ListByRealm(ctx context.Context, realmID uint32) (
 	return result, nil
 }
 
+func (g *gameServerInMemRepo) ListOfCrossRealms(ctx context.Context) ([]GameServer, error) {
+	g.mutex.RLock()
+	defer g.mutex.RUnlock()
+
+	result := []GameServer{}
+	for i := range g.storage {
+		if g.storage[i].IsCrossRealm == true {
+			result = append(result, g.storage[i])
+		}
+	}
+	return result, nil
+}
+
+func (g *gameServerInMemRepo) ListAll(ctx context.Context) ([]GameServer, error) {
+	g.mutex.RLock()
+	defer g.mutex.RUnlock()
+
+	result := make([]GameServer, 0, len(g.storage))
+	for i := range g.storage {
+		result = append(result, g.storage[i])
+
+	}
+	return result, nil
+}
+
 func (g *gameServerInMemRepo) One(ctx context.Context, id string) (*GameServer, error) {
 	g.mutex.RLock()
 	defer g.mutex.RUnlock()

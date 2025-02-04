@@ -16,6 +16,9 @@ type Config struct {
 
 	// NatsURL is nats connection url
 	NatsURL string `yaml:"natsUrl" env:"NATS_URL" env-default:"nats://nats:4222"`
+
+	// RealmsIDs is id of realms that the system supports.
+	RealmsID []uint32 `yaml:"realmsID" env:"REALMs_ID" env-default:"1"`
 }
 
 // LoadConfig loads config from env variables

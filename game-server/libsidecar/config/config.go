@@ -20,6 +20,9 @@ type Config struct {
 	// ServersRegistryServiceAddress is address of servers registry service
 	ServersRegistryServiceAddress string `yaml:"serversRegistryServiceAddress" env:"SERVERS_REGISTRY_SERVICE_ADDRESS" env-default:"localhost:8999"`
 
+	// MatchmakingServiceAddress is address of matchmaking service
+	MatchmakingServiceAddress string `yaml:"matchmakingServiceAddress" env:"MATCHMAKING_SERVICE_ADDRESS" env-default:"localhost:8994"`
+
 	// GuidProviderServiceAddress is address of service that provides guids to use
 	GuidProviderServiceAddress string `yaml:"guidProviderServiceAddress" env:"GUID_PROVIDER_SERVICE_ADDRESS" env-default:"localhost:8996"`
 

@@ -12,7 +12,7 @@ type Config struct {
 	Port string `yaml:"port" env:"PORT" env-default:"8991"`
 
 	// CharDBConnection is connection string to the characters database
-	CharDBConnection string `yaml:"charactersDB" env:"CHAR_DB_CONNECTION" env-default:"trinity:trinity@tcp(127.0.0.1:3306)/characters"`
+	CharDBConnection map[uint32]string `yaml:"charactersDB" env:"CHAR_DB_CONNECTION" env-separator:";" env-default:"1:trinity:trinity@tcp(127.0.0.1:3306)/characters"`
 
 	// WorldDBConnection is connection string to the world database
 	WorldDBConnection string `yaml:"worldDB" env:"WORLD_DB_CONNECTION" env-default:"trinity:trinity@tcp(127.0.0.1:3306)/world"`

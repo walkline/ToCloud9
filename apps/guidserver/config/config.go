@@ -15,7 +15,7 @@ type Config struct {
 	RedisConnection string `yaml:"redisUrl" env:"REDIS_URL" env-default:"redis://:@redis:6379/0"`
 
 	// CharDBConnection is connection string to the characters database
-	CharDBConnection string `yaml:"charactersDB" env:"CHAR_DB_CONNECTION" env-default:"trinity:trinity@tcp(127.0.0.1:3306)/characters"`
+	CharDBConnection map[uint32]string `yaml:"charactersDB" env:"CHAR_DB_CONNECTION" env-separator:";" env-default:"1:trinity:trinity@tcp(127.0.0.1:3306)/characters"`
 }
 
 // LoadConfig loads config from env variables

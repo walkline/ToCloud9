@@ -4,16 +4,17 @@ package main
 #include "monitoring.h"
 */
 import "C"
+
 import (
 	"context"
 	"errors"
-	"github.com/walkline/ToCloud9/shared/healthandmetrics"
 	"net/http"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"github.com/walkline/ToCloud9/game-server/libsidecar/queue"
+	"github.com/walkline/ToCloud9/shared/healthandmetrics"
 )
 
 // TC9SetMonitoringDataCollectorHandler sets handler for getting data to handle monitoring request.

@@ -69,7 +69,7 @@ func (s *GameSocket) Handshake() error {
 		return err
 	}
 
-	randomBytes := make([]byte, 36)
+	randomBytes := make([]byte, 32)
 	_, err = rand.Read(randomBytes)
 	if err != nil {
 		return err
@@ -240,7 +240,7 @@ func (s *GameSocket) AuthSession(p *packet.Packet) error {
 
 	resp = packet.NewWriterWithSize(packet.SMsgTutorialFlags, 8*4)
 	for i := 0; i < 8; i++ {
-		resp.Uint32(3773709559)
+		resp.Uint32(0xFFFFFFFF)
 	}
 	s.Send(resp)
 

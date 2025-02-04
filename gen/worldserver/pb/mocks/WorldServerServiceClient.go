@@ -50,6 +50,39 @@ func (_m *WorldServerServiceClient) AddExistingItemToPlayer(ctx context.Context,
 	return r0, r1
 }
 
+// AddPlayersToBattleground provides a mock function with given fields: ctx, in, opts
+func (_m *WorldServerServiceClient) AddPlayersToBattleground(ctx context.Context, in *pb.AddPlayersToBattlegroundRequest, opts ...grpc.CallOption) (*pb.AddPlayersToBattlegroundResponse, error) {
+	_va := make([]interface{}, len(opts))
+	for _i := range opts {
+		_va[_i] = opts[_i]
+	}
+	var _ca []interface{}
+	_ca = append(_ca, ctx, in)
+	_ca = append(_ca, _va...)
+	ret := _m.Called(_ca...)
+
+	var r0 *pb.AddPlayersToBattlegroundResponse
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, *pb.AddPlayersToBattlegroundRequest, ...grpc.CallOption) (*pb.AddPlayersToBattlegroundResponse, error)); ok {
+		return rf(ctx, in, opts...)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, *pb.AddPlayersToBattlegroundRequest, ...grpc.CallOption) *pb.AddPlayersToBattlegroundResponse); ok {
+		r0 = rf(ctx, in, opts...)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*pb.AddPlayersToBattlegroundResponse)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, *pb.AddPlayersToBattlegroundRequest, ...grpc.CallOption) error); ok {
+		r1 = rf(ctx, in, opts...)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
 // CanPlayerInteractWithGameObject provides a mock function with given fields: ctx, in, opts
 func (_m *WorldServerServiceClient) CanPlayerInteractWithGameObject(ctx context.Context, in *pb.CanPlayerInteractWithGameObjectRequest, opts ...grpc.CallOption) (*pb.CanPlayerInteractWithGameObjectResponse, error) {
 	_va := make([]interface{}, len(opts))
@@ -108,6 +141,72 @@ func (_m *WorldServerServiceClient) CanPlayerInteractWithNPC(ctx context.Context
 	}
 
 	if rf, ok := ret.Get(1).(func(context.Context, *pb.CanPlayerInteractWithNPCRequest, ...grpc.CallOption) error); ok {
+		r1 = rf(ctx, in, opts...)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// CanPlayerJoinBattlegroundQueue provides a mock function with given fields: ctx, in, opts
+func (_m *WorldServerServiceClient) CanPlayerJoinBattlegroundQueue(ctx context.Context, in *pb.CanPlayerJoinBattlegroundQueueRequest, opts ...grpc.CallOption) (*pb.CanPlayerJoinBattlegroundQueueResponse, error) {
+	_va := make([]interface{}, len(opts))
+	for _i := range opts {
+		_va[_i] = opts[_i]
+	}
+	var _ca []interface{}
+	_ca = append(_ca, ctx, in)
+	_ca = append(_ca, _va...)
+	ret := _m.Called(_ca...)
+
+	var r0 *pb.CanPlayerJoinBattlegroundQueueResponse
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, *pb.CanPlayerJoinBattlegroundQueueRequest, ...grpc.CallOption) (*pb.CanPlayerJoinBattlegroundQueueResponse, error)); ok {
+		return rf(ctx, in, opts...)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, *pb.CanPlayerJoinBattlegroundQueueRequest, ...grpc.CallOption) *pb.CanPlayerJoinBattlegroundQueueResponse); ok {
+		r0 = rf(ctx, in, opts...)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*pb.CanPlayerJoinBattlegroundQueueResponse)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, *pb.CanPlayerJoinBattlegroundQueueRequest, ...grpc.CallOption) error); ok {
+		r1 = rf(ctx, in, opts...)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// CanPlayerTeleportToBattleground provides a mock function with given fields: ctx, in, opts
+func (_m *WorldServerServiceClient) CanPlayerTeleportToBattleground(ctx context.Context, in *pb.CanPlayerTeleportToBattlegroundRequest, opts ...grpc.CallOption) (*pb.CanPlayerTeleportToBattlegroundResponse, error) {
+	_va := make([]interface{}, len(opts))
+	for _i := range opts {
+		_va[_i] = opts[_i]
+	}
+	var _ca []interface{}
+	_ca = append(_ca, ctx, in)
+	_ca = append(_ca, _va...)
+	ret := _m.Called(_ca...)
+
+	var r0 *pb.CanPlayerTeleportToBattlegroundResponse
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, *pb.CanPlayerTeleportToBattlegroundRequest, ...grpc.CallOption) (*pb.CanPlayerTeleportToBattlegroundResponse, error)); ok {
+		return rf(ctx, in, opts...)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, *pb.CanPlayerTeleportToBattlegroundRequest, ...grpc.CallOption) *pb.CanPlayerTeleportToBattlegroundResponse); ok {
+		r0 = rf(ctx, in, opts...)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*pb.CanPlayerTeleportToBattlegroundResponse)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, *pb.CanPlayerTeleportToBattlegroundRequest, ...grpc.CallOption) error); ok {
 		r1 = rf(ctx, in, opts...)
 	} else {
 		r1 = ret.Error(1)
@@ -240,6 +339,39 @@ func (_m *WorldServerServiceClient) RemoveItemsWithGuidsFromPlayer(ctx context.C
 	}
 
 	if rf, ok := ret.Get(1).(func(context.Context, *pb.RemoveItemsWithGuidsFromPlayerRequest, ...grpc.CallOption) error); ok {
+		r1 = rf(ctx, in, opts...)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// StartBattleground provides a mock function with given fields: ctx, in, opts
+func (_m *WorldServerServiceClient) StartBattleground(ctx context.Context, in *pb.StartBattlegroundRequest, opts ...grpc.CallOption) (*pb.StartBattlegroundResponse, error) {
+	_va := make([]interface{}, len(opts))
+	for _i := range opts {
+		_va[_i] = opts[_i]
+	}
+	var _ca []interface{}
+	_ca = append(_ca, ctx, in)
+	_ca = append(_ca, _va...)
+	ret := _m.Called(_ca...)
+
+	var r0 *pb.StartBattlegroundResponse
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, *pb.StartBattlegroundRequest, ...grpc.CallOption) (*pb.StartBattlegroundResponse, error)); ok {
+		return rf(ctx, in, opts...)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, *pb.StartBattlegroundRequest, ...grpc.CallOption) *pb.StartBattlegroundResponse); ok {
+		r0 = rf(ctx, in, opts...)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*pb.StartBattlegroundResponse)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, *pb.StartBattlegroundRequest, ...grpc.CallOption) error); ok {
 		r1 = rf(ctx, in, opts...)
 	} else {
 		r1 = ret.Error(1)

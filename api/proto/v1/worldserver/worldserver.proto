@@ -18,6 +18,12 @@ service WorldServerService {
   // Interactions
   rpc CanPlayerInteractWithNPC(CanPlayerInteractWithNPCRequest) returns (CanPlayerInteractWithNPCResponse);
   rpc CanPlayerInteractWithGameObject(CanPlayerInteractWithGameObjectRequest) returns (CanPlayerInteractWithGameObjectResponse);
+
+  // Battlegrounds
+  rpc StartBattleground(StartBattlegroundRequest) returns (StartBattlegroundResponse);
+  rpc AddPlayersToBattleground(AddPlayersToBattlegroundRequest) returns (AddPlayersToBattlegroundResponse);
+  rpc CanPlayerJoinBattlegroundQueue(CanPlayerJoinBattlegroundQueueRequest) returns (CanPlayerJoinBattlegroundQueueResponse);
+  rpc CanPlayerTeleportToBattleground(CanPlayerTeleportToBattlegroundRequest) returns (CanPlayerTeleportToBattlegroundResponse);
 }
 
 // GetPlayerItemsByGuids
@@ -147,4 +153,91 @@ message CanPlayerInteractWithGameObjectResponse {
   string api = 1;
 
   bool canInteract = 2;
+}
+
+enum BattlegroundType {
+  None = 0;
+  AlteracValley = 1;
+  WarsongGulch = 2;
+  ArathiBasin = 3;
+  NagrandArena = 4;
+  BladesEdgeArena = 5;
+  AllArenas = 6;
+  EyeOfTheStorm = 7;
+  RuinsOfLordaeron = 8;
+  StrandOfTheAncients = 9;
+  DalaranSewers = 10;
+  RingOfValor = 11;
+  IsleOfConquest = 30;
+  RandomBattleground = 32;
+}
+
+// StartBattleground
+message StartBattlegroundRequest {
+  string api = 1;
+
+  BattlegroundType battlegroundTypeID = 2;
+  uint32 arenaType = 3; // Arenas not supported yet.
+  bool   isRated = 4;   // Arenas not supported yet.
+  uint32 mapID = 5;
+  uint32 bracketLvl = 6;
+
+  repeated uint64 playersToAddAlliance = 7;
+  repeated uint64 playersToAddHorde = 8;
+}
+
+message StartBattlegroundResponse {
+  string api = 1;
+
+  uint32 instanceID = 2;
+  uint32 clientInstanceID = 3;
+}
+
+// AddPlayersToBattleground
+message AddPlayersToBattlegroundRequest {
+  string api = 1;
+
+  BattlegroundType battlegroundTypeID = 2;
+  uint32 instanceID = 3;
+
+  repeated uint64 playersToAddAlliance = 4;
+  repeated uint64 playersToAddHorde = 5;
+}
+
+message AddPlayersToBattlegroundResponse {
+  string api = 1;
+}
+
+// CanPlayerJoinBattlegroundQueue
+message CanPlayerJoinBattlegroundQueueRequest {
+  string api = 1;
+
+  uint64 playerGUID = 2;
+}
+
+message CanPlayerJoinBattlegroundQueueResponse {
+  string api = 1;
+
+  enum Status {
+    Success = 0;
+  }
+
+  Status status = 2;
+}
+
+// CanPlayerTeleportToBattleground
+message CanPlayerTeleportToBattlegroundRequest {
+  string api = 1;
+
+  uint64 playerGUID = 2;
+}
+
+message CanPlayerTeleportToBattlegroundResponse {
+  string api = 1;
+
+  enum Status {
+    Success = 0;
+  }
+
+  Status status = 2;
 }

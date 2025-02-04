@@ -7,7 +7,8 @@ service ServersRegistryService {
   rpc RegisterGameServer(RegisterGameServerRequest) returns (RegisterGameServerResponse);
   rpc AvailableGameServersForMapAndRealm(AvailableGameServersForMapAndRealmRequest) returns (AvailableGameServersForMapAndRealmResponse);
   rpc RandomGameServerForRealm(RandomGameServerForRealmRequest) returns (RandomGameServerForRealmResponse);
-  rpc ListGameServersForRealm(ListGameServersForRealmRequest) returns (ListGameServersForRealmResponse);
+  rpc ListGameServersForRealm(ListGameServersForRealmRequest) returns (ListGameServersResponse);
+  rpc ListAllGameServers(ListAllGameServersRequest) returns (ListGameServersResponse);
   rpc GameServerMapsLoaded(GameServerMapsLoadedRequest) returns (GameServerMapsLoadedResponse);
 
   rpc RegisterLoadBalancer(RegisterLoadBalancerRequest) returns (RegisterLoadBalancerResponse);
@@ -25,8 +26,9 @@ message RegisterGameServerRequest{
   uint32 healthPort = 3;
   uint32 grpcPort = 4;
   uint32 realmID = 5;
-  string availableMaps = 6;
-  string preferredHostName = 7;
+  bool   isCrossRealm = 6; // If true realm id should be 0
+  string availableMaps = 7;
+  string preferredHostName = 8;
 }
 
 message RegisterGameServerResponse{
@@ -44,6 +46,7 @@ message AvailableGameServersForMapAndRealmRequest{
 
   uint32 realmID = 2;
   uint32 mapID = 3;
+  bool   isCrossRealm = 4;  // Can't be used with realm id
 }
 
 message AvailableGameServersForMapAndRealmResponse{
@@ -74,6 +77,7 @@ message ListGameServersForRealmRequest {
   string api = 1;
 
   uint32 realmID = 2;
+  bool   isCrossRealm = 3; // Can't be used with realm id
 }
 
 message GameServerDetailed {
@@ -85,20 +89,29 @@ message GameServerDetailed {
     uint32 max = 5;
   };
 
-  string address = 1;
-  string healthAddress = 2;
-  string grpcAddress = 3;
-  uint32 realmID = 4;
-  uint32 activeConnections = 5;
-  Diff diff = 6;
-  repeated uint32 availableMaps = 7;
-  repeated uint32 assignedMaps = 8;
+  string ID = 1;
+  string address = 2;
+  string healthAddress = 3;
+  string grpcAddress = 4;
+  uint32 realmID = 5;
+  bool isCrossRealm = 6;
+  uint32 activeConnections = 7;
+  Diff diff = 8;
+  repeated uint32 availableMaps = 9;
+  repeated uint32 assignedMaps = 10;
 }
 
-message ListGameServersForRealmResponse {
+message ListGameServersResponse {
   string api = 1;
 
   repeated GameServerDetailed gameServers = 2;
+}
+
+//
+// ListAllGameServers
+//
+message ListAllGameServersRequest {
+  string api = 1;
 }
 
 //
@@ -124,7 +137,8 @@ message RegisterLoadBalancerRequest{
   uint32 gamePort = 2;
   uint32 healthPort = 3;
   uint32 realmID = 4;
-  string preferredHostName = 5;
+  bool   isCrossRealm = 5;  // Can't be used with realm id
+  string preferredHostName = 6;
 }
 
 message RegisterLoadBalancerResponse{
@@ -177,5 +191,6 @@ message ListLoadBalancersForRealmResponse {
 message Server {
   string address = 1;
   uint32 realmID = 2;
-  string grpcAddress = 3;
+  bool   isCrossRealm = 3;
+  string grpcAddress = 4;
 }

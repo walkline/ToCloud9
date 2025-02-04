@@ -1,6 +1,7 @@
 package main
 
 import "C"
+
 import (
 	"net"
 	"time"
@@ -15,6 +16,7 @@ import (
 )
 
 var readRequestsQueue = queue.NewHandlersFIFOQueue()
+
 var writeRequestsQueue = queue.NewHandlersFIFOQueue()
 
 func SetupGRPCService(conf *config.Config) (net.Listener, *grpc.Server) {
@@ -30,13 +32,17 @@ func SetupGRPCService(conf *config.Config) (net.Listener, *grpc.Server) {
 		grpcServer,
 		grpcapi.NewWorldServerGRPCAPI(
 			grpcapi.CppBindings{
-				GetPlayerItemsByGuids:          GetPlayerItemsByGuidHandler,
-				RemoveItemsWithGuidsFromPlayer: RemoveItemsWithGuidsFromPlayerHandler,
-				AddExistingItemToPlayer:        AddExistingItemToPlayerHandler,
-				GetMoneyForPlayer:              GetMoneyForPlayerHandler,
-				ModifyMoneyForPlayer:           ModifyMoneyForPlayerHandler,
-				CanPlayerInteractWithNPC:       CanPlayerInteractWithNPCAndFlagsHandler,
-				CanPlayerInteractWithGO:        CanPlayerInteractWithGOAndTypeHandler,
+				GetPlayerItemsByGuids:           GetPlayerItemsByGuidHandler,
+				RemoveItemsWithGuidsFromPlayer:  RemoveItemsWithGuidsFromPlayerHandler,
+				AddExistingItemToPlayer:         AddExistingItemToPlayerHandler,
+				GetMoneyForPlayer:               GetMoneyForPlayerHandler,
+				ModifyMoneyForPlayer:            ModifyMoneyForPlayerHandler,
+				CanPlayerInteractWithNPC:        CanPlayerInteractWithNPCAndFlagsHandler,
+				CanPlayerInteractWithGO:         CanPlayerInteractWithGOAndTypeHandler,
+				StartBattleground:               BattlegroundStartHandler,
+				AddPlayersToBattleground:        BattlegroundAddPlayersHandler,
+				CanPlayerJoinBattlegroundQueue:  CanPlayerJoinBattlegroundQueueHandler,
+				CanPlayerTeleportToBattleground: CanPlayerTeleportToBattlegroundHandler,
 			},
 			time.Second*5,
 			readRequestsQueue,

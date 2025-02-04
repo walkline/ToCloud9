@@ -4,13 +4,16 @@ package main
 #include "events-group.h"
 */
 import "C"
+
 import (
 	"fmt"
+	"unsafe"
+
 	"github.com/rs/zerolog"
+
 	"github.com/walkline/ToCloud9/game-server/libsidecar/consumer"
 	"github.com/walkline/ToCloud9/game-server/libsidecar/queue"
 	"github.com/walkline/ToCloud9/shared/events"
-	"unsafe"
 )
 
 // TC9SetOnGroupCreatedHook sets hook for group created event.

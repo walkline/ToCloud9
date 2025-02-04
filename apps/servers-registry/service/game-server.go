@@ -16,9 +16,11 @@ import (
 
 type GameServer interface {
 	Register(ctx context.Context, server *repo.GameServer) error
-	AvailableForMapAndRealm(ctx context.Context, mapID uint32, realmID uint32) ([]repo.GameServer, error)
+	AvailableForMapAndRealm(ctx context.Context, mapID uint32, realmID uint32, isCrossRealm bool) ([]repo.GameServer, error)
 	RandomServerForRealm(ctx context.Context, realmID uint32) (*repo.GameServer, error)
 	ListForRealm(ctx context.Context, realmID uint32) ([]repo.GameServer, error)
+	ListOfCrossRealms(ctx context.Context) ([]repo.GameServer, error)
+	ListAll(ctx context.Context) ([]repo.GameServer, error)
 	MapsLoadedForServer(ctx context.Context, serverID string, maps []uint32) (*repo.GameServer, error)
 }
 
@@ -77,6 +79,22 @@ func NewGameServer(
 		}
 	}
 
+	servers, err := r.ListOfCrossRealms(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	for i := range servers {
+		if err = checker.AddHealthCheckObject(&servers[i]); err != nil {
+			return nil, err
+		}
+
+		err = metrics.AddMetricsObservable(&servers[i])
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	return service, nil
 }
 
@@ -97,7 +115,15 @@ func (g *gameServerImpl) Register(ctx context.Context, server *repo.GameServer) 
 		return err
 	}
 
-	wsList, err := g.ListForRealm(ctx, server.RealmID)
+	var wsList []repo.GameServer
+	var err error
+
+	if server.IsCrossRealm {
+		wsList, err = g.ListOfCrossRealms(ctx)
+	} else {
+		wsList, err = g.ListForRealm(ctx, server.RealmID)
+	}
+
 	if err != nil {
 		return err
 	}
@@ -114,11 +140,35 @@ func (g *gameServerImpl) Register(ctx context.Context, server *repo.GameServer) 
 		}
 	}
 
+	err = g.eProducer.GSAdded(&events.ServerRegistryEventGSAddedPayload{
+		GameServer: events.GameServer{
+			ID:                      server.ID,
+			Address:                 server.Address,
+			RealmID:                 server.RealmID,
+			IsCrossRealm:            server.IsCrossRealm,
+			AvailableMaps:           server.AvailableMaps,
+			OldAssignedMapsToHandle: []uint32{},
+			NewAssignedMapsToHandle: server.AssignedMapsToHandle,
+		},
+	})
+	if err != nil {
+		log.Error().Err(err).Str("serverID", server.ID).Msg("can't produce game server added event")
+	}
+
 	return nil
 }
 
-func (g *gameServerImpl) AvailableForMapAndRealm(ctx context.Context, mapID uint32, realmID uint32) ([]repo.GameServer, error) {
-	servers, err := g.r.ListByRealm(ctx, realmID)
+func (g *gameServerImpl) AvailableForMapAndRealm(ctx context.Context, mapID uint32, realmID uint32, isCrossRealm bool) ([]repo.GameServer, error) {
+	var (
+		servers []repo.GameServer
+		err     error
+	)
+
+	if isCrossRealm {
+		servers, err = g.r.ListOfCrossRealms(ctx)
+	} else {
+		servers, err = g.r.ListByRealm(ctx, realmID)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -148,6 +198,24 @@ func (g *gameServerImpl) RandomServerForRealm(ctx context.Context, realmID uint3
 
 func (g *gameServerImpl) ListForRealm(ctx context.Context, realmID uint32) ([]repo.GameServer, error) {
 	servers, err := g.r.ListByRealm(ctx, realmID)
+	if err != nil {
+		return nil, err
+	}
+
+	return servers, nil
+}
+
+func (g *gameServerImpl) ListAll(ctx context.Context) ([]repo.GameServer, error) {
+	servers, err := g.r.ListAll(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	return servers, nil
+}
+
+func (g *gameServerImpl) ListOfCrossRealms(ctx context.Context) ([]repo.GameServer, error) {
+	servers, err := g.r.ListOfCrossRealms(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -196,12 +264,34 @@ func (g *gameServerImpl) onServerUnhealthy(server *repo.GameServer, err error) {
 		return
 	}
 
+	err = g.eProducer.GSRemoved(&events.ServerRegistryEventGSRemovedPayload{
+		GameServer: events.GameServer{
+			ID:                      server.ID,
+			Address:                 server.Address,
+			RealmID:                 server.RealmID,
+			IsCrossRealm:            server.IsCrossRealm,
+			AvailableMaps:           server.AvailableMaps,
+			OldAssignedMapsToHandle: server.AssignedMapsToHandle,
+			NewAssignedMapsToHandle: server.AssignedMapsToHandle,
+		},
+	})
+	if err != nil {
+		log.Error().Err(err).Str("serverID", server.ID).Msg("can't produce game server removed event")
+	}
+
 	err = g.metrics.RemoveMetricsObservable(server)
 	if err != nil {
 		log.Error().Err(err).Msg("can't remove gameserver from metrics consumer")
 	}
 
-	wsList, err := g.ListForRealm(context.Background(), server.RealmID)
+	var wsList []repo.GameServer
+
+	if server.IsCrossRealm {
+		wsList, err = g.ListOfCrossRealms(context.Background())
+	} else {
+		wsList, err = g.ListForRealm(context.Background(), server.RealmID)
+	}
+
 	if err != nil {
 		log.Error().Err(err).Msg("can't list servers")
 		return

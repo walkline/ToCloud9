@@ -69,7 +69,7 @@ func (a *AppController) Start() error {
 
 	a.appLogger.ResetForNewRun()
 
-	a.cmd = exec.Command(a.binaryPath)
+	a.cmd = exec.Command(a.binaryPath, a.args...)
 	if a.workingDir != "" {
 		a.cmd.Dir = a.workingDir
 	}
@@ -99,6 +99,8 @@ func (a *AppController) Start() error {
 		return err
 	}
 
+	startupMsg := strings.ToLower(a.partOfStartupMsg)
+
 	startupTimeout := time.NewTimer(a.startupTimeoutDuration)
 	for {
 		select {
@@ -106,9 +108,9 @@ func (a *AppController) Start() error {
 			return err
 		case <-startupTimeout.C:
 			_ = a.cmd.Process.Kill()
-			return fmt.Errorf("startup timeouted")
+			return errors.New("startup timeout")
 		case msg := <-a.appLogger.startupLogMsgsChan:
-			if strings.Contains(strings.ToLower(string(msg)), a.partOfStartupMsg) {
+			if strings.Contains(strings.ToLower(string(msg)), startupMsg) {
 				a.appLogger.StopSendingStartupLogs()
 				a.triggerStopChan = make(chan struct{}, 1)
 				a.startRestarter(a.triggerStopChan)

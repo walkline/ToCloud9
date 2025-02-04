@@ -24,10 +24,13 @@ import (
 	pbGroup "github.com/walkline/ToCloud9/gen/group/pb"
 	pbGuild "github.com/walkline/ToCloud9/gen/guilds/pb"
 	pbMail "github.com/walkline/ToCloud9/gen/mail/pb"
+	pbMM "github.com/walkline/ToCloud9/gen/matchmaking/pb"
 	pbServ "github.com/walkline/ToCloud9/gen/servers-registry/pb"
 	"github.com/walkline/ToCloud9/shared/events"
+	gameserverconn "github.com/walkline/ToCloud9/shared/gameserver/conn"
 	"github.com/walkline/ToCloud9/shared/healthandmetrics"
 	sharedRepo "github.com/walkline/ToCloud9/shared/repo"
+	//_ "net/http/pprof"
 )
 
 func main() {
@@ -36,6 +39,8 @@ func main() {
 	//	fmt.Println("???")
 	//	fmt.Println(http.ListenAndServe(":8333", nil))
 	//}()
+
+	//runtime.SetBlockProfileRate(1)
 
 	conf, err := config.LoadConfig()
 	if err != nil {
@@ -69,6 +74,7 @@ func main() {
 	guildClient := guildService(conf)
 	mailClient := mailService(conf)
 	groupClient := groupService(conf)
+	matchmakingClient := matchmakingService(conf)
 
 	healthandmetrics.EnableActiveConnectionsMetrics()
 	healthCheckServer := healthandmetrics.NewServer(conf.HealthCheckPort, promhttp.Handler())
@@ -120,9 +126,20 @@ func main() {
 		log.Fatal().Err(err).Msg("can't listen to group events-broadcaster")
 	}
 
+	mmListener := service.NewMatchmakingNatsListener(nc, broadcaster)
+	err = mmListener.Listen()
+	if err != nil {
+		log.Fatal().Err(err).Msg("can't listen to matchmaking events-broadcaster")
+	}
+
 	producer := events.NewLoadBalancerProducerNatsJSON(nc, root.Ver, root.RealmID, root.RetrievedBalancerID)
 	charsUpdsBarrier := service.NewCharactersUpdatesBarrier(&log.Logger, producer, time.Second)
 	go charsUpdsBarrier.Run(context.TODO())
+
+	realmNamesServive, err := service.NewRealmNamesService(context.Background(), repo.NewRealmNamesMySQLRepo(authDB))
+	if err != nil {
+		log.Fatal().Err(err).Msg("can't create realm names service")
+	}
 
 	log.Info().
 		Str("address", l.Addr().String()).
@@ -142,11 +159,13 @@ func main() {
 			ChatServiceClient:                chatClient,
 			GuildsServiceClient:              guildClient,
 			MailServiceClient:                mailClient,
+			MatchmakingServiceClient:         matchmakingClient,
 			GroupServiceClient:               groupClient,
 			EventsProducer:                   producer,
 			EventsBroadcaster:                broadcaster,
 			CharsUpdsBarrier:                 charsUpdsBarrier,
-			GameServerGRPCConnMgr:            service.DefaultGameServerGRPCConnMgr,
+			RealmNamesService:                realmNamesServive,
+			GameServerGRPCConnMgr:            gameserverconn.DefaultGameServerGRPCConnMgr,
 			PacketProcessTimeout:             time.Second * time.Duration(conf.PacketProcessTimeoutSecs),
 			ShowGameserverConnChangeToClient: conf.ShowGameserverConnChangeToClient,
 		})
@@ -167,6 +186,15 @@ func charService(cnf *config.Config) pbChar.CharactersServiceClient {
 	}
 
 	return pbChar.NewCharactersServiceClient(conn)
+}
+
+func matchmakingService(cnf *config.Config) pbMM.MatchmakingServiceClient {
+	conn, err := grpc.Dial(cnf.MatchmakingServiceAddress, grpc.WithInsecure())
+	if err != nil {
+		log.Fatal().Err(err).Msg("can't connect to matchmaking service")
+	}
+
+	return pbMM.NewMatchmakingServiceClient(conn)
 }
 
 func servRegistryService(cnf *config.Config) pbServ.ServersRegistryServiceClient {

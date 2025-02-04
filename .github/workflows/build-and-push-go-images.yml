@@ -52,6 +52,14 @@ jobs:
         run: |
           docker buildx build --push --platform linux/amd64,linux/arm64 -t ghcr.io/${{github.actor}}/groupserver:${{github.ref_name}} -f apps/groupserver/Dockerfile . 
 
+      - name: 'Build and push "matchmakingserver" image'
+        run: |
+          docker buildx build --push --platform linux/amd64,linux/arm64 -t ghcr.io/${{github.actor}}/matchmakingserver:${{github.ref_name}} -f apps/matchmakingserver/Dockerfile . 
+
+      - name: 'Build and push "mysqlreverseproxy" image'
+        run: |
+          docker buildx build --push --platform linux/amd64,linux/arm64 -t ghcr.io/${{github.actor}}/mysqlreverseproxy:${{github.ref_name}} -f apps/mysqlreverseproxy/Dockerfile . 
+
       - name: 'Build and push "servers-registry" image'
         run: |
           docker buildx build --push --platform linux/amd64,linux/arm64 -t ghcr.io/${{github.actor}}/servers-registry:${{github.ref_name}} -f apps/servers-registry/Dockerfile . 

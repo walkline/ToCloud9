@@ -1,4 +1,4 @@
-FROM golang:1.21 AS build-sidecar
+FROM golang:1.23 AS build-sidecar
 
 # runs from project directory
 WORKDIR $GOPATH/src/github.com/walkline/ToCloud9
@@ -16,14 +16,18 @@ ENV DEBIAN_FRONTEND=noninteractive
 # runs from project directory
 WORKDIR /
 
-RUN apt-get update && apt-get install -yq git clang cmake make gcc g++ libmysqlclient-dev libssl-dev libbz2-dev libreadline-dev libncurses-dev libboost-all-dev mysql-server p7zip
+RUN apt-get update || true && \
+    apt-get install -y --reinstall ubuntu-keyring && \
+    apt-get update
+
+RUN apt-get install -yq git clang cmake make gcc g++ libmysqlclient-dev libssl-dev libbz2-dev libreadline-dev libncurses-dev libboost-all-dev mysql-server p7zip
 RUN update-alternatives --install /usr/bin/cc cc /usr/bin/clang 100
 RUN update-alternatives --install /usr/bin/c++ c++ /usr/bin/clang 100
 
 RUN mkdir repo
 RUN cd repo && git init && \
     git remote add origin https://github.com/walkline/azerothcore-wotlk.git && \
-    git fetch --depth 1 origin 77bbcb39250835dde1a5738f58be9128ba616786  && \
+    git fetch --depth 1 origin ea80974765a710148dbfbbf9053a1e08af982702  && \
     git checkout FETCH_HEAD
 
 COPY --from=build-sidecar ./go/src/github.com/walkline/ToCloud9/libsidecar.so ./repo/deps/libsidecar/libsidecar.so

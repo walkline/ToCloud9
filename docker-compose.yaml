@@ -1,4 +1,3 @@
-version: "3.9"
 services:
   game-load-balancer:
     build:
@@ -18,6 +17,7 @@ services:
       GUILDS_SERVICE_ADDRESS: guildserver:8995
       MAIL_SERVICE_ADDRESS: mailserver:8997
       GROUP_SERVICE_ADDRESS: groupserver:8998
+      MATCHMAKING_SERVICE_ADDRESS: matchmakingserver:8994
       AUTH_DB_CONNECTION: ${AUTH_DB_USER}:${AUTH_DB_PASS}@tcp(${AUTH_DB_HOST}:${AUTH_DB_PORT})/${AUTH_DB_NAME}
       DB_SCHEMA_TYPE: ${DATABASE_SCHEMA_TYPE}
       PREFERRED_HOSTNAME: ${EXTERNAL_ADDRESS}
@@ -40,6 +40,7 @@ services:
       GUILDS_SERVICE_ADDRESS: guildserver:8995
       MAIL_SERVICE_ADDRESS: mailserver:8997
       GROUP_SERVICE_ADDRESS: groupserver:8998
+      MATCHMAKING_SERVICE_ADDRESS: matchmakingserver:8994
       AUTH_DB_CONNECTION: ${AUTH_DB_USER}:${AUTH_DB_PASS}@tcp(${AUTH_DB_HOST}:${AUTH_DB_PORT})/${AUTH_DB_NAME}
       DB_SCHEMA_TYPE: ${DATABASE_SCHEMA_TYPE}
       PREFERRED_HOSTNAME: ${EXTERNAL_ADDRESS}
@@ -79,7 +80,7 @@ services:
       - "8087:8087"
     environment:
       PORT: 8087
-      CHAR_DB_CONNECTION: ${CHAR_DB_USER}:${CHAR_DB_PASS}@tcp(${CHAR_DB_HOST}:${CHAR_DB_PORT})/${CHAR_DB_NAME}
+      CHAR_DB_CONNECTION: 1:${CHAR_DB_USER}:${CHAR_DB_PASS}@tcp(${CHAR_DB_HOST}:${CHAR_DB_PORT})/${CHAR_DB_NAME}
       WORLD_DB_CONNECTION: ${WORLD_DB_USER}:${WORLD_DB_PASS}@tcp(${WORLD_DB_HOST}:${WORLD_DB_PORT})/${WORLD_DB_NAME}
 
   chatserver:
@@ -97,7 +98,7 @@ services:
     depends_on:
       - nats
     environment:
-      CHAR_DB_CONNECTION: ${CHAR_DB_USER}:${CHAR_DB_PASS}@tcp(${CHAR_DB_HOST}:${CHAR_DB_PORT})/${CHAR_DB_NAME}
+      CHAR_DB_CONNECTION: 1:${CHAR_DB_USER}:${CHAR_DB_PASS}@tcp(${CHAR_DB_HOST}:${CHAR_DB_PORT})/${CHAR_DB_NAME}
       NATS_URL: nats://nats:4222
       PORT: 8995
 
@@ -108,7 +109,7 @@ services:
     depends_on:
       - redis
     environment:
-      CHAR_DB_CONNECTION: ${CHAR_DB_USER}:${CHAR_DB_PASS}@tcp(${CHAR_DB_HOST}:${CHAR_DB_PORT})/${CHAR_DB_NAME}
+      CHAR_DB_CONNECTION: 1:${CHAR_DB_USER}:${CHAR_DB_PASS}@tcp(${CHAR_DB_HOST}:${CHAR_DB_PORT})/${CHAR_DB_NAME}
       REDIS_URL: redis://:@redis:6379/0
       PORT: 8996
     ports:
@@ -119,7 +120,7 @@ services:
       context: .
       dockerfile: apps/mailserver/Dockerfile
     environment:
-      CHAR_DB_CONNECTION: ${CHAR_DB_USER}:${CHAR_DB_PASS}@tcp(${CHAR_DB_HOST}:${CHAR_DB_PORT})/${CHAR_DB_NAME}
+      CHAR_DB_CONNECTION: 1:${CHAR_DB_USER}:${CHAR_DB_PASS}@tcp(${CHAR_DB_HOST}:${CHAR_DB_PORT})/${CHAR_DB_NAME}
       NATS_URL: nats://nats:4222
       PORT: 8997
     ports:
@@ -130,11 +131,25 @@ services:
       context: .
       dockerfile: apps/groupserver/Dockerfile
     environment:
-      CHAR_DB_CONNECTION: ${CHAR_DB_USER}:${CHAR_DB_PASS}@tcp(${CHAR_DB_HOST}:${CHAR_DB_PORT})/${CHAR_DB_NAME}
+      CHAR_DB_CONNECTION: 1:${CHAR_DB_USER}:${CHAR_DB_PASS}@tcp(${CHAR_DB_HOST}:${CHAR_DB_PORT})/${CHAR_DB_NAME}
       NATS_URL: nats://nats:4222
       PORT: 8998
     ports:
       - '8998:8998'
+
+  matchmakingserver:
+    build:
+      context: .
+      dockerfile: apps/matchmakingserver/Dockerfile
+    environment:
+      CHAR_DB_CONNECTION: 1:${CHAR_DB_USER}:${CHAR_DB_PASS}@tcp(${CHAR_DB_HOST}:${CHAR_DB_PORT})/${CHAR_DB_NAME}
+      WORLD_DB_CONNECTION: ${WORLD_DB_USER}:${WORLD_DB_PASS}@tcp(${WORLD_DB_HOST}:${WORLD_DB_PORT})/${WORLD_DB_NAME}
+      SERVERS_REGISTRY_SERVICE_ADDRESS: servers-registry:8999
+      BATTLE_GROUPS: 1:1
+      NATS_URL: nats://nats:4222
+      PORT: 8994
+    ports:
+      - '8994:8994'
 
   gameserver_tc:
     build:
@@ -182,22 +197,23 @@ services:
       GRPC_PORT: 9509
       GUID_PROVIDER_SERVICE_ADDRESS: guidserver:8996
       SERVERS_REGISTRY_SERVICE_ADDRESS: servers-registry:8999
+      MATCHMAKING_SERVICE_ADDRESS: matchmakingserver:8994
     profiles:
       - ac
 
   nats:
     image: nats:2.10-alpine
-    expose:
-      - "4222"
-    ports:
-      - "4222:4222"
-      - "8222:8222"
+#    expose:
+#      - "4222"
+#    ports:
+#      - "4222:4222"
+#      - "8222:8222"
     hostname: nats-server
 
   redis:
     image: redis:7.2-alpine
-    ports:
-      - '6379:6379'
+#    ports:
+#      - '6379:6379'
     command: redis-server --save 20 1 --loglevel warning
     volumes:
       - ./cache:/data

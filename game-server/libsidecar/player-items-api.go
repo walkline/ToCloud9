@@ -4,6 +4,7 @@ package main
 #include "player-items-api.h"
 */
 import "C"
+
 import (
 	"unsafe"
 
@@ -11,18 +12,21 @@ import (
 )
 
 // TC9SetGetPlayerItemsByGuidsHandler sets handler for getting players item by guids request.
+//
 //export TC9SetGetPlayerItemsByGuidsHandler
 func TC9SetGetPlayerItemsByGuidsHandler(h C.GetPlayerItemsByGuidsHandler) {
 	C.SetGetPlayerItemsByGuidsHandler(h)
 }
 
 // TC9SetRemoveItemsWithGuidsFromPlayerHandler sets handler for removing items by guids from player request.
+//
 //export TC9SetRemoveItemsWithGuidsFromPlayerHandler
 func TC9SetRemoveItemsWithGuidsFromPlayerHandler(h C.RemoveItemsWithGuidsFromPlayerHandler) {
 	C.SetRemoveItemsWithGuidsFromPlayerHandler(h)
 }
 
 // TC9SetAddExistingItemToPlayerHandler sets handler for adding item to player request.
+//
 //export TC9SetAddExistingItemToPlayerHandler
 func TC9SetAddExistingItemToPlayerHandler(h C.AddExistingItemToPlayerHandler) {
 	C.SetAddExistingItemToPlayerHandler(h)

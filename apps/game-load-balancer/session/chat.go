@@ -59,7 +59,7 @@ func (s *GameSession) HandleChatMessage(ctx context.Context, p *packet.Packet) e
 			RealmID:      root.RealmID,
 			SenderGUID:   s.character.GUID,
 			SenderName:   s.character.Name,
-			SenderRace:   s.character.Race,
+			SenderRace:   uint32(s.character.Race),
 			Language:     lang,
 			ReceiverName: to,
 			Msg:          msg,
@@ -238,17 +238,14 @@ func (s *GameSession) handleCommandMsgIfNeeded(ctx context.Context, msg string) 
 }
 
 func (s *GameSession) handleCommandMsgListGameServers(ctx context.Context) error {
-	resp, err := s.serversRegistryClient.ListGameServersForRealm(ctx, &pbServ.ListGameServersForRealmRequest{
-		Api:     root.SupportedServerRegistryVer,
-		RealmID: root.RealmID,
+	resp, err := s.serversRegistryClient.ListAllGameServers(ctx, &pbServ.ListAllGameServersRequest{
+		Api: root.SupportedServerRegistryVer,
 	})
 	if err != nil {
 		return err
 	}
 
-	s.SendSysMessage("List of available |cff7321EFworld servers|r:")
-
-	for _, server := range resp.GameServers {
+	printServer := func(server *pbServ.GameServerDetailed) {
 		mapsAvailable := "all"
 		if len(server.AvailableMaps) > 0 {
 			mapsAvailable = ""
@@ -257,12 +254,13 @@ func (s *GameSession) handleCommandMsgListGameServers(ctx context.Context) error
 			}
 		}
 
+		const maxMapsToShow = 8
 		assignedMaps := ""
-		if len(server.AssignedMaps) > 3 {
-			for i := 0; i < 3; i++ {
+		if len(server.AssignedMaps) > maxMapsToShow {
+			for i := 0; i < maxMapsToShow; i++ {
 				assignedMaps += fmt.Sprintf("%d ", server.AssignedMaps[i])
 			}
-			assignedMaps += fmt.Sprintf("and %d more", len(server.AssignedMaps)-3)
+			assignedMaps += fmt.Sprintf("and %d more", len(server.AssignedMaps)-maxMapsToShow)
 		} else {
 			for i := 0; i < len(server.AssignedMaps); i++ {
 				assignedMaps += fmt.Sprintf("%d ", server.AssignedMaps[i])
@@ -291,6 +289,31 @@ func (s *GameSession) handleCommandMsgListGameServers(ctx context.Context) error
 		}
 
 		s.SendSysMessage(" ")
+	}
+
+	var crossrealms []*pbServ.GameServerDetailed
+	perRealm := make(map[uint32][]*pbServ.GameServerDetailed)
+	for _, server := range resp.GameServers {
+		if server.IsCrossRealm {
+			crossrealms = append(crossrealms, server)
+			continue
+		}
+
+		perRealm[server.RealmID] = append(perRealm[server.RealmID], server)
+	}
+
+	if len(crossrealms) > 0 {
+		s.SendSysMessage(fmt.Sprintf("List of available |cff4f90ffcrossrealm|r worldservers:"))
+		for _, server := range crossrealms {
+			printServer(server)
+		}
+	}
+
+	for realm, servers := range perRealm {
+		s.SendSysMessage(fmt.Sprintf("List of available worldservers for |cff4f90ffrealm %d|r:", realm))
+		for _, server := range servers {
+			printServer(server)
+		}
 	}
 
 	return nil

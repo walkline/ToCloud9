@@ -138,6 +138,21 @@ func (_m *Broadcaster) NewIncomingWhisperEvent(payload *events_broadcaster.Incom
 	_m.Called(payload)
 }
 
+// NewMatchmakingInviteToBGOrArenaExpiredEvent provides a mock function with given fields: payload
+func (_m *Broadcaster) NewMatchmakingInviteToBGOrArenaExpiredEvent(payload *events.MatchmakingEventPlayersInviteExpiredPayload) {
+	_m.Called(payload)
+}
+
+// NewMatchmakingInvitedToBGOrArenaEvent provides a mock function with given fields: payload
+func (_m *Broadcaster) NewMatchmakingInvitedToBGOrArenaEvent(payload *events.MatchmakingEventPlayersInvitedPayload) {
+	_m.Called(payload)
+}
+
+// NewMatchmakingJoinedPVPQueueEvent provides a mock function with given fields: payload
+func (_m *Broadcaster) NewMatchmakingJoinedPVPQueueEvent(payload *events.MatchmakingEventPlayersQueuedPayload) {
+	_m.Called(payload)
+}
+
 // RegisterCharacter provides a mock function with given fields: charGUID
 func (_m *Broadcaster) RegisterCharacter(charGUID uint64) <-chan events_broadcaster.Event {
 	ret := _m.Called(charGUID)

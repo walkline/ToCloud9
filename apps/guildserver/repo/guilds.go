@@ -107,6 +107,7 @@ type GuildMember struct {
 }
 
 // GuildsRepo represents repository for Guilds.
+//
 //go:generate mockery --name=GuildsRepo --filename=guilds-repo.go
 type GuildsRepo interface {
 	// LoadAllForRealm loads all guilds for realm.

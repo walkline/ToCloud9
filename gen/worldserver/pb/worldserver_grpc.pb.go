@@ -26,6 +26,10 @@ const (
 	WorldServerService_ModifyMoneyForPlayer_FullMethodName            = "/v1.WorldServerService/ModifyMoneyForPlayer"
 	WorldServerService_CanPlayerInteractWithNPC_FullMethodName        = "/v1.WorldServerService/CanPlayerInteractWithNPC"
 	WorldServerService_CanPlayerInteractWithGameObject_FullMethodName = "/v1.WorldServerService/CanPlayerInteractWithGameObject"
+	WorldServerService_StartBattleground_FullMethodName               = "/v1.WorldServerService/StartBattleground"
+	WorldServerService_AddPlayersToBattleground_FullMethodName        = "/v1.WorldServerService/AddPlayersToBattleground"
+	WorldServerService_CanPlayerJoinBattlegroundQueue_FullMethodName  = "/v1.WorldServerService/CanPlayerJoinBattlegroundQueue"
+	WorldServerService_CanPlayerTeleportToBattleground_FullMethodName = "/v1.WorldServerService/CanPlayerTeleportToBattleground"
 )
 
 // WorldServerServiceClient is the client API for WorldServerService service.
@@ -42,6 +46,11 @@ type WorldServerServiceClient interface {
 	// Interactions
 	CanPlayerInteractWithNPC(ctx context.Context, in *CanPlayerInteractWithNPCRequest, opts ...grpc.CallOption) (*CanPlayerInteractWithNPCResponse, error)
 	CanPlayerInteractWithGameObject(ctx context.Context, in *CanPlayerInteractWithGameObjectRequest, opts ...grpc.CallOption) (*CanPlayerInteractWithGameObjectResponse, error)
+	// Battlegrounds
+	StartBattleground(ctx context.Context, in *StartBattlegroundRequest, opts ...grpc.CallOption) (*StartBattlegroundResponse, error)
+	AddPlayersToBattleground(ctx context.Context, in *AddPlayersToBattlegroundRequest, opts ...grpc.CallOption) (*AddPlayersToBattlegroundResponse, error)
+	CanPlayerJoinBattlegroundQueue(ctx context.Context, in *CanPlayerJoinBattlegroundQueueRequest, opts ...grpc.CallOption) (*CanPlayerJoinBattlegroundQueueResponse, error)
+	CanPlayerTeleportToBattleground(ctx context.Context, in *CanPlayerTeleportToBattlegroundRequest, opts ...grpc.CallOption) (*CanPlayerTeleportToBattlegroundResponse, error)
 }
 
 type worldServerServiceClient struct {
@@ -115,6 +124,42 @@ func (c *worldServerServiceClient) CanPlayerInteractWithGameObject(ctx context.C
 	return out, nil
 }
 
+func (c *worldServerServiceClient) StartBattleground(ctx context.Context, in *StartBattlegroundRequest, opts ...grpc.CallOption) (*StartBattlegroundResponse, error) {
+	out := new(StartBattlegroundResponse)
+	err := c.cc.Invoke(ctx, WorldServerService_StartBattleground_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *worldServerServiceClient) AddPlayersToBattleground(ctx context.Context, in *AddPlayersToBattlegroundRequest, opts ...grpc.CallOption) (*AddPlayersToBattlegroundResponse, error) {
+	out := new(AddPlayersToBattlegroundResponse)
+	err := c.cc.Invoke(ctx, WorldServerService_AddPlayersToBattleground_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *worldServerServiceClient) CanPlayerJoinBattlegroundQueue(ctx context.Context, in *CanPlayerJoinBattlegroundQueueRequest, opts ...grpc.CallOption) (*CanPlayerJoinBattlegroundQueueResponse, error) {
+	out := new(CanPlayerJoinBattlegroundQueueResponse)
+	err := c.cc.Invoke(ctx, WorldServerService_CanPlayerJoinBattlegroundQueue_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *worldServerServiceClient) CanPlayerTeleportToBattleground(ctx context.Context, in *CanPlayerTeleportToBattlegroundRequest, opts ...grpc.CallOption) (*CanPlayerTeleportToBattlegroundResponse, error) {
+	out := new(CanPlayerTeleportToBattlegroundResponse)
+	err := c.cc.Invoke(ctx, WorldServerService_CanPlayerTeleportToBattleground_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // WorldServerServiceServer is the server API for WorldServerService service.
 // All implementations must embed UnimplementedWorldServerServiceServer
 // for forward compatibility
@@ -129,6 +174,11 @@ type WorldServerServiceServer interface {
 	// Interactions
 	CanPlayerInteractWithNPC(context.Context, *CanPlayerInteractWithNPCRequest) (*CanPlayerInteractWithNPCResponse, error)
 	CanPlayerInteractWithGameObject(context.Context, *CanPlayerInteractWithGameObjectRequest) (*CanPlayerInteractWithGameObjectResponse, error)
+	// Battlegrounds
+	StartBattleground(context.Context, *StartBattlegroundRequest) (*StartBattlegroundResponse, error)
+	AddPlayersToBattleground(context.Context, *AddPlayersToBattlegroundRequest) (*AddPlayersToBattlegroundResponse, error)
+	CanPlayerJoinBattlegroundQueue(context.Context, *CanPlayerJoinBattlegroundQueueRequest) (*CanPlayerJoinBattlegroundQueueResponse, error)
+	CanPlayerTeleportToBattleground(context.Context, *CanPlayerTeleportToBattlegroundRequest) (*CanPlayerTeleportToBattlegroundResponse, error)
 	mustEmbedUnimplementedWorldServerServiceServer()
 }
 
@@ -156,6 +206,18 @@ func (UnimplementedWorldServerServiceServer) CanPlayerInteractWithNPC(context.Co
 }
 func (UnimplementedWorldServerServiceServer) CanPlayerInteractWithGameObject(context.Context, *CanPlayerInteractWithGameObjectRequest) (*CanPlayerInteractWithGameObjectResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CanPlayerInteractWithGameObject not implemented")
+}
+func (UnimplementedWorldServerServiceServer) StartBattleground(context.Context, *StartBattlegroundRequest) (*StartBattlegroundResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method StartBattleground not implemented")
+}
+func (UnimplementedWorldServerServiceServer) AddPlayersToBattleground(context.Context, *AddPlayersToBattlegroundRequest) (*AddPlayersToBattlegroundResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method AddPlayersToBattleground not implemented")
+}
+func (UnimplementedWorldServerServiceServer) CanPlayerJoinBattlegroundQueue(context.Context, *CanPlayerJoinBattlegroundQueueRequest) (*CanPlayerJoinBattlegroundQueueResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CanPlayerJoinBattlegroundQueue not implemented")
+}
+func (UnimplementedWorldServerServiceServer) CanPlayerTeleportToBattleground(context.Context, *CanPlayerTeleportToBattlegroundRequest) (*CanPlayerTeleportToBattlegroundResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CanPlayerTeleportToBattleground not implemented")
 }
 func (UnimplementedWorldServerServiceServer) mustEmbedUnimplementedWorldServerServiceServer() {}
 
@@ -296,6 +358,78 @@ func _WorldServerService_CanPlayerInteractWithGameObject_Handler(srv interface{}
 	return interceptor(ctx, in, info, handler)
 }
 
+func _WorldServerService_StartBattleground_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(StartBattlegroundRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WorldServerServiceServer).StartBattleground(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: WorldServerService_StartBattleground_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WorldServerServiceServer).StartBattleground(ctx, req.(*StartBattlegroundRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _WorldServerService_AddPlayersToBattleground_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AddPlayersToBattlegroundRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WorldServerServiceServer).AddPlayersToBattleground(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: WorldServerService_AddPlayersToBattleground_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WorldServerServiceServer).AddPlayersToBattleground(ctx, req.(*AddPlayersToBattlegroundRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _WorldServerService_CanPlayerJoinBattlegroundQueue_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CanPlayerJoinBattlegroundQueueRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WorldServerServiceServer).CanPlayerJoinBattlegroundQueue(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: WorldServerService_CanPlayerJoinBattlegroundQueue_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WorldServerServiceServer).CanPlayerJoinBattlegroundQueue(ctx, req.(*CanPlayerJoinBattlegroundQueueRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _WorldServerService_CanPlayerTeleportToBattleground_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CanPlayerTeleportToBattlegroundRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WorldServerServiceServer).CanPlayerTeleportToBattleground(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: WorldServerService_CanPlayerTeleportToBattleground_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WorldServerServiceServer).CanPlayerTeleportToBattleground(ctx, req.(*CanPlayerTeleportToBattlegroundRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // WorldServerService_ServiceDesc is the grpc.ServiceDesc for WorldServerService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -330,6 +464,22 @@ var WorldServerService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "CanPlayerInteractWithGameObject",
 			Handler:    _WorldServerService_CanPlayerInteractWithGameObject_Handler,
+		},
+		{
+			MethodName: "StartBattleground",
+			Handler:    _WorldServerService_StartBattleground_Handler,
+		},
+		{
+			MethodName: "AddPlayersToBattleground",
+			Handler:    _WorldServerService_AddPlayersToBattleground_Handler,
+		},
+		{
+			MethodName: "CanPlayerJoinBattlegroundQueue",
+			Handler:    _WorldServerService_CanPlayerJoinBattlegroundQueue_Handler,
+		},
+		{
+			MethodName: "CanPlayerTeleportToBattleground",
+			Handler:    _WorldServerService_CanPlayerTeleportToBattleground_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

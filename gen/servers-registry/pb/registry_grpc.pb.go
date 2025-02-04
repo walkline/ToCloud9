@@ -23,6 +23,7 @@ const (
 	ServersRegistryService_AvailableGameServersForMapAndRealm_FullMethodName = "/v1.ServersRegistryService/AvailableGameServersForMapAndRealm"
 	ServersRegistryService_RandomGameServerForRealm_FullMethodName           = "/v1.ServersRegistryService/RandomGameServerForRealm"
 	ServersRegistryService_ListGameServersForRealm_FullMethodName            = "/v1.ServersRegistryService/ListGameServersForRealm"
+	ServersRegistryService_ListAllGameServers_FullMethodName                 = "/v1.ServersRegistryService/ListAllGameServers"
 	ServersRegistryService_GameServerMapsLoaded_FullMethodName               = "/v1.ServersRegistryService/GameServerMapsLoaded"
 	ServersRegistryService_RegisterLoadBalancer_FullMethodName               = "/v1.ServersRegistryService/RegisterLoadBalancer"
 	ServersRegistryService_LoadBalancerForRealms_FullMethodName              = "/v1.ServersRegistryService/LoadBalancerForRealms"
@@ -36,7 +37,8 @@ type ServersRegistryServiceClient interface {
 	RegisterGameServer(ctx context.Context, in *RegisterGameServerRequest, opts ...grpc.CallOption) (*RegisterGameServerResponse, error)
 	AvailableGameServersForMapAndRealm(ctx context.Context, in *AvailableGameServersForMapAndRealmRequest, opts ...grpc.CallOption) (*AvailableGameServersForMapAndRealmResponse, error)
 	RandomGameServerForRealm(ctx context.Context, in *RandomGameServerForRealmRequest, opts ...grpc.CallOption) (*RandomGameServerForRealmResponse, error)
-	ListGameServersForRealm(ctx context.Context, in *ListGameServersForRealmRequest, opts ...grpc.CallOption) (*ListGameServersForRealmResponse, error)
+	ListGameServersForRealm(ctx context.Context, in *ListGameServersForRealmRequest, opts ...grpc.CallOption) (*ListGameServersResponse, error)
+	ListAllGameServers(ctx context.Context, in *ListAllGameServersRequest, opts ...grpc.CallOption) (*ListGameServersResponse, error)
 	GameServerMapsLoaded(ctx context.Context, in *GameServerMapsLoadedRequest, opts ...grpc.CallOption) (*GameServerMapsLoadedResponse, error)
 	RegisterLoadBalancer(ctx context.Context, in *RegisterLoadBalancerRequest, opts ...grpc.CallOption) (*RegisterLoadBalancerResponse, error)
 	LoadBalancerForRealms(ctx context.Context, in *LoadBalancerForRealmsRequest, opts ...grpc.CallOption) (*LoadBalancerForRealmsResponse, error)
@@ -78,9 +80,18 @@ func (c *serversRegistryServiceClient) RandomGameServerForRealm(ctx context.Cont
 	return out, nil
 }
 
-func (c *serversRegistryServiceClient) ListGameServersForRealm(ctx context.Context, in *ListGameServersForRealmRequest, opts ...grpc.CallOption) (*ListGameServersForRealmResponse, error) {
-	out := new(ListGameServersForRealmResponse)
+func (c *serversRegistryServiceClient) ListGameServersForRealm(ctx context.Context, in *ListGameServersForRealmRequest, opts ...grpc.CallOption) (*ListGameServersResponse, error) {
+	out := new(ListGameServersResponse)
 	err := c.cc.Invoke(ctx, ServersRegistryService_ListGameServersForRealm_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *serversRegistryServiceClient) ListAllGameServers(ctx context.Context, in *ListAllGameServersRequest, opts ...grpc.CallOption) (*ListGameServersResponse, error) {
+	out := new(ListGameServersResponse)
+	err := c.cc.Invoke(ctx, ServersRegistryService_ListAllGameServers_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -130,7 +141,8 @@ type ServersRegistryServiceServer interface {
 	RegisterGameServer(context.Context, *RegisterGameServerRequest) (*RegisterGameServerResponse, error)
 	AvailableGameServersForMapAndRealm(context.Context, *AvailableGameServersForMapAndRealmRequest) (*AvailableGameServersForMapAndRealmResponse, error)
 	RandomGameServerForRealm(context.Context, *RandomGameServerForRealmRequest) (*RandomGameServerForRealmResponse, error)
-	ListGameServersForRealm(context.Context, *ListGameServersForRealmRequest) (*ListGameServersForRealmResponse, error)
+	ListGameServersForRealm(context.Context, *ListGameServersForRealmRequest) (*ListGameServersResponse, error)
+	ListAllGameServers(context.Context, *ListAllGameServersRequest) (*ListGameServersResponse, error)
 	GameServerMapsLoaded(context.Context, *GameServerMapsLoadedRequest) (*GameServerMapsLoadedResponse, error)
 	RegisterLoadBalancer(context.Context, *RegisterLoadBalancerRequest) (*RegisterLoadBalancerResponse, error)
 	LoadBalancerForRealms(context.Context, *LoadBalancerForRealmsRequest) (*LoadBalancerForRealmsResponse, error)
@@ -151,8 +163,11 @@ func (UnimplementedServersRegistryServiceServer) AvailableGameServersForMapAndRe
 func (UnimplementedServersRegistryServiceServer) RandomGameServerForRealm(context.Context, *RandomGameServerForRealmRequest) (*RandomGameServerForRealmResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method RandomGameServerForRealm not implemented")
 }
-func (UnimplementedServersRegistryServiceServer) ListGameServersForRealm(context.Context, *ListGameServersForRealmRequest) (*ListGameServersForRealmResponse, error) {
+func (UnimplementedServersRegistryServiceServer) ListGameServersForRealm(context.Context, *ListGameServersForRealmRequest) (*ListGameServersResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListGameServersForRealm not implemented")
+}
+func (UnimplementedServersRegistryServiceServer) ListAllGameServers(context.Context, *ListAllGameServersRequest) (*ListGameServersResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListAllGameServers not implemented")
 }
 func (UnimplementedServersRegistryServiceServer) GameServerMapsLoaded(context.Context, *GameServerMapsLoadedRequest) (*GameServerMapsLoadedResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GameServerMapsLoaded not implemented")
@@ -252,6 +267,24 @@ func _ServersRegistryService_ListGameServersForRealm_Handler(srv interface{}, ct
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ServersRegistryService_ListAllGameServers_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListAllGameServersRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ServersRegistryServiceServer).ListAllGameServers(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ServersRegistryService_ListAllGameServers_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ServersRegistryServiceServer).ListAllGameServers(ctx, req.(*ListAllGameServersRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _ServersRegistryService_GameServerMapsLoaded_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(GameServerMapsLoadedRequest)
 	if err := dec(in); err != nil {
@@ -346,6 +379,10 @@ var ServersRegistryService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListGameServersForRealm",
 			Handler:    _ServersRegistryService_ListGameServersForRealm_Handler,
+		},
+		{
+			MethodName: "ListAllGameServers",
+			Handler:    _ServersRegistryService_ListAllGameServers_Handler,
 		},
 		{
 			MethodName: "GameServerMapsLoaded",

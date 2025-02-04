@@ -10,9 +10,11 @@ import (
 	"github.com/rs/zerolog/log"
 	"google.golang.org/grpc"
 
+	"github.com/walkline/ToCloud9/apps/charserver"
 	"github.com/walkline/ToCloud9/apps/charserver/config"
 	"github.com/walkline/ToCloud9/apps/charserver/repo"
 	"github.com/walkline/ToCloud9/apps/charserver/server"
+	"github.com/walkline/ToCloud9/apps/charserver/service"
 	"github.com/walkline/ToCloud9/gen/characters/pb"
 	"github.com/walkline/ToCloud9/shared/events"
 	shrepo "github.com/walkline/ToCloud9/shared/repo"
@@ -44,9 +46,14 @@ func main() {
 		log.Fatal().Err(err).Msg("can't start listening")
 	}
 
-	cdb, err := sql.Open("mysql", conf.CharDBConnection)
-	if err != nil {
-		log.Fatal().Err(err).Msg("can't connect to char db")
+	charDB := shrepo.NewCharactersDB()
+	for realmID, connStr := range conf.CharDBConnection {
+		cdb, err := sql.Open("mysql", connStr)
+		if err != nil {
+			log.Fatal().Err(err).Uint32("realmID", realmID).Msg("can't connect to char db")
+		}
+		configureDBConn(cdb)
+		charDB.SetDBForRealm(realmID, cdb)
 	}
 
 	wdb, err := sql.Open("mysql", conf.WorldDBConnection)
@@ -54,7 +61,6 @@ func main() {
 		log.Fatal().Err(err).Msg("can't connect to world db")
 	}
 
-	configureDBConn(cdb)
 	configureDBConn(wdb)
 
 	itemsTemplate, err := repo.NewItemsTemplateCache(wdb)
@@ -62,8 +68,6 @@ func main() {
 		panic(err)
 	}
 
-	charDB := shrepo.NewCharactersDB()
-	charDB.SetDBForRealm(1, cdb)
 	charRepo := repo.NewCharactersMYSQL(charDB)
 
 	onlineCharsRepo := repo.NewCharactersOnlineInMem()
@@ -78,6 +82,13 @@ func main() {
 		log.Fatal().Err(err).Msg("can't listen to load balancer updates")
 	}
 	defer lbEventsConsumer.Stop()
+
+	srHandler := service.NewServersRegistryListener(onlineCharsRepo, events.NewCharactersServiceProducerNatsJSON(nc, charserver.Ver), nc)
+	err = srHandler.Listen()
+	if err != nil {
+		log.Fatal().Err(err).Msg("can't listen to servers registry updates")
+	}
+	defer srHandler.Stop()
 
 	grpcServer := grpc.NewServer()
 	pb.RegisterCharactersServiceServer(grpcServer, server.NewCharServer(charRepo, onlineCharsRepo, onlineCharsRepo, itemsTemplate))

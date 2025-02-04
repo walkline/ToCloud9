@@ -14,6 +14,12 @@ const (
 
 	// ServerRegistryEventGSMapsReassigned is event that occurs when servers registry reassigned maps to game servers.
 	ServerRegistryEventGSMapsReassigned
+
+	// ServerRegistryEventGSAdded is event that occurs when server registry registers game server.
+	ServerRegistryEventGSAdded
+
+	// ServerRegistryEventGSRemoved is event that occurs when server registry removes game server (unhealthy or shutdown).
+	ServerRegistryEventGSRemoved
 )
 
 // SubjectName is key that nats uses.
@@ -25,6 +31,10 @@ func (e ServerRegistryEvent) SubjectName() string {
 		return "sr.lb.removed.unhealthy"
 	case ServerRegistryEventGSMapsReassigned:
 		return "sr.gs.maps.reassigned"
+	case ServerRegistryEventGSAdded:
+		return "sr.gs.added"
+	case ServerRegistryEventGSRemoved:
+		return "sr.gs.removed"
 	}
 	panic(fmt.Errorf("unk event %d", e))
 }
@@ -46,9 +56,11 @@ type ServerRegistryEventLBRemovedUnhealthyPayload struct {
 }
 
 type GameServer struct {
-	ID            string
-	Address       string
-	RealmID       uint32
+	ID           string
+	Address      string
+	RealmID      uint32
+	IsCrossRealm bool
+
 	AvailableMaps []uint32
 
 	OldAssignedMapsToHandle []uint32
@@ -91,4 +103,12 @@ func (s GameServer) OnlyRemovedMaps() []uint32 {
 
 type ServerRegistryEventGSMapsReassignedPayload struct {
 	Servers []GameServer
+}
+
+type ServerRegistryEventGSAddedPayload struct {
+	GameServer GameServer
+}
+
+type ServerRegistryEventGSRemovedPayload struct {
+	GameServer GameServer
 }

@@ -209,6 +209,9 @@ message ShortCharactersDataByGUIDsResponse {
     string loadBalancerID = 3;
     uint64 charGUID = 4;
     string charName = 5;
+    uint32 charRace = 6;
+    uint32 charClass = 7;
+    uint32 charGender = 8;
     uint32 charLvl = 9;
     uint32 charZone = 10;
     uint32 charMap = 11;

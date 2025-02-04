@@ -29,7 +29,7 @@ func NewExternalAppFromConfig(appConf config.AppConfig, consoleWriter io.Writer)
 		startupMsg = appConf.PartOfAppStartedLogMsg
 	}
 
-	appControl := appctrl.NewAppController(appConf.Name, file, consoleWriter, startupMsg, appConf.Binary, appConf.Args)
+	appControl := appctrl.NewAppController(appConf.Name, file, consoleWriter, startupMsg, appConf.Binary, appConf.Args...)
 	appControl.SetEnv(appConf.Env)
 	appControl.SetWorkingDir(appConf.WorkingDir)
 	if appConf.StartupTimeoutSecs > 0 {

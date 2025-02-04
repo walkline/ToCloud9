@@ -4,6 +4,7 @@ package main
 #include "events-servers-registry.h"
 */
 import "C"
+
 import (
 	"github.com/rs/zerolog"
 

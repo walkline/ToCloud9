@@ -1,4 +1,4 @@
-package service
+package conn
 
 import (
 	"context"
@@ -14,6 +14,7 @@ import (
 
 type GameServerGRPCConnMgr interface {
 	AddAddressMapping(gameServerAddress, grpcServerAddress string)
+	GRPCAddressForGameServer(gameServerAddress string) string
 	GRPCConnByGameServerAddress(address string) (conn pb.WorldServerServiceClient, err error)
 }
 
@@ -36,6 +37,13 @@ func (m *gameServerGRPCConnMgrImpl) AddAddressMapping(gameServerAddress, grpcSer
 	m.lock.Lock()
 	m.addressesMapping[gameServerAddress] = grpcServerAddress
 	m.lock.Unlock()
+}
+
+func (m *gameServerGRPCConnMgrImpl) GRPCAddressForGameServer(gameServerAddress string) string {
+	m.lock.RLock()
+	defer m.lock.RUnlock()
+
+	return m.addressesMapping[gameServerAddress]
 }
 
 func (m *gameServerGRPCConnMgrImpl) GRPCConnByGameServerAddress(address string) (conn pb.WorldServerServiceClient, err error) {
@@ -66,7 +74,7 @@ func (m *gameServerGRPCConnMgrImpl) establishConn(address string) (pb.WorldServe
 		return dialer.DialContext(ctx, "tcp", s)
 	}))
 	if err != nil {
-		return nil, fmt.Errorf("can't connect to gameserver grpc server, err, %w", err)
+		return nil, fmt.Errorf("can't connect to gameserver grpc server, err: %w", err)
 	}
 
 	return pb.NewWorldServerServiceClient(conn), nil
