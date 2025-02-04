@@ -5,6 +5,8 @@ WORKDIR $GOPATH/src/github.com/walkline/ToCloud9
 
 COPY .. .
 
+ENV CGO_ENABLED=1
+
 RUN go mod download
 
 RUN go build -o libsidecar.so -buildmode=c-shared ./game-server/libsidecar/
