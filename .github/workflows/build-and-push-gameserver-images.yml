@@ -78,6 +78,6 @@ jobs:
           ARM64_DIGEST: ${{ needs.build-and-push-arm64.outputs.arm_64_digest }}
         run: |
           docker manifest create ghcr.io/${{ github.actor }}/gameserver-ac:${{ github.ref_name }} \
-            --amend ghcr.io/${{ github.actor }}/gameserver-ac@${{ env.AMD64_DIGEST }} \
-            --amend ghcr.io/${{ github.actor }}/gameserver-ac@${{ env.ARM64_DIGEST }}
+            --amend ghcr.io/${{ github.actor }}/gameserver-ac@${{ env.AMD64_DIGEST }} --platform linux/amd64 \
+            --amend ghcr.io/${{ github.actor }}/gameserver-ac@${{ env.ARM64_DIGEST }} --platform linux/arm64
           docker manifest push ghcr.io/${{ github.actor }}/gameserver-ac:${{ github.ref_name }}
