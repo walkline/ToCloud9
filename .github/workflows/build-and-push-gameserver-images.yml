@@ -58,12 +58,8 @@ jobs:
       - name: 'Get ARM64 image digest'
         id: armdigest
         run: |
-          cat metadata-arm64.json
-          sleep 1
           ARM64_DIGEST=$(jq -r '.["containerimage.digest"]' metadata-arm64.json)
           ARM64_DIGEST=$(docker buildx imagetools inspect ghcr.io/${{ github.actor }}/gameserver-ac@${ARM64_DIGEST} | awk '/Platform:.*linux\/arm64/ {p=1} p && /Annotations/ {getline; print $2; p=0}')
-          echo $ARM64_DIGEST
-          sleep 1
           echo "arm_64_digest=${ARM64_DIGEST}" >> $GITHUB_OUTPUT
 
   create-manifest:
