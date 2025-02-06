@@ -30,7 +30,7 @@ jobs:
         id: amddigest
         run: |
           AMD64_DIGEST=$(jq -r '.["containerimage.digest"]' metadata-amd64.json)
-          AMD64_DIGEST=$(docker buildx imagetools inspect ghcr.io/${{ github.actor }}/gameserver-ac@${AMD64_DIGEST} | grep -A2 "Platform:    linux/amd64" | grep "Name:" | awk '{print $2}' | cut -d'@' -f2)
+          AMD64_DIGEST=$(docker buildx imagetools inspect ghcr.io/${{ github.actor }}/gameserver-ac@${AMD64_DIGEST} | awk '/Platform:.*linux\/amd64/ {p=1} p && /Annotations/ {getline; print $2; p=0}')
           echo "amd_64_digest=${AMD64_DIGEST}" >> $GITHUB_OUTPUT
 
   build-and-push-arm64:
@@ -58,8 +58,12 @@ jobs:
       - name: 'Get ARM64 image digest'
         id: armdigest
         run: |
+          cat metadata-arm64.json
+          sleep 1
           ARM64_DIGEST=$(jq -r '.["containerimage.digest"]' metadata-arm64.json)
-          ARM64_DIGEST=$(docker buildx imagetools inspect ghcr.io/${{ github.actor }}/gameserver-ac@${ARM64_DIGEST} | grep -A2 "Platform:    linux/arm64" | grep "Name:" | awk '{print $2}' | cut -d'@' -f2)
+          ARM64_DIGEST=$(docker buildx imagetools inspect ghcr.io/${{ github.actor }}/gameserver-ac@${ARM64_DIGEST} | awk '/Platform:.*linux\/arm64/ {p=1} p && /Annotations/ {getline; print $2; p=0}')
+          echo $ARM64_DIGEST
+          sleep 1
           echo "arm_64_digest=${ARM64_DIGEST}" >> $GITHUB_OUTPUT
 
   create-manifest:
@@ -77,7 +81,9 @@ jobs:
           AMD64_DIGEST: ${{ needs.build-and-push-amd64.outputs.amd_64_digest }}
           ARM64_DIGEST: ${{ needs.build-and-push-arm64.outputs.arm_64_digest }}
         run: |
-          docker manifest create ghcr.io/${{ github.actor }}/gameserver-ac:${{ github.ref_name }} \
-            --amend ghcr.io/${{ github.actor }}/gameserver-ac@${{ env.AMD64_DIGEST }} --platform linux/amd64 \
-            --amend ghcr.io/${{ github.actor }}/gameserver-ac@${{ env.ARM64_DIGEST }} --platform linux/arm64
-          docker manifest push ghcr.io/${{ github.actor }}/gameserver-ac:${{ github.ref_name }}
+          curl -L https://github.com/regclient/regclient/releases/latest/download/regctl-linux-amd64 >regctl
+          chmod 755 regctl
+          
+          ./regctl index create ghcr.io/${{ github.actor }}/gameserver-ac:${{ github.ref_name }}
+          ./regctl index add --desc-platform linux/amd64 ghcr.io/${{ github.actor }}/gameserver-ac:${{ github.ref_name }} --ref ghcr.io/${{ github.actor }}/gameserver-ac@${{ env.AMD64_DIGEST }}
+          ./regctl index add --desc-platform linux/arm64 ghcr.io/${{ github.actor }}/gameserver-ac:${{ github.ref_name }} --ref ghcr.io/${{ github.actor }}/gameserver-ac@${{ env.ARM64_DIGEST }}
