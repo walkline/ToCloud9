@@ -35,14 +35,14 @@ stringData:
   schema_type: "{{ .Values.databases.db_schema_type }}"
 {{- if ne .Values.databases.external_db_hostname "" }}
   AUTH_DB_CONNECTION: "{{ .Values.databases.db_user }}:{{ .Values.databases.db_password }}@tcp({{ .Values.databases.external_db_hostname }}:{{ .Values.databases.external_db_port }})/{{ .Values.databases.db_auth_name }}"
-  CHAR_DB_CONNECTION: "{{ .Values.databases.db_user }}:{{ .Values.databases.db_password }}@tcp({{ .Values.databases.external_db_hostname }}:{{ .Values.databases.external_db_port }})/{{ .Values.databases.db_characters_name }}"
+  CHAR_DB_CONNECTION: "1:{{ .Values.databases.db_user }}:{{ .Values.databases.db_password }}@tcp({{ .Values.databases.external_db_hostname }}:{{ .Values.databases.external_db_port }})/{{ .Values.databases.db_characters_name }}"
   WORLD_DB_CONNECTION: "{{ .Values.databases.db_user }}:{{ .Values.databases.db_password }}@tcp({{ .Values.databases.external_db_hostname }}:{{ .Values.databases.external_db_port }})/{{ .Values.databases.db_world_name }}"
   AC_LOGIN_DATABASE_INFO: "{{ .Values.databases.external_db_hostname }};{{ .Values.databases.external_db_port }};{{ .Values.databases.db_user }};{{ .Values.databases.db_password }};{{ .Values.databases.db_auth_name }}"
   AC_WORLD_DATABASE_INFO: "{{ .Values.databases.external_db_hostname }};{{ .Values.databases.external_db_port }};{{ .Values.databases.db_user }};{{ .Values.databases.db_password }};{{ .Values.databases.db_world_name }}"
   AC_CHARACTER_DATABASE_INFO: "{{ .Values.databases.external_db_hostname }};{{ .Values.databases.external_db_port }};{{ .Values.databases.db_user }};{{ .Values.databases.db_password }};{{ .Values.databases.db_characters_name }}"
 {{ else }}
   AUTH_DB_CONNECTION: "{{ .Values.databases.db_user }}:{{ .Values.databases.db_password }}@tcp({{ .Release.Name }}-mysql-headless:3306)/{{ .Values.databases.db_auth_name }}"
-  CHAR_DB_CONNECTION: "{{ .Values.databases.db_user }}:{{ .Values.databases.db_password }}@tcp({{ .Release.Name }}-mysql-headless:3306)/{{ .Values.databases.db_characters_name }}"
+  CHAR_DB_CONNECTION: "1:{{ .Values.databases.db_user }}:{{ .Values.databases.db_password }}@tcp({{ .Release.Name }}-mysql-headless:3306)/{{ .Values.databases.db_characters_name }}"
   WORLD_DB_CONNECTION: "{{ .Values.databases.db_user }}:{{ .Values.databases.db_password }}@tcp({{ .Release.Name }}-mysql-headless:3306)/{{ .Values.databases.db_world_name }}"
   AC_LOGIN_DATABASE_INFO: "{{ .Release.Name }}-mysql-headless;3306;{{ .Values.databases.db_user }};{{ .Values.databases.db_password }};{{ .Values.databases.db_auth_name }}"
   AC_WORLD_DATABASE_INFO: "{{ .Release.Name }}-mysql-headless;3306;{{ .Values.databases.db_user }};{{ .Values.databases.db_password }};{{ .Values.databases.db_world_name }}"

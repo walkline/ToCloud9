@@ -33,6 +33,6 @@ dependencies:
   condition: redis.enabled
   repository: "https://charts.bitnami.com/bitnami"
 - name: mysql
-  version: "9.14.3"
+  version: "12.2.2"
   condition: mysql.enabled
   repository: "https://charts.bitnami.com/bitnami"

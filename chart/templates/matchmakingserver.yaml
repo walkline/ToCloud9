@@ -23,11 +23,18 @@ spec:
           value: "{{ .Values.matchmakingserver.service.internalPort | int }}"
         - name: NATS_URL
           value: nats://{{ .Release.Name }}-nats:4222
+        - name: SERVERS_REGISTRY_SERVICE_ADDRESS
+          value: {{ .Release.Name }}-servers-registry:{{ .Values.servers_registry.service.externalPort}}
         - name: CHAR_DB_CONNECTION
           valueFrom:
             secretKeyRef:
               name: {{ .Release.Name }}-databases-config
               key: CHAR_DB_CONNECTION
+        - name: WORLD_DB_CONNECTION
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Release.Name }}-databases-config
+              key: WORLD_DB_CONNECTION
         ports:
         - containerPort: {{ .Values.matchmakingserver.service.internalPort | int  }}
         # livenessProbe:

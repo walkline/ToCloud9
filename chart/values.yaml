@@ -1,7 +1,7 @@
 # Default values for tocloud9.
 # This is a YAML-formatted file.
 # Declare variables to be passed into your templates.
-tc9ImagesTag: &defaultImagesTag "v0.0.3"
+tc9ImagesTag: &defaultImagesTag "v0.0.4"
 
 redis:
   enabled: true
@@ -13,8 +13,16 @@ nats:
 mysql:
   enabled: true
   global:
-    storageClass: my-storage-class
+    storageClass: standard
   initdbScriptsConfigMap: mysql-init-scripts
+  primary:
+    # Had some issues with restarts, so disabled these for now.
+    livenessProbe:
+      enabled: false
+    readinessProbe:
+      enabled: false
+    startupProbe:
+      enabled: false
 
 databases:
   db_schema_type: ac # ac / tc
@@ -116,6 +124,17 @@ mailserver:
     type: ClusterIP
     internalPort: 8997
     externalPort: 8997
+
+matchmakingserver:
+  replicaCount: 1
+  image:
+    repository: ghcr.io/walkline/matchmakingserver
+    pullPolicy: Always
+    tag: *defaultImagesTag
+  service:
+    type: ClusterIP
+    internalPort: 8994
+    externalPort: 8994
 
 game_lb:
   replicaCount: 3
