@@ -100,6 +100,16 @@ func (r *Reader) Uint8() uint8 {
 	return result
 }
 
+func (r *Reader) Float32() float32 {
+	if r.err != nil {
+		return 0
+	}
+
+	var result float32
+	r.err = binary.Read(r.data, r.order, &result)
+	return result
+}
+
 func (r *Reader) String() string {
 	if r.err != nil {
 		return ""

@@ -138,7 +138,7 @@ func (s *GameSession) InterceptMoveWorldPortAck(ctx context.Context, p *packet.P
 	go func(charGUID uint64) {
 		var err error
 		var socket sockets.Socket
-		_, socket, err = s.connectToGameServer(context.Background(), charGUID, &mapID)
+		_, socket, err = s.connectToGameServer(context.Background(), charGUID, &mapID, nil)
 		if err != nil {
 			s.logger.Error().Err(err).Msg("failed to reconnect player to the world")
 			resp := packet.NewWriterWithSize(packet.SMsgCharacterLoginFailed, 1)
@@ -259,7 +259,7 @@ func (s *GameSession) InterceptSMsgNameQueryResponse(ctx context.Context, p *pac
 func (s *GameSession) HandleReadyForRedirectRequest(ctx context.Context, p *packet.Packet) error {
 	oldConnection := s.worldSocket.Address()
 
-	char, socket, err := s.connectToGameServer(context.TODO(), s.character.GUID, nil)
+	char, socket, err := s.connectToGameServer(context.TODO(), s.character.GUID, nil, nil)
 	if err != nil {
 		return errors.New("failed to connect player to the new gameserver")
 	}

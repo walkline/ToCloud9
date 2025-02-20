@@ -26,6 +26,7 @@ const (
 	CharactersService_CharacterOnlineByName_FullMethodName            = "/v1.CharactersService/CharacterOnlineByName"
 	CharactersService_CharacterByName_FullMethodName                  = "/v1.CharactersService/CharacterByName"
 	CharactersService_ShortOnlineCharactersDataByGUIDs_FullMethodName = "/v1.CharactersService/ShortOnlineCharactersDataByGUIDs"
+	CharactersService_SavePlayerPosition_FullMethodName               = "/v1.CharactersService/SavePlayerPosition"
 )
 
 // CharactersServiceClient is the client API for CharactersService service.
@@ -39,6 +40,8 @@ type CharactersServiceClient interface {
 	CharacterOnlineByName(ctx context.Context, in *CharacterOnlineByNameRequest, opts ...grpc.CallOption) (*CharacterOnlineByNameResponse, error)
 	CharacterByName(ctx context.Context, in *CharacterByNameRequest, opts ...grpc.CallOption) (*CharacterByNameResponse, error)
 	ShortOnlineCharactersDataByGUIDs(ctx context.Context, in *ShortCharactersDataByGUIDsRequest, opts ...grpc.CallOption) (*ShortCharactersDataByGUIDsResponse, error)
+	// Would effect only offline player.
+	SavePlayerPosition(ctx context.Context, in *SavePlayerPositionRequest, opts ...grpc.CallOption) (*SavePlayerPositionResponse, error)
 }
 
 type charactersServiceClient struct {
@@ -112,6 +115,15 @@ func (c *charactersServiceClient) ShortOnlineCharactersDataByGUIDs(ctx context.C
 	return out, nil
 }
 
+func (c *charactersServiceClient) SavePlayerPosition(ctx context.Context, in *SavePlayerPositionRequest, opts ...grpc.CallOption) (*SavePlayerPositionResponse, error) {
+	out := new(SavePlayerPositionResponse)
+	err := c.cc.Invoke(ctx, CharactersService_SavePlayerPosition_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // CharactersServiceServer is the server API for CharactersService service.
 // All implementations must embed UnimplementedCharactersServiceServer
 // for forward compatibility
@@ -123,6 +135,8 @@ type CharactersServiceServer interface {
 	CharacterOnlineByName(context.Context, *CharacterOnlineByNameRequest) (*CharacterOnlineByNameResponse, error)
 	CharacterByName(context.Context, *CharacterByNameRequest) (*CharacterByNameResponse, error)
 	ShortOnlineCharactersDataByGUIDs(context.Context, *ShortCharactersDataByGUIDsRequest) (*ShortCharactersDataByGUIDsResponse, error)
+	// Would effect only offline player.
+	SavePlayerPosition(context.Context, *SavePlayerPositionRequest) (*SavePlayerPositionResponse, error)
 	mustEmbedUnimplementedCharactersServiceServer()
 }
 
@@ -150,6 +164,9 @@ func (UnimplementedCharactersServiceServer) CharacterByName(context.Context, *Ch
 }
 func (UnimplementedCharactersServiceServer) ShortOnlineCharactersDataByGUIDs(context.Context, *ShortCharactersDataByGUIDsRequest) (*ShortCharactersDataByGUIDsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ShortOnlineCharactersDataByGUIDs not implemented")
+}
+func (UnimplementedCharactersServiceServer) SavePlayerPosition(context.Context, *SavePlayerPositionRequest) (*SavePlayerPositionResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method SavePlayerPosition not implemented")
 }
 func (UnimplementedCharactersServiceServer) mustEmbedUnimplementedCharactersServiceServer() {}
 
@@ -290,6 +307,24 @@ func _CharactersService_ShortOnlineCharactersDataByGUIDs_Handler(srv interface{}
 	return interceptor(ctx, in, info, handler)
 }
 
+func _CharactersService_SavePlayerPosition_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SavePlayerPositionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CharactersServiceServer).SavePlayerPosition(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: CharactersService_SavePlayerPosition_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CharactersServiceServer).SavePlayerPosition(ctx, req.(*SavePlayerPositionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // CharactersService_ServiceDesc is the grpc.ServiceDesc for CharactersService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -324,6 +359,10 @@ var CharactersService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ShortOnlineCharactersDataByGUIDs",
 			Handler:    _CharactersService_ShortOnlineCharactersDataByGUIDs_Handler,
+		},
+		{
+			MethodName: "SavePlayerPosition",
+			Handler:    _CharactersService_SavePlayerPosition_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

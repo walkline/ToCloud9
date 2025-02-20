@@ -16,6 +16,9 @@ service CharactersService {
   rpc CharacterByName(CharacterByNameRequest) returns (CharacterByNameResponse);
 
   rpc ShortOnlineCharactersDataByGUIDs(ShortCharactersDataByGUIDsRequest) returns (ShortCharactersDataByGUIDsResponse);
+
+  // Would effect only offline player.
+  rpc SavePlayerPosition(SavePlayerPositionRequest) returns (SavePlayerPositionResponse);
 }
 
 // LogInCharacter is character that should be displayed on log in screen
@@ -220,4 +223,20 @@ message ShortCharactersDataByGUIDsResponse {
   }
 
   repeated ShortCharData characters = 2;
+}
+
+message SavePlayerPositionRequest {
+  string api = 1;
+
+  uint32 realmID = 2;
+  uint64 charGUID = 3;
+
+  uint32 mapID = 4;
+  float x = 5;
+  float y = 6;
+  float z = 7;
+}
+
+message SavePlayerPositionResponse {
+  string api = 1;
 }

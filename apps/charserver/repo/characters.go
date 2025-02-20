@@ -52,4 +52,5 @@ type Characters interface {
 	CharacterToLogInByGUID(ctx context.Context, realmID uint32, charGUID uint64) (*LogInCharacter, error)
 	CharacterByName(ctx context.Context, realmID uint32, name string) (*Character, error)
 	AccountDataForAccountID(ctx context.Context, realmID, accountID uint32) ([]AccountData, error)
+	SaveCharacterPosition(ctx context.Context, realmID uint32, charGUID uint64, mapID uint32, x, y, z float32) error
 }

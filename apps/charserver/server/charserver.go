@@ -386,3 +386,14 @@ func (c *CharServer) ShortOnlineCharactersDataByGUIDs(ctx context.Context, reque
 		Characters: res,
 	}, nil
 }
+
+func (c *CharServer) SavePlayerPosition(ctx context.Context, request *pb.SavePlayerPositionRequest) (*pb.SavePlayerPositionResponse, error) {
+	err := c.repo.SaveCharacterPosition(ctx, request.RealmID, request.CharGUID, request.MapID, request.X, request.Y, request.Z)
+	if err != nil {
+		return nil, err
+	}
+
+	return &pb.SavePlayerPositionResponse{
+		Api: ver,
+	}, nil
+}

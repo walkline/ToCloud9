@@ -73,6 +73,10 @@ var HandleMap = map[packet.Opcode]HandlersQueue{
 	// Battlegrounds
 	packet.CMsgBattleMasterJoin: NewHandler("CMsgBattleMasterJoin", (*GameSession).HandleEnqueueToBattleground),
 	packet.CMsgBattlefieldPort:  NewHandler("CMsgBattlefieldPort", (*GameSession).HandleBattlegroundPort),
+
+	// Movements
+	packet.MsgMoveStop:      NewHandler("MsgMoveStop", (*GameSession).HandleMovement),
+	packet.MsgMoveHeartbeat: NewHandler("MsgMoveHeartbeat", (*GameSession).HandleMovement),
 }
 
 type Handler func(*GameSession, context.Context, *packet.Packet) error
