@@ -27,17 +27,17 @@ func NewServersRegistryListener(charRepo repo.CharactersOnline, producer events.
 
 func (c *ServersRegistryListener) Listen() error {
 	const charactersServiceGroup = "char_group"
-	sb, err := c.nc.QueueSubscribe(events.ServerRegistryEventLBRemovedUnhealthy.SubjectName(), charactersServiceGroup, func(msg *nats.Msg) {
+	sb, err := c.nc.QueueSubscribe(events.ServerRegistryEventGWRemovedUnhealthy.SubjectName(), charactersServiceGroup, func(msg *nats.Msg) {
 		payload := events.ServerRegistryEventGWRemovedUnhealthyPayload{}
 		_, err := events.Unmarshal(msg.Data, &payload)
 		if err != nil {
-			log.Error().Err(err).Msg("can't read ServerRegistryEventLBRemovedUnhealthy (payload part) event")
+			log.Error().Err(err).Msg("can't read ServerRegistryEventGWRemovedUnhealthy (payload part) event")
 			return
 		}
 
 		userIDs, err := c.charRepo.RemoveAllWithGatewayID(context.TODO(), payload.RealmID, payload.ID)
 		if err != nil {
-			log.Error().Err(err).Msg("can't delete characters in ServerRegistryEventLBRemovedUnhealthy event")
+			log.Error().Err(err).Msg("can't delete characters in ServerRegistryEventGWRemovedUnhealthy event")
 			return
 		}
 

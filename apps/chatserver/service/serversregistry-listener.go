@@ -24,7 +24,7 @@ func NewServersRegistryListener(charRepo repo.CharactersRepo, nc *nats.Conn) *Se
 }
 
 func (c *ServersRegistryListener) Listen() error {
-	sb, err := c.nc.Subscribe(events.ServerRegistryEventLBRemovedUnhealthy.SubjectName(), func(msg *nats.Msg) {
+	sb, err := c.nc.Subscribe(events.ServerRegistryEventGWRemovedUnhealthy.SubjectName(), func(msg *nats.Msg) {
 		payload := events.ServerRegistryEventGWRemovedUnhealthyPayload{}
 		_, err := events.Unmarshal(msg.Data, &payload)
 		if err != nil {

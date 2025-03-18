@@ -6,11 +6,11 @@ import "fmt"
 type ServerRegistryEvent int
 
 const (
-	// ServerRegistryEventLBAdded is event that occurs when server registry registers gateway.
-	ServerRegistryEventLBAdded ServerRegistryEvent = iota + 1
+	// ServerRegistryEventGWAdded is event that occurs when server registry registers gateway.
+	ServerRegistryEventGWAdded ServerRegistryEvent = iota + 1
 
-	// ServerRegistryEventLBRemovedUnhealthy is event that occurs when gateway unhealthy, and it's been removed from registry.
-	ServerRegistryEventLBRemovedUnhealthy
+	// ServerRegistryEventGWRemovedUnhealthy is event that occurs when gateway unhealthy, and it's been removed from registry.
+	ServerRegistryEventGWRemovedUnhealthy
 
 	// ServerRegistryEventGSMapsReassigned is event that occurs when servers registry reassigned maps to game servers.
 	ServerRegistryEventGSMapsReassigned
@@ -25,10 +25,10 @@ const (
 // SubjectName is key that nats uses.
 func (e ServerRegistryEvent) SubjectName() string {
 	switch e {
-	case ServerRegistryEventLBAdded:
-		return "sr.lb.added"
-	case ServerRegistryEventLBRemovedUnhealthy:
-		return "sr.lb.removed.unhealthy"
+	case ServerRegistryEventGWAdded:
+		return "sr.gw.added"
+	case ServerRegistryEventGWRemovedUnhealthy:
+		return "sr.gw.removed.unhealthy"
 	case ServerRegistryEventGSMapsReassigned:
 		return "sr.gs.maps.reassigned"
 	case ServerRegistryEventGSAdded:
@@ -39,7 +39,7 @@ func (e ServerRegistryEvent) SubjectName() string {
 	panic(fmt.Errorf("unk event %d", e))
 }
 
-// ServerRegistryEventGWAddedPayload represents payload of ServerRegistryEventLBAdded event.
+// ServerRegistryEventGWAddedPayload represents payload of ServerRegistryEventGWAdded event.
 type ServerRegistryEventGWAddedPayload struct {
 	ID              string
 	Address         string
@@ -47,7 +47,7 @@ type ServerRegistryEventGWAddedPayload struct {
 	RealmID         uint32
 }
 
-// ServerRegistryEventGWRemovedUnhealthyPayload represents payload of ServerRegistryEventLBRemovedUnhealthy event.
+// ServerRegistryEventGWRemovedUnhealthyPayload represents payload of ServerRegistryEventGWRemovedUnhealthy event.
 type ServerRegistryEventGWRemovedUnhealthyPayload struct {
 	ID              string
 	Address         string

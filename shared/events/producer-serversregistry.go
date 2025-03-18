@@ -28,11 +28,11 @@ func NewServerRegistryProducerNatsJSON(conn *nats.Conn, ver string) ServerRegist
 }
 
 func (s serverRegistryProducerNatsJSON) GatewayAdded(payload *ServerRegistryEventGWAddedPayload) error {
-	return s.publish(ServerRegistryEventLBAdded, payload)
+	return s.publish(ServerRegistryEventGWAdded, payload)
 }
 
 func (s serverRegistryProducerNatsJSON) GatewayRemovedUnhealthy(payload *ServerRegistryEventGWRemovedUnhealthyPayload) error {
-	return s.publish(ServerRegistryEventLBRemovedUnhealthy, payload)
+	return s.publish(ServerRegistryEventGWRemovedUnhealthy, payload)
 }
 
 func (s serverRegistryProducerNatsJSON) GSMapsReassigned(payload *ServerRegistryEventGSMapsReassignedPayload) error {
