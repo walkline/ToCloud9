@@ -14,7 +14,7 @@ func (s *GameSession) HandleMovement(ctx context.Context, p *packet.Packet) erro
 		}
 
 		if p.Source == packet.SourceWorldServer && s.gameSocket != nil {
-			s.worldSocket.SendPacket(p)
+			s.gameSocket.SendPacket(p)
 			return
 		}
 	}()
