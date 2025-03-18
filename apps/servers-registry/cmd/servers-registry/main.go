@@ -86,19 +86,19 @@ func main() {
 		log.Fatal().Err(err).Msg("can't create game server service")
 	}
 
-	loadBalancersService, err := service.NewLoadBalancer(
+	gatewayService, err := service.NewGateway(
 		mainContext,
-		repo.NewLoadBalancerRedisRepo(rdb),
+		repo.NewGatewayRedisRepo(rdb),
 		healthChecker,
 		metricsConsumer,
 		events.NewServerRegistryProducerNatsJSON(nc, "0.0.1"),
 		[]uint32{1},
 	)
 	if err != nil {
-		log.Fatal().Err(err).Msg("can't create load balancer service")
+		log.Fatal().Err(err).Msg("can't create gateway service")
 	}
 
-	registryService := server.NewServersRegistry(gameServersService, loadBalancersService)
+	registryService := server.NewServersRegistry(gameServersService, gatewayService)
 	if conf.LogLevel == zerolog.DebugLevel {
 		registryService = server.NewServersRegistryDebugLoggerMiddleware(registryService, log.Logger)
 	}

@@ -91,30 +91,30 @@ func (s *serversRegistryDebugLoggerMiddleware) GameServerMapsLoaded(ctx context.
 	return
 }
 
-func (s *serversRegistryDebugLoggerMiddleware) RegisterLoadBalancer(ctx context.Context, request *pb.RegisterLoadBalancerRequest) (*pb.RegisterLoadBalancerResponse, error) {
+func (s *serversRegistryDebugLoggerMiddleware) RegisterGateway(ctx context.Context, request *pb.RegisterGatewayRequest) (*pb.RegisterGatewayResponse, error) {
 	// Logs already inside.
-	return s.realService.RegisterLoadBalancer(ctx, request)
+	return s.realService.RegisterGateway(ctx, request)
 }
 
-func (s *serversRegistryDebugLoggerMiddleware) LoadBalancerForRealms(ctx context.Context, request *pb.LoadBalancerForRealmsRequest) (resp *pb.LoadBalancerForRealmsResponse, err error) {
+func (s *serversRegistryDebugLoggerMiddleware) GatewaysForRealms(ctx context.Context, request *pb.GatewaysForRealmsRequest) (resp *pb.GatewaysForRealmsResponse, err error) {
 	defer func(t time.Time) {
 		s.logger.Debug().
-			Interface("servers", resp.LoadBalancers).
+			Interface("servers", resp.Gateways).
 			Str("timeTook", time.Since(t).String()).
-			Msg("Handled load balancers for realm")
+			Msg("Handled gateway for realm")
 	}(time.Now())
 
-	resp, err = s.realService.LoadBalancerForRealms(ctx, request)
+	resp, err = s.realService.GatewaysForRealms(ctx, request)
 	return
 }
 
-func (s *serversRegistryDebugLoggerMiddleware) ListLoadBalancersForRealm(ctx context.Context, request *pb.ListLoadBalancersForRealmRequest) (resp *pb.ListLoadBalancersForRealmResponse, err error) {
+func (s *serversRegistryDebugLoggerMiddleware) ListGatewaysForRealm(ctx context.Context, request *pb.ListGatewaysForRealmRequest) (resp *pb.ListGatewaysForRealmResponse, err error) {
 	defer func(t time.Time) {
 		s.logger.Debug().
 			Str("timeTook", time.Since(t).String()).
 			Msg("Handled list balancers for realm")
 	}(time.Now())
 
-	resp, err = s.realService.ListLoadBalancersForRealm(ctx, request)
+	resp, err = s.realService.ListGatewaysForRealm(ctx, request)
 	return
 }

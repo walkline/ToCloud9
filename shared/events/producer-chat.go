@@ -11,16 +11,16 @@ type ChatServiceProducer interface {
 }
 
 type chatServiceProducerNatsJSON struct {
-	conn           *nats.Conn
-	ver            string
-	loadBalancerID string
+	conn      *nats.Conn
+	ver       string
+	gatewayID string
 }
 
-func NewChatServiceProducerNatsJSON(conn *nats.Conn, ver string, loadBalancerID string) ChatServiceProducer {
+func NewChatServiceProducerNatsJSON(conn *nats.Conn, ver string, gatewayID string) ChatServiceProducer {
 	return &chatServiceProducerNatsJSON{
-		conn:           conn,
-		ver:            ver,
-		loadBalancerID: loadBalancerID,
+		conn:      conn,
+		ver:       ver,
+		gatewayID: gatewayID,
 	}
 }
 
@@ -40,5 +40,5 @@ func (c *chatServiceProducerNatsJSON) publish(e ChatServiceEvent, payload interf
 		return err
 	}
 
-	return c.conn.Publish(e.SubjectName(c.loadBalancerID), d)
+	return c.conn.Publish(e.SubjectName(c.gatewayID), d)
 }

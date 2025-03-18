@@ -106,13 +106,13 @@ func createGroupService(cfg *config.Config, natsCon *nats.Conn) service.GroupsSe
 	groupsRepo := repo.NewMysqlGroupsRepo(charDB)
 
 	cache := service.NewInMemGroupsCache(groupsRepo)
-	err := events.NewLoadBalancerConsumer(
+	err := events.NewGatewayConsumer(
 		natsCon,
-		events.WithLBConsumerLoggedInHandler(cache),
-		events.WithLBConsumerLoggedOutHandler(cache),
+		events.WithGWConsumerLoggedInHandler(cache),
+		events.WithGWConsumerLoggedOutHandler(cache),
 	).Listen()
 	if err != nil {
-		log.Fatal().Err(err).Msg("can't listen to load balancer updates")
+		log.Fatal().Err(err).Msg("can't listen to gateway updates")
 	}
 
 	err = cache.Warmup(context.Background(), 1)
@@ -125,13 +125,13 @@ func createGroupService(cfg *config.Config, natsCon *nats.Conn) service.GroupsSe
 	s := service.NewGroupsService(cache, charClient, events.NewGroupServiceProducerNatsJSON(natsCon, groupserver.Ver))
 
 	// TODO: combine this with consumer for cache
-	err = events.NewLoadBalancerConsumer(
+	err = events.NewGatewayConsumer(
 		natsCon,
-		events.WithLBConsumerLoggedInHandler(s),
-		events.WithLBConsumerLoggedOutHandler(s),
+		events.WithGWConsumerLoggedInHandler(s),
+		events.WithGWConsumerLoggedOutHandler(s),
 	).Listen()
 	if err != nil {
-		log.Fatal().Err(err).Msg("can't listen to load balancer updates")
+		log.Fatal().Err(err).Msg("can't listen to gateway updates")
 	}
 
 	return s

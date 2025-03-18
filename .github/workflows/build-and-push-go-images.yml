@@ -32,9 +32,9 @@ jobs:
         run: |
           docker buildx build --push --platform linux/amd64,linux/arm64 -t ghcr.io/${{github.actor}}/chatserver:${{github.ref_name}} -f apps/chatserver/Dockerfile . 
 
-      - name: 'Build and push "game-load-balancer" image'
+      - name: 'Build and push "gateway" image'
         run: |
-          docker buildx build --push --platform linux/amd64,linux/arm64 -t ghcr.io/${{github.actor}}/game-load-balancer:${{github.ref_name}} -f apps/game-load-balancer/Dockerfile . 
+          docker buildx build --push --platform linux/amd64,linux/arm64 -t ghcr.io/${{github.actor}}/gateway:${{github.ref_name}} -f apps/gateway/Dockerfile . 
 
       - name: 'Build and push "guidserver" image'
         run: |

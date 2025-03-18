@@ -55,11 +55,11 @@ func (_m *ServerRegistryProducer) GSRemoved(payload *events.ServerRegistryEventG
 }
 
 // LBAdded provides a mock function with given fields: payload
-func (_m *ServerRegistryProducer) LBAdded(payload *events.ServerRegistryEventLBAddedPayload) error {
+func (_m *ServerRegistryProducer) GatewayAdded(payload *events.ServerRegistryEventGWAddedPayload) error {
 	ret := _m.Called(payload)
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(*events.ServerRegistryEventLBAddedPayload) error); ok {
+	if rf, ok := ret.Get(0).(func(*events.ServerRegistryEventGWAddedPayload) error); ok {
 		r0 = rf(payload)
 	} else {
 		r0 = ret.Error(0)
@@ -69,11 +69,11 @@ func (_m *ServerRegistryProducer) LBAdded(payload *events.ServerRegistryEventLBA
 }
 
 // LBRemovedUnhealthy provides a mock function with given fields: payload
-func (_m *ServerRegistryProducer) LBRemovedUnhealthy(payload *events.ServerRegistryEventLBRemovedUnhealthyPayload) error {
+func (_m *ServerRegistryProducer) GatewayRemovedUnhealthy(payload *events.ServerRegistryEventGWRemovedUnhealthyPayload) error {
 	ret := _m.Called(payload)
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(*events.ServerRegistryEventLBRemovedUnhealthyPayload) error); ok {
+	if rf, ok := ret.Get(0).(func(*events.ServerRegistryEventGWRemovedUnhealthyPayload) error); ok {
 		r0 = rf(payload)
 	} else {
 		r0 = ret.Error(0)

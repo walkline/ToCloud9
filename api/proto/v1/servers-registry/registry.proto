@@ -11,9 +11,9 @@ service ServersRegistryService {
   rpc ListAllGameServers(ListAllGameServersRequest) returns (ListGameServersResponse);
   rpc GameServerMapsLoaded(GameServerMapsLoadedRequest) returns (GameServerMapsLoadedResponse);
 
-  rpc RegisterLoadBalancer(RegisterLoadBalancerRequest) returns (RegisterLoadBalancerResponse);
-  rpc LoadBalancerForRealms(LoadBalancerForRealmsRequest) returns (LoadBalancerForRealmsResponse);
-  rpc ListLoadBalancersForRealm(ListLoadBalancersForRealmRequest) returns (ListLoadBalancersForRealmResponse);
+  rpc RegisterGateway(RegisterGatewayRequest) returns (RegisterGatewayResponse);
+  rpc GatewaysForRealms(GatewaysForRealmsRequest) returns (GatewaysForRealmsResponse);
+  rpc ListGatewaysForRealm(ListGatewaysForRealmRequest) returns (ListGatewaysForRealmResponse);
 }
 
 //
@@ -129,9 +129,9 @@ message GameServerMapsLoadedResponse {
 }
 
 //
-// RegisterLoadBalancer
+// RegisterGateway
 //
-message RegisterLoadBalancerRequest{
+message RegisterGatewayRequest{
   string api = 1;
 
   uint32 gamePort = 2;
@@ -141,37 +141,37 @@ message RegisterLoadBalancerRequest{
   string preferredHostName = 6;
 }
 
-message RegisterLoadBalancerResponse{
+message RegisterGatewayResponse{
   string api = 1;
 
   string id = 2;
 }
 
 //
-// LoadBalancerForRealms
+// GatewaysForRealms
 //
-message LoadBalancerForRealmsRequest{
+message GatewaysForRealmsRequest{
   string api = 1;
 
   repeated uint32 realmIDs = 2;
 }
 
-message LoadBalancerForRealmsResponse{
+message GatewaysForRealmsResponse{
   string api = 1;
 
-  repeated Server loadBalancers = 2;
+  repeated Server gateways = 2;
 }
 
 //
-// ListLoadBalancersForRealm
+// ListGatewaysForRealm
 //
-message ListLoadBalancersForRealmRequest {
+message ListGatewaysForRealmRequest {
   string api = 1;
 
   uint32 realmID = 2;
 }
 
-message LoadBalancerServerDetailed {
+message GatewayServerDetailed {
   string id = 1;
   string address = 2;
   string healthAddress = 3;
@@ -179,10 +179,10 @@ message LoadBalancerServerDetailed {
   uint32 activeConnections = 5;
 }
 
-message ListLoadBalancersForRealmResponse {
+message ListGatewaysForRealmResponse {
   string api = 1;
 
-  repeated LoadBalancerServerDetailed loadBalancers = 2;
+  repeated GatewayServerDetailed gateways = 2;
 }
 
 //

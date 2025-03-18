@@ -45,7 +45,7 @@ chat:
   natsUrl: *defaultNatsUrl
   logging: *defaultLogging
 
-game-load-balancer:
+gateway:
   port: 8085
   realmId: 1
   authDB: *defaultAuthDB
@@ -184,10 +184,11 @@ perun:
         - "gr"
       binary: "./groupserver"
       startupTimeoutSecs: 10
-    - name: "game-load-balancer"
+    - name: "gateway"
       alias:
+        - "gw"
         - "lb"
         - "glb"
         - "gamelb"
-      binary: "./game-load-balancer"
+      binary: "./gateway"
       startupTimeoutSecs: 10

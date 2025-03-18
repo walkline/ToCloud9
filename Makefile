@@ -36,8 +36,8 @@ build-charserver:
 build-chatserver:
 	go build -o $(INSTALL_PATH)/chatserver apps/chatserver/cmd/chatserver/main.go
 
-build-game-load-balancer:
-	go build -o $(INSTALL_PATH)/game-load-balancer apps/game-load-balancer/cmd/game-load-balancer/main.go
+build-gateway:
+	go build -o $(INSTALL_PATH)/gateway apps/gateway/cmd/gateway/main.go
 
 build-servers-registry:
 	go build -o $(INSTALL_PATH)/servers-registry apps/servers-registry/cmd/servers-registry/main.go
@@ -66,11 +66,11 @@ build-perun:
 build-mysqlreverseproxy:
 	go build -o $(INSTALL_PATH)/mysqlreverseproxy apps/mysqlreverseproxy/cmd/mysqlreverseproxy/main.go
 
-compose-rebuild-lb:
-	docker compose up -d --build --no-deps game-load-balancer
+compose-rebuild-gw:
+	docker compose up -d --build --no-deps gateway
 
-compose-rebuild-lb2:
-	docker compose up -d --build --no-deps game-load-balancer-second
+compose-rebuild-gw2:
+	docker compose up -d --build --no-deps gateway-second
 
 compose-rebuild-gs:
 	docker compose up -d --build --no-deps guildserver
@@ -99,4 +99,4 @@ compose-rebuild-groupserver:
 compose-rebuild-gameserver:
 	docker compose up -d --build --no-deps gameserver
 
-install: build-authserver build-charserver build-chatserver build-game-load-balancer build-servers-registry build-sidecar build-guidserver build-guildserver build-mailserver build-groupserver build-perun build-matchmakingserver build-mysqlreverseproxy
+install: build-authserver build-charserver build-chatserver build-gateway build-servers-registry build-sidecar build-guidserver build-guildserver build-mailserver build-groupserver build-perun build-matchmakingserver build-mysqlreverseproxy

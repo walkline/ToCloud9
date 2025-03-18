@@ -153,7 +153,7 @@ message CharacterOnlineByNameResponse {
 
   message Char {
     uint32 realmID = 1;
-    string loadBalancerID = 2;
+    string gatewayID = 2;
     uint64 charGUID = 3;
     string charName = 4;
     uint32 charRace = 5;
@@ -181,7 +181,7 @@ message CharacterByNameResponse {
   message Char {
     uint32 realmID = 1;
     bool isOnline = 2;
-    string loadBalancerID = 3;
+    string gatewayID = 3;
     uint64 charGUID = 4;
     string charName = 5;
     uint32 charRace = 6;
@@ -209,7 +209,7 @@ message ShortCharactersDataByGUIDsResponse {
   message ShortCharData {
     uint32 realmID = 1;
     bool isOnline = 2;
-    string loadBalancerID = 3;
+    string gatewayID = 3;
     uint64 charGUID = 4;
     string charName = 5;
     uint32 charRace = 6;

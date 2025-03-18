@@ -17,7 +17,7 @@ import (
 	"github.com/rs/zerolog/log"
 	"google.golang.org/grpc"
 
-	root "github.com/walkline/ToCloud9/apps/game-load-balancer"
+	root "github.com/walkline/ToCloud9/apps/gateway"
 	"github.com/walkline/ToCloud9/apps/mailserver/config"
 	"github.com/walkline/ToCloud9/apps/mailserver/repo"
 	"github.com/walkline/ToCloud9/apps/mailserver/server"

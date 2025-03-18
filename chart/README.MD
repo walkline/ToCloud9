@@ -25,7 +25,7 @@ You can also use a preexisting database by setting the `databases.external_db_ho
 ### Example
 
 Here is an example of how to install the chart with an external database and the `my_domain_or_ip.com` domain.
-Make sure that the `game_lb` service is reachable at the specified address.
+Make sure that the `gateway` service is reachable at the specified address.
 
 ```
 cd $TO_CLOUD9_PROJECT_ROOT_DIR
@@ -36,8 +36,8 @@ helm install cloud9 ./chart -n tocloud9 \
    --set databases.db_user=db_user \
    --set databases.db_password=db_pass \
    --set databases.external_db_hostname=192.168.65.2 \
-   --set game_lb.hostname=my_domain_or_ip.com \
-   --set game_lb.service.type=ClusterIP
+   --set gateway.hostname=my_domain_or_ip.com \
+   --set gateway.service.type=ClusterIP
 ```
 
 More parameters specified in the [values](values.yaml) file.

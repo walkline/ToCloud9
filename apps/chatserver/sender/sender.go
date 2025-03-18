@@ -21,9 +21,9 @@ type msgSenderNatsJSON struct {
 	producer events.ChatServiceProducer
 }
 
-func NewMsgSenderNatsJSON(conn *nats.Conn, loadBalancerID string) MsgSender {
+func NewMsgSenderNatsJSON(conn *nats.Conn, gatewayID string) MsgSender {
 	return &msgSenderNatsJSON{
-		producer: events.NewChatServiceProducerNatsJSON(conn, "0.0.1", loadBalancerID),
+		producer: events.NewChatServiceProducerNatsJSON(conn, "0.0.1", gatewayID),
 	}
 }
 

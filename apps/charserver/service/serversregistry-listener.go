@@ -28,23 +28,23 @@ func NewServersRegistryListener(charRepo repo.CharactersOnline, producer events.
 func (c *ServersRegistryListener) Listen() error {
 	const charactersServiceGroup = "char_group"
 	sb, err := c.nc.QueueSubscribe(events.ServerRegistryEventLBRemovedUnhealthy.SubjectName(), charactersServiceGroup, func(msg *nats.Msg) {
-		payload := events.ServerRegistryEventLBRemovedUnhealthyPayload{}
+		payload := events.ServerRegistryEventGWRemovedUnhealthyPayload{}
 		_, err := events.Unmarshal(msg.Data, &payload)
 		if err != nil {
 			log.Error().Err(err).Msg("can't read ServerRegistryEventLBRemovedUnhealthy (payload part) event")
 			return
 		}
 
-		userIDs, err := c.charRepo.RemoveAllWithLoadBalancerID(context.TODO(), payload.RealmID, payload.ID)
+		userIDs, err := c.charRepo.RemoveAllWithGatewayID(context.TODO(), payload.RealmID, payload.ID)
 		if err != nil {
 			log.Error().Err(err).Msg("can't delete characters in ServerRegistryEventLBRemovedUnhealthy event")
 			return
 		}
 
 		if len(userIDs) > 0 {
-			err = c.producer.CharsDisconnectedUnhealthyLB(&events.CharEventCharsDisconnectedUnhealthyLBPayload{
+			err = c.producer.CharsDisconnectedUnhealthyLB(&events.CharEventCharsDisconnectedUnhealthyGWPayload{
 				RealmID:        payload.RealmID,
-				LoadBalancerID: payload.ID,
+				GatewayID:      payload.ID,
 				CharactersGUID: userIDs,
 			})
 
@@ -59,17 +59,17 @@ func (c *ServersRegistryListener) Listen() error {
 
 	c.subs = append(c.subs, sb)
 
-	sb, err = c.nc.Subscribe(events.CharEventCharsDisconnectedUnhealthyLB.SubjectName(), func(msg *nats.Msg) {
-		payload := events.CharEventCharsDisconnectedUnhealthyLBPayload{}
+	sb, err = c.nc.Subscribe(events.CharEventCharsDisconnectedUnhealthyGW.SubjectName(), func(msg *nats.Msg) {
+		payload := events.CharEventCharsDisconnectedUnhealthyGWPayload{}
 		_, err := events.Unmarshal(msg.Data, &payload)
 		if err != nil {
-			log.Error().Err(err).Msg("can't read CharEventCharsDisconnectedUnhealthyLB (payload part) event")
+			log.Error().Err(err).Msg("can't read CharEventCharsDisconnectedUnhealthyGW (payload part) event")
 			return
 		}
 
-		_, err = c.charRepo.RemoveAllWithLoadBalancerID(context.TODO(), payload.RealmID, payload.LoadBalancerID)
+		_, err = c.charRepo.RemoveAllWithGatewayID(context.TODO(), payload.RealmID, payload.GatewayID)
 		if err != nil {
-			log.Error().Err(err).Msg("can't delete characters in CharEventCharsDisconnectedUnhealthyLB event")
+			log.Error().Err(err).Msg("can't delete characters in CharEventCharsDisconnectedUnhealthyGW event")
 			return
 		}
 	})

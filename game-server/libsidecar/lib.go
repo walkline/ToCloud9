@@ -127,7 +127,7 @@ var shutdownFunc ShutdownFunc
 var AssignedGameServerID string
 
 // TC9InitLib inits lib by starting services like grpc and healthcheck.
-// Adds game server to the servers registry that will make this server visible for game load balancer.
+// Adds game server to the servers registry that will make this server visible for gateway.
 //
 //export TC9InitLib
 func TC9InitLib(port uint16, realmID uint32, isCrossRealm bool, availableMaps *C.char, assignedMaps **C.uint32_t, assignedMapsSize *C.int) {

@@ -19,10 +19,10 @@ const ver = "0.0.1"
 type serversRegistry struct {
 	pb.UnimplementedServersRegistryServiceServer
 	gService  service.GameServer
-	lbService service.LoadBalancer
+	lbService service.Gateway
 }
 
-func NewServersRegistry(gService service.GameServer, lbService service.LoadBalancer) pb.ServersRegistryServiceServer {
+func NewServersRegistry(gService service.GameServer, lbService service.Gateway) pb.ServersRegistryServiceServer {
 	return &serversRegistry{
 		gService:  gService,
 		lbService: lbService,
@@ -191,13 +191,13 @@ func (s *serversRegistry) GameServerMapsLoaded(ctx context.Context, request *pb.
 	}, nil
 }
 
-func (s *serversRegistry) RegisterLoadBalancer(ctx context.Context, request *pb.RegisterLoadBalancerRequest) (*pb.RegisterLoadBalancerResponse, error) {
+func (s *serversRegistry) RegisterGateway(ctx context.Context, request *pb.RegisterGatewayRequest) (*pb.RegisterGatewayResponse, error) {
 	p, _ := peer.FromContext(ctx)
 
-	log.Info().Interface("request", request).Msg("New request to add load balancer")
+	log.Info().Interface("request", request).Msg("New request to add gateway")
 
 	ip := removePortFromAddress(p.Addr.String())
-	lbServer := &repo.LoadBalancerServer{
+	lbServer := &repo.GatewayServer{
 		Address:         fmt.Sprintf("%s:%d", request.PreferredHostName, request.GamePort),
 		HealthCheckAddr: fmt.Sprintf("%s:%d", ip, request.HealthPort),
 		RealmID:         request.RealmID,
@@ -208,17 +208,17 @@ func (s *serversRegistry) RegisterLoadBalancer(ctx context.Context, request *pb.
 		return nil, err
 	}
 
-	return &pb.RegisterLoadBalancerResponse{
+	return &pb.RegisterGatewayResponse{
 		Api: ver,
 		Id:  server.ID,
 	}, nil
 }
 
-func (s *serversRegistry) LoadBalancerForRealms(ctx context.Context, request *pb.LoadBalancerForRealmsRequest) (*pb.LoadBalancerForRealmsResponse, error) {
+func (s *serversRegistry) GatewaysForRealms(ctx context.Context, request *pb.GatewaysForRealmsRequest) (*pb.GatewaysForRealmsResponse, error) {
 	servers := make([]*pb.Server, 0, len(request.RealmIDs))
 
 	for _, realmID := range request.RealmIDs {
-		server, err := s.lbService.BalancerForRealm(ctx, realmID)
+		server, err := s.lbService.GatewayForRealm(ctx, realmID)
 		if err != nil {
 			return nil, err
 		}
@@ -232,21 +232,21 @@ func (s *serversRegistry) LoadBalancerForRealms(ctx context.Context, request *pb
 		})
 	}
 
-	return &pb.LoadBalancerForRealmsResponse{
-		Api:           ver,
-		LoadBalancers: servers,
+	return &pb.GatewaysForRealmsResponse{
+		Api:      ver,
+		Gateways: servers,
 	}, nil
 }
 
-func (s *serversRegistry) ListLoadBalancersForRealm(ctx context.Context, request *pb.ListLoadBalancersForRealmRequest) (*pb.ListLoadBalancersForRealmResponse, error) {
-	servers, err := s.lbService.ListBalancersForRealm(ctx, request.RealmID)
+func (s *serversRegistry) ListGatewaysForRealm(ctx context.Context, request *pb.ListGatewaysForRealmRequest) (*pb.ListGatewaysForRealmResponse, error) {
+	servers, err := s.lbService.GatewaysForRealm(ctx, request.RealmID)
 	if err != nil {
 		return nil, err
 	}
 
-	result := make([]*pb.LoadBalancerServerDetailed, len(servers))
+	result := make([]*pb.GatewayServerDetailed, len(servers))
 	for i := range servers {
-		result[i] = &pb.LoadBalancerServerDetailed{
+		result[i] = &pb.GatewayServerDetailed{
 			Id:                servers[i].ID,
 			Address:           servers[i].Address,
 			HealthAddress:     servers[i].HealthCheckAddr,
@@ -255,9 +255,9 @@ func (s *serversRegistry) ListLoadBalancersForRealm(ctx context.Context, request
 		}
 	}
 
-	return &pb.ListLoadBalancersForRealmResponse{
-		Api:           ver,
-		LoadBalancers: result,
+	return &pb.ListGatewaysForRealmResponse{
+		Api:      ver,
+		Gateways: result,
 	}, nil
 }
 

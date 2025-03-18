@@ -13,15 +13,15 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-type loadBalancerRedisRepo struct {
+type gatewayRedisRepo struct {
 	rdb *redis.Client
 }
 
-func NewLoadBalancerRedisRepo(rdb *redis.Client) LoadBalancerRepo {
-	return &loadBalancerRedisRepo{rdb: rdb}
+func NewGatewayRedisRepo(rdb *redis.Client) GatewayRepo {
+	return &gatewayRedisRepo{rdb: rdb}
 }
 
-func (g *loadBalancerRedisRepo) Add(ctx context.Context, server *LoadBalancerServer) (*LoadBalancerServer, error) {
+func (g *gatewayRedisRepo) Add(ctx context.Context, server *GatewayServer) (*GatewayServer, error) {
 	server.HealthCheckAddr = strings.ToLower(server.HealthCheckAddr)
 	server.ID = g.generateID(server.HealthCheckAddr)
 
@@ -45,13 +45,13 @@ func (g *loadBalancerRedisRepo) Add(ctx context.Context, server *LoadBalancerSer
 	return server, nil
 }
 
-func (g *loadBalancerRedisRepo) Update(ctx context.Context, id string, f func(LoadBalancerServer) LoadBalancerServer) error {
+func (g *gatewayRedisRepo) Update(ctx context.Context, id string, f func(GatewayServer) GatewayServer) error {
 	res := g.rdb.Get(ctx, g.key(id))
 	if res.Err() != nil {
 		return res.Err()
 	}
 
-	v := &LoadBalancerServer{}
+	v := &GatewayServer{}
 	err := json.Unmarshal([]byte(res.Val()), v)
 	if err != nil {
 		return err
@@ -68,7 +68,7 @@ func (g *loadBalancerRedisRepo) Update(ctx context.Context, id string, f func(Lo
 	return status.Err()
 }
 
-func (g *loadBalancerRedisRepo) Remove(ctx context.Context, healthCheckAddress string) error {
+func (g *gatewayRedisRepo) Remove(ctx context.Context, healthCheckAddress string) error {
 	key := g.key(g.generateID(healthCheckAddress))
 	res := g.rdb.Get(ctx, key)
 	if res.Err() != nil {
@@ -78,7 +78,7 @@ func (g *loadBalancerRedisRepo) Remove(ctx context.Context, healthCheckAddress s
 		return res.Err()
 	}
 
-	v := &LoadBalancerServer{}
+	v := &GatewayServer{}
 	err := json.Unmarshal([]byte(res.Val()), v)
 	if err != nil {
 		return err
@@ -93,14 +93,14 @@ func (g *loadBalancerRedisRepo) Remove(ctx context.Context, healthCheckAddress s
 	return delRes.Err()
 }
 
-func (g *loadBalancerRedisRepo) ListByRealm(ctx context.Context, realmID uint32) ([]LoadBalancerServer, error) {
+func (g *gatewayRedisRepo) ListByRealm(ctx context.Context, realmID uint32) ([]GatewayServer, error) {
 	res := g.rdb.SMembers(ctx, g.realmIndexKey(realmID))
 	if res.Err() != nil {
 		return nil, res.Err()
 	}
 
 	if len(res.Val()) == 0 {
-		return []LoadBalancerServer{}, nil
+		return []GatewayServer{}, nil
 	}
 
 	mGetRes := g.rdb.MGet(ctx, res.Val()...)
@@ -109,13 +109,13 @@ func (g *loadBalancerRedisRepo) ListByRealm(ctx context.Context, realmID uint32)
 	}
 
 	resInterface := mGetRes.Val()
-	result := make([]LoadBalancerServer, 0, len(resInterface))
+	result := make([]GatewayServer, 0, len(resInterface))
 	for i := range resInterface {
 		if resInterface[i] == nil {
-			log.Warn().Str("key", res.Val()[i]).Msg("fetched nil load balancer from set")
+			log.Warn().Str("key", res.Val()[i]).Msg("fetched nil gateway from set")
 			continue
 		}
-		obj := &LoadBalancerServer{}
+		obj := &GatewayServer{}
 		if err := json.Unmarshal([]byte(resInterface[i].(string)), obj); err != nil {
 			return nil, err
 		}
@@ -125,15 +125,15 @@ func (g *loadBalancerRedisRepo) ListByRealm(ctx context.Context, realmID uint32)
 	return result, nil
 }
 
-func (g *loadBalancerRedisRepo) realmIndexKey(realmID uint32) string {
-	return fmt.Sprintf("realm:%d:lbs", realmID)
+func (g *gatewayRedisRepo) realmIndexKey(realmID uint32) string {
+	return fmt.Sprintf("realm:%d:gws", realmID)
 }
 
-func (g *loadBalancerRedisRepo) key(id string) string {
-	return fmt.Sprintf("lb:%s", id)
+func (g *gatewayRedisRepo) key(id string) string {
+	return fmt.Sprintf("gw:%s", id)
 }
 
-func (g *loadBalancerRedisRepo) generateID(address string) string {
+func (g *gatewayRedisRepo) generateID(address string) string {
 	h := fnv.New32a()
 	_, _ = h.Write([]byte(address))
 	return strconv.FormatUint(uint64(h.Sum32()), 10)

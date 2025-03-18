@@ -7,38 +7,38 @@ import (
 )
 
 type Character struct {
-	RealmID        uint32
-	LoadBalancerID string
-	CharGUID       uint64
-	CharName       string
-	CharRace       uint8
-	CharClass      uint8
-	CharGender     uint8
-	CharLevel      uint8
-	CharZone       uint32
-	CharMap        uint32
-	CharPosX       float32
-	CharPosY       float32
-	CharPosZ       float32
-	CharGuildID    uint32
-	AccountID      uint32
+	RealmID     uint32
+	GatewayID   string
+	CharGUID    uint64
+	CharName    string
+	CharRace    uint8
+	CharClass   uint8
+	CharGender  uint8
+	CharLevel   uint8
+	CharZone    uint32
+	CharMap     uint32
+	CharPosX    float32
+	CharPosY    float32
+	CharPosZ    float32
+	CharGuildID uint32
+	AccountID   uint32
 }
 
 type CharactersOnline interface {
 	Add(context.Context, *Character) error
 	Remove(ctx context.Context, realmID uint32, guid uint64) error
-	RemoveAllWithLoadBalancerID(ctx context.Context, realmID uint32, loadBalancerID string) ([]uint64, error)
+	RemoveAllWithGatewayID(ctx context.Context, realmID uint32, gatewayID string) ([]uint64, error)
 	OneByRealmAndGUID(ctx context.Context, realmID uint32, guid uint64) (*Character, error)
 	OneByRealmAndName(ctx context.Context, realmID uint32, name string) (*Character, error)
 
 	CharactersByRealmAndGUIDs(ctx context.Context, realmID uint32, guids []uint64) ([]Character, error)
 
-	// LBCharacterLoggedInHandler updates cache with player logged in.
-	events.LBCharacterLoggedInHandler
-	// LBCharacterLoggedOutHandler updates cache with player logged out.
-	events.LBCharacterLoggedOutHandler
-	// LBCharactersUpdatesHandler updates cache with pack of characters updates.
-	events.LBCharactersUpdatesHandler
+	// GWCharacterLoggedInHandler updates cache with player logged in.
+	events.GWCharacterLoggedInHandler
+	// GWCharacterLoggedOutHandler updates cache with player logged out.
+	events.GWCharacterLoggedOutHandler
+	// GWCharactersUpdatesHandler updates cache with pack of characters updates.
+	events.GWCharactersUpdatesHandler
 
 	WhoHandler
 }

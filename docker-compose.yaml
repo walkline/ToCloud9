@@ -1,8 +1,8 @@
 services:
-  game-load-balancer:
+  gateway:
     build:
       context: .
-      dockerfile: apps/game-load-balancer/Dockerfile
+      dockerfile: apps/gateway/Dockerfile
     ports:
       - "8333:8333"
       - "8085:8085"
@@ -25,10 +25,10 @@ services:
       PORT: 8085
       NATS_URL: nats://nats:4222
 
-  game-load-balancer-second:
+  gateway-second:
     build:
       context: .
-      dockerfile: apps/game-load-balancer/Dockerfile
+      dockerfile: apps/gateway/Dockerfile
     ports:
       - "8045:8045"
     depends_on:

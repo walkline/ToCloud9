@@ -96,31 +96,31 @@ func (c *charactersOnlineInMem) CharactersByRealmAndGUIDs(ctx context.Context, r
 	return res, nil
 }
 
-func (c *charactersOnlineInMem) HandleCharacterLoggedIn(payload events.LBEventCharacterLoggedInPayload) error {
+func (c *charactersOnlineInMem) HandleCharacterLoggedIn(payload events.GWEventCharacterLoggedInPayload) error {
 	return c.Add(context.TODO(), &Character{
-		RealmID:        payload.RealmID,
-		LoadBalancerID: payload.LoadBalancerID,
-		CharGUID:       payload.CharGUID,
-		CharName:       payload.CharName,
-		CharRace:       payload.CharRace,
-		CharClass:      payload.CharClass,
-		CharGender:     payload.CharGender,
-		CharLevel:      payload.CharLevel,
-		CharZone:       payload.CharZone,
-		CharMap:        payload.CharMap,
-		CharPosX:       payload.CharPosX,
-		CharPosY:       payload.CharPosY,
-		CharPosZ:       payload.CharPosZ,
-		CharGuildID:    payload.CharGuildID,
-		AccountID:      payload.AccountID,
+		RealmID:     payload.RealmID,
+		GatewayID:   payload.GatewayID,
+		CharGUID:    payload.CharGUID,
+		CharName:    payload.CharName,
+		CharRace:    payload.CharRace,
+		CharClass:   payload.CharClass,
+		CharGender:  payload.CharGender,
+		CharLevel:   payload.CharLevel,
+		CharZone:    payload.CharZone,
+		CharMap:     payload.CharMap,
+		CharPosX:    payload.CharPosX,
+		CharPosY:    payload.CharPosY,
+		CharPosZ:    payload.CharPosZ,
+		CharGuildID: payload.CharGuildID,
+		AccountID:   payload.AccountID,
 	})
 }
 
-func (c *charactersOnlineInMem) HandleCharacterLoggedOut(payload events.LBEventCharacterLoggedOutPayload) error {
+func (c *charactersOnlineInMem) HandleCharacterLoggedOut(payload events.GWEventCharacterLoggedOutPayload) error {
 	return c.Remove(context.TODO(), payload.RealmID, payload.CharGUID)
 }
 
-func (c *charactersOnlineInMem) HandleCharactersUpdates(payload events.LBEventCharactersUpdatesPayload) error {
+func (c *charactersOnlineInMem) HandleCharactersUpdates(payload events.GWEventCharactersUpdatesPayload) error {
 	c.m.Lock()
 	for _, update := range payload.Updates {
 		member := c.guidStorage[payload.RealmID][update.ID]
@@ -132,7 +132,7 @@ func (c *charactersOnlineInMem) HandleCharactersUpdates(payload events.LBEventCh
 	return nil
 }
 
-func (c *charactersOnlineInMem) RemoveAllWithLoadBalancerID(ctx context.Context, realmID uint32, loadBalancerID string) ([]uint64, error) {
+func (c *charactersOnlineInMem) RemoveAllWithGatewayID(ctx context.Context, realmID uint32, gatewayID string) ([]uint64, error) {
 	charsToDelete := make([]uint64, 0, 20)
 
 	c.m.Lock()
@@ -140,7 +140,7 @@ func (c *charactersOnlineInMem) RemoveAllWithLoadBalancerID(ctx context.Context,
 	namesStorage := c.nameStorage[realmID]
 
 	for guid, char := range storage {
-		if char.LoadBalancerID == loadBalancerID {
+		if char.GatewayID == gatewayID {
 			charsToDelete = append(charsToDelete, guid)
 		}
 	}

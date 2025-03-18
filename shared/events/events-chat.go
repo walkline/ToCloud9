@@ -11,10 +11,10 @@ const (
 )
 
 // SubjectName is key that nats uses
-func (e ChatServiceEvent) SubjectName(loadBalancerID string) string {
+func (e ChatServiceEvent) SubjectName(gatewayID string) string {
 	switch e {
 	case ChatEventIncomingWhisper:
-		return fmt.Sprintf("chat.lb.%s.income.whisper", loadBalancerID)
+		return fmt.Sprintf("chat.gw.%s.income.whisper", gatewayID)
 	}
 	panic(fmt.Errorf("unk event %d", e))
 }

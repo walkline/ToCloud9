@@ -200,8 +200,8 @@ func WithGroupDifficultyChangedHandler(h GroupEventGroupDifficultyChangedHandler
 	})
 }
 
-// funcLoadBalancerConsumerOption wraps a function that modifies funcLoadBalancerConsumerOption into an
-// implementation of the LoadBalancerConsumerOption interface.
+// funcGatewayConsumerOption wraps a function that modifies funcGatewayConsumerOption into an
+// implementation of the GatewayConsumerOption interface.
 type funcGroupEventsConsumerOption struct {
 	f func(*groupEventsConsumerParams)
 }
@@ -252,7 +252,7 @@ type groupEventsConsumerImpl struct {
 	difficultyChangedHandler              GroupEventGroupDifficultyChangedHandler
 }
 
-// Listen is non-blocking operation that listens to load balancer events.
+// Listen is non-blocking operation that listens to gateway events.
 func (c *groupEventsConsumerImpl) Listen() error {
 	if c.inviteCreatedHandler != nil {
 		sub, err := c.nc.Subscribe(GroupEventInviteCreated.SubjectName(), func(msg *nats.Msg) {

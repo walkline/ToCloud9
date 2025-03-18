@@ -7,13 +7,13 @@ import (
 )
 
 type CharactersServiceProducer interface {
-	CharsDisconnectedUnhealthyLB(payload *CharEventCharsDisconnectedUnhealthyLBPayload) error
+	CharsDisconnectedUnhealthyLB(payload *CharEventCharsDisconnectedUnhealthyGWPayload) error
 }
 
 type charactersServiceProducerNatsJSON struct {
-	conn           *nats.Conn
-	ver            string
-	loadBalancerID string
+	conn      *nats.Conn
+	ver       string
+	gatewayID string
 }
 
 func NewCharactersServiceProducerNatsJSON(conn *nats.Conn, ver string) CharactersServiceProducer {
@@ -23,8 +23,8 @@ func NewCharactersServiceProducerNatsJSON(conn *nats.Conn, ver string) Character
 	}
 }
 
-func (c *charactersServiceProducerNatsJSON) CharsDisconnectedUnhealthyLB(payload *CharEventCharsDisconnectedUnhealthyLBPayload) error {
-	return c.publish(CharEventCharsDisconnectedUnhealthyLB, payload)
+func (c *charactersServiceProducerNatsJSON) CharsDisconnectedUnhealthyLB(payload *CharEventCharsDisconnectedUnhealthyGWPayload) error {
+	return c.publish(CharEventCharsDisconnectedUnhealthyGW, payload)
 }
 
 func (c *charactersServiceProducerNatsJSON) publish(e CharactersServiceEvent, payload interface{}) error {

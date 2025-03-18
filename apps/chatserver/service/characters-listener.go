@@ -25,25 +25,25 @@ func NewCharactersListener(charRepo repo.CharactersRepo, nc *nats.Conn) *Charact
 }
 
 func (c *CharactersListener) Listen() error {
-	sb, err := c.nc.Subscribe(events.LBEventCharacterLoggedIn.SubjectName(), func(msg *nats.Msg) {
-		loggedInP := events.LBEventCharacterLoggedInPayload{}
+	sb, err := c.nc.Subscribe(events.GWEventCharacterLoggedIn.SubjectName(), func(msg *nats.Msg) {
+		loggedInP := events.GWEventCharacterLoggedInPayload{}
 		_, err := events.Unmarshal(msg.Data, &loggedInP)
 		if err != nil {
-			log.Error().Err(err).Msg("can't read LBEventCharacterLoggedIn (payload part) event")
+			log.Error().Err(err).Msg("can't read GWEventCharacterLoggedIn (payload part) event")
 			return
 		}
 
 		err = c.charRepo.AddCharacter(context.TODO(), &repo.Character{
-			RealmID:        loggedInP.RealmID,
-			LoadBalancerID: loggedInP.LoadBalancerID,
-			GUID:           loggedInP.CharGUID,
-			Name:           loggedInP.CharName,
-			Race:           loggedInP.CharRace,
-			MsgSender:      sender.NewMsgSenderNatsJSON(c.nc, loggedInP.LoadBalancerID),
+			RealmID:   loggedInP.RealmID,
+			GatewayID: loggedInP.GatewayID,
+			GUID:      loggedInP.CharGUID,
+			Name:      loggedInP.CharName,
+			Race:      loggedInP.CharRace,
+			MsgSender: sender.NewMsgSenderNatsJSON(c.nc, loggedInP.GatewayID),
 		})
 
 		if err != nil {
-			log.Error().Err(err).Msg("can't add character in LBEventCharacterLoggedIn event")
+			log.Error().Err(err).Msg("can't add character in GWEventCharacterLoggedIn event")
 			return
 		}
 	})
@@ -53,17 +53,17 @@ func (c *CharactersListener) Listen() error {
 
 	c.subs = append(c.subs, sb)
 
-	sb, err = c.nc.Subscribe(events.LBEventCharacterLoggedOut.SubjectName(), func(msg *nats.Msg) {
-		loggedOutP := events.LBEventCharacterLoggedOutPayload{}
+	sb, err = c.nc.Subscribe(events.GWEventCharacterLoggedOut.SubjectName(), func(msg *nats.Msg) {
+		loggedOutP := events.GWEventCharacterLoggedOutPayload{}
 		_, err := events.Unmarshal(msg.Data, &loggedOutP)
 		if err != nil {
-			log.Error().Err(err).Msg("can't read LBEventCharacterLoggedOut (payload part) event")
+			log.Error().Err(err).Msg("can't read GWEventCharacterLoggedOut (payload part) event")
 			return
 		}
 
 		err = c.charRepo.RemoveCharacter(context.TODO(), loggedOutP.RealmID, loggedOutP.CharGUID)
 		if err != nil {
-			log.Error().Err(err).Msg("can't remove character in LBEventCharacterLoggedOut event")
+			log.Error().Err(err).Msg("can't remove character in GWEventCharacterLoggedOut event")
 			return
 		}
 	})

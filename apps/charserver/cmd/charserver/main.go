@@ -71,17 +71,17 @@ func main() {
 	charRepo := repo.NewCharactersMYSQL(charDB)
 
 	onlineCharsRepo := repo.NewCharactersOnlineInMem()
-	lbEventsConsumer := events.NewLoadBalancerConsumer(
+	gwEventsConsumer := events.NewGatewayConsumer(
 		nc,
-		events.WithLBConsumerLoggedInHandler(onlineCharsRepo),
-		events.WithLBConsumerLoggedOutHandler(onlineCharsRepo),
-		events.WithLBConsumerCharsUpdatesHandler(onlineCharsRepo),
+		events.WithGWConsumerLoggedInHandler(onlineCharsRepo),
+		events.WithGWConsumerLoggedOutHandler(onlineCharsRepo),
+		events.WithGWConsumerCharsUpdatesHandler(onlineCharsRepo),
 	)
-	err = lbEventsConsumer.Listen()
+	err = gwEventsConsumer.Listen()
 	if err != nil {
-		log.Fatal().Err(err).Msg("can't listen to load balancer updates")
+		log.Fatal().Err(err).Msg("can't listen to gateway updates")
 	}
-	defer lbEventsConsumer.Stop()
+	defer gwEventsConsumer.Stop()
 
 	srHandler := service.NewServersRegistryListener(onlineCharsRepo, events.NewCharactersServiceProducerNatsJSON(nc, charserver.Ver), nc)
 	err = srHandler.Listen()

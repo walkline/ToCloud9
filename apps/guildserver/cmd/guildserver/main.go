@@ -108,14 +108,14 @@ func createGuildService(cfg *config.Config, natsCon *nats.Conn) service.GuildSer
 	}
 
 	cache := service.NewGuildsInMemCache(guildsRepo)
-	err = events.NewLoadBalancerConsumer(
+	err = events.NewGatewayConsumer(
 		natsCon,
-		events.WithLBConsumerLoggedInHandler(cache),
-		events.WithLBConsumerLoggedOutHandler(cache),
-		events.WithLBConsumerCharsUpdatesHandler(cache),
+		events.WithGWConsumerLoggedInHandler(cache),
+		events.WithGWConsumerLoggedOutHandler(cache),
+		events.WithGWConsumerCharsUpdatesHandler(cache),
 	).Listen()
 	if err != nil {
-		log.Fatal().Err(err).Msg("can't listen to load balancer updates")
+		log.Fatal().Err(err).Msg("can't listen to gateway updates")
 	}
 
 	err = cache.Warmup(context.Background(), 1)

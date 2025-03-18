@@ -25,9 +25,9 @@ const (
 	ServersRegistryService_ListGameServersForRealm_FullMethodName            = "/v1.ServersRegistryService/ListGameServersForRealm"
 	ServersRegistryService_ListAllGameServers_FullMethodName                 = "/v1.ServersRegistryService/ListAllGameServers"
 	ServersRegistryService_GameServerMapsLoaded_FullMethodName               = "/v1.ServersRegistryService/GameServerMapsLoaded"
-	ServersRegistryService_RegisterLoadBalancer_FullMethodName               = "/v1.ServersRegistryService/RegisterLoadBalancer"
-	ServersRegistryService_LoadBalancerForRealms_FullMethodName              = "/v1.ServersRegistryService/LoadBalancerForRealms"
-	ServersRegistryService_ListLoadBalancersForRealm_FullMethodName          = "/v1.ServersRegistryService/ListLoadBalancersForRealm"
+	ServersRegistryService_RegisterGateway_FullMethodName                    = "/v1.ServersRegistryService/RegisterGateway"
+	ServersRegistryService_GatewaysForRealms_FullMethodName                  = "/v1.ServersRegistryService/GatewaysForRealms"
+	ServersRegistryService_ListGatewaysForRealm_FullMethodName               = "/v1.ServersRegistryService/ListGatewaysForRealm"
 )
 
 // ServersRegistryServiceClient is the client API for ServersRegistryService service.
@@ -40,9 +40,9 @@ type ServersRegistryServiceClient interface {
 	ListGameServersForRealm(ctx context.Context, in *ListGameServersForRealmRequest, opts ...grpc.CallOption) (*ListGameServersResponse, error)
 	ListAllGameServers(ctx context.Context, in *ListAllGameServersRequest, opts ...grpc.CallOption) (*ListGameServersResponse, error)
 	GameServerMapsLoaded(ctx context.Context, in *GameServerMapsLoadedRequest, opts ...grpc.CallOption) (*GameServerMapsLoadedResponse, error)
-	RegisterLoadBalancer(ctx context.Context, in *RegisterLoadBalancerRequest, opts ...grpc.CallOption) (*RegisterLoadBalancerResponse, error)
-	LoadBalancerForRealms(ctx context.Context, in *LoadBalancerForRealmsRequest, opts ...grpc.CallOption) (*LoadBalancerForRealmsResponse, error)
-	ListLoadBalancersForRealm(ctx context.Context, in *ListLoadBalancersForRealmRequest, opts ...grpc.CallOption) (*ListLoadBalancersForRealmResponse, error)
+	RegisterGateway(ctx context.Context, in *RegisterGatewayRequest, opts ...grpc.CallOption) (*RegisterGatewayResponse, error)
+	GatewaysForRealms(ctx context.Context, in *GatewaysForRealmsRequest, opts ...grpc.CallOption) (*GatewaysForRealmsResponse, error)
+	ListGatewaysForRealm(ctx context.Context, in *ListGatewaysForRealmRequest, opts ...grpc.CallOption) (*ListGatewaysForRealmResponse, error)
 }
 
 type serversRegistryServiceClient struct {
@@ -107,27 +107,27 @@ func (c *serversRegistryServiceClient) GameServerMapsLoaded(ctx context.Context,
 	return out, nil
 }
 
-func (c *serversRegistryServiceClient) RegisterLoadBalancer(ctx context.Context, in *RegisterLoadBalancerRequest, opts ...grpc.CallOption) (*RegisterLoadBalancerResponse, error) {
-	out := new(RegisterLoadBalancerResponse)
-	err := c.cc.Invoke(ctx, ServersRegistryService_RegisterLoadBalancer_FullMethodName, in, out, opts...)
+func (c *serversRegistryServiceClient) RegisterGateway(ctx context.Context, in *RegisterGatewayRequest, opts ...grpc.CallOption) (*RegisterGatewayResponse, error) {
+	out := new(RegisterGatewayResponse)
+	err := c.cc.Invoke(ctx, ServersRegistryService_RegisterGateway_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *serversRegistryServiceClient) LoadBalancerForRealms(ctx context.Context, in *LoadBalancerForRealmsRequest, opts ...grpc.CallOption) (*LoadBalancerForRealmsResponse, error) {
-	out := new(LoadBalancerForRealmsResponse)
-	err := c.cc.Invoke(ctx, ServersRegistryService_LoadBalancerForRealms_FullMethodName, in, out, opts...)
+func (c *serversRegistryServiceClient) GatewaysForRealms(ctx context.Context, in *GatewaysForRealmsRequest, opts ...grpc.CallOption) (*GatewaysForRealmsResponse, error) {
+	out := new(GatewaysForRealmsResponse)
+	err := c.cc.Invoke(ctx, ServersRegistryService_GatewaysForRealms_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *serversRegistryServiceClient) ListLoadBalancersForRealm(ctx context.Context, in *ListLoadBalancersForRealmRequest, opts ...grpc.CallOption) (*ListLoadBalancersForRealmResponse, error) {
-	out := new(ListLoadBalancersForRealmResponse)
-	err := c.cc.Invoke(ctx, ServersRegistryService_ListLoadBalancersForRealm_FullMethodName, in, out, opts...)
+func (c *serversRegistryServiceClient) ListGatewaysForRealm(ctx context.Context, in *ListGatewaysForRealmRequest, opts ...grpc.CallOption) (*ListGatewaysForRealmResponse, error) {
+	out := new(ListGatewaysForRealmResponse)
+	err := c.cc.Invoke(ctx, ServersRegistryService_ListGatewaysForRealm_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -144,9 +144,9 @@ type ServersRegistryServiceServer interface {
 	ListGameServersForRealm(context.Context, *ListGameServersForRealmRequest) (*ListGameServersResponse, error)
 	ListAllGameServers(context.Context, *ListAllGameServersRequest) (*ListGameServersResponse, error)
 	GameServerMapsLoaded(context.Context, *GameServerMapsLoadedRequest) (*GameServerMapsLoadedResponse, error)
-	RegisterLoadBalancer(context.Context, *RegisterLoadBalancerRequest) (*RegisterLoadBalancerResponse, error)
-	LoadBalancerForRealms(context.Context, *LoadBalancerForRealmsRequest) (*LoadBalancerForRealmsResponse, error)
-	ListLoadBalancersForRealm(context.Context, *ListLoadBalancersForRealmRequest) (*ListLoadBalancersForRealmResponse, error)
+	RegisterGateway(context.Context, *RegisterGatewayRequest) (*RegisterGatewayResponse, error)
+	GatewaysForRealms(context.Context, *GatewaysForRealmsRequest) (*GatewaysForRealmsResponse, error)
+	ListGatewaysForRealm(context.Context, *ListGatewaysForRealmRequest) (*ListGatewaysForRealmResponse, error)
 	mustEmbedUnimplementedServersRegistryServiceServer()
 }
 
@@ -172,14 +172,14 @@ func (UnimplementedServersRegistryServiceServer) ListAllGameServers(context.Cont
 func (UnimplementedServersRegistryServiceServer) GameServerMapsLoaded(context.Context, *GameServerMapsLoadedRequest) (*GameServerMapsLoadedResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GameServerMapsLoaded not implemented")
 }
-func (UnimplementedServersRegistryServiceServer) RegisterLoadBalancer(context.Context, *RegisterLoadBalancerRequest) (*RegisterLoadBalancerResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method RegisterLoadBalancer not implemented")
+func (UnimplementedServersRegistryServiceServer) RegisterGateway(context.Context, *RegisterGatewayRequest) (*RegisterGatewayResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method RegisterGateway not implemented")
 }
-func (UnimplementedServersRegistryServiceServer) LoadBalancerForRealms(context.Context, *LoadBalancerForRealmsRequest) (*LoadBalancerForRealmsResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method LoadBalancerForRealms not implemented")
+func (UnimplementedServersRegistryServiceServer) GatewaysForRealms(context.Context, *GatewaysForRealmsRequest) (*GatewaysForRealmsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GatewaysForRealms not implemented")
 }
-func (UnimplementedServersRegistryServiceServer) ListLoadBalancersForRealm(context.Context, *ListLoadBalancersForRealmRequest) (*ListLoadBalancersForRealmResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method ListLoadBalancersForRealm not implemented")
+func (UnimplementedServersRegistryServiceServer) ListGatewaysForRealm(context.Context, *ListGatewaysForRealmRequest) (*ListGatewaysForRealmResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListGatewaysForRealm not implemented")
 }
 func (UnimplementedServersRegistryServiceServer) mustEmbedUnimplementedServersRegistryServiceServer() {
 }
@@ -303,56 +303,56 @@ func _ServersRegistryService_GameServerMapsLoaded_Handler(srv interface{}, ctx c
 	return interceptor(ctx, in, info, handler)
 }
 
-func _ServersRegistryService_RegisterLoadBalancer_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(RegisterLoadBalancerRequest)
+func _ServersRegistryService_RegisterGateway_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RegisterGatewayRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(ServersRegistryServiceServer).RegisterLoadBalancer(ctx, in)
+		return srv.(ServersRegistryServiceServer).RegisterGateway(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: ServersRegistryService_RegisterLoadBalancer_FullMethodName,
+		FullMethod: ServersRegistryService_RegisterGateway_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ServersRegistryServiceServer).RegisterLoadBalancer(ctx, req.(*RegisterLoadBalancerRequest))
+		return srv.(ServersRegistryServiceServer).RegisterGateway(ctx, req.(*RegisterGatewayRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _ServersRegistryService_LoadBalancerForRealms_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(LoadBalancerForRealmsRequest)
+func _ServersRegistryService_GatewaysForRealms_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GatewaysForRealmsRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(ServersRegistryServiceServer).LoadBalancerForRealms(ctx, in)
+		return srv.(ServersRegistryServiceServer).GatewaysForRealms(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: ServersRegistryService_LoadBalancerForRealms_FullMethodName,
+		FullMethod: ServersRegistryService_GatewaysForRealms_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ServersRegistryServiceServer).LoadBalancerForRealms(ctx, req.(*LoadBalancerForRealmsRequest))
+		return srv.(ServersRegistryServiceServer).GatewaysForRealms(ctx, req.(*GatewaysForRealmsRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _ServersRegistryService_ListLoadBalancersForRealm_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ListLoadBalancersForRealmRequest)
+func _ServersRegistryService_ListGatewaysForRealm_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListGatewaysForRealmRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(ServersRegistryServiceServer).ListLoadBalancersForRealm(ctx, in)
+		return srv.(ServersRegistryServiceServer).ListGatewaysForRealm(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: ServersRegistryService_ListLoadBalancersForRealm_FullMethodName,
+		FullMethod: ServersRegistryService_ListGatewaysForRealm_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ServersRegistryServiceServer).ListLoadBalancersForRealm(ctx, req.(*ListLoadBalancersForRealmRequest))
+		return srv.(ServersRegistryServiceServer).ListGatewaysForRealm(ctx, req.(*ListGatewaysForRealmRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -389,16 +389,16 @@ var ServersRegistryService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _ServersRegistryService_GameServerMapsLoaded_Handler,
 		},
 		{
-			MethodName: "RegisterLoadBalancer",
-			Handler:    _ServersRegistryService_RegisterLoadBalancer_Handler,
+			MethodName: "RegisterGateway",
+			Handler:    _ServersRegistryService_RegisterGateway_Handler,
 		},
 		{
-			MethodName: "LoadBalancerForRealms",
-			Handler:    _ServersRegistryService_LoadBalancerForRealms_Handler,
+			MethodName: "GatewaysForRealms",
+			Handler:    _ServersRegistryService_GatewaysForRealms_Handler,
 		},
 		{
-			MethodName: "ListLoadBalancersForRealm",
-			Handler:    _ServersRegistryService_ListLoadBalancersForRealm_Handler,
+			MethodName: "ListGatewaysForRealm",
+			Handler:    _ServersRegistryService_ListGatewaysForRealm_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

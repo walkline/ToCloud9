@@ -6,10 +6,10 @@ import "fmt"
 type ServerRegistryEvent int
 
 const (
-	// ServerRegistryEventLBAdded is event that occurs when server registry registers game load balancer.
+	// ServerRegistryEventLBAdded is event that occurs when server registry registers gateway.
 	ServerRegistryEventLBAdded ServerRegistryEvent = iota + 1
 
-	// ServerRegistryEventLBRemovedUnhealthy is event that occurs when game load balancer unhealthy, and it's been removed from registry.
+	// ServerRegistryEventLBRemovedUnhealthy is event that occurs when gateway unhealthy, and it's been removed from registry.
 	ServerRegistryEventLBRemovedUnhealthy
 
 	// ServerRegistryEventGSMapsReassigned is event that occurs when servers registry reassigned maps to game servers.
@@ -39,16 +39,16 @@ func (e ServerRegistryEvent) SubjectName() string {
 	panic(fmt.Errorf("unk event %d", e))
 }
 
-// ServerRegistryEventLBAddedPayload represents payload of ServerRegistryEventLBAdded event.
-type ServerRegistryEventLBAddedPayload struct {
+// ServerRegistryEventGWAddedPayload represents payload of ServerRegistryEventLBAdded event.
+type ServerRegistryEventGWAddedPayload struct {
 	ID              string
 	Address         string
 	HealthCheckAddr string
 	RealmID         uint32
 }
 
-// ServerRegistryEventLBRemovedUnhealthyPayload represents payload of ServerRegistryEventLBRemovedUnhealthy event.
-type ServerRegistryEventLBRemovedUnhealthyPayload struct {
+// ServerRegistryEventGWRemovedUnhealthyPayload represents payload of ServerRegistryEventLBRemovedUnhealthy event.
+type ServerRegistryEventGWRemovedUnhealthyPayload struct {
 	ID              string
 	Address         string
 	HealthCheckAddr string

@@ -83,6 +83,39 @@ func (_m *ServersRegistryServiceClient) GameServerMapsLoaded(ctx context.Context
 	return r0, r1
 }
 
+// GatewaysForRealms provides a mock function with given fields: ctx, in, opts
+func (_m *ServersRegistryServiceClient) GatewaysForRealms(ctx context.Context, in *pb.GatewaysForRealmsRequest, opts ...grpc.CallOption) (*pb.GatewaysForRealmsResponse, error) {
+	_va := make([]interface{}, len(opts))
+	for _i := range opts {
+		_va[_i] = opts[_i]
+	}
+	var _ca []interface{}
+	_ca = append(_ca, ctx, in)
+	_ca = append(_ca, _va...)
+	ret := _m.Called(_ca...)
+
+	var r0 *pb.GatewaysForRealmsResponse
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, *pb.GatewaysForRealmsRequest, ...grpc.CallOption) (*pb.GatewaysForRealmsResponse, error)); ok {
+		return rf(ctx, in, opts...)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, *pb.GatewaysForRealmsRequest, ...grpc.CallOption) *pb.GatewaysForRealmsResponse); ok {
+		r0 = rf(ctx, in, opts...)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*pb.GatewaysForRealmsResponse)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, *pb.GatewaysForRealmsRequest, ...grpc.CallOption) error); ok {
+		r1 = rf(ctx, in, opts...)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
 // ListAllGameServers provides a mock function with given fields: ctx, in, opts
 func (_m *ServersRegistryServiceClient) ListAllGameServers(ctx context.Context, in *pb.ListAllGameServersRequest, opts ...grpc.CallOption) (*pb.ListGameServersResponse, error) {
 	_va := make([]interface{}, len(opts))
@@ -149,8 +182,8 @@ func (_m *ServersRegistryServiceClient) ListGameServersForRealm(ctx context.Cont
 	return r0, r1
 }
 
-// ListLoadBalancersForRealm provides a mock function with given fields: ctx, in, opts
-func (_m *ServersRegistryServiceClient) ListLoadBalancersForRealm(ctx context.Context, in *pb.ListLoadBalancersForRealmRequest, opts ...grpc.CallOption) (*pb.ListLoadBalancersForRealmResponse, error) {
+// ListGatewaysForRealm provides a mock function with given fields: ctx, in, opts
+func (_m *ServersRegistryServiceClient) ListGatewaysForRealm(ctx context.Context, in *pb.ListGatewaysForRealmRequest, opts ...grpc.CallOption) (*pb.ListGatewaysForRealmResponse, error) {
 	_va := make([]interface{}, len(opts))
 	for _i := range opts {
 		_va[_i] = opts[_i]
@@ -160,53 +193,20 @@ func (_m *ServersRegistryServiceClient) ListLoadBalancersForRealm(ctx context.Co
 	_ca = append(_ca, _va...)
 	ret := _m.Called(_ca...)
 
-	var r0 *pb.ListLoadBalancersForRealmResponse
+	var r0 *pb.ListGatewaysForRealmResponse
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, *pb.ListLoadBalancersForRealmRequest, ...grpc.CallOption) (*pb.ListLoadBalancersForRealmResponse, error)); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, *pb.ListGatewaysForRealmRequest, ...grpc.CallOption) (*pb.ListGatewaysForRealmResponse, error)); ok {
 		return rf(ctx, in, opts...)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, *pb.ListLoadBalancersForRealmRequest, ...grpc.CallOption) *pb.ListLoadBalancersForRealmResponse); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, *pb.ListGatewaysForRealmRequest, ...grpc.CallOption) *pb.ListGatewaysForRealmResponse); ok {
 		r0 = rf(ctx, in, opts...)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*pb.ListLoadBalancersForRealmResponse)
+			r0 = ret.Get(0).(*pb.ListGatewaysForRealmResponse)
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, *pb.ListLoadBalancersForRealmRequest, ...grpc.CallOption) error); ok {
-		r1 = rf(ctx, in, opts...)
-	} else {
-		r1 = ret.Error(1)
-	}
-
-	return r0, r1
-}
-
-// LoadBalancerForRealms provides a mock function with given fields: ctx, in, opts
-func (_m *ServersRegistryServiceClient) LoadBalancerForRealms(ctx context.Context, in *pb.LoadBalancerForRealmsRequest, opts ...grpc.CallOption) (*pb.LoadBalancerForRealmsResponse, error) {
-	_va := make([]interface{}, len(opts))
-	for _i := range opts {
-		_va[_i] = opts[_i]
-	}
-	var _ca []interface{}
-	_ca = append(_ca, ctx, in)
-	_ca = append(_ca, _va...)
-	ret := _m.Called(_ca...)
-
-	var r0 *pb.LoadBalancerForRealmsResponse
-	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, *pb.LoadBalancerForRealmsRequest, ...grpc.CallOption) (*pb.LoadBalancerForRealmsResponse, error)); ok {
-		return rf(ctx, in, opts...)
-	}
-	if rf, ok := ret.Get(0).(func(context.Context, *pb.LoadBalancerForRealmsRequest, ...grpc.CallOption) *pb.LoadBalancerForRealmsResponse); ok {
-		r0 = rf(ctx, in, opts...)
-	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*pb.LoadBalancerForRealmsResponse)
-		}
-	}
-
-	if rf, ok := ret.Get(1).(func(context.Context, *pb.LoadBalancerForRealmsRequest, ...grpc.CallOption) error); ok {
+	if rf, ok := ret.Get(1).(func(context.Context, *pb.ListGatewaysForRealmRequest, ...grpc.CallOption) error); ok {
 		r1 = rf(ctx, in, opts...)
 	} else {
 		r1 = ret.Error(1)
@@ -281,8 +281,8 @@ func (_m *ServersRegistryServiceClient) RegisterGameServer(ctx context.Context, 
 	return r0, r1
 }
 
-// RegisterLoadBalancer provides a mock function with given fields: ctx, in, opts
-func (_m *ServersRegistryServiceClient) RegisterLoadBalancer(ctx context.Context, in *pb.RegisterLoadBalancerRequest, opts ...grpc.CallOption) (*pb.RegisterLoadBalancerResponse, error) {
+// RegisterGateway provides a mock function with given fields: ctx, in, opts
+func (_m *ServersRegistryServiceClient) RegisterGateway(ctx context.Context, in *pb.RegisterGatewayRequest, opts ...grpc.CallOption) (*pb.RegisterGatewayResponse, error) {
 	_va := make([]interface{}, len(opts))
 	for _i := range opts {
 		_va[_i] = opts[_i]
@@ -292,20 +292,20 @@ func (_m *ServersRegistryServiceClient) RegisterLoadBalancer(ctx context.Context
 	_ca = append(_ca, _va...)
 	ret := _m.Called(_ca...)
 
-	var r0 *pb.RegisterLoadBalancerResponse
+	var r0 *pb.RegisterGatewayResponse
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, *pb.RegisterLoadBalancerRequest, ...grpc.CallOption) (*pb.RegisterLoadBalancerResponse, error)); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, *pb.RegisterGatewayRequest, ...grpc.CallOption) (*pb.RegisterGatewayResponse, error)); ok {
 		return rf(ctx, in, opts...)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, *pb.RegisterLoadBalancerRequest, ...grpc.CallOption) *pb.RegisterLoadBalancerResponse); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, *pb.RegisterGatewayRequest, ...grpc.CallOption) *pb.RegisterGatewayResponse); ok {
 		r0 = rf(ctx, in, opts...)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*pb.RegisterLoadBalancerResponse)
+			r0 = ret.Get(0).(*pb.RegisterGatewayResponse)
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, *pb.RegisterLoadBalancerRequest, ...grpc.CallOption) error); ok {
+	if rf, ok := ret.Get(1).(func(context.Context, *pb.RegisterGatewayRequest, ...grpc.CallOption) error); ok {
 		r1 = rf(ctx, in, opts...)
 	} else {
 		r1 = ret.Error(1)

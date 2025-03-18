@@ -54,7 +54,7 @@ func (r *realmServiceImpl) RealmListForAccount(ctx context.Context, account *rep
 		realmIDs = append(realmIDs, realm.ID)
 	}
 
-	loadBalancersResp, err := r.servRegistry.LoadBalancerForRealms(ctx, &pb.LoadBalancerForRealmsRequest{
+	gatewaysResp, err := r.servRegistry.GatewaysForRealms(ctx, &pb.GatewaysForRealmsRequest{
 		Api:      "v1.0",
 		RealmIDs: realmIDs,
 	})
@@ -62,9 +62,9 @@ func (r *realmServiceImpl) RealmListForAccount(ctx context.Context, account *rep
 		return nil, err
 	}
 
-	loadBalancersAddressesMap := map[uint32]string{}
-	for _, lb := range loadBalancersResp.LoadBalancers {
-		loadBalancersAddressesMap[lb.RealmID] = lb.Address
+	gatewaysAddressesMap := map[uint32]string{}
+	for _, lb := range gatewaysResp.Gateways {
+		gatewaysAddressesMap[lb.RealmID] = lb.Address
 	}
 
 	chars, err := r.realmRepo.CountCharsPerRealmByAccountID(ctx, account.ID)
@@ -79,7 +79,7 @@ func (r *realmServiceImpl) RealmListForAccount(ctx context.Context, account *rep
 
 	result := []RealmListItem{}
 	for _, realm := range realms {
-		address, found := loadBalancersAddressesMap[realm.ID]
+		address, found := gatewaysAddressesMap[realm.ID]
 		if !found {
 			realm.Flag |= RealmFlagOffline
 		} else {

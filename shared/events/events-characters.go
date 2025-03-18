@@ -6,22 +6,22 @@ import "fmt"
 type CharactersServiceEvent int
 
 const (
-	// CharEventCharsDisconnectedUnhealthyLB event that contains players that were connected to unhealthy load balancer
-	CharEventCharsDisconnectedUnhealthyLB CharactersServiceEvent = iota + 1
+	// CharEventCharsDisconnectedUnhealthyGW event that contains players that were connected to unhealthy gateway
+	CharEventCharsDisconnectedUnhealthyGW CharactersServiceEvent = iota + 1
 )
 
 // SubjectName is key that nats uses
 func (e CharactersServiceEvent) SubjectName() string {
 	switch e {
-	case CharEventCharsDisconnectedUnhealthyLB:
-		return "char.chars.unhealthy.lb"
+	case CharEventCharsDisconnectedUnhealthyGW:
+		return "char.chars.unhealthy.gw"
 	}
 	panic(fmt.Errorf("unk event %d", e))
 }
 
-// CharEventCharsDisconnectedUnhealthyLBPayload represents payload of CharEventCharsDisconnectedUnhealthyLB event
-type CharEventCharsDisconnectedUnhealthyLBPayload struct {
+// CharEventCharsDisconnectedUnhealthyGWPayload represents payload of CharEventCharsDisconnectedUnhealthyGW event
+type CharEventCharsDisconnectedUnhealthyGWPayload struct {
 	RealmID        uint32
-	LoadBalancerID string
+	GatewayID      string
 	CharactersGUID []uint64
 }

@@ -7,11 +7,11 @@ import (
 )
 
 type Character struct {
-	RealmID        uint32
-	LoadBalancerID string
-	GUID           uint64
-	Name           string
-	Race           uint8
+	RealmID   uint32
+	GatewayID string
+	GUID      uint64
+	Name      string
+	Race      uint8
 
 	MsgSender sender.MsgSender
 }

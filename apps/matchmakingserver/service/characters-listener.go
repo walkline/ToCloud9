@@ -23,17 +23,17 @@ func NewCharactersListener(bgService BattleGroundService, nc *nats.Conn) *Charac
 }
 
 func (c *CharactersListener) Listen() error {
-	sb, err := c.nc.Subscribe(events.LBEventCharacterLoggedOut.SubjectName(), func(msg *nats.Msg) {
-		loggedOutP := events.LBEventCharacterLoggedOutPayload{}
+	sb, err := c.nc.Subscribe(events.GWEventCharacterLoggedOut.SubjectName(), func(msg *nats.Msg) {
+		loggedOutP := events.GWEventCharacterLoggedOutPayload{}
 		_, err := events.Unmarshal(msg.Data, &loggedOutP)
 		if err != nil {
-			log.Error().Err(err).Msg("can't read LBEventCharacterLoggedOut (payload part) event")
+			log.Error().Err(err).Msg("can't read GWEventCharacterLoggedOut (payload part) event")
 			return
 		}
 
 		err = c.bg.PlayerBecomeOffline(context.Background(), loggedOutP.CharGUID, loggedOutP.RealmID)
 		if err != nil {
-			log.Error().Err(err).Msg("can't remove character in LBEventCharacterLoggedOut event")
+			log.Error().Err(err).Msg("can't remove character in GWEventCharacterLoggedOut event")
 			return
 		}
 	})
@@ -44,18 +44,18 @@ func (c *CharactersListener) Listen() error {
 
 	c.subs = append(c.subs, sb)
 
-	sb, err = c.nc.Subscribe(events.CharEventCharsDisconnectedUnhealthyLB.SubjectName(), func(msg *nats.Msg) {
-		payload := events.CharEventCharsDisconnectedUnhealthyLBPayload{}
+	sb, err = c.nc.Subscribe(events.CharEventCharsDisconnectedUnhealthyGW.SubjectName(), func(msg *nats.Msg) {
+		payload := events.CharEventCharsDisconnectedUnhealthyGWPayload{}
 		_, err := events.Unmarshal(msg.Data, &payload)
 		if err != nil {
-			log.Error().Err(err).Msg("can't read LBEventCharacterLoggedOut (payload part) event")
+			log.Error().Err(err).Msg("can't read GWEventCharacterLoggedOut (payload part) event")
 			return
 		}
 
 		for _, char := range payload.CharactersGUID {
 			err = c.bg.PlayerBecomeOffline(context.Background(), char, payload.RealmID)
 			if err != nil {
-				log.Error().Err(err).Msg("can't remove character in LBEventCharacterLoggedOut event")
+				log.Error().Err(err).Msg("can't remove character in GWEventCharacterLoggedOut event")
 			}
 		}
 	})

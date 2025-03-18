@@ -177,7 +177,7 @@ func (g *groupsCacheInMem) GetInviteByInvitedPlayer(ctx context.Context, realmID
 	return g.r.GetInviteByInvitedPlayer(ctx, realmID, invitedPlayer)
 }
 
-func (g *groupsCacheInMem) HandleCharacterLoggedIn(payload events.LBEventCharacterLoggedInPayload) error {
+func (g *groupsCacheInMem) HandleCharacterLoggedIn(payload events.GWEventCharacterLoggedInPayload) error {
 	member := g.groupMemberByGUID(payload.RealmID, payload.CharGUID)
 	if member == nil {
 		return nil
@@ -188,7 +188,7 @@ func (g *groupsCacheInMem) HandleCharacterLoggedIn(payload events.LBEventCharact
 	return nil
 }
 
-func (g *groupsCacheInMem) HandleCharacterLoggedOut(payload events.LBEventCharacterLoggedOutPayload) error {
+func (g *groupsCacheInMem) HandleCharacterLoggedOut(payload events.GWEventCharacterLoggedOutPayload) error {
 	member := g.groupMemberByGUID(payload.RealmID, payload.CharGUID)
 	if member == nil {
 		return nil

@@ -6,19 +6,19 @@ import (
 	"sync"
 )
 
-type loadBalancerInMemRepo struct {
-	storage map[string]*LoadBalancerServer
+type gatewayInMemRepo struct {
+	storage map[string]*GatewayServer
 	mutex   sync.RWMutex
 	counter int
 }
 
-func NewLoadBalancerInMemRepo() LoadBalancerRepo {
-	return &loadBalancerInMemRepo{
-		storage: map[string]*LoadBalancerServer{},
+func NewGatewayInMemRepo() GatewayRepo {
+	return &gatewayInMemRepo{
+		storage: map[string]*GatewayServer{},
 	}
 }
 
-func (g *loadBalancerInMemRepo) Add(ctx context.Context, server *LoadBalancerServer) (*LoadBalancerServer, error) {
+func (g *gatewayInMemRepo) Add(ctx context.Context, server *GatewayServer) (*GatewayServer, error) {
 	g.mutex.Lock()
 	defer g.mutex.Unlock()
 
@@ -29,7 +29,7 @@ func (g *loadBalancerInMemRepo) Add(ctx context.Context, server *LoadBalancerSer
 	return server, nil
 }
 
-func (g *loadBalancerInMemRepo) Update(ctx context.Context, id string, f func(LoadBalancerServer) LoadBalancerServer) error {
+func (g *gatewayInMemRepo) Update(ctx context.Context, id string, f func(GatewayServer) GatewayServer) error {
 	g.mutex.Lock()
 	defer g.mutex.Unlock()
 
@@ -44,7 +44,7 @@ func (g *loadBalancerInMemRepo) Update(ctx context.Context, id string, f func(Lo
 	return nil
 }
 
-func (g *loadBalancerInMemRepo) Remove(ctx context.Context, healthCheckAddress string) error {
+func (g *gatewayInMemRepo) Remove(ctx context.Context, healthCheckAddress string) error {
 	g.mutex.Lock()
 	defer g.mutex.Unlock()
 
@@ -53,11 +53,11 @@ func (g *loadBalancerInMemRepo) Remove(ctx context.Context, healthCheckAddress s
 	return nil
 }
 
-func (g *loadBalancerInMemRepo) ListByRealm(ctx context.Context, realmID uint32) ([]LoadBalancerServer, error) {
+func (g *gatewayInMemRepo) ListByRealm(ctx context.Context, realmID uint32) ([]GatewayServer, error) {
 	g.mutex.RLock()
 	defer g.mutex.RUnlock()
 
-	result := []LoadBalancerServer{}
+	result := []GatewayServer{}
 	for _, v := range g.storage {
 		if v.RealmID == realmID {
 			result = append(result, *v)

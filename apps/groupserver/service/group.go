@@ -54,10 +54,10 @@ type GroupsService interface {
 	SetDungeonDifficulty(ctx context.Context, realmID uint32, updaterGUID uint64, difficulty uint8) error
 	SetRaidDifficulty(ctx context.Context, realmID uint32, updaterGUID uint64, difficulty uint8) error
 
-	// LBCharacterLoggedInHandler updates cache with player logged in.
-	events.LBCharacterLoggedInHandler
-	// LBCharacterLoggedOutHandler updates cache with player logged out.
-	events.LBCharacterLoggedOutHandler
+	// GWCharacterLoggedInHandler updates cache with player logged in.
+	events.GWCharacterLoggedInHandler
+	// GWCharacterLoggedOutHandler updates cache with player logged out.
+	events.GWCharacterLoggedOutHandler
 }
 
 func NewGroupsService(r repo.GroupsRepo, charClient pb.CharactersServiceClient, ep events.GroupServiceProducer) GroupsService {
@@ -598,7 +598,7 @@ func (g groupServiceImpl) SetRaidDifficulty(ctx context.Context, realmID uint32,
 	return nil
 }
 
-func (g groupServiceImpl) HandleCharacterLoggedIn(payload events.LBEventCharacterLoggedInPayload) error {
+func (g groupServiceImpl) HandleCharacterLoggedIn(payload events.GWEventCharacterLoggedInPayload) error {
 	p, err := g.buildGroupMemberOnlineStatusChangedPayload(payload.RealmID, payload.CharGUID)
 	if err != nil {
 		return err
@@ -612,7 +612,7 @@ func (g groupServiceImpl) HandleCharacterLoggedIn(payload events.LBEventCharacte
 	return g.ep.GroupMemberOnlineStatusChanged(p)
 }
 
-func (g groupServiceImpl) HandleCharacterLoggedOut(payload events.LBEventCharacterLoggedOutPayload) error {
+func (g groupServiceImpl) HandleCharacterLoggedOut(payload events.GWEventCharacterLoggedOutPayload) error {
 	p, err := g.buildGroupMemberOnlineStatusChangedPayload(payload.RealmID, payload.CharGUID)
 	if err != nil {
 		return err

@@ -25,16 +25,16 @@ func NewServersRegistryListener(charRepo repo.CharactersRepo, nc *nats.Conn) *Se
 
 func (c *ServersRegistryListener) Listen() error {
 	sb, err := c.nc.Subscribe(events.ServerRegistryEventLBRemovedUnhealthy.SubjectName(), func(msg *nats.Msg) {
-		payload := events.ServerRegistryEventLBRemovedUnhealthyPayload{}
+		payload := events.ServerRegistryEventGWRemovedUnhealthyPayload{}
 		_, err := events.Unmarshal(msg.Data, &payload)
 		if err != nil {
-			log.Error().Err(err).Msg("can't read LBEventCharacterLoggedIn (payload part) event")
+			log.Error().Err(err).Msg("can't read GWEventCharacterLoggedIn (payload part) event")
 			return
 		}
 
 		err = c.charRepo.RemoveCharactersWithRealm(context.TODO(), payload.RealmID)
 		if err != nil {
-			log.Error().Err(err).Msg("can't add character in LBEventCharacterLoggedIn event")
+			log.Error().Err(err).Msg("can't add character in GWEventCharacterLoggedIn event")
 			return
 		}
 	})

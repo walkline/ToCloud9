@@ -12,10 +12,10 @@ type GroupsCache interface {
 	// GroupsRepo Since cache is also a proxy we need to have same interface.
 	repo.GroupsRepo
 
-	// LBCharacterLoggedInHandler updates cache with player logged in.
-	events.LBCharacterLoggedInHandler
-	// LBCharacterLoggedOutHandler updates cache with player logged out.
-	events.LBCharacterLoggedOutHandler
+	// GWCharacterLoggedInHandler updates cache with player logged in.
+	events.GWCharacterLoggedInHandler
+	// GWCharacterLoggedOutHandler updates cache with player logged out.
+	events.GWCharacterLoggedOutHandler
 
 	// Warmup called on startup to warmup cache if possible.
 	Warmup(ctx context.Context, realmID uint32) error

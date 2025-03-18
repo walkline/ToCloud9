@@ -1,0 +1,101 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata: {{ $fullname := printf "%s-%s" .Release.Name .Chart.Name | trunc 63 | trimSuffix "-" }}
+  name: {{ $fullname }}-gateway
+  labels:
+    chart: "{{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}"
+spec:
+  selector:
+    matchLabels:
+      app: {{ $fullname }}-gateway
+  replicas: {{ default 1 .Values.gateway.replicaCount | int }}
+  template:
+    metadata:
+      labels:
+        app: {{ $fullname }}-gateway
+    spec:
+      containers:
+      - name: {{ .Release.Name }}-gateway
+        image: "{{ .Values.gateway.image.repository }}:{{ .Values.gateway.image.tag }}"
+        imagePullPolicy: {{ .Values.gateway.image.pullPolicy | toString }}
+        env:
+        - name: PREFERRED_HOSTNAME
+          {{- if and .Values.gateway.hostname (ne .Values.gateway.hostname "") }}
+          value: {{ .Values.gateway.hostname }}
+          {{- else }}
+          valueFrom:
+            fieldRef:
+              fieldPath: status.hostIP
+          {{- end }}
+        - name: LOG_LEVEL
+          value: "0"
+        - name: HEALTH_CHECK_PORT
+          value: "8900"
+        - name: PORT
+          value: "{{ .Values.gateway.port }}"
+        - name: REDIS_URL
+          value: redis://{{ .Release.Name }}-redis-headless:6379/0
+        - name: NATS_URL
+          value: nats://{{ .Release.Name }}-nats:4222
+        - name: SERVERS_REGISTRY_SERVICE_ADDRESS
+          value: {{ .Release.Name }}-servers-registry:{{ .Values.servers_registry.service.externalPort}}
+        - name: CHAR_SERVICE_ADDRESS
+          value: {{ .Release.Name }}-charserver:{{ .Values.charserver.service.externalPort}}
+        - name: CHAT_SERVICE_ADDRESS
+          value: {{ .Release.Name }}-chatserver:{{ .Values.chatserver.service.externalPort}}
+        - name: GUILDS_SERVICE_ADDRESS
+          value: {{ .Release.Name }}-guildserver:{{ .Values.guildserver.service.externalPort}}
+        - name: MAIL_SERVICE_ADDRESS
+          value: {{ .Release.Name }}-mailserver:{{ .Values.mailserver.service.externalPort}}
+        - name: GROUP_SERVICE_ADDRESS
+          value: {{ .Release.Name }}-groupserver:{{ .Values.groupserver.service.externalPort}}
+        - name: DB_SCHEMA_TYPE
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Release.Name }}-databases-config
+              key: schema_type
+        - name: AUTH_DB_CONNECTION
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Release.Name }}-databases-config
+              key: AUTH_DB_CONNECTION
+        ports:
+        - name: debug
+          containerPort: 8333
+        - name: service
+          containerPort: {{ .Values.gateway.port | int  }}
+        - name: health
+          containerPort: 8900
+        - containerPort: 4000
+        # livenessProbe:
+        #   httpGet:
+        #     path: /
+        #     port: {{ .Values.gateway.service.internalPort | int }}
+        # readinessProbe:
+        #   httpGet:
+        #     path: /
+        #     port: {{ .Values.gateway.service.internalPort | int }}
+        securityContext:
+          capabilities:
+            drop: ["ALL"]
+          seccompProfile:
+            type: RuntimeDefault
+          # runAsNonRoot: true
+          allowPrivilegeEscalation: false
+        resources:
+{{ toYaml .Values.resources | indent 10 }}
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-gateway
+  labels:
+    chart: "{{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}"
+spec:
+  type: {{ .Values.gateway.service.type }}
+  ports:
+  - port: {{ .Values.gateway.port | int  }}
+    targetPort: {{ .Values.gateway.port | int  }}
+  selector:
+    app: {{ $fullname }}-gateway

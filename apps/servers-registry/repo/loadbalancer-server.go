@@ -2,7 +2,7 @@ package repo
 
 import "context"
 
-type LoadBalancerServer struct {
+type GatewayServer struct {
 	ID                string
 	Address           string
 	HealthCheckAddr   string
@@ -10,17 +10,17 @@ type LoadBalancerServer struct {
 	ActiveConnections int
 }
 
-func (g *LoadBalancerServer) HealthCheckAddress() string {
+func (g *GatewayServer) HealthCheckAddress() string {
 	return g.HealthCheckAddr
 }
 
-func (g *LoadBalancerServer) MetricsAddress() string {
+func (g *GatewayServer) MetricsAddress() string {
 	return g.HealthCheckAddr
 }
 
-type LoadBalancerRepo interface {
-	Add(context.Context, *LoadBalancerServer) (*LoadBalancerServer, error)
-	Update(ctx context.Context, id string, f func(LoadBalancerServer) LoadBalancerServer) error
+type GatewayRepo interface {
+	Add(context.Context, *GatewayServer) (*GatewayServer, error)
+	Update(ctx context.Context, id string, f func(GatewayServer) GatewayServer) error
 	Remove(ctx context.Context, healthCheckAddress string) error
-	ListByRealm(ctx context.Context, realmID uint32) ([]LoadBalancerServer, error)
+	ListByRealm(ctx context.Context, realmID uint32) ([]GatewayServer, error)
 }

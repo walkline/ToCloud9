@@ -8,8 +8,8 @@ import (
 
 //go:generate mockery --name=ServerRegistryProducer
 type ServerRegistryProducer interface {
-	LBAdded(payload *ServerRegistryEventLBAddedPayload) error
-	LBRemovedUnhealthy(payload *ServerRegistryEventLBRemovedUnhealthyPayload) error
+	GatewayAdded(payload *ServerRegistryEventGWAddedPayload) error
+	GatewayRemovedUnhealthy(payload *ServerRegistryEventGWRemovedUnhealthyPayload) error
 	GSMapsReassigned(payload *ServerRegistryEventGSMapsReassignedPayload) error
 	GSAdded(payload *ServerRegistryEventGSAddedPayload) error
 	GSRemoved(payload *ServerRegistryEventGSRemovedPayload) error
@@ -27,11 +27,11 @@ func NewServerRegistryProducerNatsJSON(conn *nats.Conn, ver string) ServerRegist
 	}
 }
 
-func (s serverRegistryProducerNatsJSON) LBAdded(payload *ServerRegistryEventLBAddedPayload) error {
+func (s serverRegistryProducerNatsJSON) GatewayAdded(payload *ServerRegistryEventGWAddedPayload) error {
 	return s.publish(ServerRegistryEventLBAdded, payload)
 }
 
-func (s serverRegistryProducerNatsJSON) LBRemovedUnhealthy(payload *ServerRegistryEventLBRemovedUnhealthyPayload) error {
+func (s serverRegistryProducerNatsJSON) GatewayRemovedUnhealthy(payload *ServerRegistryEventGWRemovedUnhealthyPayload) error {
 	return s.publish(ServerRegistryEventLBRemovedUnhealthy, payload)
 }
 

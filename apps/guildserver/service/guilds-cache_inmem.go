@@ -324,7 +324,7 @@ func (g *guildsInMemCache) Warmup(ctx context.Context, realmID uint32) error {
 }
 
 // HandleCharacterLoggedIn updates cache with player logged in.
-func (g *guildsInMemCache) HandleCharacterLoggedIn(payload events.LBEventCharacterLoggedInPayload) error {
+func (g *guildsInMemCache) HandleCharacterLoggedIn(payload events.GWEventCharacterLoggedInPayload) error {
 	g.cacheMutex.Lock()
 	member := g.guildMembersCache[payload.RealmID][payload.CharGUID]
 	if member != nil {
@@ -335,7 +335,7 @@ func (g *guildsInMemCache) HandleCharacterLoggedIn(payload events.LBEventCharact
 }
 
 // HandleCharacterLoggedOut updates cache with player logged out.
-func (g *guildsInMemCache) HandleCharacterLoggedOut(payload events.LBEventCharacterLoggedOutPayload) error {
+func (g *guildsInMemCache) HandleCharacterLoggedOut(payload events.GWEventCharacterLoggedOutPayload) error {
 	g.cacheMutex.Lock()
 	member := g.guildMembersCache[payload.RealmID][payload.CharGUID]
 	if member != nil {
@@ -347,7 +347,7 @@ func (g *guildsInMemCache) HandleCharacterLoggedOut(payload events.LBEventCharac
 }
 
 // HandleCharactersUpdates updates cache with pack of characters updates.
-func (g *guildsInMemCache) HandleCharactersUpdates(payload events.LBEventCharactersUpdatesPayload) error {
+func (g *guildsInMemCache) HandleCharactersUpdates(payload events.GWEventCharactersUpdatesPayload) error {
 	g.cacheMutex.Lock()
 	for _, update := range payload.Updates {
 		member := g.guildMembersCache[payload.RealmID][update.ID]

@@ -136,15 +136,15 @@ matchmakingserver:
     internalPort: 8994
     externalPort: 8994
 
-game_lb:
+gateway:
   replicaCount: 3
-  # IP or domain to access this game-load-balancer.
+  # IP or domain to access this gateway.
   # If empty - uses node IP.
   hostname: ""
   # External and internal ports should be the same, so using single value here.
   port: 32766
   image:
-    repository: ghcr.io/walkline/game-load-balancer
+    repository: ghcr.io/walkline/gateway
     pullPolicy: Always
     tag: *defaultImagesTag
   service:

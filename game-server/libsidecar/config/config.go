@@ -14,7 +14,7 @@ type Config struct {
 	// HealthCheckPort is port that would be used to listen for health checks
 	HealthCheckPort string `yaml:"healthCheckPort" env:"HEALTH_CHECK_PORT" env-default:"8901"`
 
-	// PreferredHostname is referred host name that will be used to connect from load balancer and for health checks
+	// PreferredHostname is referred host name that will be used to connect from gateway and for health checks
 	PreferredHostname string `yaml:"preferredHostname" env:"PREFERRED_HOSTNAME"`
 
 	// ServersRegistryServiceAddress is address of servers registry service
