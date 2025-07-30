@@ -1,0 +1,60 @@
+services:
+  database-ac:
+    image: mysql:8.4
+    ports:
+      - "3306:3306"
+    environment:
+      - MYSQL_ROOT_PASSWORD=password
+    volumes:
+      - type: volume
+        source: database_ac
+        target: /var/lib/mysql
+    healthcheck:
+      test: "/usr/bin/mysql --user=root --password=password --execute \"SHOW DATABASES;\""
+      interval: 5s
+      timeout: 10s
+      retries: 40
+
+  database-ac-import:
+    image: acore/ac-wotlk-db-import:master
+    environment:
+      AC_DATA_DIR: "/azerothcore/env/dist/data"
+      AC_LOGS_DIR: "/azerothcore/env/dist/logs"
+      AC_LOGIN_DATABASE_INFO: "${AUTH_DB_HOST};${AUTH_DB_PORT};${AUTH_DB_USER};${AUTH_DB_PASS};${AUTH_DB_NAME}"
+      AC_WORLD_DATABASE_INFO: "${WORLD_DB_HOST};${WORLD_DB_PORT};${WORLD_DB_USER};${WORLD_DB_PASS};${WORLD_DB_NAME}"
+      AC_CHARACTER_DATABASE_INFO: "${CHAR_DB_HOST};${CHAR_DB_PORT};${CHAR_DB_USER};${CHAR_DB_PASS};${CHAR_DB_NAME}"
+    depends_on:
+      database-ac:
+        condition: service_healthy
+
+  database-migrations:
+    image: mysql:8.4
+    environment:
+      CHAR_DB_HOST: "${CHAR_DB_HOST}"
+    volumes:
+      - ./sql/characters/mysql:/custom-sql
+    depends_on:
+      database_ac:
+        condition: service_healthy
+      database_ac_import:
+        condition: service_completed_successfully
+    working_dir: /custom-sql
+    command: ["/bin/bash", "./migrations.bash"]
+
+  client-data:
+    image: acore/ac-wotlk-client-data:master
+    volumes:
+      - client_data:/azerothcore/env/dist/data
+
+  download-worldserver-conf:
+    image: alpine/curl:8.14.1
+    volumes:
+      - core_etc:/config
+    command: >
+      curl -L https://raw.githubusercontent.com/walkline/azerothcore-wotlk/master/src/server/apps/worldserver/worldserver.conf.dist
+      -o /config/worldserver.conf
+    
+volumes:
+  database_ac:
+  client_data:
+  core_etc:
