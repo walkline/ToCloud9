@@ -18,8 +18,6 @@ services:
   database-ac-import:
     image: acore/ac-wotlk-db-import:master
     environment:
-      AC_DATA_DIR: "/azerothcore/env/dist/data"
-      AC_LOGS_DIR: "/azerothcore/env/dist/logs"
       AC_LOGIN_DATABASE_INFO: "${AUTH_DB_HOST};${AUTH_DB_PORT};${AUTH_DB_USER};${AUTH_DB_PASS};${AUTH_DB_NAME}"
       AC_WORLD_DATABASE_INFO: "${WORLD_DB_HOST};${WORLD_DB_PORT};${WORLD_DB_USER};${WORLD_DB_PASS};${WORLD_DB_NAME}"
       AC_CHARACTER_DATABASE_INFO: "${CHAR_DB_HOST};${CHAR_DB_PORT};${CHAR_DB_USER};${CHAR_DB_PASS};${CHAR_DB_NAME}"

@@ -156,8 +156,8 @@ services:
       context: .
       dockerfile: game-server/trinitycore/Dockerfile
     volumes:
-    - ${CORE_ETC_PATH}:/repo/bin/etc
-    - ${CORE_DATA_PATH}:/data
+      - core_etc:/repo/bin/etc
+      - client_data:/data
     environment:
       TC_LOGIN_DATABASE_INFO: ${AUTH_DB_HOST};${AUTH_DB_PORT};${AUTH_DB_USER};${AUTH_DB_PASS};${AUTH_DB_NAME}
       TC_WORLD_DATABASE_INFO: ${WORLD_DB_HOST};${WORLD_DB_PORT};${WORLD_DB_USER};${WORLD_DB_PASS};${WORLD_DB_NAME}
@@ -217,3 +217,7 @@ services:
     command: redis-server --save 20 1 --loglevel warning
     volumes:
       - ./cache:/data
+
+volumes:
+  core_etc:
+  client_data:
