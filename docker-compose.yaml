@@ -180,8 +180,8 @@ services:
       context: .
       dockerfile: game-server/azerothcore/Dockerfile
     volumes:
-      - ${CORE_ETC_PATH}:/repo/bin/etc
-      - ${CORE_DATA_PATH}:/data
+      - core_etc:/repo/bin/etc
+      - client_data:/data
     environment:
       AC_LOGIN_DATABASE_INFO: ${AUTH_DB_HOST};${AUTH_DB_PORT};${AUTH_DB_USER};${AUTH_DB_PASS};${AUTH_DB_NAME}
       AC_WORLD_DATABASE_INFO: ${WORLD_DB_HOST};${WORLD_DB_PORT};${WORLD_DB_USER};${WORLD_DB_PASS};${WORLD_DB_NAME}
