@@ -289,7 +289,7 @@ services:
     profiles:
       - tc
 
-  gameserver_ac:
+  gameserver-ac:
     build:
       context: .
       dockerfile: game-server/azerothcore/Dockerfile
