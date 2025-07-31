@@ -40,9 +40,9 @@ services:
     volumes:
       - ./sql/characters/mysql:/custom-sql
     depends_on:
-      database_ac:
+      database-ac:
         condition: service_healthy
-      database_ac_import:
+      database-ac-import:
         condition: service_completed_successfully
     working_dir: /custom-sql
     command: ["/bin/bash", "./migrations.bash"]
