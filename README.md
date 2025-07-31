@@ -56,18 +56,17 @@ __Steps:__
 1. Fill in `.env` file with relevant data.
 2. Start the setup containers with:
 
-```
+```bash
 $ docker-compose --profile setup-ac up -d
 ```
-
 3. Wait until all setup containers (except the database) have stopped, then bring everything down safely:
 
-```
+```bash
 $ docker-compose down
 ```
 4. Start the server normally:
 
-```
+```bash
 $ docker-compose --profile ac up -d
 ```
 ### Without Docker/Orchestration
