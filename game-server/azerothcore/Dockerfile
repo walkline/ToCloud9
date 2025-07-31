@@ -84,7 +84,7 @@ COPY sql/characters/mysql /repo/data/sql/custom/db_characters
 
 WORKDIR /repo/bin
 
-ENTRYPOINT ["./worldserver"]
+ENTRYPOINT ["./dbimport"]
 
 FROM ubuntu:22.04 AS gameserver
 

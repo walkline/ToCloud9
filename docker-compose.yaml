@@ -91,6 +91,9 @@ services:
       LOG_LEVEL: 0
       PORT: 8085
       NATS_URL: nats://nats:4222
+    profiles:
+      - ac
+      - tc
 
   gateway-second:
     build:
@@ -114,6 +117,9 @@ services:
       LOG_LEVEL: 0
       PORT: 8045
       NATS_URL: nats://nats:4222
+    profiles:
+      - ac
+      - tc
 
   servers-registry:
     build:
@@ -126,6 +132,9 @@ services:
     environment:
       PORT: 8999
       REDIS_URL: redis://:@redis:6379/0
+    profiles:
+      - ac
+      - tc
 
   authserver:
     build:
@@ -138,6 +147,9 @@ services:
       AUTH_DB_CONNECTION: ${AUTH_DB_USER}:${AUTH_DB_PASS}@tcp(${AUTH_DB_HOST}:${AUTH_DB_PORT})/${AUTH_DB_NAME}
       DB_SCHEMA_TYPE: ${DATABASE_SCHEMA_TYPE}
       SERVERS_REGISTRY_SERVICE_ADDRESS: servers-registry:8999
+    profiles:
+      - ac
+      - tc
 
   charserver:
     build:
@@ -149,6 +161,9 @@ services:
       PORT: 8087
       CHAR_DB_CONNECTION: 1:${CHAR_DB_USER}:${CHAR_DB_PASS}@tcp(${CHAR_DB_HOST}:${CHAR_DB_PORT})/${CHAR_DB_NAME}
       WORLD_DB_CONNECTION: ${WORLD_DB_USER}:${WORLD_DB_PASS}@tcp(${WORLD_DB_HOST}:${WORLD_DB_PORT})/${WORLD_DB_NAME}
+    profiles:
+      - ac
+      - tc
 
   chatserver:
     build:
@@ -157,6 +172,9 @@ services:
     environment:
       NATS_URL: nats://nats:4222
       PORT: 8992
+    profiles:
+      - ac
+      - tc
 
   guildserver:
     build:
@@ -168,6 +186,9 @@ services:
       CHAR_DB_CONNECTION: 1:${CHAR_DB_USER}:${CHAR_DB_PASS}@tcp(${CHAR_DB_HOST}:${CHAR_DB_PORT})/${CHAR_DB_NAME}
       NATS_URL: nats://nats:4222
       PORT: 8995
+    profiles:
+      - ac
+      - tc
 
   guidserver:
     build:
@@ -181,6 +202,9 @@ services:
       PORT: 8996
     ports:
       - '8996:8996'
+    profiles:
+      - ac
+      - tc
 
   mailserver:
     build:
@@ -192,6 +216,9 @@ services:
       PORT: 8997
     ports:
       - '8997:8997'
+    profiles:
+      - ac
+      - tc
 
   groupserver:
     build:
@@ -203,6 +230,9 @@ services:
       PORT: 8998
     ports:
       - '8998:8998'
+    profiles:
+      - ac
+      - tc
 
   matchmakingserver:
     build:
@@ -217,6 +247,9 @@ services:
       PORT: 8994
     ports:
       - '8994:8994'
+    profiles:
+      - ac
+      - tc
 
   gameserver_tc:
     build:
@@ -277,6 +310,9 @@ services:
 #      - "4222:4222"
 #      - "8222:8222"
     hostname: nats-server
+    profiles:
+      - ac
+      - tc
 
   redis:
     image: redis:7.2-alpine
@@ -285,6 +321,9 @@ services:
     command: redis-server --save 20 1 --loglevel warning
     volumes:
       - ./cache:/data
+    profiles:
+      - ac
+      - tc
 
 volumes:
   database_ac:
