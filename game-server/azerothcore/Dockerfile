@@ -50,7 +50,7 @@ RUN cd bin && \
         -DWITH_COREDEBUG=0 \
         -DUSE_COREPCH=1 \
         -DUSE_SCRIPTPCH=1 \
-        -DTOOLS=0 \
+        -DTOOLS_BUILD=db-only \
         -DSCRIPTS=static \
         -DSERVERS=1 \
         -DCMAKE_BUILD_TYPE=RelWithDebInfo \
@@ -64,7 +64,29 @@ WORKDIR /repo/bin
 RUN cmake --build . --config "RelWithDebInfo" -j $(($(nproc) + 1))
 RUN cmake --install . --config "RelWithDebInfo"
 
-FROM ubuntu:22.04
+FROM ubuntu:22.04 AS db-import
+
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+      libmysqlclient21 libreadline8 \
+      gettext-base default-mysql-client && \
+    rm -rf /var/lib/apt/lists/*
+
+
+COPY --from=build-sidecar ./go/src/github.com/walkline/ToCloud9/libsidecar.so /usr/lib/libsidecar.so
+
+# The paths are hardcoded in the binary
+COPY --from=build-core /repo/data /repo/data
+COPY --from=build-core /repo/bin/bin/dbimport /repo/bin/dbimport
+COPY --from=build-core /repo/bin/etc/dbimport.conf.dist /repo/bin/etc/dbimport.conf
+
+COPY sql/characters/mysql /repo/data/sql/custom/db_characters
+
+WORKDIR /repo/bin
+
+ENTRYPOINT ["./worldserver"]
+
+FROM ubuntu:22.04 AS gameserver
 
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
@@ -76,7 +98,6 @@ COPY --from=build-sidecar ./go/src/github.com/walkline/ToCloud9/libsidecar.so /u
 
 COPY --from=build-core /repo/bin/etc/worldserver.conf.dist /repo/bin/etc/worldserver.conf
 COPY --from=build-core /repo/bin/bin/worldserver /repo/bin/worldserver
-COPY --from=build-core /repo/data/sql/ /repo/data/sql/
 
 WORKDIR /repo/bin
 
