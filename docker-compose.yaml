@@ -33,22 +33,6 @@ services:
     profiles:
       - setup-ac
     
-  database-migrations:
-    image: mysql:8.4
-    environment:
-      CHAR_DB_HOST: "${CHAR_DB_HOST}"
-    volumes:
-      - ./sql/characters/mysql:/custom-sql
-    depends_on:
-      database-ac:
-        condition: service_healthy
-      database-ac-import:
-        condition: service_completed_successfully
-    working_dir: /custom-sql
-    command: ["/bin/bash", "./migrations.bash"]
-    profiles:
-      - setup-ac
-
   client-data:
     image: acore/ac-wotlk-client-data:master
     volumes:
