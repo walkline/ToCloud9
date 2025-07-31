@@ -50,19 +50,24 @@ Utilize the [helm chart](chart/) to seamlessly deploy the solution in your Kuber
 ### Docker-Compose
 
 __Prerequisites:__
-* Database for TrinityCore or AzerothCore;
-* TrinityCore or AzerothCore data folder (dbc, vmaps, mmaps) and config (ect folder).
 * [Docker & docker-compose](https://www.docker.com/products/docker-desktop) (for 'Docker-compose' approach);
 
 __Steps:__
 1. Fill in `.env` file with relevant data.
-2. Apply migrations to the characters DB from this folder - sql/characters/mysql/*
-3. 
-```
-# For TrinityCore:
-$ docker-compose --profile tc up -d
+2. Start the setup containers with:
 
-# For AzerothCore:
+```
+$ docker-compose --profile setup-ac up -d
+```
+
+3. Wait until all setup containers (except the database) have stopped, then bring everything down safely:
+
+```
+$ docker-compose down
+```
+4. Start the server normally:
+
+```
 $ docker-compose --profile ac up -d
 ```
 ### Without Docker/Orchestration
