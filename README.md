@@ -47,24 +47,32 @@ Currently, it is possible to play the game, but some functionalities still do no
 
 Utilize the [helm chart](chart/) to seamlessly deploy the solution in your Kubernetes cluster. Kudos to [@2o1o0](https://github.com/2o1o0) for the solution.
 
-### Docker-Compose
+### Docker Compose
 
 __Prerequisites:__
-* Database for TrinityCore or AzerothCore;
-* TrinityCore or AzerothCore data folder (dbc, vmaps, mmaps) and config (ect folder).
-* [Docker & docker-compose](https://www.docker.com/products/docker-desktop) (for 'Docker-compose' approach);
+* [Docker & Docker Compose](https://www.docker.com/products/docker-desktop) (for 'Docker Compose' approach);
 
 __Steps:__
 1. Fill in `.env` file with relevant data.
-2. Apply migrations to the characters DB from this folder - sql/characters/mysql/*
-3. 
-```
-# For TrinityCore:
-$ docker-compose --profile tc up -d
+2. Start the setup containers with:
 
-# For AzerothCore:
-$ docker-compose --profile ac up -d
+```bash
+$ docker compose --profile setup-ac up -d
 ```
+3. Wait until all setup containers (except the database) have stopped, then bring everything down safely:
+
+```bash
+$ docker compose down
+```
+4. Start the server normally:
+
+```bash
+$ docker compose --profile ac up -d
+```
+
+> [!NOTE]
+> There's an default admin account included with the credentials `admin:admin`, be sure to change the password
+
 ### Without Docker/Orchestration
 
 For Windows & AzerothCore [use this guide](doc/RunNonDockerWinWSLAzerothCore.md).

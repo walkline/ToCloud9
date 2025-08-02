@@ -1,0 +1,3 @@
+INSERT INTO acore_auth.account (id, username, salt, verifier, session_key, totp_secret, email, reg_mail, joindate, last_ip, last_attempt_ip, failed_logins, locked, lock_country, last_login, online, expansion, mutetime, mutereason, muteby, locale, os, recruiter, totaltime) VALUES (1, 'ADMIN', 0x9140667E6B813C4057EB9ED0265FD5349A4DD0CDEF726887F848DE9F84629C91, 0x3C3887BAE646B9F53D26EF8BA800546C32DE2D397575F31A791A56AEB5685638, 0xA18792D37F1F4A6961F7CE4BEEBC4F0661DB1445F441AC131C1A3611CB1720E54488CA3561855556, null, '', '', '2024-02-07 23:12:39', '192.168.178.22', '192.168.178.22', 0, 0, '00', '2025-07-30 13:28:49', 0, 2, 0, '', '', 0, 'Win', 0, 2050391);
+
+INSERT INTO acore_auth.account_access (id, gmlevel, RealmID, comment) VALUES (1, 3, -1, '');

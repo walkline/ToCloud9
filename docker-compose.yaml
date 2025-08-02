@@ -1,4 +1,52 @@
 services:
+  database-ac:
+    image: mysql:8.4
+    ports:
+      - "3306:3306"
+    environment:
+      - MYSQL_ROOT_PASSWORD=password # Inits default password for the root user
+    volumes:
+      - type: volume
+        source: database_ac
+        target: /var/lib/mysql
+    healthcheck:
+      test: "/usr/bin/mysql --user=root --password=password --execute \"SHOW DATABASES;\""
+      interval: 5s
+      timeout: 10s
+      retries: 40
+    profiles:
+      - ac
+      - setup-ac
+
+  database-ac-import:
+    build:
+      context: .
+      dockerfile: game-server/azerothcore/Dockerfile
+      target: db-import
+    environment:
+      AC_LOGIN_DATABASE_INFO: "${AUTH_DB_HOST};${AUTH_DB_PORT};${AUTH_DB_USER};${AUTH_DB_PASS};${AUTH_DB_NAME}"
+      AC_WORLD_DATABASE_INFO: "${WORLD_DB_HOST};${WORLD_DB_PORT};${WORLD_DB_USER};${WORLD_DB_PASS};${WORLD_DB_NAME}"
+      AC_CHARACTER_DATABASE_INFO: "${CHAR_DB_HOST};${CHAR_DB_PORT};${CHAR_DB_USER};${CHAR_DB_PASS};${CHAR_DB_NAME}"
+    depends_on:
+      database-ac:
+        condition: service_healthy
+    profiles:
+      - setup-ac
+
+  download-miscs:
+    image: alpine/curl:8.14.1
+    volumes:
+      - core_etc:/config
+      - client_data:/data
+    command: >
+      sh -c "curl -L https://raw.githubusercontent.com/walkline/azerothcore-wotlk/cluster-mode/src/server/apps/worldserver/worldserver.conf.dist -o /config/worldserver.conf &&
+      mkdir -p /data && cd /data &&
+      curl -L -o data.zip https://github.com/wowgaming/client-data/releases/download/v16/data.zip &&
+      unzip -q data.zip &&
+      rm -f data.zip"
+    profiles:
+      - setup-ac
+  
   gateway:
     build:
       context: .
@@ -9,7 +57,10 @@ services:
       - "8900:8900"
       - "4000:4000"
     depends_on:
-      - servers-registry
+      servers-registry:
+        condition: service_started
+      database-ac:
+        condition: service_healthy
     environment:
       SERVERS_REGISTRY_SERVICE_ADDRESS: servers-registry:8999
       CHAR_SERVICE_ADDRESS: charserver:8087
@@ -24,6 +75,9 @@ services:
       LOG_LEVEL: 0
       PORT: 8085
       NATS_URL: nats://nats:4222
+    profiles:
+      - ac
+      - tc
 
   gateway-second:
     build:
@@ -32,7 +86,10 @@ services:
     ports:
       - "8045:8045"
     depends_on:
-      - servers-registry
+      servers-registry:
+        condition: service_started
+      database-ac:
+        condition: service_healthy
     environment:
       SERVERS_REGISTRY_SERVICE_ADDRESS: servers-registry:8999
       CHAR_SERVICE_ADDRESS: charserver:8087
@@ -47,6 +104,9 @@ services:
       LOG_LEVEL: 0
       PORT: 8045
       NATS_URL: nats://nats:4222
+    profiles:
+      - ac
+      - tc
 
   servers-registry:
     build:
@@ -55,15 +115,22 @@ services:
     ports:
       - "8999:8999"
     depends_on:
-      - redis
+      redis:
+        condition: service_started
     environment:
       PORT: 8999
       REDIS_URL: redis://:@redis:6379/0
+    profiles:
+      - ac
+      - tc
 
   authserver:
     build:
       context: .
       dockerfile: apps/authserver/Dockerfile
+    depends_on:
+      database-ac:
+        condition: service_healthy
     ports:
       - "3724:3724"
     environment:
@@ -71,17 +138,28 @@ services:
       AUTH_DB_CONNECTION: ${AUTH_DB_USER}:${AUTH_DB_PASS}@tcp(${AUTH_DB_HOST}:${AUTH_DB_PORT})/${AUTH_DB_NAME}
       DB_SCHEMA_TYPE: ${DATABASE_SCHEMA_TYPE}
       SERVERS_REGISTRY_SERVICE_ADDRESS: servers-registry:8999
+    profiles:
+      - ac
+      - tc
 
   charserver:
     build:
       context: .
       dockerfile: apps/charserver/Dockerfile
+    depends_on:
+      servers-registry:
+        condition: service_started
+      database-ac:
+        condition: service_healthy
     ports:
       - "8087:8087"
     environment:
       PORT: 8087
       CHAR_DB_CONNECTION: 1:${CHAR_DB_USER}:${CHAR_DB_PASS}@tcp(${CHAR_DB_HOST}:${CHAR_DB_PORT})/${CHAR_DB_NAME}
       WORLD_DB_CONNECTION: ${WORLD_DB_USER}:${WORLD_DB_PASS}@tcp(${WORLD_DB_HOST}:${WORLD_DB_PORT})/${WORLD_DB_NAME}
+    profiles:
+      - ac
+      - tc
 
   chatserver:
     build:
@@ -90,57 +168,87 @@ services:
     environment:
       NATS_URL: nats://nats:4222
       PORT: 8992
+    profiles:
+      - ac
+      - tc
 
   guildserver:
     build:
       context: .
       dockerfile: apps/guildserver/Dockerfile
     depends_on:
-      - nats
+      nats:
+        condition: service_started
+      database-ac:
+        condition: service_healthy
     environment:
       CHAR_DB_CONNECTION: 1:${CHAR_DB_USER}:${CHAR_DB_PASS}@tcp(${CHAR_DB_HOST}:${CHAR_DB_PORT})/${CHAR_DB_NAME}
       NATS_URL: nats://nats:4222
       PORT: 8995
+    profiles:
+      - ac
+      - tc
 
   guidserver:
     build:
       context: .
       dockerfile: apps/guidserver/Dockerfile
     depends_on:
-      - redis
+      redis:
+        condition: service_started
+      database-ac:
+        condition: service_healthy
     environment:
       CHAR_DB_CONNECTION: 1:${CHAR_DB_USER}:${CHAR_DB_PASS}@tcp(${CHAR_DB_HOST}:${CHAR_DB_PORT})/${CHAR_DB_NAME}
       REDIS_URL: redis://:@redis:6379/0
       PORT: 8996
     ports:
       - '8996:8996'
+    profiles:
+      - ac
+      - tc
 
   mailserver:
     build:
       context: .
       dockerfile: apps/mailserver/Dockerfile
+    depends_on:
+      database-ac:
+        condition: service_healthy
     environment:
       CHAR_DB_CONNECTION: 1:${CHAR_DB_USER}:${CHAR_DB_PASS}@tcp(${CHAR_DB_HOST}:${CHAR_DB_PORT})/${CHAR_DB_NAME}
       NATS_URL: nats://nats:4222
       PORT: 8997
     ports:
       - '8997:8997'
+    profiles:
+      - ac
+      - tc
 
   groupserver:
     build:
       context: .
       dockerfile: apps/groupserver/Dockerfile
+    depends_on:
+      database-ac:
+        condition: service_healthy
     environment:
       CHAR_DB_CONNECTION: 1:${CHAR_DB_USER}:${CHAR_DB_PASS}@tcp(${CHAR_DB_HOST}:${CHAR_DB_PORT})/${CHAR_DB_NAME}
       NATS_URL: nats://nats:4222
       PORT: 8998
     ports:
       - '8998:8998'
+    profiles:
+      - ac
+      - tc
 
   matchmakingserver:
     build:
       context: .
       dockerfile: apps/matchmakingserver/Dockerfile
+    depends_on:
+      database-ac:
+        condition: service_healthy
     environment:
       CHAR_DB_CONNECTION: 1:${CHAR_DB_USER}:${CHAR_DB_PASS}@tcp(${CHAR_DB_HOST}:${CHAR_DB_PORT})/${CHAR_DB_NAME}
       WORLD_DB_CONNECTION: ${WORLD_DB_USER}:${WORLD_DB_PASS}@tcp(${WORLD_DB_HOST}:${WORLD_DB_PORT})/${WORLD_DB_NAME}
@@ -150,14 +258,17 @@ services:
       PORT: 8994
     ports:
       - '8994:8994'
+    profiles:
+      - ac
+      - tc
 
   gameserver_tc:
     build:
       context: .
       dockerfile: game-server/trinitycore/Dockerfile
     volumes:
-    - ${CORE_ETC_PATH}:/repo/bin/etc
-    - ${CORE_DATA_PATH}:/data
+      - core_etc:/repo/bin/etc
+      - client_data:/data
     environment:
       TC_LOGIN_DATABASE_INFO: ${AUTH_DB_HOST};${AUTH_DB_PORT};${AUTH_DB_USER};${AUTH_DB_PASS};${AUTH_DB_NAME}
       TC_WORLD_DATABASE_INFO: ${WORLD_DB_HOST};${WORLD_DB_PORT};${WORLD_DB_USER};${WORLD_DB_PASS};${WORLD_DB_NAME}
@@ -175,13 +286,17 @@ services:
     profiles:
       - tc
 
-  gameserver_ac:
+  gameserver-ac:
     build:
       context: .
       dockerfile: game-server/azerothcore/Dockerfile
+      target: gameserver
+    depends_on:
+      database-ac:
+        condition: service_healthy
     volumes:
-      - ${CORE_ETC_PATH}:/repo/bin/etc
-      - ${CORE_DATA_PATH}:/data
+      - core_etc:/repo/bin/etc
+      - client_data:/data
     environment:
       AC_LOGIN_DATABASE_INFO: ${AUTH_DB_HOST};${AUTH_DB_PORT};${AUTH_DB_USER};${AUTH_DB_PASS};${AUTH_DB_NAME}
       AC_WORLD_DATABASE_INFO: ${WORLD_DB_HOST};${WORLD_DB_PORT};${WORLD_DB_USER};${WORLD_DB_PASS};${WORLD_DB_NAME}
@@ -209,6 +324,9 @@ services:
 #      - "4222:4222"
 #      - "8222:8222"
     hostname: nats-server
+    profiles:
+      - ac
+      - tc
 
   redis:
     image: redis:7.2-alpine
@@ -217,3 +335,11 @@ services:
     command: redis-server --save 20 1 --loglevel warning
     volumes:
       - ./cache:/data
+    profiles:
+      - ac
+      - tc
+
+volumes:
+  database_ac:
+  client_data:
+  core_etc:
