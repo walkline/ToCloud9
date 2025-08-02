@@ -32,21 +32,18 @@ services:
         condition: service_healthy
     profiles:
       - setup-ac
-    
-  client-data:
-    image: acore/ac-wotlk-client-data:master
-    volumes:
-      - client_data:/azerothcore/env/dist/data
-    profiles:
-      - setup-ac
 
-  download-worldserver-conf:
+  download-miscs:
     image: alpine/curl:8.14.1
     volumes:
       - core_etc:/config
+      - client_data:/data
     command: >
-      curl -L https://raw.githubusercontent.com/walkline/azerothcore-wotlk/master/src/server/apps/worldserver/worldserver.conf.dist
-      -o /config/worldserver.conf
+      sh -c "curl -L https://raw.githubusercontent.com/walkline/azerothcore-wotlk/cluster-mode/src/server/apps/worldserver/worldserver.conf.dist -o /config/worldserver.conf &&
+      mkdir -p /data && cd /data &&
+      curl -L -o data.zip https://github.com/wowgaming/client-data/releases/download/v16/data.zip &&
+      unzip -q data.zip &&
+      rm -f data.zip"
     profiles:
       - setup-ac
   
