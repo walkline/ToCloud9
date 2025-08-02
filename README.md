@@ -70,8 +70,8 @@ $ docker compose down
 $ docker compose --profile ac up -d
 ```
 
-[!NOTE]
-There's an default admin account included (admin:admin), be sure to change the password
+> [!NOTE]
+> There's an default admin account included (admin:admin), be sure to change the password
 
 ### Without Docker/Orchestration
 
