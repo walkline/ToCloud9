@@ -80,6 +80,7 @@ COPY --from=build-core /repo/data /repo/data
 COPY --from=build-core /repo/bin/bin/dbimport /repo/bin/dbimport
 COPY --from=build-core /repo/bin/etc/dbimport.conf.dist /repo/bin/etc/dbimport.conf
 
+COPY sql/auth/mysql/ /repo/data/sql/custom/db_auth
 COPY sql/characters/mysql/*.up.sql /repo/data/sql/custom/db_characters
 
 WORKDIR /repo/bin

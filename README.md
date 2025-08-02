@@ -69,6 +69,10 @@ $ docker compose down
 ```bash
 $ docker compose --profile ac up -d
 ```
+
+[!NOTE]
+There's an default admin account included (admin:admin), be sure to change the password
+
 ### Without Docker/Orchestration
 
 For Windows & AzerothCore [use this guide](doc/RunNonDockerWinWSLAzerothCore.md).
