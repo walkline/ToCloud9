@@ -235,6 +235,7 @@ message SavePlayerPositionRequest {
   float x = 5;
   float y = 6;
   float z = 7;
+  float o = 8;
 }
 
 message SavePlayerPositionResponse {

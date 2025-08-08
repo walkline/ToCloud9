@@ -29,7 +29,7 @@ func (s CharactersPreparedStatements) Stmt() string {
 	case StmtSelectCharacterWithName:
 		return "SELECT c.guid, account, race, class, gender, level, zone, map, position_x, position_y, position_z, IFNULL(gm.guildid, 0) FROM characters AS c LEFT JOIN guild_member AS gm ON c.guid = gm.guid WHERE name = ?"
 	case StmtUpdateCharacterPosition:
-		return "UPDATE characters SET map = ?, position_x = ?, position_y = ?, position_z = ? WHERE guid = ?"
+		return "UPDATE characters SET map = ?, position_x = ?, position_y = ?, position_z = ?, orientation = ? WHERE guid = ?"
 	}
 
 	panic(fmt.Errorf("unk stmt %d", s))
@@ -218,8 +218,8 @@ func (c CharactersMYSQL) AccountDataForAccountID(ctx context.Context, realmID, a
 	return result, nil
 }
 
-func (c CharactersMYSQL) SaveCharacterPosition(ctx context.Context, realmID uint32, charGUID uint64, mapID uint32, x, y, z float32) error {
-	_, err := c.db.PreparedStatement(realmID, StmtUpdateCharacterPosition).ExecContext(ctx, mapID, x, y, z, charGUID)
+func (c CharactersMYSQL) SaveCharacterPosition(ctx context.Context, realmID uint32, charGUID uint64, mapID uint32, x, y, z, o float32) error {
+	_, err := c.db.PreparedStatement(realmID, StmtUpdateCharacterPosition).ExecContext(ctx, mapID, x, y, z, o, charGUID)
 	if err != nil {
 		return err
 	}

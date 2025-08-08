@@ -32,7 +32,7 @@ func (s *GameSession) HandleMovement(ctx context.Context, p *packet.Packet) erro
 	_ = r.Uint16() // flags2
 	_ = r.Uint32() // time
 
-	s.character.PositionX, s.character.PositionY, s.character.PositionZ = r.Float32(), r.Float32(), r.Float32()
+	s.character.PositionX, s.character.PositionY, s.character.PositionZ, s.character.PositionO = r.Float32(), r.Float32(), r.Float32(), r.Float32()
 
 	return nil
 }

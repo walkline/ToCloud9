@@ -54,7 +54,7 @@ func (_m *ServerRegistryProducer) GSRemoved(payload *events.ServerRegistryEventG
 	return r0
 }
 
-// LBAdded provides a mock function with given fields: payload
+// GatewayAdded provides a mock function with given fields: payload
 func (_m *ServerRegistryProducer) GatewayAdded(payload *events.ServerRegistryEventGWAddedPayload) error {
 	ret := _m.Called(payload)
 
@@ -68,7 +68,7 @@ func (_m *ServerRegistryProducer) GatewayAdded(payload *events.ServerRegistryEve
 	return r0
 }
 
-// LBRemovedUnhealthy provides a mock function with given fields: payload
+// GatewayRemovedUnhealthy provides a mock function with given fields: payload
 func (_m *ServerRegistryProducer) GatewayRemovedUnhealthy(payload *events.ServerRegistryEventGWRemovedUnhealthyPayload) error {
 	ret := _m.Called(payload)
 

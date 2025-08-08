@@ -506,6 +506,7 @@ func (s *GameSession) onWorldSocketClosed() {
 					X:        s.character.PositionX,
 					Y:        s.character.PositionY,
 					Z:        s.character.PositionZ,
+					O:        s.character.PositionO,
 				})
 				if err != nil {
 					s.logger.Error().Err(err).Msg("can't save player position")
@@ -602,6 +603,7 @@ type LoggedInCharacter struct {
 	PositionX   float32
 	PositionY   float32
 	PositionZ   float32
+	PositionO   float32
 	GuildID     uint32
 	PlayerFlags uint32
 	AtLogin     uint32
