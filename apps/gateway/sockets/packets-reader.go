@@ -2,11 +2,14 @@ package sockets
 
 import (
 	"encoding/binary"
+	"fmt"
 	"io"
 
 	"github.com/walkline/ToCloud9/apps/gateway/crypto"
 	"github.com/walkline/ToCloud9/apps/gateway/packet"
 )
+
+const MaxPacketSize = 1 * 1024 * 1024 // 1 MB
 
 type PacketsReader struct {
 	r io.Reader
@@ -56,6 +59,11 @@ func (p *PacketsReader) Next() bool {
 				}
 
 				pack.Size = uint32(binary.BigEndian.Uint16(p.headerBuffer[0:])) - p.opcodeSize
+				if pack.Size > MaxPacketSize {
+					p.err = fmt.Errorf("packet size too large: %d", pack.Size)
+					return false
+				}
+				
 				if p.opcodeSize == 2 {
 					pack.Opcode = packet.Opcode(binary.LittleEndian.Uint16(p.headerBuffer[2:]))
 				} else {
