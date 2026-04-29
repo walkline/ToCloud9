@@ -281,6 +281,39 @@ func (_m *CharactersServiceClient) GetFriendsList(ctx context.Context, in *pb.Ge
 	return r0, r1
 }
 
+// GetOnlineCharacters provides a mock function with given fields: ctx, in, opts
+func (_m *CharactersServiceClient) GetOnlineCharacters(ctx context.Context, in *pb.GetOnlineCharactersRequest, opts ...grpc.CallOption) (*pb.GetOnlineCharactersResponse, error) {
+	_va := make([]interface{}, len(opts))
+	for _i := range opts {
+		_va[_i] = opts[_i]
+	}
+	var _ca []interface{}
+	_ca = append(_ca, ctx, in)
+	_ca = append(_ca, _va...)
+	ret := _m.Called(_ca...)
+
+	var r0 *pb.GetOnlineCharactersResponse
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, *pb.GetOnlineCharactersRequest, ...grpc.CallOption) (*pb.GetOnlineCharactersResponse, error)); ok {
+		return rf(ctx, in, opts...)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, *pb.GetOnlineCharactersRequest, ...grpc.CallOption) *pb.GetOnlineCharactersResponse); ok {
+		r0 = rf(ctx, in, opts...)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*pb.GetOnlineCharactersResponse)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, *pb.GetOnlineCharactersRequest, ...grpc.CallOption) error); ok {
+		r1 = rf(ctx, in, opts...)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
 // NotifyStatusChange provides a mock function with given fields: ctx, in, opts
 func (_m *CharactersServiceClient) NotifyStatusChange(ctx context.Context, in *pb.NotifyStatusChangeRequest, opts ...grpc.CallOption) (*pb.NotifyStatusChangeResponse, error) {
 	_va := make([]interface{}, len(opts))

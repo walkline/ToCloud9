@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/rs/zerolog"
@@ -42,19 +43,20 @@ type GameSession struct {
 	eventsChan        <-chan eBroadcaster.Event
 	sessionSafeFuChan chan func(*GameSession)
 
-	charServiceClient        pbChar.CharactersServiceClient
-	serversRegistryClient    pbServ.ServersRegistryServiceClient
-	chatServiceClient        pbChat.ChatServiceClient
-	guildServiceClient       pbGuild.GuildServiceClient
-	mailServiceClient        pbMail.MailServiceClient
-	groupServiceClient       pbGroup.GroupServiceClient
-	gameServerGRPCClient     pbGameServ.WorldServerServiceClient
-	matchmakingServiceClient pbMatchmaking.MatchmakingServiceClient
-	eventsProducer           events.GatewayProducer
-	eventsBroadcaster        eBroadcaster.Broadcaster
-	charsUpdsBarrier         *service.CharactersUpdatesBarrier
-	realmNamesService        *service.RealmNamesService
-	gameServerGRPCConnMgr    conn.GameServerGRPCConnMgr
+	charServiceClient             pbChar.CharactersServiceClient
+	serversRegistryClient         pbServ.ServersRegistryServiceClient
+	chatServiceClient             pbChat.ChatServiceClient
+	guildServiceClient            pbGuild.GuildServiceClient
+	mailServiceClient             pbMail.MailServiceClient
+	groupServiceClient            pbGroup.GroupServiceClient
+	gameServerGRPCClient          pbGameServ.WorldServerServiceClient
+	matchmakingServiceClient      pbMatchmaking.MatchmakingServiceClient
+	eventsProducer                events.GatewayProducer
+	eventsBroadcaster             eBroadcaster.Broadcaster
+	chatChannelsEventsBroadcaster *eBroadcaster.ChatChannelsService
+	charsUpdsBarrier              *service.CharactersUpdatesBarrier
+	realmNamesService             *service.RealmNamesService
+	gameServerGRPCConnMgr         conn.GameServerGRPCConnMgr
 
 	groupUpdateCounter uint32
 
@@ -70,6 +72,11 @@ type GameSession struct {
 	teleportingToNewMap *uint32
 
 	packetSendingControl PacketSendingControl
+
+	channelMembership          *ChannelMembership
+	worldserverChannelBuffer   []WorldserverChannelInfo
+	worldserverChannelBufferMu sync.Mutex
+	worldserverChannelTimer    *time.Timer
 
 	// showGameserverConnChangeToClient when enabled sends chat system message
 	// to the player with information about connection change.
@@ -88,6 +95,7 @@ type GameSessionParams struct {
 	CharsUpdsBarrier                 *service.CharactersUpdatesBarrier
 	RealmNamesService                *service.RealmNamesService
 	EventsBroadcaster                eBroadcaster.Broadcaster
+	ChatChannelsEventBroadcaster     *eBroadcaster.ChatChannelsService
 	GameServerGRPCConnMgr            conn.GameServerGRPCConnMgr
 	PacketProcessTimeout             time.Duration
 	ShowGameserverConnChangeToClient bool
@@ -120,13 +128,16 @@ func NewGameSession(
 		groupServiceClient:               params.GroupServiceClient,
 		eventsProducer:                   params.EventsProducer,
 		eventsBroadcaster:                params.EventsBroadcaster,
+		chatChannelsEventsBroadcaster:    params.ChatChannelsEventBroadcaster,
 		charsUpdsBarrier:                 params.CharsUpdsBarrier,
 		realmNamesService:                params.RealmNamesService,
 		gameServerGRPCConnMgr:            params.GameServerGRPCConnMgr,
 		showGameserverConnChangeToClient: params.ShowGameserverConnChangeToClient,
 
-		sessionSafeFuChan:    make(chan func(*GameSession), 100),
-		packetProcessTimeout: packetProcessTimeout,
+		sessionSafeFuChan:        make(chan func(*GameSession), 100),
+		packetProcessTimeout:     packetProcessTimeout,
+		channelMembership:        NewChannelMembership(0, params.ChatChannelsEventBroadcaster),
+		worldserverChannelBuffer: make([]WorldserverChannelInfo, 0),
 	}
 	return s
 }
@@ -143,6 +154,20 @@ func (s *GameSession) HandlePackets(ctx context.Context) {
 			s.onLoggedOut()
 		}
 	}()
+
+	handleEvent := func(event eBroadcaster.Event) {
+		handler, found := EventsHandleMap[event.Type]
+		if !found {
+			return
+		}
+
+		pCtx, pCancel := context.WithTimeout(c, s.packetProcessTimeout)
+		defer pCancel()
+
+		if err := handler.Handle(pCtx, s, &event); err != nil {
+			s.logger.Error().Err(err).Msgf("can't handle event with name %s", handler.name)
+		}
+	}
 
 	var worldReadChan <-chan *packet.Packet
 	var err error
@@ -207,16 +232,10 @@ func (s *GameSession) HandlePackets(ctx context.Context) {
 			pCancel()
 
 		case event := <-s.eventsChan:
-			handler, found := EventsHandleMap[event.Type]
-			if !found {
-				break
-			}
+			handleEvent(event)
 
-			pCtx, pCancel := context.WithTimeout(c, s.packetProcessTimeout)
-			if err = handler.Handle(pCtx, s, &event); err != nil {
-				s.logger.Error().Err(err).Msgf("can't handle event with name %s", handler.name)
-			}
-			pCancel()
+		case event := <-s.channelMembership.GetEventsStream():
+			handleEvent(event)
 
 		case <-c.Done():
 			return
@@ -309,6 +328,8 @@ func (s *GameSession) Login(ctx context.Context, p *packet.Packet) error {
 	if err = s.LoadGroupForPlayer(ctx); err != nil {
 		return err
 	}
+
+	s.channelMembership = NewChannelMembership(char.GUID, s.chatChannelsEventsBroadcaster)
 
 	return err
 }
@@ -581,6 +602,8 @@ func (s *GameSession) onLoggedOut() {
 	}
 
 	s.eventsBroadcaster.UnregisterCharacter(s.character.GUID)
+	s.chatChannelsEventsBroadcaster.DisconnectPlayer(s.character.GUID)
+	s.channelMembership.events = nil
 
 	s.character = nil
 }

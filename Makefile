@@ -7,6 +7,7 @@ generate:
 	mockery --dir=gen/worldserver/pb --output=gen/worldserver/pb/mocks --name=WorldServerServiceClient --structname=WorldServerServiceClient
 	mockery --dir=gen/mail/pb --output=gen/mail/pb/mocks --name=MailServiceClient --structname=MailServiceClient
 	mockery --dir=gen/group/pb --output=gen/group/pb/mocks --name=GroupServiceClient --structname=GroupServiceClient
+	mockery --dir=gen/chat/pb --output=gen/chat/pb/mocks --name=ChatServiceClient --structname=ChatServiceClient
 	# Preferred protobuf versions:
 	# 	brew install protobuf@3
 	# 	go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.32

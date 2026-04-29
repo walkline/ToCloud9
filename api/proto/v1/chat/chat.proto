@@ -3,8 +3,36 @@ package v1;
 
 option go_package = "gen/chat/pb";
 
+enum TeamID {
+  TEAM_ALLIANCE = 0;
+  TEAM_HORDE = 1;
+  TEAM_NEUTRAL = 2;
+}
+
 service ChatService {
   rpc SendWhisperMessage(SendWhisperMessageRequest) returns (SendWhisperMessageResponse);
+
+  // Channel operations
+  rpc JoinChannel(JoinChannelRequest) returns (JoinChannelResponse);
+  rpc LeaveChannel(LeaveChannelRequest) returns (LeaveChannelResponse);
+  rpc SendChannelMessage(SendChannelMessageRequest) returns (SendChannelMessageResponse);
+  rpc GetChannelList(GetChannelListRequest) returns (GetChannelListResponse);
+
+  // Channel moderation
+  rpc KickFromChannel(KickFromChannelRequest) returns (KickFromChannelResponse);
+  rpc BanFromChannel(BanFromChannelRequest) returns (BanFromChannelResponse);
+  rpc UnbanFromChannel(UnbanFromChannelRequest) returns (UnbanFromChannelResponse);
+  rpc SetChannelModerator(SetChannelModeratorRequest) returns (SetChannelModeratorResponse);
+  rpc UnsetChannelModerator(UnsetChannelModeratorRequest) returns (UnsetChannelModeratorResponse);
+  rpc SetChannelMute(SetChannelMuteRequest) returns (SetChannelMuteResponse);
+  rpc UnsetChannelMute(UnsetChannelMuteRequest) returns (UnsetChannelMuteResponse);
+
+  // Channel administration
+  rpc SetChannelOwner(SetChannelOwnerRequest) returns (SetChannelOwnerResponse);
+  rpc SetChannelPassword(SetChannelPasswordRequest) returns (SetChannelPasswordResponse);
+  rpc ToggleChannelModeration(ToggleChannelModerationRequest) returns (ToggleChannelModerationResponse);
+  rpc ToggleChannelAnnouncements(ToggleChannelAnnouncementsRequest) returns (ToggleChannelAnnouncementsResponse);
+  rpc InviteToChannel(InviteToChannelRequest) returns (InviteToChannelResponse);
 }
 
 message SendWhisperMessageRequest {
@@ -29,4 +57,376 @@ message SendWhisperMessageResponse {
 
   Status status = 2;
   uint64 receiverGUID = 3;
+}
+
+// Channel messages
+
+message JoinChannelRequest {
+  string api = 1;
+  uint32 realmID = 2;
+  uint64 playerGUID = 3;
+  string playerName = 4;
+  TeamID teamID = 5;
+  string channelName = 6;
+  uint32 channelID = 7; // 0 for custom channels, or worldserver's ID for territorial
+  string password = 8;
+  uint32 channelFlags = 9; // 0 to auto-detect, or worldserver's flags for territorial
+}
+
+message JoinChannelResponse {
+  string api = 1;
+
+  enum Status {
+    Ok = 0;
+    WrongPassword = 1;
+    Banned = 2;
+    WrongFaction = 3;
+    NotInArea = 4;
+    Throttled = 5;
+  }
+
+  Status status = 2;
+  ChannelInfo channel = 3;
+}
+
+message LeaveChannelRequest {
+  string api = 1;
+  uint32 realmID = 2;
+  uint64 playerGUID = 3;
+  string channelName = 4;
+  TeamID teamID = 5;
+}
+
+message LeaveChannelResponse {
+  string api = 1;
+
+  enum Status {
+    Ok = 0;
+    NotMember = 1;
+  }
+
+  Status status = 2;
+}
+
+message SendChannelMessageRequest {
+  string api = 1;
+  uint32 realmID = 2;
+  uint64 senderGUID = 3;
+  string senderName = 4;
+  string channelName = 5;
+  uint32 language = 6;
+  string message = 7;
+  TeamID teamID = 8;
+}
+
+message SendChannelMessageResponse {
+  string api = 1;
+
+  enum Status {
+    Ok = 0;
+    NotMember = 1;
+    Muted = 2;
+    Throttled = 3;
+  }
+
+  Status status = 2;
+}
+
+message GetChannelListRequest {
+  string api = 1;
+  uint32 realmID = 2;
+  uint64 playerGUID = 3;
+  string channelName = 4;
+  TeamID teamID = 5;
+}
+
+message GetChannelListResponse {
+  string api = 1;
+
+  enum Status {
+    Ok = 0;
+    NotMember = 1;
+  }
+
+  Status status = 2;
+  repeated ChannelMember members = 3;
+}
+
+message KickFromChannelRequest {
+  string api = 1;
+  uint32 realmID = 2;
+  uint64 kickerGUID = 3;
+  string channelName = 4;
+  string targetName = 5;
+  TeamID teamID = 6;
+}
+
+message KickFromChannelResponse {
+  string api = 1;
+
+  enum Status {
+    Ok = 0;
+    NotMember = 1;
+    NotModerator = 2;
+    PlayerNotFound = 3;
+  }
+
+  Status status = 2;
+}
+
+message BanFromChannelRequest {
+  string api = 1;
+  uint32 realmID = 2;
+  uint64 bannerGUID = 3;
+  string channelName = 4;
+  string targetName = 5;
+  TeamID teamID = 6;
+}
+
+message BanFromChannelResponse {
+  string api = 1;
+
+  enum Status {
+    Ok = 0;
+    NotMember = 1;
+    NotModerator = 2;
+    PlayerNotFound = 3;
+  }
+
+  Status status = 2;
+}
+
+message UnbanFromChannelRequest {
+  string api = 1;
+  uint32 realmID = 2;
+  uint64 unbannerGUID = 3;
+  string channelName = 4;
+  string targetName = 5;
+  TeamID teamID = 6;
+}
+
+message UnbanFromChannelResponse {
+  string api = 1;
+
+  enum Status {
+    Ok = 0;
+    NotMember = 1;
+    NotModerator = 2;
+    PlayerNotBanned = 3;
+  }
+
+  Status status = 2;
+}
+
+message SetChannelModeratorRequest {
+  string api = 1;
+  uint32 realmID = 2;
+  uint64 setterGUID = 3;
+  string channelName = 4;
+  string targetName = 5;
+  TeamID teamID = 6;
+}
+
+message SetChannelModeratorResponse {
+  string api = 1;
+
+  enum Status {
+    Ok = 0;
+    NotMember = 1;
+    NotOwner = 2;
+    PlayerNotFound = 3;
+  }
+
+  Status status = 2;
+}
+
+message UnsetChannelModeratorRequest {
+  string api = 1;
+  uint32 realmID = 2;
+  uint64 setterGUID = 3;
+  string channelName = 4;
+  string targetName = 5;
+  TeamID teamID = 6;
+}
+
+message UnsetChannelModeratorResponse {
+  string api = 1;
+
+  enum Status {
+    Ok = 0;
+    NotMember = 1;
+    NotOwner = 2;
+    PlayerNotFound = 3;
+  }
+
+  Status status = 2;
+}
+
+message SetChannelMuteRequest {
+  string api = 1;
+  uint32 realmID = 2;
+  uint64 muterGUID = 3;
+  string channelName = 4;
+  string targetName = 5;
+  TeamID teamID = 6;
+}
+
+message SetChannelMuteResponse {
+  string api = 1;
+
+  enum Status {
+    Ok = 0;
+    NotMember = 1;
+    NotModerator = 2;
+    PlayerNotFound = 3;
+  }
+
+  Status status = 2;
+}
+
+message UnsetChannelMuteRequest {
+  string api = 1;
+  uint32 realmID = 2;
+  uint64 unmuterGUID = 3;
+  string channelName = 4;
+  string targetName = 5;
+  TeamID teamID = 6;
+}
+
+message UnsetChannelMuteResponse {
+  string api = 1;
+
+  enum Status {
+    Ok = 0;
+    NotMember = 1;
+    NotModerator = 2;
+    PlayerNotFound = 3;
+  }
+
+  Status status = 2;
+}
+
+message SetChannelOwnerRequest {
+  string api = 1;
+  uint32 realmID = 2;
+  uint64 setterGUID = 3;
+  string channelName = 4;
+  string targetName = 5;
+  TeamID teamID = 6;
+}
+
+message SetChannelOwnerResponse {
+  string api = 1;
+
+  enum Status {
+    Ok = 0;
+    NotMember = 1;
+    NotOwner = 2;
+    PlayerNotFound = 3;
+  }
+
+  Status status = 2;
+}
+
+message SetChannelPasswordRequest {
+  string api = 1;
+  uint32 realmID = 2;
+  uint64 setterGUID = 3;
+  string channelName = 4;
+  string password = 5;
+  TeamID teamID = 6;
+}
+
+message SetChannelPasswordResponse {
+  string api = 1;
+
+  enum Status {
+    Ok = 0;
+    NotMember = 1;
+    NotOwner = 2;
+  }
+
+  Status status = 2;
+}
+
+message ToggleChannelModerationRequest {
+  string api = 1;
+  uint32 realmID = 2;
+  uint64 togglerGUID = 3;
+  string channelName = 4;
+  TeamID teamID = 5;
+}
+
+message ToggleChannelModerationResponse {
+  string api = 1;
+
+  enum Status {
+    Ok = 0;
+    NotMember = 1;
+    NotModerator = 2;
+  }
+
+  Status status = 2;
+  bool moderationEnabled = 3;
+}
+
+message ToggleChannelAnnouncementsRequest {
+  string api = 1;
+  uint32 realmID = 2;
+  uint64 togglerGUID = 3;
+  string channelName = 4;
+  TeamID teamID = 5;
+}
+
+message ToggleChannelAnnouncementsResponse {
+  string api = 1;
+
+  enum Status {
+    Ok = 0;
+    NotMember = 1;
+    NotModerator = 2;
+  }
+
+  Status status = 2;
+  bool announcementsEnabled = 3;
+}
+
+message InviteToChannelRequest {
+  string api = 1;
+  uint32 realmID = 2;
+  uint64 inviterGUID = 3;
+  string channelName = 4;
+  string targetName = 5;
+  TeamID teamID = 6;
+}
+
+message InviteToChannelResponse {
+  string api = 1;
+
+  enum Status {
+    Ok = 0;
+    NotMember = 1;
+    PlayerNotFound = 2;
+    PlayerAlreadyMember = 3;
+    WrongFaction = 4;
+    PlayerBanned = 5;
+  }
+
+  Status status = 2;
+}
+
+// Shared types
+
+message ChannelInfo {
+  string name = 1;
+  uint32 channelID = 2;
+  uint32 flags = 3;
+  uint32 numMembers = 4;
+  uint32 memberFlags = 5; // Flags for the requesting player
+}
+
+message ChannelMember {
+  uint64 guid = 1;
+  string name = 2;
+  uint32 flags = 3; // MEMBER_FLAG_OWNER, MEMBER_FLAG_MODERATOR, etc.
 }

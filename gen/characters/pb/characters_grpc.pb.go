@@ -34,6 +34,7 @@ const (
 	CharactersService_AddIgnore_FullMethodName                        = "/v1.CharactersService/AddIgnore"
 	CharactersService_RemoveIgnore_FullMethodName                     = "/v1.CharactersService/RemoveIgnore"
 	CharactersService_NotifyStatusChange_FullMethodName               = "/v1.CharactersService/NotifyStatusChange"
+	CharactersService_GetOnlineCharacters_FullMethodName              = "/v1.CharactersService/GetOnlineCharacters"
 )
 
 // CharactersServiceClient is the client API for CharactersService service.
@@ -57,6 +58,8 @@ type CharactersServiceClient interface {
 	AddIgnore(ctx context.Context, in *AddIgnoreRequest, opts ...grpc.CallOption) (*AddIgnoreResponse, error)
 	RemoveIgnore(ctx context.Context, in *RemoveIgnoreRequest, opts ...grpc.CallOption) (*RemoveIgnoreResponse, error)
 	NotifyStatusChange(ctx context.Context, in *NotifyStatusChangeRequest, opts ...grpc.CallOption) (*NotifyStatusChangeResponse, error)
+	// Get all online character GUIDs for a realm
+	GetOnlineCharacters(ctx context.Context, in *GetOnlineCharactersRequest, opts ...grpc.CallOption) (*GetOnlineCharactersResponse, error)
 }
 
 type charactersServiceClient struct {
@@ -202,6 +205,15 @@ func (c *charactersServiceClient) NotifyStatusChange(ctx context.Context, in *No
 	return out, nil
 }
 
+func (c *charactersServiceClient) GetOnlineCharacters(ctx context.Context, in *GetOnlineCharactersRequest, opts ...grpc.CallOption) (*GetOnlineCharactersResponse, error) {
+	out := new(GetOnlineCharactersResponse)
+	err := c.cc.Invoke(ctx, CharactersService_GetOnlineCharacters_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // CharactersServiceServer is the server API for CharactersService service.
 // All implementations must embed UnimplementedCharactersServiceServer
 // for forward compatibility
@@ -223,6 +235,8 @@ type CharactersServiceServer interface {
 	AddIgnore(context.Context, *AddIgnoreRequest) (*AddIgnoreResponse, error)
 	RemoveIgnore(context.Context, *RemoveIgnoreRequest) (*RemoveIgnoreResponse, error)
 	NotifyStatusChange(context.Context, *NotifyStatusChangeRequest) (*NotifyStatusChangeResponse, error)
+	// Get all online character GUIDs for a realm
+	GetOnlineCharacters(context.Context, *GetOnlineCharactersRequest) (*GetOnlineCharactersResponse, error)
 	mustEmbedUnimplementedCharactersServiceServer()
 }
 
@@ -274,6 +288,9 @@ func (UnimplementedCharactersServiceServer) RemoveIgnore(context.Context, *Remov
 }
 func (UnimplementedCharactersServiceServer) NotifyStatusChange(context.Context, *NotifyStatusChangeRequest) (*NotifyStatusChangeResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method NotifyStatusChange not implemented")
+}
+func (UnimplementedCharactersServiceServer) GetOnlineCharacters(context.Context, *GetOnlineCharactersRequest) (*GetOnlineCharactersResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetOnlineCharacters not implemented")
 }
 func (UnimplementedCharactersServiceServer) mustEmbedUnimplementedCharactersServiceServer() {}
 
@@ -558,6 +575,24 @@ func _CharactersService_NotifyStatusChange_Handler(srv interface{}, ctx context.
 	return interceptor(ctx, in, info, handler)
 }
 
+func _CharactersService_GetOnlineCharacters_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetOnlineCharactersRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CharactersServiceServer).GetOnlineCharacters(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: CharactersService_GetOnlineCharacters_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CharactersServiceServer).GetOnlineCharacters(ctx, req.(*GetOnlineCharactersRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // CharactersService_ServiceDesc is the grpc.ServiceDesc for CharactersService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -624,6 +659,10 @@ var CharactersService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "NotifyStatusChange",
 			Handler:    _CharactersService_NotifyStatusChange_Handler,
+		},
+		{
+			MethodName: "GetOnlineCharacters",
+			Handler:    _CharactersService_GetOnlineCharacters_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

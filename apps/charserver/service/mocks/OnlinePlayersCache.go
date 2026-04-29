@@ -66,6 +66,20 @@ func (_m *OnlinePlayersCache) HandleCharacterLoggedOut(payload events.GWEventCha
 	return r0
 }
 
+// HandleCharactersUpdates provides a mock function with given fields: payload
+func (_m *OnlinePlayersCache) HandleCharactersUpdates(payload events.GWEventCharactersUpdatesPayload) error {
+	ret := _m.Called(payload)
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(events.GWEventCharactersUpdatesPayload) error); ok {
+		r0 = rf(payload)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
 // PlayerLoggedIn provides a mock function with given fields: playerGUID, level, class, area
 func (_m *OnlinePlayersCache) PlayerLoggedIn(playerGUID uint64, level uint32, class uint32, area uint32) {
 	_m.Called(playerGUID, level, class, area)

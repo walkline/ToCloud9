@@ -44,6 +44,7 @@ chat:
   port: 8992
   natsUrl: *defaultNatsUrl
   logging: *defaultLogging
+  charactersDB: *defaultCharactersDB
 
 gateway:
   port: 8085

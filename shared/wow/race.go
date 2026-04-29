@@ -1,11 +1,27 @@
 package wow
 
+import (
+	pbChat "github.com/walkline/ToCloud9/gen/chat/pb"
+)
+
 type Team uint8
 
 const (
 	TeamHorde Team = iota + 1
 	TeamAlliance
 )
+
+// TeamID returns the team ID enum for protocol usage
+func (t Team) TeamID() pbChat.TeamID {
+	switch t {
+	case TeamAlliance:
+		return pbChat.TeamID_TEAM_ALLIANCE
+	case TeamHorde:
+		return pbChat.TeamID_TEAM_HORDE
+	default:
+		return pbChat.TeamID_TEAM_NEUTRAL
+	}
+}
 
 type Race struct {
 	ID   RaceID

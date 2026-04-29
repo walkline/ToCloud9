@@ -1,6 +1,7 @@
 package events_broadcaster
 
 import (
+	"strings"
 	"sync"
 
 	"github.com/walkline/ToCloud9/apps/gateway"
@@ -43,6 +44,10 @@ const (
 	EventTypeFriendAdded
 	EventTypeFriendRemoved
 	EventTypeFriendNoteUpdate
+	EventTypeChannelMessage
+	EventTypeChannelJoined
+	EventTypeChannelLeft
+	EventTypeChannelNotification
 )
 
 type IncomingWhisperPayload struct {
@@ -53,6 +58,47 @@ type IncomingWhisperPayload struct {
 	ReceiverName string
 	Language     uint32
 	Msg          string
+}
+
+type ChannelMessagePayload struct {
+	RealmID     uint32
+	ChannelName string
+	ChannelID   uint32
+	SenderGUID  uint64
+	SenderName  string
+	Language    uint32
+	Message     string
+}
+
+type ChannelJoinedPayload struct {
+	RealmID     uint32
+	ChannelName string
+	ChannelID   uint32
+	PlayerGUID  uint64
+	PlayerName  string
+	PlayerFlags uint8
+}
+
+type ChannelLeftPayload struct {
+	RealmID     uint32
+	ChannelName string
+	ChannelID   uint32
+	PlayerGUID  uint64
+	PlayerName  string
+}
+
+type ChannelNotificationPayload struct {
+	RealmID       uint32
+	ChannelName   string
+	ChannelID     uint32
+	NotifyType    uint8
+	TargetGUID    uint64
+	TargetName    string
+	SecondGUID    uint64
+	OldFlags      uint8
+	NewFlags      uint8
+	ExtraData     string
+	AffectsPlayer uint64
 }
 
 type GuildInviteCreatedPayload struct {
@@ -112,16 +158,24 @@ type Broadcaster interface {
 	NewFriendAddedEvent(payload *events.FriendEventAddedPayload)
 	NewFriendRemovedEvent(payload *events.FriendEventRemovedPayload)
 	NewFriendNoteUpdateEvent(payload *events.FriendEventNoteUpdatePayload)
+
+	NewChannelMessageEvent(payload *ChannelMessagePayload)
+	NewChannelJoinedEvent(payload *ChannelJoinedPayload)
+	NewChannelLeftEvent(payload *ChannelLeftPayload)
+	NewChannelNotificationEvent(payload *ChannelNotificationPayload)
 }
 
 type broadcasterImpl struct {
 	channels   map[uint64]chan Event
 	channelsMu sync.RWMutex
+
+	chatChannelsService *ChatChannelsService
 }
 
-func NewBroadcaster() Broadcaster {
+func NewBroadcaster(chatChannelsService *ChatChannelsService) Broadcaster {
 	return &broadcasterImpl{
-		channels: map[uint64]chan Event{},
+		channels:            map[uint64]chan Event{},
+		chatChannelsService: chatChannelsService,
 	}
 }
 
@@ -487,6 +541,50 @@ func (b *broadcasterImpl) NewFriendNoteUpdateEvent(payload *events.FriendEventNo
 		Type:    EventTypeFriendNoteUpdate,
 		Payload: payload,
 	}
+}
+
+func (b *broadcasterImpl) NewChannelMessageEvent(payload *ChannelMessagePayload) {
+	b.chatChannelsService.BroadcastToChannel(strings.ToLower(payload.ChannelName), Event{
+		Type:    EventTypeChannelMessage,
+		Payload: payload,
+	})
+}
+
+func (b *broadcasterImpl) NewChannelJoinedEvent(payload *ChannelJoinedPayload) {
+	b.chatChannelsService.BroadcastToChannel(strings.ToLower(payload.ChannelName), Event{
+		Type:    EventTypeChannelJoined,
+		Payload: payload,
+	})
+}
+
+func (b *broadcasterImpl) NewChannelLeftEvent(payload *ChannelLeftPayload) {
+	b.chatChannelsService.BroadcastToChannel(strings.ToLower(payload.ChannelName), Event{
+		Type:    EventTypeChannelLeft,
+		Payload: payload,
+	})
+}
+
+func (b *broadcasterImpl) NewChannelNotificationEvent(payload *ChannelNotificationPayload) {
+	// If AffectsPlayer is set, send only to that specific player (e.g., invitations)
+	if payload.AffectsPlayer != 0 {
+		b.channelsMu.RLock()
+		ch, ok := b.channels[payload.AffectsPlayer]
+		b.channelsMu.RUnlock()
+
+		if ok {
+			ch <- Event{
+				Type:    EventTypeChannelNotification,
+				Payload: payload,
+			}
+		}
+		return
+	}
+
+	// Otherwise broadcast to all channel members
+	b.chatChannelsService.BroadcastToChannel(strings.ToLower(payload.ChannelName), Event{
+		Type:    EventTypeChannelNotification,
+		Payload: payload,
+	})
 }
 
 func (b *broadcasterImpl) channelsForGUIDs(guids []uint64) []chan Event {

@@ -25,8 +25,12 @@ type Perun struct {
 
 	commandsInputChan chan string
 
-	tviewApp     *tview.Application
-	logsTextView *tview.TextView
+	tviewApp        *tview.Application
+	logsTextView    *tview.TextView
+	appList         *tview.List
+	focusedApp      string
+	updateLogsTitle func(filter string)
+	setFollowing    func(bool)
 }
 
 func NewWithApps(apps []config.AppConfig) (*Perun, error) {
@@ -65,7 +69,79 @@ func NewWithApps(apps []config.AppConfig) (*Perun, error) {
 	return p, nil
 }
 
+func (p *Perun) muteAllApps() {
+	for _, app := range p.apps {
+		app.SetConsoleOutput(io.Discard)
+	}
+}
+
+func (p *Perun) resumeApps() {
+	writer := tview.ANSIWriter(p.logsTextView)
+	p.logsTextView.Clear()
+
+	if p.focusedApp == "" {
+		for _, appName := range p.runningOrder {
+			app := p.apps[appName]
+			if app == nil {
+				continue
+			}
+			for _, line := range app.RecentLines() {
+				_, _ = writer.Write(line)
+			}
+			app.SetConsoleOutput(writer)
+		}
+	} else {
+		if a := p.AppByName(p.focusedApp); a != nil {
+			for _, line := range a.RecentLines() {
+				_, _ = writer.Write(line)
+			}
+			a.SetConsoleOutput(writer)
+		}
+	}
+
+	p.logsTextView.ScrollToEnd()
+}
+
+func (p *Perun) selectApp(name string) {
+	p.focusedApp = name
+
+	allApps := p.GetAllApps()
+	for _, app := range allApps {
+		app.SetConsoleOutput(io.Discard)
+	}
+
+	p.logsTextView.Clear()
+
+	writer := tview.ANSIWriter(p.logsTextView)
+	if name == "" {
+		for _, appName := range p.runningOrder {
+			app := p.apps[appName]
+			if app == nil {
+				continue
+			}
+			for _, line := range app.RecentLines() {
+				_, _ = writer.Write(line)
+			}
+			app.SetConsoleOutput(writer)
+		}
+	} else {
+		if a := p.AppByName(name); a != nil {
+			for _, line := range a.RecentLines() {
+				_, _ = writer.Write(line)
+			}
+			a.SetConsoleOutput(writer)
+		}
+	}
+
+	p.logsTextView.ScrollToEnd()
+	p.setFollowing(true)
+}
+
 func (p *Perun) Run() error {
+	p.setupSidebar()
+	p.refreshSidebarStatus()
+	p.startSidebarRefresh()
+
 	go func() {
 		for _, s := range p.runningOrder {
 			log.Printf("Starting %s app... \n", s)

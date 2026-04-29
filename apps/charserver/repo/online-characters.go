@@ -32,6 +32,7 @@ type CharactersOnline interface {
 	OneByRealmAndName(ctx context.Context, realmID uint32, name string) (*Character, error)
 
 	CharactersByRealmAndGUIDs(ctx context.Context, realmID uint32, guids []uint64) ([]Character, error)
+	AllGUIDsByRealm(ctx context.Context, realmID uint32) ([]uint64, error)
 
 	// GWCharacterLoggedInHandler updates cache with player logged in.
 	events.GWCharacterLoggedInHandler

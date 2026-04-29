@@ -165,7 +165,13 @@ services:
     build:
       context: .
       dockerfile: apps/chatserver/Dockerfile
+    depends_on:
+      nats:
+        condition: service_started
+      database-ac:
+        condition: service_healthy
     environment:
+      CHAR_DB_CONNECTION: 1:${CHAR_DB_USER}:${CHAR_DB_PASS}@tcp(${CHAR_DB_HOST}:${CHAR_DB_PORT})/${CHAR_DB_NAME}
       NATS_URL: nats://nats:4222
       PORT: 8992
     profiles:

@@ -158,6 +158,14 @@ func (s *GameSession) InterceptMoveWorldPortAck(ctx context.Context, p *packet.P
 			if session.showGameserverConnChangeToClient {
 				session.SendSysMessage(fmt.Sprintf("You have been redirected from %s to %s gameserver.", oldServerAddress, desiredServerAddress))
 			}
+
+			go func() {
+				time.Sleep(time.Millisecond * 500)
+
+				session.sessionSafeFuChan <- func(session *GameSession) {
+					session.RejoinWorldserverToSystemChannels(ctx)
+				}
+			}()
 		}
 	}(s.character.GUID)
 
@@ -259,7 +267,7 @@ func (s *GameSession) InterceptSMsgNameQueryResponse(ctx context.Context, p *pac
 func (s *GameSession) HandleReadyForRedirectRequest(ctx context.Context, p *packet.Packet) error {
 	oldConnection := s.worldSocket.Address()
 
-	char, socket, err := s.connectToGameServer(context.TODO(), s.character.GUID, nil, nil)
+	char, socket, err := s.connectToGameServer(ctx, s.character.GUID, nil, nil)
 	if err != nil {
 		return errors.New("failed to connect player to the new gameserver")
 	}

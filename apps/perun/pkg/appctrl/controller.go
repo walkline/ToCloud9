@@ -61,6 +61,10 @@ func (a *AppController) SetConsoleOutput(w io.Writer) {
 	a.appLogger.SetConsoleWriter(w)
 }
 
+func (a *AppController) RecentLines() [][]byte {
+	return a.appLogger.RecentLines()
+}
+
 func (a *AppController) Start() error {
 	if a.cmd != nil {
 		a.cmd.Stderr = nil

@@ -12,15 +12,19 @@ import (
 )
 
 type CharactersListener struct {
-	charRepo repo.CharactersRepo
-	nc       *nats.Conn
-	subs     []*nats.Subscription
+	charRepo   repo.CharactersRepo
+	channelMgr *ChannelManager
+	nc         *nats.Conn
+	producer   events.ChatServiceProducer
+	subs       []*nats.Subscription
 }
 
-func NewCharactersListener(charRepo repo.CharactersRepo, nc *nats.Conn) *CharactersListener {
+func NewCharactersListener(charRepo repo.CharactersRepo, channelMgr *ChannelManager, nc *nats.Conn) *CharactersListener {
 	return &CharactersListener{
-		charRepo: charRepo,
-		nc:       nc,
+		charRepo:   charRepo,
+		channelMgr: channelMgr,
+		nc:         nc,
+		producer:   events.NewChatServiceProducerNatsJSON(nc, "0.0.1", "ALL"), // Broadcast to all
 	}
 }
 
@@ -59,6 +63,36 @@ func (c *CharactersListener) Listen() error {
 		if err != nil {
 			log.Error().Err(err).Msg("can't read GWEventCharacterLoggedOut (payload part) event")
 			return
+		}
+
+		// Transfer ownership if player was owner (but keep them as member)
+		transfers := c.channelMgr.TransferOwnershipOnLogout(loggedOutP.RealmID, loggedOutP.CharGUID)
+
+		// Broadcast ownership changes for each transfer
+		for _, transfer := range transfers {
+			// Send mode change notification
+			payload := &events.ChatEventChannelNotificationPayload{
+				RealmID:     loggedOutP.RealmID,
+				ChannelName: transfer.ChannelName,
+				ChannelID:   transfer.ChannelID,
+				NotifyType:  0x0C, // CHAT_MODE_CHANGE_NOTICE
+				TargetGUID:  transfer.NewOwnerGUID,
+			}
+			if err := c.producer.ChannelNotification(payload); err != nil {
+				log.Error().Err(err).
+					Str("channelName", transfer.ChannelName).
+					Uint64("newOwner", transfer.NewOwnerGUID).
+					Msg("Failed to broadcast mode change on logout ownership transfer")
+			}
+
+			// Send owner changed notification
+			payload.NotifyType = 0x08 // CHAT_OWNER_CHANGED_NOTICE
+			if err := c.producer.ChannelNotification(payload); err != nil {
+				log.Error().Err(err).
+					Str("channelName", transfer.ChannelName).
+					Uint64("newOwner", transfer.NewOwnerGUID).
+					Msg("Failed to broadcast owner changed on logout ownership transfer")
+			}
 		}
 
 		err = c.charRepo.RemoveCharacter(context.TODO(), loggedOutP.RealmID, loggedOutP.CharGUID)

@@ -49,6 +49,12 @@ var EventsHandleMap = map[eBroadcaster.EventType]EventsHandlersQueue{
 	eBroadcaster.EventTypeFriendAdded:        NewEventHandler("FriendAdded", (*GameSession).HandleEventFriendAdded),
 	eBroadcaster.EventTypeFriendRemoved:      NewEventHandler("FriendRemoved", (*GameSession).HandleEventFriendRemoved),
 	eBroadcaster.EventTypeFriendNoteUpdate:   NewEventHandler("FriendNoteUpdate", (*GameSession).HandleEventFriendNoteUpdate),
+
+	// Channels
+	eBroadcaster.EventTypeChannelMessage:      NewEventHandler("ChannelMessage", (*GameSession).HandleEventChannelMessage),
+	eBroadcaster.EventTypeChannelJoined:       NewEventHandler("ChannelJoined", (*GameSession).HandleEventChannelJoined),
+	eBroadcaster.EventTypeChannelLeft:         NewEventHandler("ChannelLeft", (*GameSession).HandleEventChannelLeft),
+	eBroadcaster.EventTypeChannelNotification: NewEventHandler("ChannelNotification", (*GameSession).HandleEventChannelNotification),
 }
 
 type EventHandler func(*GameSession, context.Context, *eBroadcaster.Event) error

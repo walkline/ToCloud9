@@ -5,18 +5,28 @@ import (
 
 	"github.com/rs/zerolog/log"
 
+	"github.com/walkline/ToCloud9/apps/chatserver"
 	"github.com/walkline/ToCloud9/apps/chatserver/repo"
 	"github.com/walkline/ToCloud9/apps/chatserver/sender"
+	"github.com/walkline/ToCloud9/apps/chatserver/service"
 	"github.com/walkline/ToCloud9/gen/chat/pb"
 )
 
 type ChatService struct {
 	pb.UnimplementedChatServiceServer
-	charRepo repo.CharactersRepo
+	charRepo    repo.CharactersRepo
+	channelMgr  *service.ChannelManager
+	msgProducer sender.MsgProducer
+	serviceID   string
 }
 
-func NewChatService(charRepo repo.CharactersRepo) *ChatService {
-	return &ChatService{charRepo: charRepo}
+func NewChatService(charRepo repo.CharactersRepo, channelMgr *service.ChannelManager, msgProducer sender.MsgProducer, serviceID string) *ChatService {
+	return &ChatService{
+		charRepo:    charRepo,
+		channelMgr:  channelMgr,
+		msgProducer: msgProducer,
+		serviceID:   serviceID,
+	}
 }
 
 func (s *ChatService) SendWhisperMessage(ctx context.Context, request *pb.SendWhisperMessageRequest) (*pb.SendWhisperMessageResponse, error) {
@@ -27,7 +37,7 @@ func (s *ChatService) SendWhisperMessage(ctx context.Context, request *pb.SendWh
 
 	if char == nil {
 		return &pb.SendWhisperMessageResponse{
-			Api:    "v0.0.1",
+			Api:    chatserver.Ver,
 			Status: pb.SendWhisperMessageResponse_CharacterNotFound,
 		}, nil
 	}
@@ -55,7 +65,7 @@ func (s *ChatService) SendWhisperMessage(ctx context.Context, request *pb.SendWh
 	}
 
 	return &pb.SendWhisperMessageResponse{
-		Api:          "v0.0.1",
+		Api:          chatserver.Ver,
 		Status:       pb.SendWhisperMessageResponse_Ok,
 		ReceiverGUID: char.GUID,
 	}, nil

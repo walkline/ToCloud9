@@ -28,6 +28,9 @@ service CharactersService {
   rpc AddIgnore(AddIgnoreRequest) returns (AddIgnoreResponse);
   rpc RemoveIgnore(RemoveIgnoreRequest) returns (RemoveIgnoreResponse);
   rpc NotifyStatusChange(NotifyStatusChangeRequest) returns (NotifyStatusChangeResponse);
+
+  // Get all online character GUIDs for a realm
+  rpc GetOnlineCharacters(GetOnlineCharactersRequest) returns (GetOnlineCharactersResponse);
 }
 
 // LogInCharacter is character that should be displayed on log in screen
@@ -355,4 +358,15 @@ message NotifyStatusChangeRequest {
 
 message NotifyStatusChangeResponse {
   string api = 1;
+}
+
+message GetOnlineCharactersRequest {
+  string api = 1;
+  uint32 realmID = 2;
+}
+
+message GetOnlineCharactersResponse {
+  string api = 1;
+  repeated uint64 characterGUIDs = 2;
+  uint32 totalCount = 3;
 }

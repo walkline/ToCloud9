@@ -96,6 +96,21 @@ func (c *charactersOnlineInMem) CharactersByRealmAndGUIDs(ctx context.Context, r
 	return res, nil
 }
 
+func (c *charactersOnlineInMem) AllGUIDsByRealm(ctx context.Context, realmID uint32) ([]uint64, error) {
+	c.m.RLock()
+	defer c.m.RUnlock()
+	s, found := c.guidStorage[realmID]
+	if !found {
+		return []uint64{}, nil
+	}
+
+	guids := make([]uint64, 0, len(s))
+	for guid := range s {
+		guids = append(guids, guid)
+	}
+	return guids, nil
+}
+
 func (c *charactersOnlineInMem) HandleCharacterLoggedIn(payload events.GWEventCharacterLoggedInPayload) error {
 	return c.Add(context.TODO(), &Character{
 		RealmID:     payload.RealmID,

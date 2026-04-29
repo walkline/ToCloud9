@@ -27,6 +27,7 @@ const (
 	ChatTypeWhisper
 	ChatTypeWhisperForeign
 	ChatTypeWhisperInform
+	ChatTypeChannel     = 0x11
 	ChatTypeRaidLeader  = 0x27
 	ChatTypePartyLeader = 0x33
 )
@@ -48,6 +49,12 @@ func (s *GameSession) HandleChatMessage(ctx context.Context, p *packet.Packet) e
 	r := p.Reader()
 	msgType := r.Uint32()
 	lang := r.Uint32()
+
+	s.logger.Debug().
+		Uint32("msgType", msgType).
+		Uint32("language", lang).
+		Msg("HandleChatMessage received")
+
 	to := ""
 	msg := ""
 	switch ChatType(msgType) {
@@ -152,6 +159,22 @@ func (s *GameSession) HandleChatMessage(ctx context.Context, p *packet.Packet) e
 		resp.Uint8(0) // chat tag
 		s.gameSocket.Send(resp)
 
+	case ChatTypeChannel:
+		channelName := r.String()
+		msg = r.String()
+
+		handled, err := s.handleCommandMsgIfNeeded(ctx, msg)
+		if err != nil {
+			return err
+		}
+
+		if handled {
+			return nil
+		}
+
+		// Send channel message through chat service
+		return s.SendChannelMessageToChat(ctx, channelName, msg, lang)
+
 	case ChatTypeSay:
 		msg = r.String()
 
@@ -168,6 +191,10 @@ func (s *GameSession) HandleChatMessage(ctx context.Context, p *packet.Packet) e
 			s.worldSocket.WriteChannel() <- p
 		}
 	default:
+		s.logger.Debug().
+			Uint32("msgType", msgType).
+			Uint32("language", lang).
+			Msg("HandleChatMessage - default case (msgType decimal), forwarding to worldserver")
 		if s.worldSocket != nil {
 			s.worldSocket.WriteChannel() <- p
 		}

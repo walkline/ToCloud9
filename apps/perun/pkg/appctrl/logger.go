@@ -14,6 +14,10 @@ type AppLogger struct {
 	consoleWriter    io.Writer
 	consoleWriterLoc sync.RWMutex
 
+	ringBuf    [][]byte
+	ringBufMax int
+	ringBufLoc sync.Mutex
+
 	startupContextLoc    sync.RWMutex
 	startupChannelClosed bool
 	startupLogMsgsChan   chan []byte // TODO: close on exit
@@ -27,6 +31,8 @@ func NewAppLogger(tag string, fileWriter, consoleWriter io.Writer) *AppLogger {
 		fileWriter:         fileWriter,
 		consoleWriter:      consoleWriter,
 		consoleWriterLoc:   sync.RWMutex{},
+		ringBuf:            make([][]byte, 0, 1000),
+		ringBufMax:         1000,
 		startupLogMsgsChan: make(chan []byte, 100),
 	}
 }
@@ -68,24 +74,52 @@ func (l *AppLogger) ConsoleWriter() io.Writer {
 	return l.consoleWriter
 }
 
+func (l *AppLogger) RecentLines() [][]byte {
+	l.ringBufLoc.Lock()
+	defer l.ringBufLoc.Unlock()
+
+	cp := make([][]byte, len(l.ringBuf))
+	copy(cp, l.ringBuf)
+	return cp
+}
+
+func (l *AppLogger) appendToRingBuf(line []byte) {
+	cp := make([]byte, len(line))
+	copy(cp, line)
+	if len(l.ringBuf) >= l.ringBufMax {
+		l.ringBuf = l.ringBuf[1:]
+	}
+	l.ringBuf = append(l.ringBuf, cp)
+}
+
 func (l *AppLogger) Write(p []byte) (n int, err error) {
 	l.consoleWriterLoc.RLock()
 	consoleWriter := l.consoleWriter
 	l.consoleWriterLoc.RUnlock()
 
-	if consoleWriter != nil {
-		newLineStart := 0
-		for i := range p {
-			if p[i] == '\n' {
-				n, err = consoleWriter.Write(append(l.prefix, p[newLineStart:i+1]...))
+	newLineStart := 0
+	for i := range p {
+		if p[i] == '\n' {
+			prefixed := append(l.prefix, p[newLineStart:i+1]...)
+			l.ringBufLoc.Lock()
+			l.appendToRingBuf(prefixed)
+			l.ringBufLoc.Unlock()
+			if consoleWriter != nil {
+				n, err = consoleWriter.Write(prefixed)
 				if err != nil {
 					fmt.Println("Error writing:", err)
 				}
-				newLineStart = i + 1
 			}
+			newLineStart = i + 1
 		}
-		if newLineStart < len(p) {
-			n, err = consoleWriter.Write(append(l.prefix, p[newLineStart:]...))
+	}
+	if newLineStart < len(p) {
+		prefixed := append(l.prefix, p[newLineStart:]...)
+		l.ringBufLoc.Lock()
+		l.appendToRingBuf(prefixed)
+		l.ringBufLoc.Unlock()
+		if consoleWriter != nil {
+			n, err = consoleWriter.Write(prefixed)
 			if err != nil {
 				fmt.Println("Error writing:", err)
 			}

@@ -75,3 +75,7 @@ func (a *ExternalApp) Stop() error {
 func (a *ExternalApp) SetConsoleOutput(w io.Writer) {
 	a.appCtrl.SetConsoleOutput(w)
 }
+
+func (a *ExternalApp) RecentLines() [][]byte {
+	return a.appCtrl.RecentLines()
+}

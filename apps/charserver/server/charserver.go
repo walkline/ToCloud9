@@ -566,3 +566,23 @@ func (c *CharServer) NotifyStatusChange(ctx context.Context, request *pb.NotifyS
 		Api: ver,
 	}, nil
 }
+
+func (c *CharServer) GetOnlineCharacters(ctx context.Context, request *pb.GetOnlineCharactersRequest) (*pb.GetOnlineCharactersResponse, error) {
+	defer func(t time.Time) {
+		log.Debug().
+			Uint32("realmID", request.RealmID).
+			Str("timeTook", time.Since(t).String()).
+			Msg("Handled get online characters")
+	}(time.Now())
+
+	guids, err := c.onlineChars.AllGUIDsByRealm(ctx, request.RealmID)
+	if err != nil {
+		return nil, err
+	}
+
+	return &pb.GetOnlineCharactersResponse{
+		Api:             ver,
+		CharacterGUIDs:  guids,
+		TotalCount:      uint32(len(guids)),
+	}, nil
+}

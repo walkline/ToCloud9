@@ -2,6 +2,8 @@ package session
 
 import (
 	"context"
+	"encoding/hex"
+	"fmt"
 	"testing"
 	"time"
 
@@ -57,8 +59,9 @@ func TestGameSessionHandlePacketsWorldPacketsRoute(t *testing.T) {
 		1,
 		&packet.Packet{},
 		GameSessionParams{
-			EventsProducer:    gwEventProducerMock,
-			EventsBroadcaster: broadcasterMock,
+			EventsProducer:               gwEventProducerMock,
+			EventsBroadcaster:            broadcasterMock,
+			ChatChannelsEventBroadcaster: eBroadcaster.NewChatChannelsService(),
 		},
 	)
 
@@ -163,6 +166,27 @@ func TestGameSessionHandlePacketsSafeFuncs(t *testing.T) {
 	session.HandlePackets(ctx)
 
 	assert.Equal(t, []byte{1, 2}, result)
+}
+
+func TestAAA(t *testing.T) {
+	hexStr := "011a0100000031323300494e565f48656c6d65745f3130370083b03c5093af2c4083ae2c5083ad2c83ac2c4083ab2c4083aa2c"
+
+	data, err := hex.DecodeString(hexStr)
+	if err != nil {
+		panic(err)
+	}
+
+	r := packet.NewReaderWithData(data)
+	guid := r.ReadGUID()
+	index := r.Int32()
+	name := r.String()
+	iconName := r.String()
+	fmt.Println(index, guid, name, iconName)
+
+	for i := 0; i < 42; i++ {
+		id := r.ReadGUID()
+		fmt.Println(id)
+	}
 }
 
 func TestGameSessionHandlePacketsGamePacketsHandler(t *testing.T) {

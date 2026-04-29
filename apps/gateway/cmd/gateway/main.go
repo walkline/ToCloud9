@@ -100,7 +100,8 @@ func main() {
 	}
 	defer nc.Close()
 
-	broadcaster := eventsBroadcaster.NewBroadcaster()
+	chatChannelsBroadcasterService := eventsBroadcaster.NewChatChannelsService()
+	broadcaster := eventsBroadcaster.NewBroadcaster(chatChannelsBroadcasterService)
 
 	chatListener := service.NewChatNatsListener(nc, root.RetrievedGatewayID, broadcaster)
 	err = chatListener.Listen()
@@ -169,6 +170,7 @@ func main() {
 			GroupServiceClient:               groupClient,
 			EventsProducer:                   producer,
 			EventsBroadcaster:                broadcaster,
+			ChatChannelsEventBroadcaster:     chatChannelsBroadcasterService,
 			CharsUpdsBarrier:                 charsUpdsBarrier,
 			RealmNamesService:                realmNamesServive,
 			GameServerGRPCConnMgr:            gameserverconn.DefaultGameServerGRPCConnMgr,
