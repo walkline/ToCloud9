@@ -1,4 +1,17 @@
 cmake_minimum_required(VERSION 3.20)
+
+# Use CMAKE_MSVC_RUNTIME_LIBRARY to control MSVC runtime (requires CMake 3.15+)
+if(POLICY CMP0091)
+    cmake_policy(SET CMP0091 NEW)
+endif()
+
+# Auto-detect runtime library from vcpkg triplet
+if(DEFINED VCPKG_TARGET_TRIPLET)
+    if(VCPKG_TARGET_TRIPLET MATCHES ".*-static$")
+        set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+    endif()
+endif()
+
 project(libsidecar VERSION 0.0.1 LANGUAGES C CXX)
 
 # C++ Standard
@@ -18,10 +31,18 @@ option(USE_SYSTEM_PROTOBUF "Use system-installed Protobuf" OFF)
 option(ENABLE_ASAN "Enable AddressSanitizer" OFF)
 option(ENABLE_TSAN "Enable ThreadSanitizer" OFF)
 
+# On Windows, prefer system packages (vcpkg) to avoid build issues
+if(WIN32 AND NOT DEFINED USE_SYSTEM_GRPC)
+    message(STATUS "Windows detected - using system packages (vcpkg recommended)")
+    set(USE_SYSTEM_GRPC ON)
+    set(USE_SYSTEM_PROTOBUF ON)
+endif()
+
 # Platform detection
 if(WIN32)
-    add_definitions(-D_WIN32_WINNT=0x0601)  # Windows 7+
+    add_definitions(-D_WIN32_WINNT=0x0A00)  # Windows 10+
     add_definitions(-DNOMINMAX)
+    # TC9_BUILDING_DLL is set per-target below (only on the library itself)
 endif()
 
 # Compiler flags
@@ -56,9 +77,6 @@ elseif(MSVC)
     if(CMAKE_BUILD_TYPE STREQUAL "Release")
         add_compile_options(/O2)
     endif()
-
-    # Export symbols for DLL
-    add_definitions(-DTC9_EXPORTS)
 endif()
 
 # Dependencies
@@ -70,8 +88,75 @@ find_package(Threads REQUIRED)
 
 # gRPC and Protobuf
 if(USE_SYSTEM_GRPC)
-    find_package(gRPC CONFIG REQUIRED)
+    # Try both gRPC (newer) and grpc (vcpkg uses lowercase)
+    find_package(gRPC CONFIG QUIET)
+    if(NOT gRPC_FOUND)
+        find_package(grpc CONFIG REQUIRED)
+    endif()
     find_package(Protobuf REQUIRED)
+
+    # vcpkg's grpc uses gRPC:: namespace, ensure all variants exist
+    if(NOT TARGET gRPC::grpc++)
+        if(TARGET grpc++)
+            add_library(gRPC::grpc++ ALIAS grpc++)
+        endif()
+    endif()
+
+    if(NOT TARGET gRPC::grpc++_reflection)
+        if(TARGET grpc++_reflection)
+            add_library(gRPC::grpc++_reflection ALIAS grpc++_reflection)
+        endif()
+    endif()
+
+    # When using system gRPC, locate the protoc and grpc_cpp_plugin executables
+    # vcpkg installs them in tools/protobuf and tools/grpc
+    find_program(_PROTOBUF_PROTOC protoc REQUIRED)
+
+    # Look for grpc_cpp_plugin in vcpkg tools directories
+    # Tools are typically installed with the dynamic triplet (x64-windows) even when using static
+    if(DEFINED ENV{VCPKG_ROOT})
+        set(VCPKG_ROOT_DIR "$ENV{VCPKG_ROOT}")
+    elseif(CMAKE_TOOLCHAIN_FILE MATCHES "vcpkg")
+        get_filename_component(VCPKG_ROOT_DIR "${CMAKE_TOOLCHAIN_FILE}/../../.." ABSOLUTE)
+    endif()
+
+    find_program(_GRPC_CPP_PLUGIN_EXECUTABLE
+        NAMES grpc_cpp_plugin
+        PATHS
+            "${VCPKG_ROOT_DIR}/installed/${VCPKG_TARGET_TRIPLET}/tools/grpc"
+            "${VCPKG_ROOT_DIR}/installed/x64-windows/tools/grpc"
+            "${VCPKG_ROOT_DIR}/installed/x64-windows-static/tools/grpc"
+        NO_DEFAULT_PATH
+    )
+    if(NOT _GRPC_CPP_PLUGIN_EXECUTABLE)
+        # Fallback to system search
+        find_program(_GRPC_CPP_PLUGIN_EXECUTABLE grpc_cpp_plugin)
+    endif()
+
+    if(_GRPC_CPP_PLUGIN_EXECUTABLE)
+        message(STATUS "Found gRPC C++ plugin: ${_GRPC_CPP_PLUGIN_EXECUTABLE}")
+    else()
+        message(FATAL_ERROR "Could not find grpc_cpp_plugin. Make sure grpc is installed via vcpkg.")
+    endif()
+
+    # Set library variables for system gRPC
+    set(_PROTOBUF_LIBPROTOBUF protobuf::libprotobuf)
+
+    # Determine the actual target names (vcpkg may use different naming)
+    if(TARGET gRPC::grpc++)
+        set(_GRPC_GRPCPP gRPC::grpc++)
+    elseif(TARGET grpc++)
+        set(_GRPC_GRPCPP grpc++)
+    endif()
+
+    if(TARGET gRPC::grpc++_reflection)
+        set(_REFLECTION gRPC::grpc++_reflection)
+    elseif(TARGET grpc++_reflection)
+        set(_REFLECTION grpc++_reflection)
+    else()
+        # Reflection may not be available, leave empty
+        set(_REFLECTION "")
+    endif()
 else()
     message(STATUS "Downloading and building gRPC (this may take 20-30 minutes)...")
 
@@ -145,6 +230,8 @@ FetchContent_Declare(
 set(NATS_BUILD_STREAMING OFF CACHE BOOL "" FORCE)
 set(NATS_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
 set(NATS_BUILD_TESTING OFF CACHE BOOL "" FORCE)
+set(NATS_BUILD_LIB_STATIC ON CACHE BOOL "" FORCE)
+set(NATS_BUILD_LIB_SHARED OFF CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(nats)
 
 # nlohmann/json for JSON parsing
@@ -263,9 +350,10 @@ target_include_directories(libsidecar
         ${PROTO_GENERATED_DIR}
 )
 
-# Disable HTTPS support in cpp-httplib (we only need HTTP)
+# Compile definitions
 target_compile_definitions(libsidecar PRIVATE
     CPPHTTPLIB_OPENSSL_SUPPORT=0
+    TC9_BUILDING_DLL
 )
 
 target_link_libraries(libsidecar
@@ -277,7 +365,7 @@ target_link_libraries(libsidecar
         prometheus-cpp::core
         prometheus-cpp::pull
         httplib::httplib
-        nats
+        nats_static
         nlohmann_json::nlohmann_json
         Threads::Threads
 )
@@ -287,11 +375,6 @@ if(UNIX AND NOT APPLE)
     target_link_libraries(libsidecar PRIVATE ${CMAKE_DL_LIBS})
 elseif(WIN32)
     target_link_libraries(libsidecar PRIVATE ws2_32 wsock32)
-endif()
-
-# Export symbols on Windows
-if(WIN32)
-    target_compile_definitions(libsidecar PRIVATE TC9_BUILDING_DLL)
 endif()
 
 # Tests

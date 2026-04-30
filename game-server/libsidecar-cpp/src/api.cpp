@@ -11,17 +11,6 @@
 #include "libsidecar/tc9_types.h"
 #include "libsidecar/tc9_events.h"
 #include "core/config.h"
-
-// Define TC9_API for symbol export
-#ifdef _WIN32
-    #ifdef TC9_BUILDING_DLL
-        #define TC9_API __declspec(dllexport)
-    #else
-        #define TC9_API __declspec(dllimport)
-    #endif
-#else
-    #define TC9_API __attribute__((visibility("default")))
-#endif
 #include "core/logger.h"
 #include "core/error.h"
 #include "core/thread_pool.h"

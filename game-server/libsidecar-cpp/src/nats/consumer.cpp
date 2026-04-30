@@ -35,6 +35,14 @@ void NatsConsumer::Start() {
         return;
     }
 
+    // Set server URL
+    status = natsOptions_SetURL(opts, url_.c_str());
+    if (status != NATS_OK) {
+        spdlog::error("Failed to set NATS URL: {}", natsStatus_GetText(status));
+        natsOptions_Destroy(opts);
+        return;
+    }
+
     // Set reconnect options
     natsOptions_SetReconnectWait(opts, 2000);  // 2 seconds
     natsOptions_SetMaxReconnect(opts, -1);  // Infinite reconnects
