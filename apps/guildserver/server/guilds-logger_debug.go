@@ -221,3 +221,45 @@ func (g *guildDebugLoggerMiddleware) SendGuildMessage(ctx context.Context, param
 	res, err = g.realService.SendGuildMessage(ctx, params)
 	return
 }
+
+func (g *guildDebugLoggerMiddleware) GetGuildPetition(ctx context.Context, params *pb.GetGuildPetitionParams) (res *pb.GetGuildPetitionResponse, err error) {
+	defer func(t time.Time) {
+		g.logger.Debug().
+			Uint32("realmID", params.RealmID).
+			Uint64("petitionGUID", params.PetitionGUID).
+			Err(err).
+			Msgf("Handled GetGuildPetition for %v.", time.Since(t))
+	}(time.Now())
+
+	res, err = g.realService.GetGuildPetition(ctx, params)
+	return
+}
+
+func (g *guildDebugLoggerMiddleware) OfferGuildPetition(ctx context.Context, params *pb.OfferGuildPetitionParams) (res *pb.OfferGuildPetitionResponse, err error) {
+	defer func(t time.Time) {
+		g.logger.Debug().
+			Uint32("realmID", params.RealmID).
+			Uint64("ownerGUID", params.OwnerGUID).
+			Uint64("targetGUID", params.TargetGUID).
+			Uint64("petitionGUID", params.PetitionGUID).
+			Err(err).
+			Msgf("Handled OfferGuildPetition for %v.", time.Since(t))
+	}(time.Now())
+
+	res, err = g.realService.OfferGuildPetition(ctx, params)
+	return
+}
+
+func (g *guildDebugLoggerMiddleware) SignGuildPetition(ctx context.Context, params *pb.SignGuildPetitionParams) (res *pb.SignGuildPetitionResponse, err error) {
+	defer func(t time.Time) {
+		g.logger.Debug().
+			Uint32("realmID", params.RealmID).
+			Uint64("signerGUID", params.SignerGUID).
+			Uint64("petitionGUID", params.PetitionGUID).
+			Err(err).
+			Msgf("Handled SignGuildPetition for %v.", time.Since(t))
+	}(time.Now())
+
+	res, err = g.realService.SignGuildPetition(ctx, params)
+	return
+}
