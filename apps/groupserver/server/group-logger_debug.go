@@ -73,6 +73,18 @@ func (g groupDebugLoggerMiddleware) AcceptInvite(ctx context.Context, params *pb
 	return
 }
 
+func (g groupDebugLoggerMiddleware) DeclineInvite(ctx context.Context, params *pb.DeclineInviteParams) (res *pb.DeclineInviteResponse, err error) {
+	defer func(t time.Time) {
+		g.logger.Debug().
+			Uint64("player", params.Player).
+			Err(err).
+			Msgf("Handled DeclineInvite for %v.", time.Since(t))
+	}(time.Now())
+
+	res, err = g.realServer.DeclineInvite(ctx, params)
+	return
+}
+
 func (g groupDebugLoggerMiddleware) Uninvite(ctx context.Context, params *pb.UninviteParams) (res *pb.UninviteResponse, err error) {
 	defer func(t time.Time) {
 		g.logger.Debug().
@@ -144,6 +156,18 @@ func (g groupDebugLoggerMiddleware) GetGroupByMember(ctx context.Context, params
 	}(time.Now())
 
 	res, err = g.realServer.GetGroupByMember(ctx, params)
+	return
+}
+
+func (g groupDebugLoggerMiddleware) GetMemberPlacements(ctx context.Context, params *pb.GetMemberPlacementsRequest) (res *pb.GetMemberPlacementsResponse, err error) {
+	defer func(t time.Time) {
+		g.logger.Debug().
+			Int("members", len(params.MemberGUIDs)).
+			Err(err).
+			Msgf("Handled GetMemberPlacements for %v.", time.Since(t))
+	}(time.Now())
+
+	res, err = g.realServer.GetMemberPlacements(ctx, params)
 	return
 }
 
