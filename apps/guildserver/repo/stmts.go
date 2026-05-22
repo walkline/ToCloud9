@@ -44,6 +44,9 @@ const (
 
 	// StmtDeleteGuildRank deletes guild rank.
 	StmtDeleteGuildRank
+
+	// StmtAddGuildPetitionSignature adds a signer to a native guild petition.
+	StmtAddGuildPetitionSignature
 )
 
 // CharsPreparedStatements represents prepared statements for the characters database.
@@ -86,6 +89,8 @@ func (s CharsPreparedStatements) Stmt() string {
 		return "INSERT INTO guild_rank (guildid, rid, rname, rights, BankMoneyPerDay) VALUES (?, ?, ?, ?, ?)"
 	case StmtDeleteGuildRank:
 		return "DELETE FROM guild_rank WHERE guildid = ? AND rid >= ?"
+	case StmtAddGuildPetitionSignature:
+		return "INSERT INTO petition_sign (ownerguid, petitionguid, petition_id, playerguid, player_account) VALUES (?, ?, ?, ?, ?)"
 	}
 	panic(fmt.Errorf("unk stmt %d", s))
 }
