@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"net"
+	"net/http"
 	"os"
 	"os/signal"
 	"sync"
@@ -22,11 +23,13 @@ import (
 	"github.com/walkline/ToCloud9/apps/matchmakingserver/repo"
 	"github.com/walkline/ToCloud9/apps/matchmakingserver/server"
 	"github.com/walkline/ToCloud9/apps/matchmakingserver/service"
+	pbChar "github.com/walkline/ToCloud9/gen/characters/pb"
+	pbGroup "github.com/walkline/ToCloud9/gen/group/pb"
 	"github.com/walkline/ToCloud9/gen/matchmaking/pb"
 	pbServ "github.com/walkline/ToCloud9/gen/servers-registry/pb"
 	"github.com/walkline/ToCloud9/shared/events"
 	"github.com/walkline/ToCloud9/shared/gameserver/conn"
-	shrepo "github.com/walkline/ToCloud9/shared/repo"
+	"github.com/walkline/ToCloud9/shared/healthandmetrics"
 )
 
 func main() {
@@ -39,22 +42,25 @@ func main() {
 
 	log.Logger = cfg.Logger()
 
+	healthCheckServer := healthandmetrics.NewServer(cfg.HealthCheckPort, nil)
+	go func() {
+		if err := healthCheckServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatal().Err(err).Msg("can't start health check server")
+		}
+	}()
+	defer func() {
+		if err := healthCheckServer.Shutdown(context.Background()); err != nil {
+			log.Error().Err(err).Msg("can't shutdown health check server")
+		}
+	}()
+
 	wdb, err := sql.Open("mysql", cfg.WorldDBConnection)
 	if err != nil {
 		log.Fatal().Err(err).Msg("can't connect to world db")
 	}
 
-	charDB := shrepo.NewCharactersDB()
-
 	realmIDs := []uint32{}
-	for realmID, charDBConn := range cfg.CharDBConnection {
-		cdb, err := sql.Open("mysql", charDBConn)
-		if err != nil {
-			log.Fatal().Err(err).Msg("can't connect to char db")
-		}
-
-		charDB.SetDBForRealm(realmID, cdb)
-
+	for realmID := range cfg.CharDBConnection {
 		realmIDs = append(realmIDs, realmID)
 	}
 
@@ -71,6 +77,8 @@ func main() {
 	defer nc.Close()
 
 	serversRegistryClient := servRegistryService(cfg)
+	registerMatchmakingServer(serversRegistryClient, cfg, healthCheckServer.StartedAtUnixMs())
+
 	battlegroupsRepo, err := repo.NewBattleGroupsInMemWithConfigValue(cfg.BattleGroups)
 	if err != nil {
 		log.Fatal().Err(err).Msg("can't create BattleGroupsInMem repository")
@@ -84,19 +92,32 @@ func main() {
 	gameserverConnMgr := conn.NewGameServerGRPCConnMgr()
 	bgService, err := service.NewBattleGroundService(
 		repo.NewMySQLBattlegroundTemplateRepo(wdb),
+		repo.NewCharserverArenaTeamRepo(charService(cfg)),
 		battlegroupsRepo,
 		repo.NewBattlegroundInMemRepo(),
 		crossRealmTracker,
 		events.NewMatchmakingServiceProducerNatsJSON(nc, matchmaking.Ver),
 		serversRegistryClient,
 		gameserverConnMgr,
+		cfg.ArenaStartMatchmakerRating,
+		service.ArenaRatingConfig{
+			WinModifier1:       float64(cfg.ArenaWinRatingModifier1),
+			WinModifier2:       float64(cfg.ArenaWinRatingModifier2),
+			LoseModifier:       float64(cfg.ArenaLoseRatingModifier),
+			MatchmakerModifier: float64(cfg.ArenaMatchmakerRatingModifier),
+			MaxAllowedMMRDrop:  cfg.MaxAllowedMMRDrop,
+		},
 		realmIDs,
 	)
 	if err != nil {
 		log.Fatal().Err(err).Msg("can't create BattleGroundService service")
 	}
+	matchmakingEventsProducer := events.NewMatchmakingServiceProducerNatsJSON(nc, matchmaking.Ver)
+	groupServiceClient := groupService(cfg)
+	lfgService := service.NewLFGServiceWithBattleGroupsAndGroupRegistrar(battlegroupsRepo, crossRealmTracker, groupServiceClient, matchmakingEventsProducer)
+	lfgMaterializer := service.NewLFGMaterializer(serversRegistryClient, gameserverConnMgr, groupServiceClient)
 
-	charLis := service.NewCharactersListener(bgService, nc)
+	charLis := service.NewCharactersListener(bgService, lfgService, nc)
 	if err = charLis.Listen(); err != nil {
 		log.Fatal().Err(err).Msg("can't start char listener")
 	}
@@ -112,19 +133,26 @@ func main() {
 	}
 	defer registryList.Stop()
 
+	lfgMaterializerListener := service.NewLFGMaterializerListener(nc, lfgMaterializer, lfgService)
+	if err = lfgMaterializerListener.Listen(); err != nil {
+		log.Fatal().Err(err).Msg("can't start LFG materializer listener")
+	}
+	defer lfgMaterializerListener.Stop()
+
 	lis, err := net.Listen("tcp4", ":"+cfg.Port)
 	if err != nil {
 		log.Fatal().Err(err).Msg("can't listen for incoming connections")
 	}
 
 	grpcServer := grpc.NewServer()
-	matchmakingServer := server.NewMatchmakingServer(bgService, gameserverConnMgr)
+	matchmakingServer := server.NewMatchmakingServer(bgService, lfgService, gameserverConnMgr)
 	if cfg.LogLevel == zerolog.DebugLevel {
 		matchmakingServer = server.NewMatchmakingDebugLoggerMiddleware(matchmakingServer, log.Logger)
 	}
 	pb.RegisterMatchmakingServiceServer(grpcServer, matchmakingServer)
 
 	go bgService.ProcessExpiredBattlegroundInvites(ctx)
+	go lfgService.ProcessExpiredLfgProposals(ctx)
 
 	// graceful shutdown handling
 	sigCh := make(chan os.Signal, 1)
@@ -158,4 +186,38 @@ func servRegistryService(cnf *config.Config) pbServ.ServersRegistryServiceClient
 	}
 
 	return pbServ.NewServersRegistryServiceClient(conn)
+}
+
+func registerMatchmakingServer(client pbServ.ServersRegistryServiceClient, cnf *config.Config, startedAtUnixMs int64) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	_, err := client.RegisterMatchmakingServer(ctx, &pbServ.RegisterMatchmakingServerRequest{
+		Api:               matchmaking.SupportedServerRegistryVer,
+		ServicePort:       uint32(cnf.PortInt()),
+		HealthPort:        uint32(cnf.HealthCheckPortInt()),
+		PreferredHostName: cnf.PreferredHostname,
+		StartedAtUnixMs:   startedAtUnixMs,
+	})
+	if err != nil {
+		log.Fatal().Err(err).Msg("can't register matchmaking server")
+	}
+}
+
+func groupService(cnf *config.Config) pbGroup.GroupServiceClient {
+	conn, err := grpc.Dial(cnf.GroupServiceAddress, grpc.WithInsecure())
+	if err != nil {
+		log.Fatal().Err(err).Msg("can't connect to group service")
+	}
+
+	return pbGroup.NewGroupServiceClient(conn)
+}
+
+func charService(cnf *config.Config) pbChar.CharactersServiceClient {
+	conn, err := grpc.Dial(cnf.CharServiceAddress, grpc.WithInsecure())
+	if err != nil {
+		log.Fatal().Err(err).Msg("can't connect to character service")
+	}
+
+	return pbChar.NewCharactersServiceClient(conn)
 }
