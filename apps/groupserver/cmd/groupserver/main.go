@@ -106,31 +106,23 @@ func createGroupService(cfg *config.Config, natsCon *nats.Conn) service.GroupsSe
 	groupsRepo := repo.NewMysqlGroupsRepo(charDB)
 
 	cache := service.NewInMemGroupsCache(groupsRepo)
-	err := events.NewGatewayConsumer(
-		natsCon,
-		events.WithGWConsumerLoggedInHandler(cache),
-		events.WithGWConsumerLoggedOutHandler(cache),
-	).Listen()
-	if err != nil {
-		log.Fatal().Err(err).Msg("can't listen to gateway updates")
-	}
 
-	err = cache.Warmup(context.Background(), 1)
-	if err != nil {
-		log.Fatal().Err(err).Msg("can't warmup groups cache")
+	for realmID := range cfg.CharDBConnection {
+		if err := cache.Warmup(context.Background(), realmID); err != nil {
+			log.Fatal().Err(err).Uint32("realmID", realmID).Msg("can't warmup groups cache")
+		}
 	}
 
 	charClient := charService(cfg)
 
 	s := service.NewGroupsService(cache, charClient, events.NewGroupServiceProducerNatsJSON(natsCon, groupserver.Ver))
 
-	// TODO: combine this with consumer for cache
-	err = events.NewGatewayConsumer(
+	if err := events.NewGatewayConsumer(
 		natsCon,
+		events.WithGWConsumerGatewayStartedHandler(s),
 		events.WithGWConsumerLoggedInHandler(s),
 		events.WithGWConsumerLoggedOutHandler(s),
-	).Listen()
-	if err != nil {
+	).Listen(); err != nil {
 		log.Fatal().Err(err).Msg("can't listen to gateway updates")
 	}
 
