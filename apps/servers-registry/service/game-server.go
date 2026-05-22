@@ -58,6 +58,12 @@ func NewGameServer(
 		}
 	})
 
+	checker.AddSuccessObserver(func(object healthandmetrics.HealthCheckObject) {
+		if gs, ok := object.(*repo.GameServer); ok {
+			service.onServerHealthy(gs)
+		}
+	})
+
 	metrics.AddObserver(func(observable healthandmetrics.MetricsObservable, read *healthandmetrics.MetricsRead) {
 		if gs, ok := observable.(*repo.GameServer); ok {
 			service.onMetricsUpdate(gs, read)
@@ -105,6 +111,7 @@ func (g *gameServerImpl) Register(ctx context.Context, server *repo.GameServer) 
 	sort.Slice(server.AvailableMaps, func(i, j int) bool {
 		return server.AvailableMaps[i] < server.AvailableMaps[j]
 	})
+	server.HealthDegraded = false
 
 	if err := g.checker.AddHealthCheckObject(server); err != nil {
 		return err
@@ -176,8 +183,9 @@ func (g *gameServerImpl) AvailableForMapAndRealm(ctx context.Context, mapID uint
 		return nil, err
 	}
 
+	admissionServers := gameServersAcceptingNewPlayers(servers)
 	hasExplicitMapServer := false
-	for _, server := range servers {
+	for _, server := range admissionServers {
 		if !server.IsAllMapsAvailable() && containsMapID(server.AvailableMaps, mapID) {
 			hasExplicitMapServer = true
 			break
@@ -185,13 +193,29 @@ func (g *gameServerImpl) AvailableForMapAndRealm(ctx context.Context, mapID uint
 	}
 
 	result := []repo.GameServer{}
-	for _, server := range servers {
+	for _, server := range admissionServers {
 		if hasExplicitMapServer && server.IsAllMapsAvailable() {
 			continue
 		}
 
 		if server.CanHandleMap(mapID) {
 			result = append(result, server)
+		}
+	}
+
+	if len(result) == 0 && hasDegradedMapOwner(servers, mapID) {
+		for _, server := range admissionServers {
+			if server.IsAllMapsAvailable() {
+				result = append(result, server)
+			}
+		}
+		if len(result) > 0 {
+			log.Warn().
+				Uint32("mapID", mapID).
+				Uint32("realmID", realmID).
+				Bool("isCrossRealm", isCrossRealm).
+				Int("candidates", len(result)).
+				Msg("Using healthy all-map game servers while assigned owner is health-degraded")
 		}
 	}
 
@@ -203,6 +227,7 @@ func (g *gameServerImpl) RandomServerForRealm(ctx context.Context, realmID uint3
 	if err != nil {
 		return nil, err
 	}
+	servers = gameServersAcceptingNewPlayers(servers)
 
 	if len(servers) == 0 {
 		return nil, nil
@@ -279,8 +304,48 @@ func (g *gameServerImpl) MapsLoadedForServer(ctx context.Context, serverID strin
 	return server, g.r.Upsert(ctx, server)
 }
 
+func (g *gameServerImpl) onServerHealthy(server *repo.GameServer) {
+	wasDegraded := false
+	err := g.r.Update(context.Background(), server.ID, func(s *repo.GameServer) *repo.GameServer {
+		wasDegraded = s.HealthDegraded
+		s.HealthDegraded = false
+		return s
+	})
+	if err != nil {
+		log.Error().
+			Err(err).
+			Str("address", server.Address).
+			Str("healthCheckAddress", server.HealthCheckAddr).
+			Str("serverID", server.ID).
+			Msg("can't clear degraded game server health state")
+		return
+	}
+	if wasDegraded {
+		log.Info().
+			Str("address", server.Address).
+			Str("healthCheckAddress", server.HealthCheckAddr).
+			Str("serverID", server.ID).
+			Uint32("realmID", server.RealmID).
+			Bool("isCrossRealm", server.IsCrossRealm).
+			Msg("Game Server health recovered; accepting new player placement")
+	}
+}
+
 func (g *gameServerImpl) onServerUnhealthy(server *repo.GameServer, err error) {
 	if isDegradedGameServerHealthError(err) {
+		updateErr := g.r.Update(context.Background(), server.ID, func(s *repo.GameServer) *repo.GameServer {
+			s.HealthDegraded = true
+			return s
+		})
+		if updateErr != nil {
+			log.Error().
+				Err(updateErr).
+				Str("address", server.Address).
+				Str("healthCheckAddress", server.HealthCheckAddr).
+				Str("serverID", server.ID).
+				Msg("can't mark degraded game server as non-admitting")
+		}
+
 		log.Warn().
 			Err(err).
 			Str("address", server.Address).
@@ -288,8 +353,10 @@ func (g *gameServerImpl) onServerUnhealthy(server *repo.GameServer, err error) {
 			Str("serverID", server.ID).
 			Uint32("realmID", server.RealmID).
 			Bool("isCrossRealm", server.IsCrossRealm).
-			Msg("Game Server world-loop health degraded; preserving registered routing membership")
-		if addErr := g.checker.AddHealthCheckObject(server); addErr != nil {
+			Msg("Game Server world-loop health degraded; preserving ownership but draining new player placement")
+		degraded := server.Copy()
+		degraded.HealthDegraded = true
+		if addErr := g.checker.AddHealthCheckObject(&degraded); addErr != nil {
 			log.Error().Err(addErr).Str("serverID", server.ID).Msg("can't re-add degraded game server to health checker")
 		}
 		return
@@ -443,6 +510,25 @@ func pendingMapsAfterReassignment(previous repo.GameServer, reassigned events.Ga
 func containsMapID(maps []uint32, mapID uint32) bool {
 	for _, candidate := range maps {
 		if candidate == mapID {
+			return true
+		}
+	}
+	return false
+}
+
+func gameServersAcceptingNewPlayers(servers []repo.GameServer) []repo.GameServer {
+	result := make([]repo.GameServer, 0, len(servers))
+	for _, server := range servers {
+		if server.AcceptsNewPlayers() {
+			result = append(result, server)
+		}
+	}
+	return result
+}
+
+func hasDegradedMapOwner(servers []repo.GameServer, mapID uint32) bool {
+	for _, server := range servers {
+		if server.HealthDegraded && server.CanHandleMap(mapID) {
 			return true
 		}
 	}

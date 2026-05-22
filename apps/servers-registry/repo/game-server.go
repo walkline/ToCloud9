@@ -27,6 +27,7 @@ type GameServer struct {
 
 	ActiveConnections uint32
 	Diff              DiffData
+	HealthDegraded    bool
 
 	// AssignedMapsToHandle list of maps that loadbalancer algorithm assigned for this server.
 	AssignedMapsToHandle []uint32
@@ -62,6 +63,10 @@ func (g *GameServer) CanHandleMap(id uint32) bool {
 
 func (g *GameServer) IsAllMapsAvailable() bool {
 	return len(g.AvailableMaps) == 0
+}
+
+func (g *GameServer) AcceptsNewPlayers() bool {
+	return !g.HealthDegraded
 }
 
 func (g *GameServer) Copy() GameServer {
