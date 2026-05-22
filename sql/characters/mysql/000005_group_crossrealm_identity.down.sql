@@ -1,0 +1,13 @@
+ALTER TABLE group_invites
+    DROP COLUMN groupRealmId,
+    MODIFY invited INT UNSIGNED NOT NULL,
+    MODIFY inviter INT UNSIGNED NOT NULL;
+
+ALTER TABLE group_member
+    DROP COLUMN memberName,
+    MODIFY memberGuid INT UNSIGNED NOT NULL;
+
+ALTER TABLE `groups`
+    MODIFY leaderGuid INT UNSIGNED NOT NULL,
+    MODIFY looterGuid INT UNSIGNED NOT NULL,
+    MODIFY masterLooterGuid INT UNSIGNED NOT NULL;
