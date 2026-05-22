@@ -23,6 +23,8 @@ func (s *GameSession) HandleMovement(ctx context.Context, p *packet.Packet) erro
 		return nil
 	}
 
+	s.markPlayerWorldActive()
+
 	r := p.Reader()
 	if r.ReadGUID() != s.character.GUID {
 		return nil

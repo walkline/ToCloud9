@@ -133,15 +133,32 @@ func main() {
 		log.Fatal().Err(err).Msg("can't listen to matchmaking events-broadcaster")
 	}
 
+	serversRegistryListener := service.NewServersRegistryNatsListener(nc, broadcaster)
+	err = serversRegistryListener.Listen()
+	if err != nil {
+		log.Fatal().Err(err).Msg("can't listen to servers-registry events-broadcaster")
+	}
+
 	friendsListener := service.NewFriendsNatsListener(nc, broadcaster)
 	err = friendsListener.Listen()
 	if err != nil {
 		log.Fatal().Err(err).Msg("can't listen to friends events-broadcaster")
 	}
 
+	charactersListener := service.NewCharactersNatsListener(nc, broadcaster)
+	err = charactersListener.Listen()
+	if err != nil {
+		log.Fatal().Err(err).Msg("can't listen to characters events-broadcaster")
+	}
+
 	producer := events.NewGatewayProducerNatsJSON(nc, root.Ver, root.RealmID, root.RetrievedGatewayID)
+	if err := producer.GatewayStarted(&events.GWEventGatewayStartedPayload{}); err != nil {
+		log.Error().Err(err).Str("gatewayID", root.RetrievedGatewayID).Msg("can't publish gateway started event")
+	}
 	charsUpdsBarrier := service.NewCharactersUpdatesBarrier(&log.Logger, producer, time.Second)
 	go charsUpdsBarrier.Run(context.TODO())
+	playerStateUpdatesBarrier := service.NewPlayerStateUpdatesBarrier(&log.Logger, groupClient, root.SupportedGroupServiceVer, root.RealmID, root.RetrievedGatewayID, 5*time.Second)
+	go playerStateUpdatesBarrier.Run(context.TODO())
 
 	realmNamesServive, err := service.NewRealmNamesService(context.Background(), repo.NewRealmNamesMySQLRepo(authDB))
 	if err != nil {
@@ -152,6 +169,16 @@ func main() {
 		Str("address", l.Addr().String()).
 		Msg("🚀 Gateway started!")
 
+	gamesocket.ConfigureAuthSessionKeyRefresh(
+		time.Millisecond*time.Duration(conf.AuthSessionKeyRefreshDelayMs),
+		int(conf.AuthSessionKeyRefreshAttempts),
+	)
+	session.ConfigureWorldserverConnectRetry(
+		time.Millisecond*time.Duration(conf.WorldserverConnectRetryWaitMs),
+		time.Millisecond*time.Duration(conf.WorldserverConnectRetryMaxWaitMs),
+	)
+
+	sessionRegistry := session.NewSessionRegistry()
 	for {
 		conn, err := l.Accept()
 		if err != nil {
@@ -171,10 +198,14 @@ func main() {
 			EventsProducer:                   producer,
 			EventsBroadcaster:                broadcaster,
 			ChatChannelsEventBroadcaster:     chatChannelsBroadcasterService,
+			SessionRegistry:                  sessionRegistry,
 			CharsUpdsBarrier:                 charsUpdsBarrier,
+			PlayerStateUpdatesBarrier:        playerStateUpdatesBarrier,
 			RealmNamesService:                realmNamesServive,
 			GameServerGRPCConnMgr:            gameserverconn.DefaultGameServerGRPCConnMgr,
 			PacketProcessTimeout:             time.Second * time.Duration(conf.PacketProcessTimeoutSecs),
+			WorldAuthAttemptTimeout:          time.Millisecond * time.Duration(conf.WorldAuthAttemptTimeoutMs),
+			WorldAuthSessionReadyDelay:       time.Millisecond * time.Duration(conf.WorldAuthSessionReadyDelayMs),
 			ShowGameserverConnChangeToClient: conf.ShowGameserverConnChangeToClient,
 		})
 		go func() {
