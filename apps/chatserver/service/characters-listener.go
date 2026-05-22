@@ -37,17 +37,29 @@ func (c *CharactersListener) Listen() error {
 			return
 		}
 
-		err = c.charRepo.AddCharacter(context.TODO(), &repo.Character{
+		applied, err := c.charRepo.AddCharacterFromGatewayEvent(context.TODO(), &repo.Character{
 			RealmID:   loggedInP.RealmID,
 			GatewayID: loggedInP.GatewayID,
 			GUID:      loggedInP.CharGUID,
+			AccountID: loggedInP.AccountID,
 			Name:      loggedInP.CharName,
 			Race:      loggedInP.CharRace,
+			Class:     loggedInP.CharClass,
+			Gender:    loggedInP.CharGender,
 			MsgSender: sender.NewMsgSenderNatsJSON(c.nc, loggedInP.GatewayID),
-		})
+		}, loggedInP.EventTimeUnixNano)
 
 		if err != nil {
 			log.Error().Err(err).Msg("can't add character in GWEventCharacterLoggedIn event")
+			return
+		}
+		if !applied {
+			log.Debug().
+				Uint32("realmID", loggedInP.RealmID).
+				Uint64("charGUID", loggedInP.CharGUID).
+				Str("gatewayID", loggedInP.GatewayID).
+				Uint64("eventTimeUnixNano", loggedInP.EventTimeUnixNano).
+				Msg("ignored repository-stale GWEventCharacterLoggedIn event")
 			return
 		}
 	})
@@ -65,18 +77,36 @@ func (c *CharactersListener) Listen() error {
 			return
 		}
 
-		// Transfer ownership if player was owner (but keep them as member)
+		applied, err := c.charRepo.RemoveCharacterFromGatewayEvent(context.TODO(), loggedOutP.RealmID, loggedOutP.CharGUID, loggedOutP.EventTimeUnixNano)
+		if err != nil {
+			log.Error().Err(err).Msg("can't remove character in GWEventCharacterLoggedOut event")
+			return
+		}
+		if !applied {
+			log.Debug().
+				Uint32("realmID", loggedOutP.RealmID).
+				Uint64("charGUID", loggedOutP.CharGUID).
+				Str("gatewayID", loggedOutP.GatewayID).
+				Uint64("eventTimeUnixNano", loggedOutP.EventTimeUnixNano).
+				Msg("ignored repository-stale GWEventCharacterLoggedOut event")
+			return
+		}
+
+		// Transfer ownership if player was owner (but keep them as member).
 		transfers := c.channelMgr.TransferOwnershipOnLogout(loggedOutP.RealmID, loggedOutP.CharGUID)
 
-		// Broadcast ownership changes for each transfer
 		for _, transfer := range transfers {
-			// Send mode change notification
 			payload := &events.ChatEventChannelNotificationPayload{
-				RealmID:     loggedOutP.RealmID,
-				ChannelName: transfer.ChannelName,
-				ChannelID:   transfer.ChannelID,
-				NotifyType:  0x0C, // CHAT_MODE_CHANGE_NOTICE
-				TargetGUID:  transfer.NewOwnerGUID,
+				RealmID:      loggedOutP.RealmID,
+				ChannelName:  transfer.ChannelName,
+				ChannelID:    transfer.ChannelID,
+				ChannelFlags: uint32(transfer.ChannelFlags),
+				TeamID:       uint32(transfer.TeamID),
+				NumMembers:   transfer.NumMembers,
+				NotifyType:   0x0C, // CHAT_MODE_CHANGE_NOTICE
+				TargetGUID:   transfer.NewOwnerGUID,
+				OldFlags:     transfer.OldFlags,
+				NewFlags:     transfer.NewFlags,
 			}
 			if err := c.producer.ChannelNotification(payload); err != nil {
 				log.Error().Err(err).
@@ -85,7 +115,6 @@ func (c *CharactersListener) Listen() error {
 					Msg("Failed to broadcast mode change on logout ownership transfer")
 			}
 
-			// Send owner changed notification
 			payload.NotifyType = 0x08 // CHAT_OWNER_CHANGED_NOTICE
 			if err := c.producer.ChannelNotification(payload); err != nil {
 				log.Error().Err(err).
@@ -93,12 +122,6 @@ func (c *CharactersListener) Listen() error {
 					Uint64("newOwner", transfer.NewOwnerGUID).
 					Msg("Failed to broadcast owner changed on logout ownership transfer")
 			}
-		}
-
-		err = c.charRepo.RemoveCharacter(context.TODO(), loggedOutP.RealmID, loggedOutP.CharGUID)
-		if err != nil {
-			log.Error().Err(err).Msg("can't remove character in GWEventCharacterLoggedOut event")
-			return
 		}
 	})
 	if err != nil {

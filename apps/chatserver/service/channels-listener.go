@@ -6,6 +6,7 @@ import (
 	"github.com/nats-io/nats.go"
 	"github.com/rs/zerolog/log"
 
+	pbChat "github.com/walkline/ToCloud9/gen/chat/pb"
 	"github.com/walkline/ToCloud9/shared/events"
 )
 
@@ -36,9 +37,14 @@ func (c *ChannelsListener) Listen() error {
 			return
 		}
 
+		channelFlags := uint8(payload.ChannelFlags)
+		if channelFlags == 0 {
+			channelFlags = ChannelFlagCustom
+		}
+
 		ch, err := c.channelMgr.GetOrCreateChannel(
 			context.TODO(), payload.RealmID, payload.ChannelName,
-			payload.ChannelID, 0, "", ChannelFlagCustom,
+			payload.ChannelID, pbChat.TeamID(payload.TeamID), "", channelFlags,
 		)
 		if err != nil {
 			log.Error().Err(err).Str("channel", payload.ChannelName).Msg("sync: failed to get/create channel")
@@ -65,12 +71,12 @@ func (c *ChannelsListener) Listen() error {
 			return
 		}
 
-		ch := c.channelMgr.GetChannel(payload.RealmID, payload.ChannelName, 0)
+		ch := c.channelMgr.GetChannel(payload.RealmID, payload.ChannelName, pbChat.TeamID(payload.TeamID))
 		if ch == nil {
 			return
 		}
 
-		_, err = ch.LeaveChannel(context.TODO(), c.channelMgr, payload.RealmID, payload.PlayerGUID)
+		_, _, _, err = ch.LeaveChannel(context.TODO(), c.channelMgr, payload.RealmID, payload.PlayerGUID)
 		if err != nil {
 			log.Debug().Err(err).Str("channel", payload.ChannelName).Uint64("player", payload.PlayerGUID).Msg("sync: leave skipped")
 		}

@@ -1,8 +1,6 @@
 package service
 
 import (
-	"context"
-
 	"github.com/nats-io/nats.go"
 	"github.com/rs/zerolog/log"
 
@@ -32,25 +30,7 @@ func (c *CharactersListener) Listen() error {
 			return
 		}
 
-		err = c.charRepo.Add(context.TODO(), &repo.Character{
-			RealmID:     loggedInP.RealmID,
-			GatewayID:   loggedInP.GatewayID,
-			CharGUID:    loggedInP.CharGUID,
-			CharName:    loggedInP.CharName,
-			CharRace:    loggedInP.CharRace,
-			CharClass:   loggedInP.CharClass,
-			CharGender:  loggedInP.CharGender,
-			CharLevel:   loggedInP.CharLevel,
-			CharZone:    loggedInP.CharZone,
-			CharMap:     loggedInP.CharMap,
-			CharPosX:    loggedInP.CharPosX,
-			CharPosY:    loggedInP.CharPosY,
-			CharPosZ:    loggedInP.CharPosZ,
-			CharGuildID: loggedInP.CharGuildID,
-			AccountID:   loggedInP.AccountID,
-		})
-
-		if err != nil {
+		if err = c.charRepo.HandleCharacterLoggedIn(loggedInP); err != nil {
 			log.Error().Err(err).Msg("can't add character in GWEventCharacterLoggedIn event")
 			return
 		}
@@ -69,8 +49,7 @@ func (c *CharactersListener) Listen() error {
 			return
 		}
 
-		err = c.charRepo.Remove(context.TODO(), loggedOutP.RealmID, loggedOutP.CharGUID)
-		if err != nil {
+		if err = c.charRepo.HandleCharacterLoggedOut(loggedOutP); err != nil {
 			log.Error().Err(err).Msg("can't remove character in GWEventCharacterLoggedOut event")
 			return
 		}

@@ -32,9 +32,9 @@ func (c *ServersRegistryListener) Listen() error {
 			return
 		}
 
-		err = c.charRepo.RemoveCharactersWithRealm(context.TODO(), payload.RealmID)
+		err = c.charRepo.RemoveCharactersWithGatewayID(context.TODO(), payload.RealmID, payload.ID, payload.EventTimeUnixNano)
 		if err != nil {
-			log.Error().Err(err).Msg("can't add character in GWEventCharacterLoggedIn event")
+			log.Error().Err(err).Msg("can't remove gateway characters in ServerRegistryEventGWRemovedUnhealthy event")
 			return
 		}
 	})
