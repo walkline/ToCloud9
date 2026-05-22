@@ -29,6 +29,7 @@ type LogInCharacter struct {
 	GuildID uint32
 
 	PlayerFlags  uint32
+	ExtraFlags   uint32
 	AtLoginFlags uint16
 
 	PetEntry   uint32
@@ -53,18 +54,39 @@ const (
 )
 
 type FriendEntry struct {
-	PlayerGUID uint64
-	FriendGUID uint64
-	Flags      uint8
-	Note       string
+	PlayerRealmID uint32
+	PlayerGUID    uint64
+	FriendGUID    uint64
+	Flags         uint8
+	Note          string
+}
+
+type LfgDungeonRoute struct {
+	RealmID               uint32
+	PlayerGUID            uint64
+	DungeonEntry          uint32
+	MapID                 uint32
+	Difficulty            uint8
+	OwnerRealmID          uint32
+	IsCrossRealm          bool
+	RequiresBoundInstance bool
+	InstanceID            uint32
+	BoundInstanceID       uint32
 }
 
 type Characters interface {
 	ListCharactersToLogIn(ctx context.Context, realmID, accountID uint32) ([]LogInCharacter, error)
-	CharacterToLogInByGUID(ctx context.Context, realmID uint32, charGUID uint64) (*LogInCharacter, error)
+	CharacterToLogInByGUID(ctx context.Context, realmID, accountID uint32, charGUID uint64) (*LogInCharacter, error)
 	CharacterByName(ctx context.Context, realmID uint32, name string) (*Character, error)
+	CharacterByGUID(ctx context.Context, realmID uint32, charGUID uint64) (*Character, error)
+	DisplayCharacterByAccount(ctx context.Context, accountID uint32) (*Character, error)
 	AccountDataForAccountID(ctx context.Context, realmID, accountID uint32) ([]AccountData, error)
+	UpdateAccountDataForAccountID(ctx context.Context, realmID, accountID uint32, data AccountData) error
 	SaveCharacterPosition(ctx context.Context, realmID uint32, charGUID uint64, mapID uint32, x, y, z, o float32) error
+	RecordLfgDungeonRoute(ctx context.Context, route LfgDungeonRoute) error
+	ConfirmLfgDungeonRouteEntered(ctx context.Context, realmID uint32, playerGUID uint64, mapID uint32, difficulty uint8, instanceID uint32) (*LfgDungeonRoute, error)
+	ClearUnboundLfgDungeonRoute(ctx context.Context, realmID uint32, playerGUID uint64, mapID uint32) error
+	LfgDungeonRouteForPlayer(ctx context.Context, realmID uint32, playerGUID uint64, mapID uint32) (*LfgDungeonRoute, error)
 
 	// Friends and social methods
 	GetFriendsForPlayer(ctx context.Context, realmID uint32, playerGUID uint64) ([]*FriendEntry, error)

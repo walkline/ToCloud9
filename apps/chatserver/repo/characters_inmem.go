@@ -5,11 +5,13 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"time"
 )
 
 type charactersInMemRepo struct {
-	charsByGUID map[string]*Character
-	charsByName map[string]*Character
+	charsByGUID         map[string]*Character
+	charsByName         map[string]*Character
+	lifecycleEventTimes map[string]uint64
 
 	guidMu sync.RWMutex
 	nameMu sync.RWMutex
@@ -17,34 +19,89 @@ type charactersInMemRepo struct {
 
 func NewCharactersInMemRepo() CharactersRepo {
 	return &charactersInMemRepo{
-		charsByGUID: map[string]*Character{},
-		charsByName: map[string]*Character{},
+		charsByGUID:         map[string]*Character{},
+		charsByName:         map[string]*Character{},
+		lifecycleEventTimes: map[string]uint64{},
 	}
 }
 
 func (c *charactersInMemRepo) AddCharacter(ctx context.Context, character *Character) error {
-	c.guidMu.Lock()
-	c.charsByGUID[c.mapKeyForRealmAndGuid(character.RealmID, character.GUID)] = character
-	c.guidMu.Unlock()
+	_, err := c.addCharacter(character, 0)
+	return err
+}
 
-	c.nameMu.Lock()
-	c.charsByName[c.mapKeyForRealmAndName(character.RealmID, character.Name)] = character
-	c.nameMu.Unlock()
-
-	return nil
+func (c *charactersInMemRepo) AddCharacterFromGatewayEvent(ctx context.Context, character *Character, eventTimeUnixNano uint64) (bool, error) {
+	return c.addCharacter(character, eventTimeUnixNano)
 }
 
 func (c *charactersInMemRepo) RemoveCharacter(ctx context.Context, realmID uint32, characterGUID uint64) error {
+	_, err := c.removeCharacter(realmID, characterGUID, 0)
+	return err
+}
+
+func (c *charactersInMemRepo) RemoveCharacterFromGatewayEvent(ctx context.Context, realmID uint32, characterGUID uint64, eventTimeUnixNano uint64) (bool, error) {
+	return c.removeCharacter(realmID, characterGUID, eventTimeUnixNano)
+}
+
+func (c *charactersInMemRepo) addCharacter(character *Character, eventTimeUnixNano uint64) (bool, error) {
+	if character == nil {
+		return false, nil
+	}
+
+	guidKey := c.mapKeyForRealmAndGuid(character.RealmID, character.GUID)
+	c.guidMu.Lock()
+	c.nameMu.Lock()
+	defer c.nameMu.Unlock()
+	defer c.guidMu.Unlock()
+
+	if !c.shouldApplyLifecycleEvent(guidKey, eventTimeUnixNano) {
+		return false, nil
+	}
+	if previous := c.charsByGUID[guidKey]; previous != nil {
+		delete(c.charsByName, c.mapKeyForRealmAndName(previous.RealmID, previous.Name))
+	}
+	c.charsByGUID[guidKey] = character
+	c.charsByName[c.mapKeyForRealmAndName(character.RealmID, character.Name)] = character
+	c.rememberLifecycleEventTime(guidKey, eventTimeUnixNano)
+	return true, nil
+}
+
+func (c *charactersInMemRepo) removeCharacter(realmID uint32, characterGUID uint64, eventTimeUnixNano uint64) (bool, error) {
 	guidKey := c.mapKeyForRealmAndGuid(realmID, characterGUID)
 	c.guidMu.Lock()
+	c.nameMu.Lock()
+	defer c.nameMu.Unlock()
+	defer c.guidMu.Unlock()
+
+	if !c.shouldApplyLifecycleEvent(guidKey, eventTimeUnixNano) {
+		return false, nil
+	}
 	char := c.charsByGUID[guidKey]
 	delete(c.charsByGUID, guidKey)
-	c.guidMu.Unlock()
 
 	if char != nil {
-		c.nameMu.Lock()
 		delete(c.charsByName, c.mapKeyForRealmAndName(realmID, char.Name))
-		c.nameMu.Unlock()
+	}
+	c.rememberLifecycleEventTime(guidKey, eventTimeUnixNano)
+
+	return true, nil
+}
+
+func (c *charactersInMemRepo) RemoveCharactersWithGatewayID(ctx context.Context, realmID uint32, gatewayID string, eventTimeUnixNano uint64) error {
+	c.guidMu.Lock()
+	c.nameMu.Lock()
+	defer c.nameMu.Unlock()
+	defer c.guidMu.Unlock()
+	if eventTimeUnixNano == 0 {
+		eventTimeUnixNano = uint64(time.Now().UnixNano())
+	}
+
+	for guidKey, char := range c.charsByGUID {
+		if char.RealmID == realmID && char.GatewayID == gatewayID && c.lifecycleEventTimes[guidKey] <= eventTimeUnixNano {
+			delete(c.charsByGUID, guidKey)
+			delete(c.charsByName, c.mapKeyForRealmAndName(realmID, char.Name))
+			c.rememberLifecycleEventTime(guidKey, eventTimeUnixNano)
+		}
 	}
 
 	return nil
@@ -62,6 +119,21 @@ func (c *charactersInMemRepo) CharacterByRealmAndName(ctx context.Context, realm
 	return c.charsByName[c.mapKeyForRealmAndName(realmID, name)], nil
 }
 
+func (c *charactersInMemRepo) CharactersByName(ctx context.Context, name string) ([]*Character, error) {
+	c.nameMu.RLock()
+	defer c.nameMu.RUnlock()
+
+	matches := make([]*Character, 0)
+	nameSuffix := ":" + strings.ToLower(name)
+	for key, char := range c.charsByName {
+		if strings.HasSuffix(key, nameSuffix) {
+			matches = append(matches, char)
+		}
+	}
+
+	return matches, nil
+}
+
 func (c *charactersInMemRepo) RemoveCharactersWithRealm(ctx context.Context, realmID uint32) error {
 	// TODO: need to completely rewrite this
 
@@ -70,7 +142,10 @@ func (c *charactersInMemRepo) RemoveCharactersWithRealm(ctx context.Context, rea
 
 	prefix := fmt.Sprintf("%d:", realmID)
 
+	c.guidMu.Lock()
 	c.nameMu.Lock()
+	defer c.nameMu.Unlock()
+	defer c.guidMu.Unlock()
 
 	for k, char := range c.charsByName {
 		if strings.HasPrefix(k, prefix) {
@@ -87,8 +162,6 @@ func (c *charactersInMemRepo) RemoveCharactersWithRealm(ctx context.Context, rea
 		delete(c.charsByGUID, k)
 	}
 
-	c.nameMu.Unlock()
-
 	return nil
 }
 
@@ -98,4 +171,18 @@ func (c *charactersInMemRepo) mapKeyForRealmAndGuid(realm uint32, guid uint64) s
 
 func (c *charactersInMemRepo) mapKeyForRealmAndName(realm uint32, name string) string {
 	return fmt.Sprintf("%d:%s", realm, strings.ToLower(name))
+}
+
+func (c *charactersInMemRepo) shouldApplyLifecycleEvent(guidKey string, eventTimeUnixNano uint64) bool {
+	return eventTimeUnixNano == 0 || c.lifecycleEventTimes[guidKey] <= eventTimeUnixNano
+}
+
+func (c *charactersInMemRepo) rememberLifecycleEventTime(guidKey string, eventTimeUnixNano uint64) {
+	if eventTimeUnixNano == 0 {
+		return
+	}
+	if c.lifecycleEventTimes == nil {
+		c.lifecycleEventTimes = map[string]uint64{}
+	}
+	c.lifecycleEventTimes[guidKey] = eventTimeUnixNano
 }

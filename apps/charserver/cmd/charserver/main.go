@@ -56,6 +56,13 @@ func main() {
 		charDB.SetDBForRealm(realmID, cdb)
 	}
 
+	authDB, err := sql.Open("mysql", conf.AuthDBConnection)
+	if err != nil {
+		log.Fatal().Err(err).Msg("can't connect to auth db")
+	}
+	defer authDB.Close()
+	configureDBConn(authDB)
+
 	wdb, err := sql.Open("mysql", conf.WorldDBConnection)
 	if err != nil {
 		log.Fatal().Err(err).Msg("can't connect to world db")
@@ -69,13 +76,18 @@ func main() {
 	}
 
 	charRepo := repo.NewCharactersMYSQL(charDB)
+	arenaTeamsRepo := repo.NewArenaTeamsMYSQL(charDB)
+	accountRepo, err := repo.NewAccountsMySQL(authDB)
+	if err != nil {
+		log.Fatal().Err(err).Msg("can't create account repo")
+	}
 
 	onlineCharsRepo := repo.NewCharactersOnlineInMem()
 
 	// Friends initialization
 	friendsOnlineCache := service.NewOnlinePlayersCache()
 	friendsEventsProducer := events.NewFriendsServiceProducerNatsJSON(nc, charserver.Ver)
-	friendsService := service.NewFriendsService(charRepo, friendsOnlineCache, friendsEventsProducer)
+	friendsService := service.NewFriendsService(charRepo, accountRepo, friendsOnlineCache, friendsEventsProducer, service.WithRealIDCrossFaction(conf.RealIDCrossFaction))
 	friendsOnlineCache.SetFriendsService(friendsService)
 
 	// Composite handlers to call both onlineCharsRepo and friendsOnlineCache
@@ -109,7 +121,7 @@ func main() {
 	defer srHandler.Stop()
 
 	grpcServer := grpc.NewServer()
-	pb.RegisterCharactersServiceServer(grpcServer, server.NewCharServer(charRepo, onlineCharsRepo, onlineCharsRepo, itemsTemplate, friendsService))
+	pb.RegisterCharactersServiceServer(grpcServer, server.NewCharServer(charRepo, arenaTeamsRepo, onlineCharsRepo, onlineCharsRepo, itemsTemplate, friendsService, events.NewCharactersServiceProducerNatsJSON(nc, charserver.Ver)))
 
 	log.Info().Str("address", lis.Addr().String()).Msg("🚀 Characters Server Started!")
 
