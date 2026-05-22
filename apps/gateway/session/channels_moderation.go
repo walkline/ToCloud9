@@ -12,15 +12,19 @@ import (
 func (s *GameSession) HandleChannelPassword(ctx context.Context, p *packet.Packet) error {
 	r := p.Reader()
 	channelName := r.String()
+	if s.forwardNativeChannelPacket(channelName, p) {
+		return nil
+	}
+	channelRealmID, channelTeamID, servicePlayerGUID := s.channelScopeForName(channelName)
 	password := r.String()
 
 	resp, err := s.chatServiceClient.SetChannelPassword(ctx, &pbChat.SetChannelPasswordRequest{
 		Api:         root.Ver,
-		RealmID:     root.RealmID,
-		SetterGUID:  s.character.GUID,
+		RealmID:     channelRealmID,
+		SetterGUID:  servicePlayerGUID,
 		ChannelName: channelName,
 		Password:    password,
-		TeamID:      s.getTeamID(),
+		TeamID:      channelTeamID,
 	})
 	if err != nil {
 		s.logger.Error().Err(err).Str("channelName", channelName).Msg("Failed to set channel password")
@@ -35,7 +39,7 @@ func (s *GameSession) HandleChannelPassword(ctx context.Context, p *packet.Packe
 
 	switch resp.Status {
 	case pbChat.SetChannelPasswordResponse_Ok:
-		s.ChannelNotify(ch).Simple(ChatPasswordChangedNotice)
+		s.ChannelNotify(ch).PlayerAction(ChatPasswordChangedNotice, s.character.GUID)
 	case pbChat.SetChannelPasswordResponse_NotMember:
 		s.ChannelNotify(ch).Simple(ChatNotMemberNotice)
 	case pbChat.SetChannelPasswordResponse_NotOwner:
@@ -49,15 +53,19 @@ func (s *GameSession) HandleChannelPassword(ctx context.Context, p *packet.Packe
 func (s *GameSession) HandleChannelSetOwner(ctx context.Context, p *packet.Packet) error {
 	r := p.Reader()
 	channelName := r.String()
+	if s.forwardNativeChannelPacket(channelName, p) {
+		return nil
+	}
+	channelRealmID, channelTeamID, servicePlayerGUID := s.channelScopeForName(channelName)
 	targetName := r.String()
 
 	resp, err := s.chatServiceClient.SetChannelOwner(ctx, &pbChat.SetChannelOwnerRequest{
 		Api:         root.Ver,
-		RealmID:     root.RealmID,
-		SetterGUID:  s.character.GUID,
+		RealmID:     channelRealmID,
+		SetterGUID:  servicePlayerGUID,
 		ChannelName: channelName,
 		TargetName:  targetName,
-		TeamID:      s.getTeamID(),
+		TeamID:      channelTeamID,
 	})
 	if err != nil {
 		s.logger.Error().Err(err).Str("channelName", channelName).Str("targetName", targetName).Msg("Failed to set channel owner")
@@ -71,7 +79,7 @@ func (s *GameSession) HandleChannelSetOwner(ctx context.Context, p *packet.Packe
 
 	switch resp.Status {
 	case pbChat.SetChannelOwnerResponse_Ok:
-		s.ChannelNotify(ch).PlayerName(ChatOwnerChangedNotice, targetName)
+		// Chatserver broadcasts AzerothCore-shaped mode/owner notifications with the target GUID.
 	case pbChat.SetChannelOwnerResponse_NotMember:
 		s.ChannelNotify(ch).Simple(ChatNotMemberNotice)
 	case pbChat.SetChannelOwnerResponse_NotOwner:
@@ -87,15 +95,19 @@ func (s *GameSession) HandleChannelSetOwner(ctx context.Context, p *packet.Packe
 func (s *GameSession) HandleChannelSetModerator(ctx context.Context, p *packet.Packet) error {
 	r := p.Reader()
 	channelName := r.String()
+	if s.forwardNativeChannelPacket(channelName, p) {
+		return nil
+	}
+	channelRealmID, channelTeamID, servicePlayerGUID := s.channelScopeForName(channelName)
 	targetName := r.String()
 
 	resp, err := s.chatServiceClient.SetChannelModerator(ctx, &pbChat.SetChannelModeratorRequest{
 		Api:         root.Ver,
-		RealmID:     root.RealmID,
-		SetterGUID:  s.character.GUID,
+		RealmID:     channelRealmID,
+		SetterGUID:  servicePlayerGUID,
 		ChannelName: channelName,
 		TargetName:  targetName,
-		TeamID:      s.getTeamID(),
+		TeamID:      channelTeamID,
 	})
 	if err != nil {
 		s.logger.Error().Err(err).Str("channelName", channelName).Str("targetName", targetName).Msg("Failed to set channel moderator")
@@ -109,8 +121,7 @@ func (s *GameSession) HandleChannelSetModerator(ctx context.Context, p *packet.P
 
 	switch resp.Status {
 	case pbChat.SetChannelModeratorResponse_Ok:
-		// Notify all that moderator status was granted
-		s.ChannelNotify(ch).PlayerName(ChatModeChangeNotice, targetName)
+		// Chatserver broadcasts the AzerothCore-shaped mode-change notification with the target GUID.
 	case pbChat.SetChannelModeratorResponse_NotMember:
 		s.ChannelNotify(ch).Simple(ChatNotMemberNotice)
 	case pbChat.SetChannelModeratorResponse_NotOwner:
@@ -126,15 +137,19 @@ func (s *GameSession) HandleChannelSetModerator(ctx context.Context, p *packet.P
 func (s *GameSession) HandleChannelUnsetModerator(ctx context.Context, p *packet.Packet) error {
 	r := p.Reader()
 	channelName := r.String()
+	if s.forwardNativeChannelPacket(channelName, p) {
+		return nil
+	}
+	channelRealmID, channelTeamID, servicePlayerGUID := s.channelScopeForName(channelName)
 	targetName := r.String()
 
 	resp, err := s.chatServiceClient.UnsetChannelModerator(ctx, &pbChat.UnsetChannelModeratorRequest{
 		Api:         root.Ver,
-		RealmID:     root.RealmID,
-		SetterGUID:  s.character.GUID,
+		RealmID:     channelRealmID,
+		SetterGUID:  servicePlayerGUID,
 		ChannelName: channelName,
 		TargetName:  targetName,
-		TeamID:      s.getTeamID(),
+		TeamID:      channelTeamID,
 	})
 	if err != nil {
 		s.logger.Error().Err(err).Str("channelName", channelName).Str("targetName", targetName).Msg("Failed to unset channel moderator")
@@ -148,7 +163,7 @@ func (s *GameSession) HandleChannelUnsetModerator(ctx context.Context, p *packet
 
 	switch resp.Status {
 	case pbChat.UnsetChannelModeratorResponse_Ok:
-		s.ChannelNotify(ch).PlayerName(ChatModeChangeNotice, targetName)
+		// Chatserver broadcasts the AzerothCore-shaped mode-change notification with the target GUID.
 	case pbChat.UnsetChannelModeratorResponse_NotMember:
 		s.ChannelNotify(ch).Simple(ChatNotMemberNotice)
 	case pbChat.UnsetChannelModeratorResponse_NotOwner:
@@ -164,15 +179,19 @@ func (s *GameSession) HandleChannelUnsetModerator(ctx context.Context, p *packet
 func (s *GameSession) HandleChannelMute(ctx context.Context, p *packet.Packet) error {
 	r := p.Reader()
 	channelName := r.String()
+	if s.forwardNativeChannelPacket(channelName, p) {
+		return nil
+	}
+	channelRealmID, channelTeamID, servicePlayerGUID := s.channelScopeForName(channelName)
 	targetName := r.String()
 
 	resp, err := s.chatServiceClient.SetChannelMute(ctx, &pbChat.SetChannelMuteRequest{
 		Api:         root.Ver,
-		RealmID:     root.RealmID,
-		MuterGUID:   s.character.GUID,
+		RealmID:     channelRealmID,
+		MuterGUID:   servicePlayerGUID,
 		ChannelName: channelName,
 		TargetName:  targetName,
-		TeamID:      s.getTeamID(),
+		TeamID:      channelTeamID,
 	})
 	if err != nil {
 		s.logger.Error().Err(err).Str("channelName", channelName).Str("targetName", targetName).Msg("Failed to mute player")
@@ -186,7 +205,7 @@ func (s *GameSession) HandleChannelMute(ctx context.Context, p *packet.Packet) e
 
 	switch resp.Status {
 	case pbChat.SetChannelMuteResponse_Ok:
-		s.ChannelNotify(ch).PlayerName(ChatMutedNotice, targetName)
+		// Chatserver broadcasts the AzerothCore-shaped mode-change notification with the target GUID.
 	case pbChat.SetChannelMuteResponse_NotMember:
 		s.ChannelNotify(ch).Simple(ChatNotMemberNotice)
 	case pbChat.SetChannelMuteResponse_NotModerator:
@@ -202,15 +221,19 @@ func (s *GameSession) HandleChannelMute(ctx context.Context, p *packet.Packet) e
 func (s *GameSession) HandleChannelUnmute(ctx context.Context, p *packet.Packet) error {
 	r := p.Reader()
 	channelName := r.String()
+	if s.forwardNativeChannelPacket(channelName, p) {
+		return nil
+	}
+	channelRealmID, channelTeamID, servicePlayerGUID := s.channelScopeForName(channelName)
 	targetName := r.String()
 
 	resp, err := s.chatServiceClient.UnsetChannelMute(ctx, &pbChat.UnsetChannelMuteRequest{
 		Api:         root.Ver,
-		RealmID:     root.RealmID,
-		UnmuterGUID: s.character.GUID,
+		RealmID:     channelRealmID,
+		UnmuterGUID: servicePlayerGUID,
 		ChannelName: channelName,
 		TargetName:  targetName,
-		TeamID:      s.getTeamID(),
+		TeamID:      channelTeamID,
 	})
 	if err != nil {
 		s.logger.Error().Err(err).Str("channelName", channelName).Str("targetName", targetName).Msg("Failed to unmute player")
@@ -224,7 +247,7 @@ func (s *GameSession) HandleChannelUnmute(ctx context.Context, p *packet.Packet)
 
 	switch resp.Status {
 	case pbChat.UnsetChannelMuteResponse_Ok:
-		s.ChannelNotify(ch).PlayerName(ChatMutedNotice, targetName)
+		// Chatserver broadcasts the AzerothCore-shaped mode-change notification with the target GUID.
 	case pbChat.UnsetChannelMuteResponse_NotMember:
 		s.ChannelNotify(ch).Simple(ChatNotMemberNotice)
 	case pbChat.UnsetChannelMuteResponse_NotModerator:
@@ -240,15 +263,19 @@ func (s *GameSession) HandleChannelUnmute(ctx context.Context, p *packet.Packet)
 func (s *GameSession) HandleChannelInvite(ctx context.Context, p *packet.Packet) error {
 	r := p.Reader()
 	channelName := r.String()
+	if s.forwardNativeChannelPacket(channelName, p) {
+		return nil
+	}
+	channelRealmID, channelTeamID, servicePlayerGUID := s.channelScopeForName(channelName)
 	targetName := r.String()
 
 	resp, err := s.chatServiceClient.InviteToChannel(ctx, &pbChat.InviteToChannelRequest{
 		Api:         root.Ver,
-		RealmID:     root.RealmID,
-		InviterGUID: s.character.GUID,
+		RealmID:     channelRealmID,
+		InviterGUID: servicePlayerGUID,
 		ChannelName: channelName,
 		TargetName:  targetName,
-		TeamID:      s.getTeamID(),
+		TeamID:      channelTeamID,
 	})
 	if err != nil {
 		s.logger.Error().Err(err).Str("channelName", channelName).Str("targetName", targetName).Msg("Failed to invite to channel")
@@ -270,7 +297,7 @@ func (s *GameSession) HandleChannelInvite(ctx context.Context, p *packet.Packet)
 	case pbChat.InviteToChannelResponse_PlayerNotFound:
 		s.ChannelNotify(ch).PlayerName(ChatPlayerNotFoundNotice, targetName)
 	case pbChat.InviteToChannelResponse_PlayerAlreadyMember:
-		s.ChannelNotify(ch).PlayerName(ChatPlayerAlreadyMemberNotice, targetName)
+		// AzerothCore expects a player GUID here; avoid sending a name-shaped packet.
 	case pbChat.InviteToChannelResponse_WrongFaction:
 		s.ChannelNotify(ch).Simple(ChatInviteWrongFactionNotice)
 	case pbChat.InviteToChannelResponse_PlayerBanned:
@@ -284,15 +311,19 @@ func (s *GameSession) HandleChannelInvite(ctx context.Context, p *packet.Packet)
 func (s *GameSession) HandleChannelKick(ctx context.Context, p *packet.Packet) error {
 	r := p.Reader()
 	channelName := r.String()
+	if s.forwardNativeChannelPacket(channelName, p) {
+		return nil
+	}
+	channelRealmID, channelTeamID, servicePlayerGUID := s.channelScopeForName(channelName)
 	targetName := r.String()
 
 	resp, err := s.chatServiceClient.KickFromChannel(ctx, &pbChat.KickFromChannelRequest{
 		Api:         root.Ver,
-		RealmID:     root.RealmID,
-		KickerGUID:  s.character.GUID,
+		RealmID:     channelRealmID,
+		KickerGUID:  servicePlayerGUID,
 		ChannelName: channelName,
 		TargetName:  targetName,
-		TeamID:      s.getTeamID(),
+		TeamID:      channelTeamID,
 	})
 	if err != nil {
 		s.logger.Error().Err(err).Str("channelName", channelName).Str("targetName", targetName).Msg("Failed to kick from channel")
@@ -306,7 +337,7 @@ func (s *GameSession) HandleChannelKick(ctx context.Context, p *packet.Packet) e
 
 	switch resp.Status {
 	case pbChat.KickFromChannelResponse_Ok:
-		s.ChannelNotify(ch).PlayerName(ChatPlayerKickedNotice, targetName)
+		// Chatserver broadcasts the AzerothCore-shaped kick notification with both player GUIDs.
 	case pbChat.KickFromChannelResponse_NotMember:
 		s.ChannelNotify(ch).Simple(ChatNotMemberNotice)
 	case pbChat.KickFromChannelResponse_NotModerator:
@@ -322,15 +353,19 @@ func (s *GameSession) HandleChannelKick(ctx context.Context, p *packet.Packet) e
 func (s *GameSession) HandleChannelBan(ctx context.Context, p *packet.Packet) error {
 	r := p.Reader()
 	channelName := r.String()
+	if s.forwardNativeChannelPacket(channelName, p) {
+		return nil
+	}
+	channelRealmID, channelTeamID, servicePlayerGUID := s.channelScopeForName(channelName)
 	targetName := r.String()
 
 	resp, err := s.chatServiceClient.BanFromChannel(ctx, &pbChat.BanFromChannelRequest{
 		Api:         root.Ver,
-		RealmID:     root.RealmID,
-		BannerGUID:  s.character.GUID,
+		RealmID:     channelRealmID,
+		BannerGUID:  servicePlayerGUID,
 		ChannelName: channelName,
 		TargetName:  targetName,
-		TeamID:      s.getTeamID(),
+		TeamID:      channelTeamID,
 	})
 	if err != nil {
 		s.logger.Error().Err(err).Str("channelName", channelName).Str("targetName", targetName).Msg("Failed to ban from channel")
@@ -344,7 +379,7 @@ func (s *GameSession) HandleChannelBan(ctx context.Context, p *packet.Packet) er
 
 	switch resp.Status {
 	case pbChat.BanFromChannelResponse_Ok:
-		s.ChannelNotify(ch).PlayerName(ChatPlayerBannedNotice, targetName)
+		// Chatserver broadcasts the AzerothCore-shaped ban notification with both player GUIDs.
 	case pbChat.BanFromChannelResponse_NotMember:
 		s.ChannelNotify(ch).Simple(ChatNotMemberNotice)
 	case pbChat.BanFromChannelResponse_NotModerator:
@@ -360,15 +395,19 @@ func (s *GameSession) HandleChannelBan(ctx context.Context, p *packet.Packet) er
 func (s *GameSession) HandleChannelUnban(ctx context.Context, p *packet.Packet) error {
 	r := p.Reader()
 	channelName := r.String()
+	if s.forwardNativeChannelPacket(channelName, p) {
+		return nil
+	}
+	channelRealmID, channelTeamID, servicePlayerGUID := s.channelScopeForName(channelName)
 	targetName := r.String()
 
 	resp, err := s.chatServiceClient.UnbanFromChannel(ctx, &pbChat.UnbanFromChannelRequest{
 		Api:          root.Ver,
-		RealmID:      root.RealmID,
-		UnbannerGUID: s.character.GUID,
+		RealmID:      channelRealmID,
+		UnbannerGUID: servicePlayerGUID,
 		ChannelName:  channelName,
 		TargetName:   targetName,
-		TeamID:       s.getTeamID(),
+		TeamID:       channelTeamID,
 	})
 	if err != nil {
 		s.logger.Error().Err(err).Str("channelName", channelName).Str("targetName", targetName).Msg("Failed to unban from channel")
@@ -382,7 +421,7 @@ func (s *GameSession) HandleChannelUnban(ctx context.Context, p *packet.Packet) 
 
 	switch resp.Status {
 	case pbChat.UnbanFromChannelResponse_Ok:
-		s.ChannelNotify(ch).PlayerName(ChatPlayerUnbannedNotice, targetName)
+		// Chatserver broadcasts the AzerothCore-shaped unban notification with both player GUIDs.
 	case pbChat.UnbanFromChannelResponse_NotMember:
 		s.ChannelNotify(ch).Simple(ChatNotMemberNotice)
 	case pbChat.UnbanFromChannelResponse_NotModerator:
@@ -398,13 +437,17 @@ func (s *GameSession) HandleChannelUnban(ctx context.Context, p *packet.Packet) 
 func (s *GameSession) HandleChannelAnnouncements(ctx context.Context, p *packet.Packet) error {
 	r := p.Reader()
 	channelName := r.String()
+	if s.forwardNativeChannelPacket(channelName, p) {
+		return nil
+	}
+	channelRealmID, channelTeamID, servicePlayerGUID := s.channelScopeForName(channelName)
 
 	resp, err := s.chatServiceClient.ToggleChannelAnnouncements(ctx, &pbChat.ToggleChannelAnnouncementsRequest{
 		Api:         root.Ver,
-		RealmID:     root.RealmID,
-		TogglerGUID: s.character.GUID,
+		RealmID:     channelRealmID,
+		TogglerGUID: servicePlayerGUID,
 		ChannelName: channelName,
-		TeamID:      s.getTeamID(),
+		TeamID:      channelTeamID,
 	})
 	if err != nil {
 		s.logger.Error().Err(err).Str("channelName", channelName).Msg("Failed to toggle announcements")
@@ -436,13 +479,17 @@ func (s *GameSession) HandleChannelAnnouncements(ctx context.Context, p *packet.
 func (s *GameSession) HandleChannelModerate(ctx context.Context, p *packet.Packet) error {
 	r := p.Reader()
 	channelName := r.String()
+	if s.forwardNativeChannelPacket(channelName, p) {
+		return nil
+	}
+	channelRealmID, channelTeamID, servicePlayerGUID := s.channelScopeForName(channelName)
 
 	resp, err := s.chatServiceClient.ToggleChannelModeration(ctx, &pbChat.ToggleChannelModerationRequest{
 		Api:         root.Ver,
-		RealmID:     root.RealmID,
-		TogglerGUID: s.character.GUID,
+		RealmID:     channelRealmID,
+		TogglerGUID: servicePlayerGUID,
 		ChannelName: channelName,
-		TeamID:      s.getTeamID(),
+		TeamID:      channelTeamID,
 	})
 	if err != nil {
 		s.logger.Error().Err(err).Str("channelName", channelName).Msg("Failed to toggle moderation")

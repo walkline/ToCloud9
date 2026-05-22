@@ -11,15 +11,21 @@ import (
 	pbServ "github.com/walkline/ToCloud9/gen/servers-registry/pb"
 )
 
+const (
+	charDeleteSuccess            = uint8(0x47)
+	charDeleteFailed             = uint8(0x48)
+	charDeleteFailedArenaCaptain = uint8(0x4B)
+)
+
 func (s *GameSession) CharactersList(ctx context.Context, p *packet.Packet) error {
+	if s.character != nil {
+		s.onLoggedOut()
+	}
+
 	if s.worldSocket != nil {
 		socket := s.worldSocket
 		s.worldSocket = nil
 		socket.Close()
-	}
-
-	if s.character != nil {
-		s.onLoggedOut()
 	}
 
 	r, err := s.charServiceClient.CharactersToLoginForAccount(ctx, &pbChar.CharactersToLoginForAccountRequest{
@@ -31,9 +37,23 @@ func (s *GameSession) CharactersList(ctx context.Context, p *packet.Packet) erro
 		return err
 	}
 
-	resp := packet.NewWriterWithSize(packet.SMsgCharEnum, 0)
-	resp.Uint8(uint8(len(r.Characters)))
+	characters := make([]*pbChar.LogInCharacter, 0, len(r.Characters))
 	for _, character := range r.Characters {
+		if character.AccountID != s.accountID {
+			s.logger.Error().
+				Uint32("sessionAccount", s.accountID).
+				Uint32("characterAccount", character.AccountID).
+				Uint64("character", character.GUID).
+				Msg("Blocked cross-account character from character list")
+			continue
+		}
+
+		characters = append(characters, character)
+	}
+
+	resp := packet.NewWriterWithSize(packet.SMsgCharEnum, 0)
+	resp.Uint8(uint8(len(characters)))
+	for _, character := range characters {
 		resp.Uint64(character.GUID)
 		resp.String(character.Name)
 		resp.Uint8(uint8(character.Race))
@@ -87,80 +107,115 @@ func (s *GameSession) CreateCharacter(ctx context.Context, p *packet.Packet) err
 		s.gameSocket.Send(resp)
 	}
 
-	serverResult, err := s.serversRegistryClient.RandomGameServerForRealm(ctx, &pbServ.RandomGameServerForRealmRequest{
-		Api:     root.SupportedServerRegistryVer,
-		RealmID: root.RealmID,
-	})
+	resp, err := s.sendCharacterMutationToWorld(ctx, p, packet.SMsgCharCreate)
 	if err != nil {
 		sendCreateFailed()
 		return err
 	}
 
-	if serverResult.GameServer == nil {
-		sendCreateFailed()
-		return fmt.Errorf("no available game servers to handle 0x%X packet", uint16(p.Opcode))
-	}
-
-	socket, err := WorldSocketCreator(s.logger, serverResult.GameServer.Address)
-	if err != nil {
-		sendCreateFailed()
-		return fmt.Errorf("can't connect to the world server, err: %w", err)
-	}
-
-	go socket.ListenAndProcess(s.ctx)
-	newCtx, cancel := context.WithTimeout(s.ctx, time.Second*20)
-	defer cancel()
-
-	waitDone := make(chan struct{})
-	go func() {
-		defer func() { waitDone <- struct{}{} }()
-
-		for {
-			select {
-			case p, open := <-socket.ReadChannel():
-				if !open {
-					return
-				}
-				s.gameSocket.WriteChannel() <- p
-				if p.Opcode == packet.SMsgCharCreate {
-					socket.Close()
-					return
-				}
-
-			case <-newCtx.Done():
-				if s.worldSocket != nil {
-					s.worldSocket.Close()
-				}
-				return
-			}
-		}
-	}()
-
-	socket.SendPacket(s.authPacket)
-
-	// we need to give some time to add session on the world side
-	time.Sleep(time.Millisecond * 300)
-
-	socket.SendPacket(p)
-
-	<-waitDone
-
-	select {
-	case <-newCtx.Done():
-		sendCreateFailed()
-		return fmt.Errorf("character creation timeouted, gameserver: %s", serverResult.GameServer.Address)
-	default:
-	}
-
+	s.gameSocket.SendPacket(resp)
 	return nil
 }
 
 func (s *GameSession) DeleteCharacter(ctx context.Context, p *packet.Packet) error {
-	sendDelFailed := func() {
-		const deleteFailedCode = uint8(0x48)
+	sendDelFailed := func(code uint8) {
 		resp := packet.NewWriterWithSize(packet.SMsgCharDelete, 1)
-		resp.Uint8(deleteFailedCode)
+		resp.Uint8(code)
 		s.gameSocket.Send(resp)
+	}
+
+	deleteGUID, parseErr := characterDeleteGUID(p)
+	if s.charServiceClient != nil {
+		if parseErr != nil || deleteGUID == 0 {
+			sendDelFailed(charDeleteFailed)
+			if parseErr != nil {
+				return parseErr
+			}
+			return fmt.Errorf("character delete packet has empty guid")
+		}
+
+		validateResp, err := s.charServiceClient.ValidateArenaTeamCharacterDelete(ctx, &pbChar.ValidateArenaTeamCharacterDeleteRequest{
+			Api:        root.SupportedCharServiceVer,
+			RealmID:    root.RealmID,
+			PlayerGUID: deleteGUID,
+		})
+		if err != nil {
+			sendDelFailed(charDeleteFailed)
+			return err
+		}
+		if validateResp == nil {
+			sendDelFailed(charDeleteFailed)
+			return nil
+		}
+		switch validateResp.GetStatus() {
+		case pbChar.ArenaTeamMutationStatus_ARENA_TEAM_MUTATION_OK:
+		case pbChar.ArenaTeamMutationStatus_ARENA_TEAM_MUTATION_LEADER_LEAVE:
+			sendDelFailed(charDeleteFailedArenaCaptain)
+			return nil
+		default:
+			sendDelFailed(charDeleteFailed)
+			return nil
+		}
+	}
+
+	resp, err := s.sendCharacterMutationToWorld(ctx, p, packet.SMsgCharDelete)
+	if err != nil {
+		sendDelFailed(charDeleteFailed)
+		return err
+	}
+
+	if s.charServiceClient != nil && characterDeleteSucceeded(resp) {
+		cleanupResp, cleanupErr := s.charServiceClient.RemovePlayerFromArenaTeams(ctx, &pbChar.RemovePlayerFromArenaTeamsRequest{
+			Api:        root.SupportedCharServiceVer,
+			RealmID:    root.RealmID,
+			PlayerGUID: deleteGUID,
+		})
+		if cleanupErr != nil {
+			s.logger.Error().Err(cleanupErr).Uint64("playerGUID", deleteGUID).Msg("Failed to remove deleted character from arena teams")
+		} else if cleanupResp == nil {
+			s.logger.Error().Uint64("playerGUID", deleteGUID).Msg("Charserver returned nil deleted character arena team cleanup response")
+		} else if cleanupResp.GetStatus() != pbChar.ArenaTeamMutationStatus_ARENA_TEAM_MUTATION_OK {
+			s.logger.Error().Uint64("playerGUID", deleteGUID).Stringer("status", cleanupResp.GetStatus()).Msg("Charserver rejected deleted character arena team cleanup")
+		}
+	}
+
+	s.gameSocket.SendPacket(resp)
+	return nil
+}
+
+func characterDeleteGUID(p *packet.Packet) (uint64, error) {
+	if p == nil {
+		return 0, fmt.Errorf("nil character delete packet")
+	}
+	reader := p.Reader()
+	guid := reader.Uint64()
+	return guid, reader.Error()
+}
+
+func characterDeleteSucceeded(p *packet.Packet) bool {
+	if p == nil || p.Opcode != packet.SMsgCharDelete {
+		return false
+	}
+	reader := p.Reader()
+	code := reader.Uint8()
+	return reader.Error() == nil && code == charDeleteSuccess
+}
+
+func (s *GameSession) sendCharacterMutationToWorld(ctx context.Context, p *packet.Packet, responseOpcode packet.Opcode) (*packet.Packet, error) {
+	if ctx == nil {
+		ctx = s.ctx
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if _, ok := ctx.Deadline(); !ok {
+		timeout := s.packetProcessTimeout
+		if timeout == 0 {
+			timeout = defaultPacketProcessingTimeout
+		}
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, timeout)
+		defer cancel()
 	}
 
 	serverResult, err := s.serversRegistryClient.RandomGameServerForRealm(ctx, &pbServ.RandomGameServerForRealmRequest{
@@ -168,68 +223,64 @@ func (s *GameSession) DeleteCharacter(ctx context.Context, p *packet.Packet) err
 		RealmID: root.RealmID,
 	})
 	if err != nil {
-		sendDelFailed()
-		return err
+		return nil, err
 	}
 
 	if serverResult.GameServer == nil {
-		sendDelFailed()
-		return fmt.Errorf("no available game servers to handle 0x%X packet", uint16(p.Opcode))
+		return nil, fmt.Errorf("no available game servers to handle 0x%X packet", uint16(p.Opcode))
 	}
 
 	socket, err := WorldSocketCreator(s.logger, serverResult.GameServer.Address)
 	if err != nil {
-		sendDelFailed()
-		return fmt.Errorf("can't connect to the world server, err: %w", err)
+		return nil, fmt.Errorf("can't connect to the world server, err: %w", err)
 	}
+	defer socket.Close()
 
 	go socket.ListenAndProcess(s.ctx)
-	newCtx, cancel := context.WithTimeout(s.ctx, time.Second*5)
-	defer cancel()
 
-	waitDone := make(chan struct{})
-	go func() {
-		defer func() { waitDone <- struct{}{} }()
-
-		for {
-			select {
-			case p, open := <-socket.ReadChannel():
-				if !open {
-					return
-				}
-				s.gameSocket.WriteChannel() <- p
-				if p.Opcode == packet.SMsgCharDelete {
-					socket.Close()
-					return
-				}
-
-			case <-newCtx.Done():
-				if s.worldSocket != nil {
-					s.worldSocket.Close()
-				}
-				return
-			}
-		}
-	}()
-
+	authStarted := time.Now()
 	socket.SendPacket(s.authPacket)
+	authTimeout := s.worldAuthAttemptTimeout
+	if authTimeout == 0 {
+		authTimeout = worldAuthAttemptTimeout
+	}
+	if deadline, ok := ctx.Deadline(); ok {
+		if remaining := time.Until(deadline); remaining < authTimeout {
+			authTimeout = remaining
+		}
+	}
+	authCtx, cancel := context.WithTimeout(ctx, authTimeout)
+	defer cancel()
+	if err := s.waitForWorldAuthResponse(authCtx, socket, 0, serverResult.GameServer.Address, authStarted); err != nil {
+		return nil, err
+	}
 
-	// we need to give some time to add session on the world side
-	time.Sleep(time.Millisecond * 300)
+	worldAuthReadyDelay := s.worldAuthSessionReadyDelay
+	if worldAuthReadyDelay == 0 {
+		worldAuthReadyDelay = worldAuthSessionReadyDelay
+	}
+	if err := s.waitForWorldAuthSessionReady(ctx, socket, 0, serverResult.GameServer.Address, worldAuthReadyDelay); err != nil {
+		return nil, err
+	}
 
 	socket.SendPacket(p)
 
-	<-waitDone
-
-	select {
-	case <-newCtx.Done():
-		sendDelFailed()
-		return fmt.Errorf("character deletion timeouted, gameserver: %s", serverResult.GameServer.Address)
-	default:
+	for {
+		select {
+		case resp, open := <-socket.ReadChannel():
+			if !open {
+				return nil, fmt.Errorf("world socket closed before %s response, gameserver: %s", responseOpcode.String(), serverResult.GameServer.Address)
+			}
+			if resp.Opcode == responseOpcode {
+				return resp, nil
+			}
+			s.logger.Debug().
+				Str("opcode", resp.Opcode.String()).
+				Str("expectedOpcode", responseOpcode.String()).
+				Str("gameserver", serverResult.GameServer.Address).
+				Msg("Discarding internal character mutation packet from worldserver")
+		case <-ctx.Done():
+			return nil, fmt.Errorf("character mutation timeout waiting for %s, gameserver: %s: %w", responseOpcode.String(), serverResult.GameServer.Address, ctx.Err())
+		}
 	}
-
-	// Let's wait some moment because delete command may take some time on worldserver side.
-	time.Sleep(time.Second * 1)
-
-	return nil
 }

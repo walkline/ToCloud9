@@ -21,12 +21,19 @@ var EventsHandleMap = map[eBroadcaster.EventType]EventsHandlersQueue{
 	eBroadcaster.EventTypeGuildRankUpdated:    NewEventHandler("GuildRankUpdated", (*GameSession).HandleEventGuildRankUpdated),
 	eBroadcaster.EventTypeGuildRankDeleted:    NewEventHandler("GuildRankDeleted", (*GameSession).HandleEventGuildRankDeleted),
 	eBroadcaster.EventTypeGuildNewMessage:     NewEventHandler("GuildNewMessage", (*GameSession).HandleEventGuildNewMessage),
+	eBroadcaster.EventTypeGuildPetitionOffered: NewEventHandler(
+		"GuildPetitionOffered", (*GameSession).HandleEventGuildPetitionOffered,
+	),
+	eBroadcaster.EventTypeGuildPetitionSigned: NewEventHandler(
+		"GuildPetitionSigned", (*GameSession).HandleEventGuildPetitionSigned,
+	),
 
 	// Mail
 	eBroadcaster.EventTypeIncomingMail: NewEventHandler("IncomingMail", (*GameSession).HandleEventIncomingMail),
 
 	// Groups
 	eBroadcaster.EventTypeGroupInviteCreated:             NewEventHandler("EventTypeGroupInviteCreated", (*GameSession).HandleEventGroupInviteCreated),
+	eBroadcaster.EventTypeGroupInviteDeclined:            NewEventHandler("EventTypeGroupInviteDeclined", (*GameSession).HandleEventGroupInviteDeclined),
 	eBroadcaster.EventTypeGroupCreated:                   NewEventHandler("EventTypeGroupCreated", (*GameSession).HandleEventGroupCreated),
 	eBroadcaster.EventTypeGroupMemberOnlineStatusChanged: NewEventHandler("EventTypeGroupMemberOnlineStatusChanged", (*GameSession).HandleEventGroupMemberOnlineStatusChanged),
 	eBroadcaster.EventTypeGroupMemberLeft:                NewEventHandler("EventTypeGroupMemberLeft", (*GameSession).HandleEventGroupMemberLeft),
@@ -38,17 +45,31 @@ var EventsHandleMap = map[eBroadcaster.EventType]EventsHandlersQueue{
 	eBroadcaster.EventTypeGroupNewMessage:                NewEventHandler("EventTypeGroupNewMessage", (*GameSession).HandleEventGroupNewMessage),
 	eBroadcaster.EventTypeGroupNewTargetIcon:             NewEventHandler("EventTypeGroupNewTargetIcon", (*GameSession).HandleEventGroupNewTargetIcon),
 	eBroadcaster.EventTypeGroupDifficultyChanged:         NewEventHandler("EventTypeGroupDifficultyChanged", (*GameSession).HandleEventGroupDifficultyChanged),
+	eBroadcaster.EventTypeGroupReadyCheckStarted:         NewEventHandler("EventTypeGroupReadyCheckStarted", (*GameSession).HandleEventGroupReadyCheckStarted),
+	eBroadcaster.EventTypeGroupReadyCheckMemberState:     NewEventHandler("EventTypeGroupReadyCheckMemberState", (*GameSession).HandleEventGroupReadyCheckMemberState),
+	eBroadcaster.EventTypeGroupReadyCheckFinished:        NewEventHandler("EventTypeGroupReadyCheckFinished", (*GameSession).HandleEventGroupReadyCheckFinished),
+	eBroadcaster.EventTypeGroupMemberSubGroupChanged:     NewEventHandler("EventTypeGroupMemberSubGroupChanged", (*GameSession).HandleEventGroupMemberSubGroupChanged),
+	eBroadcaster.EventTypeGroupMemberFlagsChanged:        NewEventHandler("EventTypeGroupMemberFlagsChanged", (*GameSession).HandleEventGroupMemberFlagsChanged),
+	eBroadcaster.EventTypeGroupMemberStateChanged:        NewEventHandler("EventTypeGroupMemberStateChanged", (*GameSession).HandleEventGroupMemberStateChanged),
+	eBroadcaster.EventTypeGroupMemberStatesChanged:       NewEventHandler("EventTypeGroupMemberStatesChanged", (*GameSession).HandleEventGroupMemberStatesChanged),
 
 	// Matchmaking
 	eBroadcaster.EventTypeMMJoinedPVPQueue:           NewEventHandler("EventTypeMMJoinedPVPQueue", (*GameSession).HandleEventMMJoinedPVPQueue),
 	eBroadcaster.EventTypeMMInvitedToBGOrArena:       NewEventHandler("EventTypeMMInvitedToBGOrArena", (*GameSession).HandleEventMMInvitedToBGOrArena),
 	eBroadcaster.EventTypeMMInviteToBGOrArenaExpired: NewEventHandler("EventTypeMMInviteToBGOrArenaExpired", (*GameSession).HandleEventMMInviteToBGOrArenaExpired),
+	eBroadcaster.EventTypeMMLfgStatusChanged:         NewEventHandler("EventTypeMMLfgStatusChanged", (*GameSession).HandleEventMMLfgStatusChanged),
+	eBroadcaster.EventTypeMMLfgProposalAccepted:      NewEventHandler("EventTypeMMLfgProposalAccepted", (*GameSession).HandleEventMMLfgProposalAccepted),
+	eBroadcaster.EventTypeMMServiceUnavailable:       NewEventHandler("EventTypeMMServiceUnavailable", (*GameSession).HandleEventMMServiceUnavailable),
 
 	// Friends
 	eBroadcaster.EventTypeFriendStatusChange: NewEventHandler("FriendStatusChange", (*GameSession).HandleEventFriendStatusChange),
 	eBroadcaster.EventTypeFriendAdded:        NewEventHandler("FriendAdded", (*GameSession).HandleEventFriendAdded),
 	eBroadcaster.EventTypeFriendRemoved:      NewEventHandler("FriendRemoved", (*GameSession).HandleEventFriendRemoved),
 	eBroadcaster.EventTypeFriendNoteUpdate:   NewEventHandler("FriendNoteUpdate", (*GameSession).HandleEventFriendNoteUpdate),
+
+	// Arena teams
+	eBroadcaster.EventTypeArenaTeamInviteCreated: NewEventHandler("ArenaTeamInviteCreated", (*GameSession).HandleEventArenaTeamInviteCreated),
+	eBroadcaster.EventTypeArenaTeamNativeEvent:   NewEventHandler("ArenaTeamNativeEvent", (*GameSession).HandleEventArenaTeamNativeEvent),
 
 	// Channels
 	eBroadcaster.EventTypeChannelMessage:      NewEventHandler("ChannelMessage", (*GameSession).HandleEventChannelMessage),

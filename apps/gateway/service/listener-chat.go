@@ -43,13 +43,18 @@ func (c *chatNatsListener) Listen() error {
 		}
 
 		c.broadcaster.NewIncomingWhisperEvent(&eBroadcaster.IncomingWhisperPayload{
-			SenderGUID:   chatMsg.SenderGUID,
-			SenderName:   chatMsg.SenderName,
-			SenderRace:   chatMsg.SenderRace,
-			ReceiverGUID: chatMsg.ReceiverGUID,
-			ReceiverName: chatMsg.ReceiverName,
-			Language:     chatMsg.Language,
-			Msg:          chatMsg.Msg,
+			SenderRealmID:   chatMsg.SenderRealmID,
+			SenderGUID:      chatMsg.SenderGUID,
+			SenderName:      chatMsg.SenderName,
+			SenderRace:      chatMsg.SenderRace,
+			SenderClass:     chatMsg.SenderClass,
+			SenderGender:    chatMsg.SenderGender,
+			SenderChatTag:   chatMsg.SenderChatTag,
+			ReceiverRealmID: chatMsg.ReceiverRealmID,
+			ReceiverGUID:    chatMsg.ReceiverGUID,
+			ReceiverName:    chatMsg.ReceiverName,
+			Language:        chatMsg.Language,
+			Msg:             chatMsg.Msg,
 		})
 	})
 	if err != nil {
@@ -75,13 +80,15 @@ func (c *chatNatsListener) Listen() error {
 		}
 
 		c.broadcaster.NewChannelMessageEvent(&eBroadcaster.ChannelMessagePayload{
-			RealmID:     channelMsg.RealmID,
-			ChannelName: channelMsg.ChannelName,
-			ChannelID:   channelMsg.ChannelID,
-			SenderGUID:  channelMsg.SenderGUID,
-			SenderName:  channelMsg.SenderName,
-			Language:    channelMsg.Language,
-			Message:     channelMsg.Message,
+			RealmID:       channelMsg.RealmID,
+			ChannelName:   channelMsg.ChannelName,
+			ChannelID:     channelMsg.ChannelID,
+			TeamID:        channelMsg.TeamID,
+			SenderGUID:    channelMsg.SenderGUID,
+			SenderName:    channelMsg.SenderName,
+			Language:      channelMsg.Language,
+			Message:       channelMsg.Message,
+			SenderChatTag: channelMsg.SenderChatTag,
 		})
 	})
 	if err != nil {
@@ -107,12 +114,15 @@ func (c *chatNatsListener) Listen() error {
 		}
 
 		c.broadcaster.NewChannelJoinedEvent(&eBroadcaster.ChannelJoinedPayload{
-			RealmID:     channelJoin.RealmID,
-			ChannelName: channelJoin.ChannelName,
-			ChannelID:   channelJoin.ChannelID,
-			PlayerGUID:  channelJoin.PlayerGUID,
-			PlayerName:  channelJoin.PlayerName,
-			PlayerFlags: channelJoin.PlayerFlags,
+			RealmID:      channelJoin.RealmID,
+			ChannelName:  channelJoin.ChannelName,
+			ChannelID:    channelJoin.ChannelID,
+			ChannelFlags: channelJoin.ChannelFlags,
+			TeamID:       channelJoin.TeamID,
+			NumMembers:   channelJoin.NumMembers,
+			PlayerGUID:   channelJoin.PlayerGUID,
+			PlayerName:   channelJoin.PlayerName,
+			PlayerFlags:  channelJoin.PlayerFlags,
 		})
 	})
 	if err != nil {
@@ -138,11 +148,15 @@ func (c *chatNatsListener) Listen() error {
 		}
 
 		c.broadcaster.NewChannelLeftEvent(&eBroadcaster.ChannelLeftPayload{
-			RealmID:     channelLeft.RealmID,
-			ChannelName: channelLeft.ChannelName,
-			ChannelID:   channelLeft.ChannelID,
-			PlayerGUID:  channelLeft.PlayerGUID,
-			PlayerName:  channelLeft.PlayerName,
+			RealmID:      channelLeft.RealmID,
+			ChannelName:  channelLeft.ChannelName,
+			ChannelID:    channelLeft.ChannelID,
+			ChannelFlags: channelLeft.ChannelFlags,
+			TeamID:       channelLeft.TeamID,
+			NumMembers:   channelLeft.NumMembers,
+			PlayerGUID:   channelLeft.PlayerGUID,
+			PlayerName:   channelLeft.PlayerName,
+			Silent:       channelLeft.Silent,
 		})
 	})
 	if err != nil {
@@ -171,6 +185,9 @@ func (c *chatNatsListener) Listen() error {
 			RealmID:       channelNotif.RealmID,
 			ChannelName:   channelNotif.ChannelName,
 			ChannelID:     channelNotif.ChannelID,
+			ChannelFlags:  channelNotif.ChannelFlags,
+			TeamID:        channelNotif.TeamID,
+			NumMembers:    channelNotif.NumMembers,
 			NotifyType:    channelNotif.NotifyType,
 			TargetGUID:    channelNotif.TargetGUID,
 			TargetName:    channelNotif.TargetName,

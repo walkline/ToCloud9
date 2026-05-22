@@ -191,7 +191,7 @@ func (s *GameSession) HandleSendMail(ctx context.Context, p *packet.Packet) erro
 				Flags:            item.Flags,
 				Durability:       int32(item.Durability),
 				Charges:          0,
-				RandomPropertyID: item.RandomPropertyID,
+				RandomPropertyID: uint32(item.RandomPropertyID),
 				PropertySeed:     0,
 				Text:             item.Text,
 			}
@@ -489,7 +489,7 @@ func (s *GameSession) HandleMailTakeItem(ctx context.Context, p *packet.Packet) 
 			Count:            item.Count,
 			Flags:            item.Flags,
 			Durability:       uint32(item.Durability),
-			RandomPropertyID: item.RandomPropertyID,
+			RandomPropertyID: int32(item.RandomPropertyID),
 			Text:             item.Text,
 		},
 	})
