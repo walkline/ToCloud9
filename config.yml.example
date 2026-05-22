@@ -9,7 +9,8 @@ db:
   schemaType: &defaultSchemaType "ac"
 
 nats: &defaultNatsUrl "nats://localhost:4222"
-redis: &defaultRedisUrl "redis://:@localhost:6379/0"
+# Redis-compatible store URL. Valkey is the recommended local Debian/Linux backend.
+redis: &defaultRedisUrl "redis://:@127.0.0.1:6379/0"
 
 logging: &defaultLogging
   # Available options:
@@ -34,8 +35,10 @@ auth:
 
 characters:
   port: 8991
+  authDB: *defaultAuthDB
   charactersDB: *defaultCharactersDB
   worldDB: *defaultWorldDB
+  realIDCrossFaction: true
   natsUrl: *defaultNatsUrl
   serversRegistryServiceAddress: localhost:8999
   logging: *defaultLogging
@@ -61,7 +64,20 @@ gateway:
   groupServiceAddress: "localhost:8998"
   matchmakingServiceAddress: "localhost:8994"
   packetProcessTimeoutSecs: 20
+  worldAuthAttemptTimeoutMs: 5000
+  worldAuthSessionReadyDelayMs: 300
+  worldserverConnectRetryWaitMs: 200
+  worldserverConnectRetryMaxWaitMs: 2000
   showGameserverConnChangeToClient: true
+  allowTwoSideInteractionGuild: false
+  allowTwoSideInteractionChannel: false
+  allowTwoSideInteractionArena: false
+  maxPlayerLevel: 80
+  arenaCurrentSeason: 8
+  legacyArenaStartRating: 1500
+  arenaStartRating: 0
+  arenaStartPersonalRating: 0
+  arenaStartMatchmakerRating: 1500
   natsUrl: *defaultNatsUrl
   logging: *defaultLogging
 
@@ -75,6 +91,8 @@ guild:
   port: 8995
   natsUrl: *defaultNatsUrl
   charactersDB: *defaultCharactersDB
+  worldDB: *defaultWorldDB
+  guidProviderServiceAddress: "localhost:8996"
   logging: *defaultLogging
 
 mail:
@@ -96,26 +114,42 @@ servers-registry:
   port: 8999
   redisUrl: *defaultRedisUrl
   natsUrl: *defaultNatsUrl
+  matchmakingServiceAddress: "localhost:8994"
+  matchmakingServiceHealthCheckAddress: "localhost:8904"
+  matchmakingServiceHealthCheckIntervalMs: 4000
+  matchmakingServiceHealthCheckTimeoutMs: 15000
   logging: *defaultLogging
   realmsID:
     - 1
 
 matchmakingserver:
   port: 8994
+  healthCheckPort: 8904
   natsUrl: *defaultNatsUrl
   logging: *defaultLogging
   worldDB: *defaultWorldDB
   charactersDB: *defaultCharactersDB
+  groupServiceAddress: "localhost:8998"
+  charactersServiceAddress: "localhost:8991"
   battleGroups:
     1: "1"
+  arenaStartMatchmakerRating: 1500
+  arenaWinRatingModifier1: 48
+  arenaWinRatingModifier2: 24
+  arenaLoseRatingModifier: 24
+  arenaMatchmakerRatingModifier: 24
+  maxAllowedMMRDrop: 500
 
 gameserver:
   grpcPort: 9501
   healthCheckPort: 8901
   preferredHostname: ""
+  loopbackHostOverride: "auto"
   serversRegistryServiceAddress: "localhost:8999"
   guidProviderServiceAddress: "localhost:8996"
+  groupServiceAddress: "localhost:8998"
   matchmakingServiceAddress: "localhost:8994"
+  charactersServiceAddress: "localhost:8991"
   characterGuidsBufferSize: 50
   itemGuidsBufferSize: 200
   instanceGuidsBufferSize: 10

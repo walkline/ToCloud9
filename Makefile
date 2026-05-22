@@ -62,7 +62,7 @@ build-groupserver:
 	go build -o $(INSTALL_PATH)/groupserver apps/groupserver/cmd/groupserver/main.go
 
 build-perun:
-	cd apps/perun && go build -o ../../$(INSTALL_PATH)/perun cmd/perun/main.go && cd ../..
+	cd apps/perun && go build -o $(abspath $(INSTALL_PATH))/perun cmd/perun/main.go && cd ../..
 
 build-mysqlreverseproxy:
 	go build -o $(INSTALL_PATH)/mysqlreverseproxy apps/mysqlreverseproxy/cmd/mysqlreverseproxy/main.go

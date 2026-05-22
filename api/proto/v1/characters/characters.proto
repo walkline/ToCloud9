@@ -9,20 +9,45 @@ service CharactersService {
   rpc CharactersToLoginByGUID(CharactersToLoginByGUIDRequest) returns (CharactersToLoginByGUIDResponse);
 
   rpc AccountDataForAccount(AccountDataForAccountRequest) returns (AccountDataForAccountResponse);
+  rpc UpdateAccountDataForAccount(UpdateAccountDataForAccountRequest) returns (UpdateAccountDataForAccountResponse);
 
   rpc WhoQuery(WhoQueryRequest) returns (WhoQueryResponse);
 
   rpc CharacterOnlineByName(CharacterOnlineByNameRequest) returns (CharacterOnlineByNameResponse);
   rpc CharacterByName(CharacterByNameRequest) returns (CharacterByNameResponse);
+  rpc CharacterByGUID(CharacterByGUIDRequest) returns (CharacterByGUIDResponse);
 
   rpc ShortOnlineCharactersDataByGUIDs(ShortCharactersDataByGUIDsRequest) returns (ShortCharactersDataByGUIDsResponse);
+  rpc ArenaTeamQueueDataForRatedArena(ArenaTeamQueueDataForRatedArenaRequest) returns (ArenaTeamQueueDataForRatedArenaResponse);
+  rpc GetArenaTeam(GetArenaTeamRequest) returns (GetArenaTeamResponse);
+  rpc GetArenaTeamPetition(GetArenaTeamPetitionRequest) returns (GetArenaTeamPetitionResponse);
+  rpc CreateArenaTeamFromPetition(CreateArenaTeamFromPetitionRequest) returns (CreateArenaTeamFromPetitionResponse);
+  rpc InviteArenaTeamMember(InviteArenaTeamMemberRequest) returns (InviteArenaTeamMemberResponse);
+  rpc AcceptArenaTeamInvite(AcceptArenaTeamInviteRequest) returns (AcceptArenaTeamInviteResponse);
+  rpc DeclineArenaTeamInvite(DeclineArenaTeamInviteRequest) returns (ArenaTeamMutationResponse);
+  rpc AddArenaTeamMember(AddArenaTeamMemberRequest) returns (ArenaTeamMutationResponse);
+  rpc RemoveArenaTeamMember(RemoveArenaTeamMemberRequest) returns (ArenaTeamMutationResponse);
+  rpc DisbandArenaTeam(DisbandArenaTeamRequest) returns (ArenaTeamMutationResponse);
+  rpc SetArenaTeamCaptain(SetArenaTeamCaptainRequest) returns (ArenaTeamMutationResponse);
+  rpc SetArenaTeamName(SetArenaTeamNameRequest) returns (ArenaTeamMutationResponse);
+  rpc SaveArenaTeamStats(SaveArenaTeamStatsRequest) returns (ArenaTeamMutationResponse);
+  rpc DeleteAllArenaTeams(DeleteAllArenaTeamsRequest) returns (ArenaTeamMutationResponse);
+  rpc ValidateArenaTeamCharacterDelete(ValidateArenaTeamCharacterDeleteRequest) returns (ArenaTeamMutationResponse);
+  rpc RemovePlayerFromArenaTeams(RemovePlayerFromArenaTeamsRequest) returns (ArenaTeamMutationResponse);
 
   // Would effect only offline player.
   rpc SavePlayerPosition(SavePlayerPositionRequest) returns (SavePlayerPositionResponse);
+  rpc RecordLfgDungeonRoute(RecordLfgDungeonRouteRequest) returns (RecordLfgDungeonRouteResponse);
+  rpc ConfirmLfgDungeonRouteEntered(ConfirmLfgDungeonRouteEnteredRequest) returns (ConfirmLfgDungeonRouteEnteredResponse);
+  rpc ClearUnboundLfgDungeonRoute(ClearUnboundLfgDungeonRouteRequest) returns (ClearUnboundLfgDungeonRouteResponse);
+  rpc GetLfgDungeonRoute(GetLfgDungeonRouteRequest) returns (GetLfgDungeonRouteResponse);
 
   // Friends and ignore list management
   rpc GetFriendsList(GetFriendsListRequest) returns (GetFriendsListResponse);
   rpc AddFriend(AddFriendRequest) returns (AddFriendResponse);
+  rpc AddRealIDFriendByEmail(AddRealIDFriendByEmailRequest) returns (AddRealIDFriendByEmailResponse);
+  rpc AcceptRealIDFriend(AcceptRealIDFriendRequest) returns (AcceptRealIDFriendResponse);
+  rpc AreRealIDFriends(AreRealIDFriendsRequest) returns (AreRealIDFriendsResponse);
   rpc RemoveFriend(RemoveFriendRequest) returns (RemoveFriendResponse);
   rpc SetFriendNote(SetFriendNoteRequest) returns (SetFriendNoteResponse);
   rpc AddIgnore(AddIgnoreRequest) returns (AddIgnoreResponse);
@@ -60,6 +85,7 @@ message LogInCharacter {
   bool banned = 23;
   repeated EquipmentDisplay equipments = 24;
   uint32 accountID = 25;
+  uint32 extraFlags = 26;
 }
 
 message EquipmentDisplay {
@@ -88,6 +114,7 @@ message CharactersToLoginByGUIDRequest{
 
   uint64 characterGUID = 2;
   uint32 realmID = 3;
+  uint32 accountID = 4;
 }
 
 // Response that contains character to login
@@ -115,6 +142,20 @@ message AccountDataForAccountResponse{
   string api = 1;
 
   repeated AccountData accountData = 2;
+}
+
+message UpdateAccountDataForAccountRequest{
+  string api = 1;
+
+  uint32 accountID = 2;
+  uint32 realmID = 3;
+  uint32 type = 4;
+  int64 time = 5;
+  string data = 6;
+}
+
+message UpdateAccountDataForAccountResponse{
+  string api = 1;
 }
 
 message WhoQueryRequest{
@@ -208,6 +249,19 @@ message CharacterByNameResponse {
   Char character = 2;
 }
 
+message CharacterByGUIDRequest {
+  string api = 1;
+
+  uint32 realmID = 2;
+  uint64 characterGUID = 3;
+}
+
+message CharacterByGUIDResponse {
+  string api = 1;
+
+  CharacterByNameResponse.Char character = 2;
+}
+
 message ShortCharactersDataByGUIDsRequest {
   string api = 1;
 
@@ -237,6 +291,306 @@ message ShortCharactersDataByGUIDsResponse {
   repeated ShortCharData characters = 2;
 }
 
+message ArenaTeamQueueDataForRatedArenaRequest {
+  string api = 1;
+
+  uint32 realmID = 2;
+  uint64 leaderGUID = 3;
+  repeated uint64 playerGUIDs = 4;
+  uint32 arenaType = 5;
+  uint32 startMatchmakerRating = 6;
+}
+
+message ArenaTeamQueueDataForRatedArenaResponse {
+  string api = 1;
+
+  enum Status {
+    Ok = 0;
+    NotFound = 1;
+    MemberMismatch = 2;
+    InvalidPartySize = 3;
+    Failed = 4;
+    InvalidType = 5;
+  }
+
+  Status status = 2;
+  uint32 arenaTeamID = 3;
+  uint32 teamRating = 4;
+  uint32 matchmakerRating = 5;
+  uint32 previousOpponentsTeamID = 6;
+}
+
+message CreateArenaTeamFromPetitionRequest {
+  string api = 1;
+
+  uint32 realmID = 2;
+  uint64 captainGUID = 3;
+  uint64 petitionGUID = 4;
+  uint32 arenaType = 5;
+  uint32 backgroundColor = 6;
+  uint32 emblemStyle = 7;
+  uint32 emblemColor = 8;
+  uint32 borderStyle = 9;
+  uint32 borderColor = 10;
+  uint32 startRating = 11;
+  uint32 startPersonalRating = 12;
+  uint32 startMatchmakerRating = 13;
+}
+
+message CreateArenaTeamFromPetitionResponse {
+  string api = 1;
+
+  enum Status {
+    Ok = 0;
+    NotFound = 1;
+    NotOwner = 2;
+    InvalidType = 3;
+    NameExists = 4;
+    AlreadyInTeam = 5;
+    NotEnoughSignatures = 6;
+    Failed = 7;
+    InvalidName = 8;
+  }
+
+  Status status = 2;
+  uint32 arenaTeamID = 3;
+}
+
+enum ArenaTeamMutationStatus {
+  ARENA_TEAM_MUTATION_OK = 0;
+  ARENA_TEAM_MUTATION_NOT_FOUND = 1;
+  ARENA_TEAM_MUTATION_MEMBER_MISMATCH = 2;
+  ARENA_TEAM_MUTATION_INVALID_TYPE = 3;
+  ARENA_TEAM_MUTATION_NAME_EXISTS = 4;
+  ARENA_TEAM_MUTATION_ALREADY_IN_TEAM = 5;
+  ARENA_TEAM_MUTATION_ROSTER_FULL = 6;
+  ARENA_TEAM_MUTATION_FAILED = 7;
+  ARENA_TEAM_MUTATION_INVALID_NAME = 8;
+  ARENA_TEAM_MUTATION_PERMISSION_DENIED = 9;
+  ARENA_TEAM_MUTATION_LEADER_LEAVE = 10;
+  ARENA_TEAM_MUTATION_ALREADY_INVITED = 11;
+  ARENA_TEAM_MUTATION_IGNORING_YOU = 12;
+}
+
+message ArenaTeamMemberData {
+  uint64 playerGUID = 1;
+  string name = 2;
+  bool online = 3;
+  uint32 level = 4;
+  uint32 class = 5;
+  uint32 weekGames = 6;
+  uint32 weekWins = 7;
+  uint32 seasonGames = 8;
+  uint32 seasonWins = 9;
+  uint32 personalRating = 10;
+  uint32 matchmakerRating = 11;
+  uint32 maxMMR = 12;
+}
+
+message ArenaTeamData {
+  uint32 arenaTeamID = 1;
+  string name = 2;
+  uint64 captainGUID = 3;
+  uint32 type = 4;
+  uint32 rating = 5;
+  uint32 weekGames = 6;
+  uint32 weekWins = 7;
+  uint32 seasonGames = 8;
+  uint32 seasonWins = 9;
+  uint32 rank = 10;
+  uint32 backgroundColor = 11;
+  uint32 emblemStyle = 12;
+  uint32 emblemColor = 13;
+  uint32 borderStyle = 14;
+  uint32 borderColor = 15;
+  repeated ArenaTeamMemberData members = 16;
+}
+
+message GetArenaTeamRequest {
+  string api = 1;
+
+  uint32 realmID = 2;
+  uint32 arenaTeamID = 3;
+}
+
+message GetArenaTeamResponse {
+  string api = 1;
+
+  enum Status {
+    Ok = 0;
+    NotFound = 1;
+    Failed = 2;
+  }
+
+  Status status = 2;
+  ArenaTeamData team = 3;
+}
+
+message ArenaTeamPetitionData {
+  uint64 petitionGUID = 1;
+  uint32 petitionID = 2;
+  uint64 ownerGUID = 3;
+  string name = 4;
+  uint32 arenaType = 5;
+  uint32 signatures = 6;
+}
+
+message GetArenaTeamPetitionRequest {
+  string api = 1;
+
+  uint32 realmID = 2;
+  uint64 petitionGUID = 3;
+}
+
+message GetArenaTeamPetitionResponse {
+  string api = 1;
+
+  enum Status {
+    Ok = 0;
+    NotFound = 1;
+    NotArena = 2;
+    Failed = 3;
+  }
+
+  Status status = 2;
+  ArenaTeamPetitionData petition = 3;
+}
+
+message InviteArenaTeamMemberRequest {
+  string api = 1;
+
+  uint32 realmID = 2;
+  uint32 arenaTeamID = 3;
+  uint64 inviterGUID = 4;
+  string inviterName = 5;
+  uint64 targetGUID = 6;
+  string targetName = 7;
+}
+
+message InviteArenaTeamMemberResponse {
+  string api = 1;
+  ArenaTeamMutationStatus status = 2;
+  ArenaTeamData team = 3;
+}
+
+message AcceptArenaTeamInviteRequest {
+  string api = 1;
+
+  uint32 realmID = 2;
+  uint64 playerGUID = 3;
+  string playerName = 4;
+  uint32 personalRating = 5;
+}
+
+message AcceptArenaTeamInviteResponse {
+  string api = 1;
+  ArenaTeamMutationStatus status = 2;
+  ArenaTeamData team = 3;
+}
+
+message DeclineArenaTeamInviteRequest {
+  string api = 1;
+
+  uint32 realmID = 2;
+  uint64 playerGUID = 3;
+}
+
+message AddArenaTeamMemberRequest {
+  string api = 1;
+
+  uint32 realmID = 2;
+  uint32 arenaTeamID = 3;
+  uint64 playerGUID = 4;
+  uint32 personalRating = 5;
+}
+
+message RemoveArenaTeamMemberRequest {
+  string api = 1;
+
+  uint32 realmID = 2;
+  uint32 arenaTeamID = 3;
+  uint64 playerGUID = 4;
+  uint64 actorGUID = 5;
+}
+
+message DisbandArenaTeamRequest {
+  string api = 1;
+
+  uint32 realmID = 2;
+  uint32 arenaTeamID = 3;
+  uint64 actorGUID = 4;
+}
+
+message SetArenaTeamCaptainRequest {
+  string api = 1;
+
+  uint32 realmID = 2;
+  uint32 arenaTeamID = 3;
+  uint64 captainGUID = 4;
+  uint64 actorGUID = 5;
+}
+
+message SetArenaTeamNameRequest {
+  string api = 1;
+
+  uint32 realmID = 2;
+  uint32 arenaTeamID = 3;
+  string name = 4;
+  uint64 actorGUID = 5;
+}
+
+message ArenaTeamStatsMember {
+  uint64 playerGUID = 1;
+  uint32 personalRating = 2;
+  uint32 weekGames = 3;
+  uint32 weekWins = 4;
+  uint32 seasonGames = 5;
+  uint32 seasonWins = 6;
+  uint32 matchmakerRating = 7;
+  uint32 maxMMR = 8;
+  bool saveArenaStats = 9;
+}
+
+message SaveArenaTeamStatsRequest {
+  string api = 1;
+
+  uint32 realmID = 2;
+  uint32 arenaTeamID = 3;
+  uint32 rating = 4;
+  uint32 weekGames = 5;
+  uint32 weekWins = 6;
+  uint32 seasonGames = 7;
+  uint32 seasonWins = 8;
+  uint32 rank = 9;
+  uint32 slot = 10;
+  repeated ArenaTeamStatsMember members = 11;
+}
+
+message DeleteAllArenaTeamsRequest {
+  string api = 1;
+
+  uint32 realmID = 2;
+}
+
+message ValidateArenaTeamCharacterDeleteRequest {
+  string api = 1;
+
+  uint32 realmID = 2;
+  uint64 playerGUID = 3;
+}
+
+message RemovePlayerFromArenaTeamsRequest {
+  string api = 1;
+
+  uint32 realmID = 2;
+  uint64 playerGUID = 3;
+}
+
+message ArenaTeamMutationResponse {
+  string api = 1;
+  ArenaTeamMutationStatus status = 2;
+}
+
 message SavePlayerPositionRequest {
   string api = 1;
 
@@ -252,6 +606,67 @@ message SavePlayerPositionRequest {
 
 message SavePlayerPositionResponse {
   string api = 1;
+}
+
+message LfgDungeonRoute {
+  uint32 realmID = 1;
+  uint64 playerGUID = 2;
+  uint32 dungeonEntry = 3;
+  uint32 mapID = 4;
+  uint32 difficulty = 5;
+  uint32 ownerRealmID = 6;
+  bool isCrossRealm = 7;
+  bool requiresBoundInstance = 8;
+  uint32 instanceID = 9;
+  uint32 boundInstanceID = 10;
+}
+
+message RecordLfgDungeonRouteRequest {
+  string api = 1;
+  LfgDungeonRoute route = 2;
+}
+
+message RecordLfgDungeonRouteResponse {
+  string api = 1;
+}
+
+message ConfirmLfgDungeonRouteEnteredRequest {
+  string api = 1;
+  uint32 realmID = 2;
+  uint64 playerGUID = 3;
+  uint32 mapID = 4;
+  uint32 difficulty = 5;
+  uint32 instanceID = 6;
+}
+
+message ConfirmLfgDungeonRouteEnteredResponse {
+  string api = 1;
+  LfgDungeonRoute route = 2;
+}
+
+message ClearUnboundLfgDungeonRouteRequest {
+  string api = 1;
+  uint32 realmID = 2;
+  uint64 playerGUID = 3;
+  uint32 mapID = 4;
+}
+
+message ClearUnboundLfgDungeonRouteResponse {
+  string api = 1;
+}
+
+message GetLfgDungeonRouteRequest {
+  string api = 1;
+  uint32 realmID = 2;
+  uint64 playerGUID = 3;
+  uint32 mapID = 4;
+}
+
+message GetLfgDungeonRouteResponse {
+  string api = 1;
+  bool found = 2;
+  bool available = 3;
+  LfgDungeonRoute route = 4;
 }
 
 // Friends list requests and responses
@@ -272,6 +687,7 @@ message GetFriendsListResponse {
     uint32 area = 4;    // zone ID if online
     uint32 level = 5;
     uint32 classID = 6;
+    uint32 realmID = 7;
   }
 
   message IgnoredPlayer {
@@ -298,6 +714,62 @@ message AddFriendResponse {
   uint32 area = 4;
   uint32 level = 5;
   uint32 classID = 6;
+  uint64 friendGUID = 7;
+  bool pending = 8;
+  bool accepted = 9;
+}
+
+message AddRealIDFriendByEmailRequest {
+  string api = 1;
+  uint32 realmID = 2;
+  uint64 playerGUID = 3;
+  uint32 accountID = 4;
+  string email = 5;
+  string note = 6;
+}
+
+message AddRealIDFriendByEmailResponse {
+  string api = 1;
+  uint32 result = 2;  // FriendsResult enum value
+  uint32 status = 3;  // 0=offline, 1=online
+  uint32 area = 4;
+  uint32 level = 5;
+  uint32 classID = 6;
+  uint64 friendGUID = 7;
+  bool pending = 8;
+  bool accepted = 9;
+}
+
+message AcceptRealIDFriendRequest {
+  string api = 1;
+  uint32 realmID = 2;
+  uint64 playerGUID = 3;
+  uint32 accountID = 4;
+  uint32 requesterAccountID = 5;
+  string note = 6;
+}
+
+message AcceptRealIDFriendResponse {
+  string api = 1;
+  uint32 result = 2;  // FriendsResult enum value
+  uint32 status = 3;  // 0=offline, 1=online
+  uint32 area = 4;
+  uint32 level = 5;
+  uint32 classID = 6;
+  uint64 friendGUID = 7;
+  bool pending = 8;
+  bool accepted = 9;
+}
+
+message AreRealIDFriendsRequest {
+  string api = 1;
+  uint32 accountID = 2;
+  uint32 friendAccountID = 3;
+}
+
+message AreRealIDFriendsResponse {
+  string api = 1;
+  bool accepted = 2;
 }
 
 message RemoveFriendRequest {

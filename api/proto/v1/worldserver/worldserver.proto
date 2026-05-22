@@ -8,6 +8,7 @@ option go_package = "gen/worldserver/pb";
 service WorldServerService {
   // Items
   rpc GetPlayerItemsByGuids(GetPlayerItemsByGuidsRequest) returns (GetPlayerItemsByGuidsResponse);
+  rpc TakePlayerItemByPos(TakePlayerItemByPosRequest) returns (TakePlayerItemByPosResponse);
   rpc RemoveItemsWithGuidsFromPlayer(RemoveItemsWithGuidsFromPlayerRequest) returns (RemoveItemsWithGuidsFromPlayerResponse);
   rpc AddExistingItemToPlayer(AddExistingItemToPlayerRequest) returns (AddExistingItemToPlayerResponse);
 
@@ -24,6 +25,17 @@ service WorldServerService {
   rpc AddPlayersToBattleground(AddPlayersToBattlegroundRequest) returns (AddPlayersToBattlegroundResponse);
   rpc CanPlayerJoinBattlegroundQueue(CanPlayerJoinBattlegroundQueueRequest) returns (CanPlayerJoinBattlegroundQueueResponse);
   rpc CanPlayerTeleportToBattleground(CanPlayerTeleportToBattlegroundRequest) returns (CanPlayerTeleportToBattlegroundResponse);
+
+  // LFG
+  rpc GetLfgPlayerLockInfo(GetLfgPlayerLockInfoRequest) returns (GetLfgPlayerLockInfoResponse);
+  rpc GetLfgPlayerInfo(GetLfgPlayerInfoRequest) returns (GetLfgPlayerInfoResponse);
+  rpc GetLfgDungeonInfo(GetLfgDungeonInfoRequest) returns (GetLfgDungeonInfoResponse);
+  rpc TeleportLfgPlayer(TeleportLfgPlayerRequest) returns (TeleportLfgPlayerResponse);
+  rpc SetLfgBootVote(SetLfgBootVoteRequest) returns (SetLfgBootVoteResponse);
+  rpc MaterializeLfgProposal(MaterializeLfgProposalRequest) returns (MaterializeLfgProposalResponse);
+
+  // Guilds
+  rpc CreateGuild(CreateGuildRequest) returns (CreateGuildResponse);
 }
 
 // GetPlayerItemsByGuids
@@ -47,10 +59,51 @@ message GetPlayerItemsByGuidsResponse {
     uint32 count = 7;
     uint32 flags = 8;
     uint32 durability = 9;
-    uint32 randomPropertyID = 10;
+    int32 randomPropertyID = 10;
     string text = 11;
   };
   repeated Item items = 2;
+}
+
+// TakePlayerItemByPos
+message TakePlayerItemByPosRequest {
+  string api = 1;
+
+  uint64 playerGuid = 2;
+  uint32 bagSlot = 3;
+  uint32 slot = 4;
+  uint32 count = 5;
+
+  uint64 assignToPlayerGuid = 6;
+}
+
+message TakePlayerItemByPosResponse {
+  string api = 1;
+
+  enum Status {
+    Success = 0;
+    PlayerNotFound = 1;
+    ItemNotFound = 2;
+    ItemNotTradable = 3;
+    Failed = 4;
+  }
+
+  message Item {
+    uint64 guid = 1;
+    uint32 entry = 2;
+    uint64 owner = 3;
+    uint32 bagSlot = 4;
+    uint32 slot = 5;
+    bool isTradable = 6;
+    uint32 count = 7;
+    uint32 flags = 8;
+    uint32 durability = 9;
+    int32 randomPropertyID = 10;
+    string text = 11;
+  };
+
+  Status status = 2;
+  Item item = 3;
 }
 
 // RemoveItemsWithGuidsFromPlayer
@@ -79,12 +132,15 @@ message AddExistingItemToPlayerRequest {
     uint32 count = 7;
     uint32 flags = 8;
     uint32 durability = 9;
-    uint32 randomPropertyID = 10;
+    int32 randomPropertyID = 10;
     string text = 11;
   }
 
   uint64 playerGuid = 2;
   Item item = 3;
+  bool storeAtPos = 4;
+  uint32 bagSlot = 5;
+  uint32 slot = 6;
 }
 
 message AddExistingItemToPlayerResponse {
@@ -177,13 +233,18 @@ message StartBattlegroundRequest {
   string api = 1;
 
   BattlegroundType battlegroundTypeID = 2;
-  uint32 arenaType = 3; // Arenas not supported yet.
-  bool   isRated = 4;   // Arenas not supported yet.
+  uint32 arenaType = 3;
+  bool   isRated = 4;
   uint32 mapID = 5;
   uint32 bracketLvl = 6;
 
   repeated uint64 playersToAddAlliance = 7;
   repeated uint64 playersToAddHorde = 8;
+
+  uint32 allianceArenaTeamID = 9;
+  uint32 hordeArenaTeamID = 10;
+  uint32 allianceArenaMatchmakerRating = 11;
+  uint32 hordeArenaMatchmakerRating = 12;
 }
 
 message StartBattlegroundResponse {
@@ -240,4 +301,185 @@ message CanPlayerTeleportToBattlegroundResponse {
   }
 
   Status status = 2;
+}
+
+message LfgDungeonLock {
+  uint32 dungeonEntry = 1;
+  uint32 lockStatus = 2;
+}
+
+message GetLfgPlayerLockInfoRequest {
+  string api = 1;
+  uint64 playerGUID = 2;
+  repeated uint32 dungeonEntries = 3;
+}
+
+message GetLfgPlayerLockInfoResponse {
+  string api = 1;
+
+  enum Status {
+    Success = 0;
+    PlayerNotFound = 1;
+    InternalError = 2;
+  }
+
+  Status status = 2;
+  repeated LfgDungeonLock locks = 3;
+  // AzerothCore LfgJoinResult for player-wide join restrictions not represented
+  // as per-dungeon lock rows, such as deserter or random dungeon cooldown.
+  uint32 joinResult = 4;
+  // AzerothCore DBC-filtered and canonicalized dungeon entries accepted from
+  // the client selection. Gateway must queue these instead of raw client slots.
+  repeated uint32 validDungeonEntries = 5;
+}
+
+message LfgRewardItem {
+  uint32 itemID = 1;
+  uint32 displayID = 2;
+  uint32 count = 3;
+}
+
+message LfgRandomDungeonInfo {
+  uint32 dungeonEntry = 1;
+  bool done = 2;
+  uint32 rewardMoney = 3;
+  uint32 rewardXP = 4;
+  uint32 rewardUnknown1 = 5;
+  uint32 rewardUnknown2 = 6;
+  repeated LfgRewardItem rewardItems = 7;
+}
+
+message GetLfgPlayerInfoRequest {
+  string api = 1;
+  uint64 playerGUID = 2;
+}
+
+message GetLfgPlayerInfoResponse {
+  string api = 1;
+
+  enum Status {
+    Success = 0;
+    NoHandler = 1;
+    PlayerNotFound = 2;
+    InternalError = 3;
+  }
+
+  Status status = 2;
+  repeated LfgRandomDungeonInfo randomDungeons = 3;
+  repeated LfgDungeonLock locks = 4;
+}
+
+message GetLfgDungeonInfoRequest {
+  string api = 1;
+  uint32 dungeonEntry = 2;
+}
+
+message GetLfgDungeonInfoResponse {
+  string api = 1;
+
+  enum Status {
+    Success = 0;
+    NoHandler = 1;
+    DungeonNotFound = 2;
+    InternalError = 3;
+  }
+
+  Status status = 2;
+  uint32 dungeonEntry = 3;
+  uint32 dungeonID = 4;
+  uint32 mapID = 5;
+  uint32 typeID = 6;
+  uint32 difficulty = 7;
+}
+
+message TeleportLfgPlayerRequest {
+  string api = 1;
+  uint64 playerGUID = 2;
+  bool out = 3;
+  uint32 dungeonEntry = 4;
+}
+
+message TeleportLfgPlayerResponse {
+  string api = 1;
+
+  enum Status {
+    Success = 0;
+    NoHandler = 1;
+    PlayerNotFound = 2;
+    InternalError = 3;
+  }
+
+  Status status = 2;
+}
+
+message SetLfgBootVoteRequest {
+  string api = 1;
+  uint64 playerGUID = 2;
+  bool agree = 3;
+}
+
+message SetLfgBootVoteResponse {
+  string api = 1;
+
+  enum Status {
+    Success = 0;
+    NoHandler = 1;
+    PlayerNotFound = 2;
+    InternalError = 3;
+  }
+
+  Status status = 2;
+}
+
+// MaterializeLfgProposal
+message MaterializeLfgProposalRequest {
+  string api = 1;
+
+  message Member {
+    uint64 playerGUID = 1;
+    uint32 selectedRoles = 2;
+    uint32 assignedRole = 3;
+    uint64 queueLeaderGUID = 4;
+  }
+
+  uint32 realmID = 2;
+  uint32 proposalID = 3;
+  uint32 dungeonEntry = 4;
+  uint64 leaderGUID = 5;
+  repeated Member members = 6;
+}
+
+message MaterializeLfgProposalResponse {
+  string api = 1;
+
+  enum Status {
+    Success = 0;
+    NoHandler = 1;
+    DungeonNotFound = 2;
+    NoLocalPlayer = 3;
+    InternalError = 4;
+  }
+
+  Status status = 2;
+}
+
+message CreateGuildRequest {
+  string api = 1;
+  uint64 leaderGuid = 2;
+  string guildName = 3;
+}
+
+message CreateGuildResponse {
+  string api = 1;
+
+  enum Status {
+    Success = 0;
+    NameExists = 1;
+    InvalidName = 2;
+    LeaderNotFound = 3;
+    InternalError = 4;
+  }
+
+  Status status = 2;
+  uint64 guildId = 3;
 }

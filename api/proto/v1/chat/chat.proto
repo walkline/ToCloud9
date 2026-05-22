@@ -45,6 +45,12 @@ message SendWhisperMessageRequest {
   uint32 language = 6;
   string receiverName = 7;
   string msg = 8;
+  uint32 receiverRealmID = 9;
+  uint32 senderClass = 10;
+  uint32 senderGender = 11;
+  uint32 senderAccountID = 12;
+  bool gatewayValidatedGameplayCrossrealmWhisper = 13;
+  uint32 senderChatTag = 14;
 }
 
 message SendWhisperMessageResponse {
@@ -53,10 +59,16 @@ message SendWhisperMessageResponse {
   enum Status {
     Ok = 0;
     CharacterNotFound = 2;
+    CharacterAmbiguous = 3;
   }
 
   Status status = 2;
   uint64 receiverGUID = 3;
+  uint32 receiverRealmID = 4;
+  string receiverName = 5;
+  uint32 receiverRace = 6;
+  uint32 receiverClass = 7;
+  uint32 receiverGender = 8;
 }
 
 // Channel messages
@@ -117,6 +129,7 @@ message SendChannelMessageRequest {
   uint32 language = 6;
   string message = 7;
   TeamID teamID = 8;
+  uint32 senderChatTag = 9;
 }
 
 message SendChannelMessageResponse {

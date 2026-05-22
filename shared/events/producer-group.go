@@ -13,6 +13,9 @@ type GroupServiceProducer interface {
 	// InviteCreated publishes an event for an invite being created.
 	InviteCreated(payload *GroupEventInviteCreatedPayload) error
 
+	// InviteDeclined publishes an event for an invite being declined.
+	InviteDeclined(payload *GroupEventInviteDeclinedPayload) error
+
 	// GroupCreated publishes an event for a group being created.
 	GroupCreated(payload *GroupEventGroupCreatedPayload) error
 
@@ -45,6 +48,16 @@ type GroupServiceProducer interface {
 
 	// SendChatMessage publishes an event for a new chat message in a group or raid.
 	SendChatMessage(payload *GroupEventNewMessagePayload) error
+
+	GroupReadyCheckStarted(payload *GroupEventReadyCheckStartedPayload) error
+	GroupReadyCheckMemberState(payload *GroupEventReadyCheckMemberStatePayload) error
+	GroupReadyCheckFinished(payload *GroupEventReadyCheckFinishedPayload) error
+	GroupMemberSubGroupChanged(payload *GroupEventMemberSubGroupChangedPayload) error
+	GroupMemberFlagsChanged(payload *GroupEventMemberFlagsChangedPayload) error
+	GroupMemberStateChanged(payload *GroupEventMemberStateChangedPayload) error
+	GroupMemberStatesChanged(payload *GroupEventMemberStatesChangedPayload) error
+	GroupInstanceResetRequest(payload *GroupEventInstanceResetRequestPayload) error
+	GroupInstanceBindExtensionRequest(payload *GroupEventInstanceBindExtensionRequestPayload) error
 }
 
 // groupServiceProducerNatsJSON implements the GroupServiceProducer interface using NATS as the underlying message broker.
@@ -63,6 +76,10 @@ func NewGroupServiceProducerNatsJSON(conn *nats.Conn, ver string) GroupServicePr
 
 func (s *groupServiceProducerNatsJSON) InviteCreated(payload *GroupEventInviteCreatedPayload) error {
 	return s.publish(GroupEventInviteCreated, payload)
+}
+
+func (s *groupServiceProducerNatsJSON) InviteDeclined(payload *GroupEventInviteDeclinedPayload) error {
+	return s.publish(GroupEventInviteDeclined, payload)
 }
 
 func (s *groupServiceProducerNatsJSON) GroupCreated(payload *GroupEventGroupCreatedPayload) error {
@@ -122,4 +139,40 @@ func (s *groupServiceProducerNatsJSON) publish(e GroupServiceEvent, payload inte
 	}
 
 	return s.conn.Publish(e.SubjectName(), d)
+}
+
+func (s *groupServiceProducerNatsJSON) GroupReadyCheckStarted(payload *GroupEventReadyCheckStartedPayload) error {
+	return s.publish(GroupEventGroupReadyCheckStarted, payload)
+}
+
+func (s *groupServiceProducerNatsJSON) GroupReadyCheckMemberState(payload *GroupEventReadyCheckMemberStatePayload) error {
+	return s.publish(GroupEventGroupReadyCheckMemberState, payload)
+}
+
+func (s *groupServiceProducerNatsJSON) GroupReadyCheckFinished(payload *GroupEventReadyCheckFinishedPayload) error {
+	return s.publish(GroupEventGroupReadyCheckFinished, payload)
+}
+
+func (s *groupServiceProducerNatsJSON) GroupMemberSubGroupChanged(payload *GroupEventMemberSubGroupChangedPayload) error {
+	return s.publish(GroupEventGroupMemberSubGroupChanged, payload)
+}
+
+func (s *groupServiceProducerNatsJSON) GroupMemberFlagsChanged(payload *GroupEventMemberFlagsChangedPayload) error {
+	return s.publish(GroupEventGroupMemberFlagsChanged, payload)
+}
+
+func (s *groupServiceProducerNatsJSON) GroupMemberStateChanged(payload *GroupEventMemberStateChangedPayload) error {
+	return s.publish(GroupEventGroupMemberStateChanged, payload)
+}
+
+func (s *groupServiceProducerNatsJSON) GroupMemberStatesChanged(payload *GroupEventMemberStatesChangedPayload) error {
+	return s.publish(GroupEventGroupMemberStatesChanged, payload)
+}
+
+func (s *groupServiceProducerNatsJSON) GroupInstanceResetRequest(payload *GroupEventInstanceResetRequestPayload) error {
+	return s.publish(GroupEventGroupInstanceResetRequest, payload)
+}
+
+func (s *groupServiceProducerNatsJSON) GroupInstanceBindExtensionRequest(payload *GroupEventInstanceBindExtensionRequestPayload) error {
+	return s.publish(GroupEventGroupInstanceBindExtensionRequest, payload)
 }

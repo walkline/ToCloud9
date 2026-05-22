@@ -20,6 +20,12 @@ const (
 
 	// ServerRegistryEventGSRemoved is event that occurs when server registry removes game server (unhealthy or shutdown).
 	ServerRegistryEventGSRemoved
+
+	// ServerRegistryEventMatchmakingRemovedUnhealthy is event that occurs when matchmaking service becomes unhealthy.
+	ServerRegistryEventMatchmakingRemovedUnhealthy
+
+	// ServerRegistryEventMatchmakingRecovered is event that occurs when matchmaking service becomes healthy again.
+	ServerRegistryEventMatchmakingRecovered
 )
 
 // SubjectName is key that nats uses.
@@ -35,6 +41,10 @@ func (e ServerRegistryEvent) SubjectName() string {
 		return "sr.gs.added"
 	case ServerRegistryEventGSRemoved:
 		return "sr.gs.removed"
+	case ServerRegistryEventMatchmakingRemovedUnhealthy:
+		return "sr.matchmaking.removed.unhealthy"
+	case ServerRegistryEventMatchmakingRecovered:
+		return "sr.matchmaking.recovered"
 	}
 	panic(fmt.Errorf("unk event %d", e))
 }
@@ -49,10 +59,11 @@ type ServerRegistryEventGWAddedPayload struct {
 
 // ServerRegistryEventGWRemovedUnhealthyPayload represents payload of ServerRegistryEventGWRemovedUnhealthy event.
 type ServerRegistryEventGWRemovedUnhealthyPayload struct {
-	ID              string
-	Address         string
-	HealthCheckAddr string
-	RealmID         uint32
+	ID                string
+	Address           string
+	HealthCheckAddr   string
+	RealmID           uint32
+	EventTimeUnixNano uint64
 }
 
 type GameServer struct {
@@ -111,4 +122,19 @@ type ServerRegistryEventGSAddedPayload struct {
 
 type ServerRegistryEventGSRemovedPayload struct {
 	GameServer GameServer
+}
+
+type MatchmakingService struct {
+	Address          string
+	HealthCheckAddr  string
+	ObservedAtUnixMs int64
+}
+
+type ServerRegistryEventMatchmakingRemovedUnhealthyPayload struct {
+	MatchmakingService MatchmakingService
+	Error              string
+}
+
+type ServerRegistryEventMatchmakingRecoveredPayload struct {
+	MatchmakingService MatchmakingService
 }
