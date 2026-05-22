@@ -12,12 +12,15 @@ import (
 
 	"github.com/walkline/ToCloud9/apps/matchmakingserver/battleground"
 	"github.com/walkline/ToCloud9/apps/matchmakingserver/repo"
+	wowarena "github.com/walkline/ToCloud9/shared/wow/arena"
 	"github.com/walkline/ToCloud9/shared/wow/guid"
 )
 
 var (
 	ErrPlayerNotFound = errors.New("player not found")
 )
+
+const ratedArenaPreviousOpponentPenalty = 1000000
 
 type QueuedGroup struct {
 	LeaderGUID guid.PlayerUnwrapped
@@ -28,6 +31,14 @@ type QueuedGroup struct {
 
 	RealmID uint32
 	TeamID  battleground.PVPTeam
+
+	ArenaType uint8
+	IsRated   bool
+
+	ArenaTeamID                  uint32
+	ArenaTeamRating              uint32
+	ArenaMatchmakerRating        uint32
+	ArenaPreviousOpponentsTeamID uint32
 
 	EnqueuedTime time.Time
 
@@ -145,6 +156,11 @@ func (q *GenericBattlegroundQueue) QueuedGroupByPlayer(player guid.PlayerUnwrapp
 }
 
 func (q *GenericBattlegroundQueue) process(ctx context.Context) error {
+	template := q.getBattlegroundTemplate()
+	if q.QueueTypeID == battleground.QueueTypeIDAllArenas {
+		return q.processArena(ctx, template)
+	}
+
 	battlegroundToFillIn, err := q.battleGroundService.BattlegroundsThatNeedPlayers(
 		ctx,
 		q.QueueTypeID,
@@ -175,7 +191,6 @@ func (q *GenericBattlegroundQueue) process(ctx context.Context) error {
 	}
 
 	// Try to create a new battleground
-	template := q.getBattlegroundTemplate()
 	allianceGroup, hordeGroup := q.balancedGroups(int(template.MinPlayersPerTeam), int(template.MaxPlayersPerTeam))
 
 	// If not enough groups - do nothing.
@@ -197,6 +212,161 @@ func (q *GenericBattlegroundQueue) process(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+type arenaQueueKey struct {
+	arenaType uint8
+	isRated   bool
+}
+
+func (q *GenericBattlegroundQueue) processArena(ctx context.Context, template repo.BattlegroundTemplate) error {
+	q.mut.RLock()
+	groupsByKey := make(map[arenaQueueKey][]QueuedGroup)
+	for _, group := range q.queuedGroups {
+		key := arenaQueueKey{
+			arenaType: group.ArenaType,
+			isRated:   group.IsRated,
+		}
+		groupsByKey[key] = append(groupsByKey[key], group)
+	}
+	q.mut.RUnlock()
+
+	for key, groups := range groupsByKey {
+		teamSize := int(key.arenaType)
+		if teamSize == 0 {
+			continue
+		}
+
+		var allianceGroups []QueuedGroup
+		var hordeGroups []QueuedGroup
+		if key.isRated {
+			allianceGroups, hordeGroups = findRatedArenaGroups(groups, teamSize)
+			if len(allianceGroups) == 0 || len(hordeGroups) == 0 {
+				continue
+			}
+		} else {
+			allianceGroups = findArenaGroupsForTeam(groups, teamSize)
+			if len(allianceGroups) == 0 {
+				continue
+			}
+
+			remainingGroups := removeQueuedGroups(groups, allianceGroups)
+			hordeGroups = findArenaGroupsForTeam(remainingGroups, teamSize)
+			if len(hordeGroups) == 0 {
+				continue
+			}
+		}
+
+		err := q.battleGroundCreator.CreateBattleground(ctx, template, q.QueueTypeID, BracketID(q.BracketID), q.RealmID, q.BattleGroupID, allianceGroups, hordeGroups)
+		if err != nil {
+			return fmt.Errorf("failed to create arena: %w", err)
+		}
+
+		for _, group := range hordeGroups {
+			q.removeGroupFromQueue(&group)
+		}
+
+		for _, group := range allianceGroups {
+			q.removeGroupFromQueue(&group)
+		}
+
+		return nil
+	}
+
+	return nil
+}
+
+func findRatedArenaGroups(groups []QueuedGroup, teamSize int) ([]QueuedGroup, []QueuedGroup) {
+	var candidates []QueuedGroup
+	for _, group := range groups {
+		if queuedGroupPlayerCount(group) != teamSize || group.ArenaTeamID == 0 {
+			continue
+		}
+		candidates = append(candidates, group)
+	}
+
+	sort.Slice(candidates, func(i, j int) bool {
+		return candidates[i].EnqueuedTime.Before(candidates[j].EnqueuedTime)
+	})
+
+	bestI := -1
+	bestJ := -1
+	bestDiff := int(^uint(0) >> 1)
+	for i := 0; i < len(candidates); i++ {
+		for j := i + 1; j < len(candidates); j++ {
+			firstTeamID := ratedArenaTeamKey(candidates[i])
+			secondTeamID := ratedArenaTeamKey(candidates[j])
+			if firstTeamID == secondTeamID {
+				continue
+			}
+			diff := abs(int(candidates[i].ArenaMatchmakerRating) - int(candidates[j].ArenaMatchmakerRating))
+			if candidates[i].ArenaPreviousOpponentsTeamID == secondTeamID ||
+				candidates[j].ArenaPreviousOpponentsTeamID == firstTeamID {
+				diff += ratedArenaPreviousOpponentPenalty
+			}
+			if diff < bestDiff {
+				bestI = i
+				bestJ = j
+				bestDiff = diff
+			}
+		}
+	}
+
+	if bestI < 0 || bestJ < 0 {
+		return nil, nil
+	}
+
+	return []QueuedGroup{candidates[bestI]}, []QueuedGroup{candidates[bestJ]}
+}
+
+func ratedArenaTeamKey(group QueuedGroup) uint32 {
+	return wowarena.NewCrossrealmTeamID(uint16(group.RealmID), group.ArenaTeamID)
+}
+
+func findArenaGroupsForTeam(groups []QueuedGroup, teamSize int) []QueuedGroup {
+	var best []QueuedGroup
+	var search func(index int, current []QueuedGroup, players int) bool
+	search = func(index int, current []QueuedGroup, players int) bool {
+		if players == teamSize {
+			best = append([]QueuedGroup{}, current...)
+			return true
+		}
+		if players > teamSize || index >= len(groups) {
+			return false
+		}
+
+		group := groups[index]
+		groupPlayers := queuedGroupPlayerCount(group)
+		if groupPlayers <= teamSize && search(index+1, append(current, group), players+groupPlayers) {
+			return true
+		}
+
+		return search(index+1, current, players)
+	}
+
+	search(0, nil, 0)
+	return best
+}
+
+func removeQueuedGroups(groups []QueuedGroup, groupsToRemove []QueuedGroup) []QueuedGroup {
+	remaining := make([]QueuedGroup, 0, len(groups))
+	for _, group := range groups {
+		remove := false
+		for _, groupToRemove := range groupsToRemove {
+			if group.LeaderGUID == groupToRemove.LeaderGUID {
+				remove = true
+				break
+			}
+		}
+		if !remove {
+			remaining = append(remaining, group)
+		}
+	}
+	return remaining
+}
+
+func queuedGroupPlayerCount(group QueuedGroup) int {
+	return len(group.Members) + 1
 }
 
 func (q *GenericBattlegroundQueue) balancedGroups(minPlayers, maxPlayers int) ([]QueuedGroup, []QueuedGroup) {

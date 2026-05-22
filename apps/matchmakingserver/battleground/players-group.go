@@ -16,5 +16,13 @@ type QueuedGroup struct {
 	RealmID uint32
 	TeamID  PVPTeam
 
+	ArenaType uint8
+	IsRated   bool
+
+	ArenaTeamID                  uint32
+	ArenaTeamRating              uint32
+	ArenaMatchmakerRating        uint32
+	ArenaPreviousOpponentsTeamID uint32
+
 	EnqueuedTime time.Time
 }
