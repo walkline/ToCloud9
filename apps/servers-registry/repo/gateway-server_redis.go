@@ -25,28 +25,34 @@ func (g *gatewayRedisRepo) Add(ctx context.Context, server *GatewayServer) (*Gat
 	server.HealthCheckAddr = strings.ToLower(server.HealthCheckAddr)
 	server.ID = g.generateID(server.HealthCheckAddr)
 
+	key := g.key(server.ID)
+	previous, err := g.gatewayByKey(ctx, key)
+	if err != nil {
+		return nil, err
+	}
+
 	d, err := json.Marshal(server)
 	if err != nil {
 		return nil, err
 	}
 
-	key := g.key(server.ID)
-	status := g.rdb.Set(ctx, key, d, 0)
-	if status.Err() != nil {
-		return nil, status.Err()
+	newIndexKey := g.realmIndexKey(server.RealmID)
+	pipe := g.rdb.TxPipeline()
+	pipe.Set(ctx, key, d, 0)
+	pipe.SAdd(ctx, newIndexKey, key)
+	if previous != nil {
+		if oldIndexKey := g.realmIndexKey(previous.RealmID); oldIndexKey != newIndexKey {
+			pipe.SRem(ctx, oldIndexKey, key)
+		}
 	}
 
-	res := g.rdb.SAdd(ctx, g.realmIndexKey(server.RealmID), key)
-	if res.Err() != nil {
-		g.rdb.Del(ctx, key)
-		return nil, res.Err()
-	}
-
-	return server, nil
+	_, err = pipe.Exec(ctx)
+	return server, err
 }
 
 func (g *gatewayRedisRepo) Update(ctx context.Context, id string, f func(GatewayServer) GatewayServer) error {
-	res := g.rdb.Get(ctx, g.key(id))
+	oldKey := g.key(id)
+	res := g.rdb.Get(ctx, oldKey)
 	if res.Err() != nil {
 		return res.Err()
 	}
@@ -56,6 +62,7 @@ func (g *gatewayRedisRepo) Update(ctx context.Context, id string, f func(Gateway
 	if err != nil {
 		return err
 	}
+	oldRealmID := v.RealmID
 
 	newV := f(*v)
 	d, err := json.Marshal(newV)
@@ -63,9 +70,22 @@ func (g *gatewayRedisRepo) Update(ctx context.Context, id string, f func(Gateway
 		return err
 	}
 
-	key := g.key(newV.ID)
-	status := g.rdb.Set(ctx, key, d, 0)
-	return status.Err()
+	newKey := g.key(newV.ID)
+	newIndexKey := g.realmIndexKey(newV.RealmID)
+	oldIndexKey := g.realmIndexKey(oldRealmID)
+
+	pipe := g.rdb.TxPipeline()
+	pipe.Set(ctx, newKey, d, 0)
+	pipe.SAdd(ctx, newIndexKey, newKey)
+	if oldIndexKey != newIndexKey || oldKey != newKey {
+		pipe.SRem(ctx, oldIndexKey, oldKey)
+	}
+	if oldKey != newKey {
+		pipe.Del(ctx, oldKey)
+	}
+
+	_, err = pipe.Exec(ctx)
+	return err
 }
 
 func (g *gatewayRedisRepo) Remove(ctx context.Context, healthCheckAddress string) error {
@@ -123,6 +143,28 @@ func (g *gatewayRedisRepo) ListByRealm(ctx context.Context, realmID uint32) ([]G
 	}
 
 	return result, nil
+}
+
+func (g *gatewayRedisRepo) gatewayByKey(ctx context.Context, key string) (*GatewayServer, error) {
+	getRes := g.rdb.Get(ctx, key)
+	if getRes.Err() != nil {
+		if errors.Is(getRes.Err(), redis.Nil) {
+			return nil, nil
+		}
+		return nil, getRes.Err()
+	}
+
+	resBytes, err := getRes.Bytes()
+	if err != nil {
+		return nil, err
+	}
+
+	obj := &GatewayServer{}
+	if err = json.Unmarshal(resBytes, obj); err != nil {
+		return nil, err
+	}
+
+	return obj, nil
 }
 
 func (g *gatewayRedisRepo) realmIndexKey(realmID uint32) string {

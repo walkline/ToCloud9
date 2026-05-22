@@ -2,8 +2,11 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math/rand"
+	"net"
+	"net/http"
 	"sort"
 
 	"github.com/rs/zerolog/log"
@@ -100,7 +103,7 @@ func NewGameServer(
 
 func (g *gameServerImpl) Register(ctx context.Context, server *repo.GameServer) error {
 	sort.Slice(server.AvailableMaps, func(i, j int) bool {
-		return server.AvailableMaps[i] <= server.AvailableMaps[j]
+		return server.AvailableMaps[i] < server.AvailableMaps[j]
 	})
 
 	if err := g.checker.AddHealthCheckObject(server); err != nil {
@@ -173,14 +176,26 @@ func (g *gameServerImpl) AvailableForMapAndRealm(ctx context.Context, mapID uint
 		return nil, err
 	}
 
+	hasExplicitMapServer := false
+	for _, server := range servers {
+		if !server.IsAllMapsAvailable() && containsMapID(server.AvailableMaps, mapID) {
+			hasExplicitMapServer = true
+			break
+		}
+	}
+
 	result := []repo.GameServer{}
 	for _, server := range servers {
+		if hasExplicitMapServer && server.IsAllMapsAvailable() {
+			continue
+		}
+
 		if server.CanHandleMap(mapID) {
 			result = append(result, server)
 		}
 	}
 
-	return append(result), nil
+	return result, nil
 }
 
 func (g *gameServerImpl) RandomServerForRealm(ctx context.Context, realmID uint32) (*repo.GameServer, error) {
@@ -233,6 +248,7 @@ func (g *gameServerImpl) MapsLoadedForServer(ctx context.Context, serverID strin
 		return nil, fmt.Errorf("game server not found")
 	}
 
+	pendingBefore := len(server.AssignedButPendingMaps)
 	newPendingMaps := []uint32{}
 	for i := range server.AssignedButPendingMaps {
 		hasMap := false
@@ -248,11 +264,37 @@ func (g *gameServerImpl) MapsLoadedForServer(ctx context.Context, serverID strin
 	}
 
 	server.AssignedButPendingMaps = newPendingMaps
+	log.Info().
+		Str("serverID", serverID).
+		Str("address", server.Address).
+		Str("grpcAddress", server.GRPCAddress).
+		Str("healthCheckAddress", server.HealthCheckAddr).
+		Uint32("realmID", server.RealmID).
+		Bool("isCrossRealm", server.IsCrossRealm).
+		Int("loadedMaps", len(maps)).
+		Int("pendingBefore", pendingBefore).
+		Int("pendingAfter", len(newPendingMaps)).
+		Msg("Game server maps marked ready")
 
 	return server, g.r.Upsert(ctx, server)
 }
 
 func (g *gameServerImpl) onServerUnhealthy(server *repo.GameServer, err error) {
+	if isDegradedGameServerHealthError(err) {
+		log.Warn().
+			Err(err).
+			Str("address", server.Address).
+			Str("healthCheckAddress", server.HealthCheckAddr).
+			Str("serverID", server.ID).
+			Uint32("realmID", server.RealmID).
+			Bool("isCrossRealm", server.IsCrossRealm).
+			Msg("Game Server world-loop health degraded; preserving registered routing membership")
+		if addErr := g.checker.AddHealthCheckObject(server); addErr != nil {
+			log.Error().Err(addErr).Str("serverID", server.ID).Msg("can't re-add degraded game server to health checker")
+		}
+		return
+	}
+
 	log.Warn().
 		Err(err).
 		Str("address", server.Address).
@@ -304,6 +346,16 @@ func (g *gameServerImpl) onServerUnhealthy(server *repo.GameServer, err error) {
 	}
 }
 
+func isDegradedGameServerHealthError(err error) bool {
+	var statusErr *healthandmetrics.HTTPStatusError
+	if errors.As(err, &statusErr) {
+		return statusErr.StatusCode == http.StatusServiceUnavailable || statusErr.StatusCode == http.StatusGatewayTimeout
+	}
+
+	var netErr net.Error
+	return errors.As(err, &netErr) && netErr.Timeout()
+}
+
 func (g *gameServerImpl) distributeMapsToServers(ctx context.Context, servers []repo.GameServer) ([]repo.GameServer, error) {
 	serversBefore := make([]repo.GameServer, len(servers))
 	for i, server := range servers {
@@ -318,6 +370,7 @@ func (g *gameServerImpl) distributeMapsToServers(ctx context.Context, servers []
 			ID:                      distributed[i].ID,
 			Address:                 distributed[i].Address,
 			RealmID:                 distributed[i].RealmID,
+			IsCrossRealm:            distributed[i].IsCrossRealm,
 			AvailableMaps:           distributed[i].AvailableMaps,
 			NewAssignedMapsToHandle: distributed[i].AssignedMapsToHandle,
 		}
@@ -331,12 +384,13 @@ func (g *gameServerImpl) distributeMapsToServers(ctx context.Context, servers []
 	}
 
 	for i := range distributed {
-		// Mark new maps as pending.
 		for _, server := range res {
 			if server.ID == distributed[i].ID {
-				// No need to have confirmation for assignment on startup.
-				if len(server.OldAssignedMapsToHandle) > 0 {
-					distributed[i].AssignedButPendingMaps = server.OnlyNewMaps()
+				for _, previousServer := range serversBefore {
+					if previousServer.ID == distributed[i].ID {
+						distributed[i].AssignedButPendingMaps = pendingMapsAfterReassignment(previousServer, server)
+						break
+					}
 				}
 				break
 			}
@@ -355,6 +409,44 @@ func (g *gameServerImpl) distributeMapsToServers(ctx context.Context, servers []
 	}
 
 	return distributed, nil
+}
+
+func pendingMapsAfterReassignment(previous repo.GameServer, reassigned events.GameServer) []uint32 {
+	pending := make([]uint32, 0, len(previous.AssignedButPendingMaps)+len(reassigned.NewAssignedMapsToHandle))
+	seen := map[uint32]struct{}{}
+
+	addPending := func(mapID uint32) {
+		if _, ok := seen[mapID]; ok {
+			return
+		}
+		seen[mapID] = struct{}{}
+		pending = append(pending, mapID)
+	}
+
+	for _, mapID := range previous.AssignedButPendingMaps {
+		if containsMapID(reassigned.NewAssignedMapsToHandle, mapID) {
+			addPending(mapID)
+		}
+	}
+
+	for _, mapID := range reassigned.OnlyNewMaps() {
+		addPending(mapID)
+	}
+
+	sort.Slice(pending, func(i, j int) bool {
+		return pending[i] < pending[j]
+	})
+
+	return pending
+}
+
+func containsMapID(maps []uint32, mapID uint32) bool {
+	for _, candidate := range maps {
+		if candidate == mapID {
+			return true
+		}
+	}
+	return false
 }
 
 func (g *gameServerImpl) onMetricsUpdate(server *repo.GameServer, m *healthandmetrics.MetricsRead) {

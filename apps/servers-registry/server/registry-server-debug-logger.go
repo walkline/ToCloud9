@@ -118,3 +118,8 @@ func (s *serversRegistryDebugLoggerMiddleware) ListGatewaysForRealm(ctx context.
 	resp, err = s.realService.ListGatewaysForRealm(ctx, request)
 	return
 }
+
+func (s *serversRegistryDebugLoggerMiddleware) RegisterMatchmakingServer(ctx context.Context, request *pb.RegisterMatchmakingServerRequest) (*pb.RegisterMatchmakingServerResponse, error) {
+	// Logs already inside.
+	return s.realService.RegisterMatchmakingServer(ctx, request)
+}

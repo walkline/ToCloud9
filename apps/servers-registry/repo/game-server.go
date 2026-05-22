@@ -66,9 +66,9 @@ func (g *GameServer) IsAllMapsAvailable() bool {
 
 func (g *GameServer) Copy() GameServer {
 	cp := *g
-	copy(cp.AvailableMaps, g.AvailableMaps)
-	copy(cp.AssignedMapsToHandle, g.AssignedMapsToHandle)
-	copy(cp.AssignedButPendingMaps, g.AssignedButPendingMaps)
+	cp.AvailableMaps = append([]uint32(nil), g.AvailableMaps...)
+	cp.AssignedMapsToHandle = append([]uint32(nil), g.AssignedMapsToHandle...)
+	cp.AssignedButPendingMaps = append([]uint32(nil), g.AssignedButPendingMaps...)
 	return cp
 }
 

@@ -26,6 +26,8 @@ import (
 	"github.com/walkline/ToCloud9/shared/healthandmetrics"
 )
 
+const gameServerMetricsReadTimeout = 6 * time.Second
+
 func main() {
 	mainContext, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -69,9 +71,10 @@ func main() {
 	healthChecker := healthandmetrics.NewHealthChecker(time.Second*4, 4, healthandmetrics.NewHttpHealthCheckProcessor(time.Second*15))
 	go healthChecker.Start()
 
-	metricsConsumer := healthandmetrics.NewMetricsConsumer(time.Second*5, 3, healthandmetrics.NewHttpPrometheusMetricsReader(time.Second))
+	metricsConsumer := healthandmetrics.NewMetricsConsumer(time.Second*5, 3, healthandmetrics.NewHttpPrometheusMetricsReader(gameServerMetricsReadTimeout))
 	go metricsConsumer.Start()
 
+	serverRegistryProducer := events.NewServerRegistryProducerNatsJSON(nc, "0.0.1")
 	supportedRealms := conf.RealmsID
 	gameServersService, err := service.NewGameServer(
 		mainContext,
@@ -79,7 +82,7 @@ func main() {
 		healthChecker,
 		metricsConsumer,
 		binpack.NewBinPackBalancer(binpack.DefaultMapsWeight), // TODO: implement providing custom maps weight list.
-		events.NewServerRegistryProducerNatsJSON(nc, "0.0.1"),
+		serverRegistryProducer,
 		supportedRealms,
 	)
 	if err != nil {
@@ -91,14 +94,27 @@ func main() {
 		repo.NewGatewayRedisRepo(rdb),
 		healthChecker,
 		metricsConsumer,
-		events.NewServerRegistryProducerNatsJSON(nc, "0.0.1"),
+		serverRegistryProducer,
 		[]uint32{1},
 	)
 	if err != nil {
 		log.Fatal().Err(err).Msg("can't create gateway service")
 	}
 
-	registryService := server.NewServersRegistry(gameServersService, gatewayService)
+	matchmakingService := service.NewMatchmaking(healthChecker, serverRegistryProducer)
+
+	if conf.MatchmakingServiceHealthCheckAddress != "" {
+		matchmakingMonitor := service.NewMatchmakingHealthMonitor(
+			conf.MatchmakingServiceAddress,
+			conf.MatchmakingServiceHealthCheckAddress,
+			time.Duration(conf.MatchmakingServiceHealthCheckIntervalMs)*time.Millisecond,
+			time.Duration(conf.MatchmakingServiceHealthCheckTimeoutMs)*time.Millisecond,
+			serverRegistryProducer,
+		)
+		go matchmakingMonitor.Start(mainContext)
+	}
+
+	registryService := server.NewServersRegistry(gameServersService, gatewayService, matchmakingService)
 	if conf.LogLevel == zerolog.DebugLevel {
 		registryService = server.NewServersRegistryDebugLoggerMiddleware(registryService, log.Logger)
 	}
