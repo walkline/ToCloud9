@@ -3,33 +3,35 @@ package session
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	root "github.com/walkline/ToCloud9/apps/gateway"
 	eBroadcaster "github.com/walkline/ToCloud9/apps/gateway/events-broadcaster"
 	"github.com/walkline/ToCloud9/apps/gateway/packet"
 	pbChar "github.com/walkline/ToCloud9/gen/characters/pb"
+	"github.com/walkline/ToCloud9/shared/authidentity"
 	"github.com/walkline/ToCloud9/shared/events"
 )
 
 // FriendsResult enum values matching AzerothCore protocol
 const (
-	FriendResultDBError         = 0x00
-	FriendResultListFull        = 0x01
-	FriendResultOnline          = 0x02
-	FriendResultOffline         = 0x03
-	FriendResultNotFound        = 0x04
-	FriendResultRemoved         = 0x05
-	FriendResultAddedOnline     = 0x06
-	FriendResultAddedOffline    = 0x07
-	FriendResultAlready         = 0x08
-	FriendResultSelf            = 0x09
-	FriendResultEnemy           = 0x0A
-	FriendResultIgnoreSelf      = 0x0B
-	FriendResultIgnoreNotFound  = 0x0C
-	FriendResultIgnoreAlready   = 0x0D
-	FriendResultIgnoreAdded     = 0x0E
-	FriendResultIgnoreRemoved   = 0x0F
-	FriendResultIgnoreFull      = 0x10
+	FriendResultDBError        = 0x00
+	FriendResultListFull       = 0x01
+	FriendResultOnline         = 0x02
+	FriendResultOffline        = 0x03
+	FriendResultNotFound       = 0x04
+	FriendResultRemoved        = 0x05
+	FriendResultAddedOnline    = 0x06
+	FriendResultAddedOffline   = 0x07
+	FriendResultAlready        = 0x08
+	FriendResultSelf           = 0x09
+	FriendResultEnemy          = 0x0A
+	FriendResultIgnoreSelf     = 0x0B
+	FriendResultIgnoreNotFound = 0x0C
+	FriendResultIgnoreAlready  = 0x0D
+	FriendResultIgnoreAdded    = 0x0E
+	FriendResultIgnoreRemoved  = 0x0F
+	FriendResultIgnoreFull     = 0x10
 )
 
 // HandleContactList handles CMsgContactList (0x066)
@@ -57,10 +59,10 @@ func (s *GameSession) HandleContactList(ctx context.Context, p *packet.Packet) e
 	// Friends
 	for _, friend := range resp.Friends {
 		w.Uint64(friend.Guid)
-		w.Uint32(0x01)        // SOCIAL_FLAG_FRIEND
-		w.String(friend.Note) // note comes BEFORE status!
+		w.Uint32(0x01)                // SOCIAL_FLAG_FRIEND
+		w.String(friend.Note)         // note comes BEFORE status!
 		w.Uint8(uint8(friend.Status)) // 0=offline, 1=online
-		if friend.Status > 0 { // if online
+		if friend.Status > 0 {        // if online
 			w.Uint32(friend.Area)
 			w.Uint32(friend.Level)
 			w.Uint32(friend.ClassID)
@@ -87,6 +89,36 @@ func (s *GameSession) HandleAddFriend(ctx context.Context, p *packet.Packet) err
 	note := r.String()
 
 	s.logger.Debug().Str("friendName", friendName).Msg("Handling add friend")
+
+	if strings.Contains(friendName, "@") {
+		if !authidentity.IsValidEmail(friendName) {
+			s.SendFriendStatus(FriendResultNotFound, 0, "", 0, 0, 0, 0)
+			return nil
+		}
+		friendName = authidentity.NormalizeLoginIdentity(friendName)
+		friendResp, err := s.charServiceClient.AddRealIDFriendByEmail(ctx, &pbChar.AddRealIDFriendByEmailRequest{
+			Api:        root.Ver,
+			RealmID:    root.RealmID,
+			PlayerGUID: s.character.GUID,
+			AccountID:  s.character.AccountID,
+			Email:      friendName,
+			Note:       note,
+		})
+		if err != nil {
+			return fmt.Errorf("failed to add real id friend: %w", err)
+		}
+
+		s.SendFriendStatus(
+			friendResp.Result,
+			friendResp.FriendGUID,
+			note,
+			uint8(friendResp.Status),
+			friendResp.Area,
+			friendResp.Level,
+			friendResp.ClassID,
+		)
+		return nil
+	}
 
 	// Resolve friend name to GUID
 	charResp, err := s.charServiceClient.CharacterByName(ctx, &pbChar.CharacterByNameRequest{
@@ -314,7 +346,7 @@ func (s *GameSession) HandleWho(ctx context.Context, p *packet.Packet) error {
 
 	strCount := r.Uint32()
 	if strCount > 4 {
-		return fmt.Errorf("zoneCount is invalid - %d, should be <= 4", zonesCount)
+		return fmt.Errorf("strCount is invalid - %d, should be <= 4", strCount)
 	}
 
 	strs := make([]string, strCount)
@@ -332,6 +364,7 @@ func (s *GameSession) HandleWho(ctx context.Context, p *packet.Packet) error {
 		GuildName:     guildName,
 		RaceMask:      raceMask,
 		ClassMask:     classMask,
+		Zones:         zones,
 		Strings:       strs,
 	})
 	if err != nil {

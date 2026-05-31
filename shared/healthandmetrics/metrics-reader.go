@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"reflect"
 	"sync"
 	"time"
 
@@ -25,7 +26,7 @@ type MetricsRead struct {
 	Delay99Percentile int
 	DelayMax          int
 
-	Raw []dto.MetricFamily
+	Raw []*dto.MetricFamily
 }
 
 type MetricsObserver func(MetricsObservable, *MetricsRead)
@@ -67,9 +68,9 @@ func (m *metricsConsumerImpl) AddMetricsObservable(observable MetricsObservable)
 	m.objectsMu.Lock()
 	defer m.objectsMu.Unlock()
 
-	// Check if we already have this observable.
-	for _, object := range m.objects {
+	for i, object := range m.objects {
 		if object.MetricsAddress() == observable.MetricsAddress() {
+			m.objects[i] = observable
 			return nil
 		}
 	}
@@ -84,6 +85,9 @@ func (m *metricsConsumerImpl) RemoveMetricsObservable(observable MetricsObservab
 
 	for i := range m.objects {
 		if m.objects[i].MetricsAddress() == observable.MetricsAddress() {
+			if !sameMetricsObservable(m.objects[i], observable) {
+				return nil
+			}
 			m.objects = append(m.objects[:i], m.objects[i+1:]...)
 			return nil
 		}
@@ -146,6 +150,10 @@ func (m *metricsConsumerImpl) makeIteration() {
 }
 
 func (m *metricsConsumerImpl) handleResult(result metricsReadResult) {
+	if !m.isCurrentMetricsObservable(result.Observable) {
+		return
+	}
+
 	if result.Err != nil {
 		log.Error().Err(result.Err).Msgf("failed to read metrics for %s object", result.Observable.MetricsAddress())
 		return
@@ -157,6 +165,34 @@ func (m *metricsConsumerImpl) handleResult(result metricsReadResult) {
 	for _, observer := range m.observers {
 		observer(result.Observable, result.MetricsRead)
 	}
+}
+
+func (m *metricsConsumerImpl) isCurrentMetricsObservable(observable MetricsObservable) bool {
+	m.objectsMu.RLock()
+	defer m.objectsMu.RUnlock()
+
+	for _, current := range m.objects {
+		if current.MetricsAddress() != observable.MetricsAddress() {
+			continue
+		}
+
+		return sameMetricsObservable(current, observable)
+	}
+
+	return false
+}
+
+func sameMetricsObservable(a, b MetricsObservable) bool {
+	if a == nil || b == nil {
+		return a == b
+	}
+
+	aType := reflect.TypeOf(a)
+	if aType != reflect.TypeOf(b) || !aType.Comparable() {
+		return true
+	}
+
+	return a == b
 }
 
 func NewMetricsConsumer(delay time.Duration, processorsCount int, reader MetricsReader) MetricsConsumer {
@@ -192,7 +228,7 @@ func (h httpPrometheusMetricsReader) Read(observable MetricsObservable) (*Metric
 		return nil, fmt.Errorf("bad status code %d", resp.StatusCode)
 	}
 
-	metrics := []dto.MetricFamily{}
+	metrics := []*dto.MetricFamily{}
 	dec := expfmt.NewDecoder(resp.Body, expfmt.NewFormat(expfmt.TypeTextPlain))
 
 	for {
@@ -204,7 +240,7 @@ func (h httpPrometheusMetricsReader) Read(observable MetricsObservable) (*Metric
 		if err != nil {
 			return nil, err
 		}
-		metrics = append(metrics, result)
+		metrics = append(metrics, &result)
 	}
 
 	results := MetricsRead{

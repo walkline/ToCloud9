@@ -90,6 +90,51 @@ func (c *matchmakingNatsListener) Listen() error {
 	}
 
 	c.subs = append(c.subs, sb)
+	sb, err = c.nc.Subscribe(events.MatchmakingEventLfgStatusChanged.SubjectName(), func(msg *nats.Msg) {
+		p := events.EventToReadGenericPayload{}
+		err := json.Unmarshal(msg.Data, &p)
+		if err != nil {
+			log.Error().Err(err).Msg("can't read MatchmakingEventLfgStatusChanged event")
+			return
+		}
+
+		eventPayload := events.MatchmakingEventLfgStatusChangedPayload{}
+		err = json.Unmarshal(p.Payload, &eventPayload)
+		if err != nil {
+			log.Error().Err(err).Msg("can't read MatchmakingEventLfgStatusChanged (payload part) event")
+			return
+		}
+
+		c.broadcaster.NewMatchmakingLfgStatusChangedEvent(&eventPayload)
+	})
+	if err != nil {
+		return err
+	}
+
+	c.subs = append(c.subs, sb)
+
+	sb, err = c.nc.Subscribe(events.MatchmakingEventLfgProposalAccepted.SubjectName(), func(msg *nats.Msg) {
+		p := events.EventToReadGenericPayload{}
+		err := json.Unmarshal(msg.Data, &p)
+		if err != nil {
+			log.Error().Err(err).Msg("can't read MatchmakingEventLfgProposalAccepted event")
+			return
+		}
+
+		eventPayload := events.MatchmakingEventLfgProposalAcceptedPayload{}
+		err = json.Unmarshal(p.Payload, &eventPayload)
+		if err != nil {
+			log.Error().Err(err).Msg("can't read MatchmakingEventLfgProposalAccepted (payload part) event")
+			return
+		}
+
+		c.broadcaster.NewMatchmakingLfgProposalAcceptedEvent(&eventPayload)
+	})
+	if err != nil {
+		return err
+	}
+
+	c.subs = append(c.subs, sb)
 	return nil
 }
 

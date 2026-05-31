@@ -21,13 +21,28 @@ void SetRemoveItemsWithGuidsFromPlayerHandler(RemoveItemsWithGuidsFromPlayerHand
 }
 
 RemoveItemsWithGuidsFromPlayerResponse CallRemoveItemsWithGuidsFromPlayerHandler(uint64_t player_guid, uint64_t* items_guids, int items_guids_size, uint64_t assign_player_guid) {
-    if (getPlayerItemsByGuidsHandler == 0) {
+    if (removeItemsWithGuidsFromPlayerHandler == 0) {
         RemoveItemsWithGuidsFromPlayerResponse resp;
         resp.errorCode = PlayerItemErrorCodeNoHandler;
         return resp;
     }
 
     return removeItemsWithGuidsFromPlayerHandler(player_guid, items_guids, items_guids_size, assign_player_guid);
+}
+
+static TakePlayerItemByPosHandler takePlayerItemByPosHandler;
+void SetTakePlayerItemByPosHandler(TakePlayerItemByPosHandler h) {
+    takePlayerItemByPosHandler = h;
+}
+
+TakePlayerItemByPosResponse CallTakePlayerItemByPosHandler(uint64_t player_guid, uint8_t bag_slot, uint8_t slot, uint32_t count, uint64_t assign_player_guid) {
+    if (takePlayerItemByPosHandler == 0) {
+        TakePlayerItemByPosResponse resp;
+        resp.errorCode = PlayerItemErrorCodeNoHandler;
+        return resp;
+    }
+
+    return takePlayerItemByPosHandler(player_guid, bag_slot, slot, count, assign_player_guid);
 }
 
 static AddExistingItemToPlayerHandler addExistingItemToPlayerHandler;

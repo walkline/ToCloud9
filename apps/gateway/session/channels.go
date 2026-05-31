@@ -2,7 +2,6 @@ package session
 
 import (
 	"context"
-	"fmt"
 	"strings"
 	"time"
 
@@ -11,6 +10,7 @@ import (
 	"github.com/walkline/ToCloud9/apps/gateway/packet"
 	pbChat "github.com/walkline/ToCloud9/gen/chat/pb"
 	"github.com/walkline/ToCloud9/shared/wow"
+	wowguid "github.com/walkline/ToCloud9/shared/wow/guid"
 )
 
 // Channel IDs from ChatChannels.dbc
@@ -43,6 +43,22 @@ const (
 	MemberFlagModerator uint8 = 0x02
 )
 
+// Player flags and chat tags mirror AzerothCore Player.h values used by Player::GetChatTag.
+const (
+	playerFlagAFK          uint32 = 0x00000002
+	playerFlagDND          uint32 = 0x00000004
+	playerFlagDeveloper    uint32 = 0x00008000
+	playerFlagCommentator2 uint32 = 0x00400000
+
+	playerExtraFlagGMChat uint32 = 0x00000020
+
+	chatTagAFK uint8 = 0x01
+	chatTagDND uint8 = 0x02
+	chatTagGM  uint8 = 0x04
+	chatTagCOM uint8 = 0x08
+	chatTagDEV uint8 = 0x10
+)
+
 // WorldserverChannelInfo holds channel data from worldserver
 type WorldserverChannelInfo struct {
 	Name      string
@@ -69,9 +85,12 @@ type ChannelMembership struct {
 
 // ChannelInfo holds information about a channel the player is a member of
 type ChannelInfo struct {
-	Name      string
-	ChannelID uint32
-	Flags     uint8
+	Name              string
+	ChannelID         uint32
+	Flags             uint8
+	RealmID           uint32
+	TeamID            uint32
+	ServicePlayerGUID uint64
 }
 
 func NewChannelMembership(playerGUID uint64, eventsBroadcaster *eBroadcaster.ChatChannelsService) *ChannelMembership {
@@ -85,17 +104,38 @@ func NewChannelMembership(playerGUID uint64, eventsBroadcaster *eBroadcaster.Cha
 }
 
 func (cm *ChannelMembership) AddChannel(name string, channelID uint32, flags uint8) {
+	cm.AddScopedChannel(name, channelID, flags, 0, 0)
+}
+
+func (cm *ChannelMembership) AddScopedChannel(name string, channelID uint32, flags uint8, realmID uint32, teamID uint32, servicePlayerGUID ...uint64) {
+	cm.addChannel(name, channelID, flags, realmID, teamID, true, servicePlayerGUID...)
+}
+
+func (cm *ChannelMembership) AddLocalChannel(name string, channelID uint32, flags uint8, realmID uint32, teamID uint32, servicePlayerGUID ...uint64) {
+	cm.addChannel(name, channelID, flags, realmID, teamID, false, servicePlayerGUID...)
+}
+
+func (cm *ChannelMembership) addChannel(name string, channelID uint32, flags uint8, realmID uint32, teamID uint32, registerEvents bool, servicePlayerGUID ...uint64) {
 	// Normalize channel name to lowercase for case-insensitive lookups
 	// This matches the behavior in chatserver's channelKey() function
 	normalizedName := strings.ToLower(name)
-
-	cm.channels[normalizedName] = &ChannelInfo{
-		Name:      name, // Store original case for display
-		ChannelID: channelID,
-		Flags:     flags,
+	playerGUID := cm.playerGUID
+	if len(servicePlayerGUID) > 0 && servicePlayerGUID[0] != 0 {
+		playerGUID = servicePlayerGUID[0]
 	}
 
-	cm.events = cm.eventsBroadcaster.AddPlayerToChannel(cm.playerGUID, normalizedName)
+	cm.channels[normalizedName] = &ChannelInfo{
+		Name:              name, // Store original case for display
+		ChannelID:         channelID,
+		Flags:             flags,
+		RealmID:           realmID,
+		TeamID:            teamID,
+		ServicePlayerGUID: playerGUID,
+	}
+
+	if registerEvents {
+		cm.events = cm.eventsBroadcaster.AddPlayerToScopedChannel(cm.playerGUID, realmID, teamID, normalizedName)
+	}
 
 	if !cm.initialChannelsLoaded {
 		const initialJoiningWaitingTime = 5 * time.Second
@@ -103,9 +143,12 @@ func (cm *ChannelMembership) AddChannel(name string, channelID uint32, flags uin
 			cm.initialChannelsLoaded = true
 		} else {
 			cm.initialChannels[normalizedName] = &ChannelInfo{
-				Name:      name,
-				ChannelID: channelID,
-				Flags:     flags,
+				Name:              name,
+				ChannelID:         channelID,
+				Flags:             flags,
+				RealmID:           realmID,
+				TeamID:            teamID,
+				ServicePlayerGUID: playerGUID,
 			}
 			cm.lastJoinDateToTrackInitialJoining = time.Now()
 		}
@@ -114,8 +157,32 @@ func (cm *ChannelMembership) AddChannel(name string, channelID uint32, flags uin
 
 func (cm *ChannelMembership) RemoveChannel(name string) {
 	normalizedName := strings.ToLower(name)
+	if ch := cm.channels[normalizedName]; ch != nil {
+		cm.eventsBroadcaster.RemovePlayerFromScopedChannel(cm.playerGUID, ch.RealmID, ch.TeamID, normalizedName)
+	}
 	delete(cm.channels, normalizedName)
-	cm.eventsBroadcaster.RemovePlayerFromChannel(cm.playerGUID, normalizedName)
+}
+
+func (cm *ChannelMembership) RemoveLocalChannelsByID(channelID uint32, exceptName string) {
+	if channelID == ChannelIDCustom {
+		return
+	}
+
+	normalizedExceptName := strings.ToLower(exceptName)
+	for normalizedName, ch := range cm.channels {
+		if normalizedName == normalizedExceptName || ch.ChannelID != channelID || ch.Flags&ChannelFlagCustom != 0 {
+			continue
+		}
+
+		delete(cm.channels, normalizedName)
+	}
+	for normalizedName, ch := range cm.initialChannels {
+		if normalizedName == normalizedExceptName || ch.ChannelID != channelID || ch.Flags&ChannelFlagCustom != 0 {
+			continue
+		}
+
+		delete(cm.initialChannels, normalizedName)
+	}
 }
 
 func (cm *ChannelMembership) GetChannel(name string) *ChannelInfo {
@@ -131,12 +198,41 @@ func (cm *ChannelMembership) IsMember(name string) bool {
 	return exists
 }
 
+func (cm *ChannelMembership) IsMemberForEvent(name string, realmID uint32, teamID uint32) bool {
+	ch := cm.GetChannel(name)
+	if ch == nil {
+		return false
+	}
+	if ch.RealmID == 0 && ch.TeamID == 0 {
+		return true
+	}
+	return ch.RealmID == realmID && ch.TeamID == teamID
+}
+
 func (cm *ChannelMembership) GetAllChannels() []*ChannelInfo {
 	channels := make([]*ChannelInfo, 0, len(cm.channels))
 	for _, ch := range cm.channels {
 		channels = append(channels, ch)
 	}
 	return channels
+}
+
+func (s *GameSession) isGatewayManagedChannel(channelName string) bool {
+	if s == nil || s.channelMembership == nil {
+		return false
+	}
+
+	ch := s.channelMembership.GetChannel(channelName)
+	return ch != nil && ch.Flags&ChannelFlagCustom != 0
+}
+
+func (s *GameSession) forwardNativeChannelPacket(channelName string, p *packet.Packet) bool {
+	if s.isGatewayManagedChannel(channelName) || s.worldSocket == nil {
+		return false
+	}
+
+	s.worldSocket.SendPacket(p)
+	return true
 }
 
 // Chat notify types (from Channel.h)
@@ -188,7 +284,10 @@ func (s *GameSession) HandleJoinChannel(ctx context.Context, p *packet.Packet) e
 	_ = r.Uint8() // unknown2
 	channelName := r.String()
 	password := r.String()
-	fmt.Println("Join Channel", channelName, channelID)
+	if r.Error() != nil || strings.TrimSpace(channelName) == "" {
+		return nil
+	}
+
 	// If it's a system channel, just forward it to worldserver since it has all required DBC data
 	// and we will hook to worldserver response.
 	if channelID != 0 && s.worldSocket != nil {
@@ -206,14 +305,15 @@ func (s *GameSession) HandleJoinChannel(ctx context.Context, p *packet.Packet) e
 		ChannelIDGuildRecrument:  131122,
 		ChannelIDLookingForGroup: 262201,
 	}
+	channelRealmID, channelTeamID, servicePlayerGUID := s.channelScopeForID(channelID)
 
 	// Call chat service to join the channel
 	resp, err := s.chatServiceClient.JoinChannel(ctx, &pbChat.JoinChannelRequest{
 		Api:          root.Ver,
-		RealmID:      root.RealmID,
-		PlayerGUID:   s.character.GUID,
+		RealmID:      channelRealmID,
+		PlayerGUID:   servicePlayerGUID,
 		PlayerName:   s.character.Name,
-		TeamID:       s.getTeamID(),
+		TeamID:       channelTeamID,
 		ChannelName:  channelName,
 		ChannelID:    channelID,
 		Password:     password,
@@ -228,11 +328,10 @@ func (s *GameSession) HandleJoinChannel(ctx context.Context, p *packet.Packet) e
 	switch resp.Status {
 	case pbChat.JoinChannelResponse_Ok:
 		// Add to local membership - use channel Flags, not memberFlags!
-		s.channelMembership.AddChannel(channelName, resp.Channel.ChannelID, uint8(resp.Channel.Flags))
+		s.channelMembership.AddScopedChannel(channelName, resp.Channel.ChannelID, uint8(resp.Channel.Flags), channelRealmID, uint32(channelTeamID), servicePlayerGUID)
 		ch := s.channelMembership.GetChannel(channelName)
 		notify := s.ChannelNotify(ch)
 
-		notify.Joined(s.character.GUID)
 		notify.YouJoined()
 
 		// For custom channels, if the player became owner, send mode change notification
@@ -265,14 +364,23 @@ func (s *GameSession) HandleLeaveChannel(ctx context.Context, p *packet.Packet) 
 	r := p.Reader()
 	_ = r.Uint32() // unknown
 	channelName := r.String()
+	if s.forwardNativeChannelPacket(channelName, p) {
+		return nil
+	}
+	channelRealmID, channelTeamID, servicePlayerGUID := s.channelScopeForName(channelName)
+
+	ch := s.channelMembership.GetChannel(channelName)
+	if ch == nil {
+		ch = &ChannelInfo{Name: channelName}
+	}
 
 	// Call chat service to leave the channel
 	resp, err := s.chatServiceClient.LeaveChannel(ctx, &pbChat.LeaveChannelRequest{
 		Api:         root.Ver,
-		RealmID:     root.RealmID,
-		PlayerGUID:  s.character.GUID,
+		RealmID:     channelRealmID,
+		PlayerGUID:  servicePlayerGUID,
 		ChannelName: channelName,
-		TeamID:      s.getTeamID(),
+		TeamID:      channelTeamID,
 	})
 	if err != nil {
 		return err
@@ -281,7 +389,7 @@ func (s *GameSession) HandleLeaveChannel(ctx context.Context, p *packet.Packet) 
 	// Handle response
 	switch resp.Status {
 	case pbChat.LeaveChannelResponse_Ok:
-		notify := s.ChannelNotify(&ChannelInfo{Name: channelName})
+		notify := s.ChannelNotify(ch)
 		// Remove from local membership
 		s.channelMembership.RemoveChannel(channelName)
 
@@ -298,14 +406,18 @@ func (s *GameSession) HandleLeaveChannel(ctx context.Context, p *packet.Packet) 
 func (s *GameSession) HandleChannelList(ctx context.Context, p *packet.Packet) error {
 	r := p.Reader()
 	channelName := r.String()
+	if s.forwardNativeChannelPacket(channelName, p) {
+		return nil
+	}
+	channelRealmID, channelTeamID, servicePlayerGUID := s.channelScopeForName(channelName)
 
 	// Call chat service to get channel members
 	resp, err := s.chatServiceClient.GetChannelList(ctx, &pbChat.GetChannelListRequest{
 		Api:         root.Ver,
-		RealmID:     root.RealmID,
-		PlayerGUID:  s.character.GUID,
+		RealmID:     channelRealmID,
+		PlayerGUID:  servicePlayerGUID,
 		ChannelName: channelName,
-		TeamID:      s.getTeamID(),
+		TeamID:      channelTeamID,
 	})
 	if err != nil {
 		s.logger.Error().Err(err).Str("channelName", channelName).Msg("Failed to get channel list from chat service")
@@ -329,7 +441,7 @@ func (s *GameSession) HandleChannelList(ctx context.Context, p *packet.Packet) e
 	w.Uint32(uint32(len(resp.Members)))
 
 	for _, member := range resp.Members {
-		w.Uint64(member.Guid)
+		w.Uint64(playerObjectGUIDForRealm(channelInfo.RealmID, member.Guid))
 		w.Uint8(uint8(member.Flags))
 		// Note: Some implementations include player name here, but AC 3.3.5a doesn't
 		// The client looks up names by GUID
@@ -386,7 +498,14 @@ func (n channelNotify) YouJoined() {
 }
 
 func (n channelNotify) YouLeft() {
-	n.send(n.header(ChatYouLeftNotice))
+	w := n.header(ChatYouLeftNotice)
+	w.Uint32(n.ch.ChannelID)
+	if n.ch.ChannelID != ChannelIDCustom {
+		w.Uint8(1)
+	} else {
+		w.Uint8(0)
+	}
+	n.send(w)
 }
 
 func (n channelNotify) ModeChange(playerGUID uint64, oldFlags, newFlags uint8) {
@@ -413,21 +532,76 @@ func (n channelNotify) Simple(notifyType uint8) {
 	n.send(n.header(notifyType))
 }
 
-// SendChannelMessage sends a channel message to the client
-func (s *GameSession) SendChannelMessage(channelName string, senderGUID uint64, senderName string, language uint32, message string) {
-	w := packet.NewWriterWithSize(packet.SMsgMessageChat, 0)
-	w.Uint8(uint8(ChatTypeChannel)) // CHAT_MSG_CHANNEL = 0x11 = 17
-	w.Uint32(language)              // int32 language
-	w.Uint64(senderGUID)            // ObjectGuid senderGUID
-	w.Uint32(0)                     // uint32 flags
-	w.String(channelName)           // string channelName (comes AFTER flags!)
-	w.Uint64(s.character.GUID)
-	msgLen := uint32(len(message) + 1)
-	w.Uint32(msgLen)  // uint32 message length
-	w.String(message) // string message
-	w.Uint8(0)        // uint8 chatTag
+func channelNotifyString(primary, secondary, fallback string) string {
+	if primary != "" {
+		return primary
+	}
+	if secondary != "" {
+		return secondary
+	}
+	return fallback
+}
 
-	s.gameSocket.Send(w)
+func appendAzerothCoreChannelNotifyPayload(w *packet.Writer, notifyType uint8, targetGUID, secondGUID uint64, targetName, extraData string, oldFlags, newFlags uint8) {
+	switch notifyType {
+	case ChatJoinedNotice,
+		ChatLeftNotice,
+		ChatPasswordChangedNotice,
+		ChatOwnerChangedNotice,
+		ChatAnnouncementsOnNotice,
+		ChatAnnouncementsOffNotice,
+		ChatModerationOnNotice,
+		ChatModerationOffNotice,
+		ChatPlayerAlreadyMemberNotice,
+		ChatInviteNotice,
+		ChatVoiceOnNotice,
+		ChatVoiceOffNotice:
+		w.Uint64(targetGUID)
+	case ChatModeChangeNotice:
+		w.Uint64(targetGUID)
+		w.Uint8(oldFlags)
+		w.Uint8(newFlags)
+	case ChatPlayerKickedNotice,
+		ChatPlayerBannedNotice,
+		ChatPlayerUnbannedNotice:
+		w.Uint64(targetGUID)
+		w.Uint64(secondGUID)
+	case ChatPlayerNotFoundNotice,
+		ChatChannelOwnerNotice,
+		ChatPlayerNotBannedNotice,
+		ChatPlayerInvitedNotice,
+		ChatPlayerInviteBannedNotice:
+		w.String(channelNotifyString(targetName, extraData, ""))
+	}
+}
+
+// SendChannelMessage sends a channel message to the client
+func (s *GameSession) SendChannelMessage(channelName string, senderRealmID uint32, senderGUID uint64, senderName string, language uint32, message string, chatTag uint8) {
+	s.sendAzerothCorePlayerChat(ChatTypeChannel, language, senderRealmID, senderGUID, senderName, s.character.GUID, channelName, message, chatTag)
+}
+
+func (s *GameSession) currentChatTag() uint8 {
+	if s == nil || s.character == nil {
+		return 0
+	}
+
+	var tag uint8
+	if s.character.ExtraFlags&playerExtraFlagGMChat != 0 {
+		tag |= chatTagGM
+	}
+	if s.character.PlayerFlags&playerFlagDND != 0 {
+		tag |= chatTagDND
+	}
+	if s.character.PlayerFlags&playerFlagAFK != 0 {
+		tag |= chatTagAFK
+	}
+	if s.character.PlayerFlags&playerFlagCommentator2 != 0 {
+		tag |= chatTagCOM
+	}
+	if s.character.PlayerFlags&playerFlagDeveloper != 0 {
+		tag |= chatTagDEV
+	}
+	return tag
 }
 
 func (s *GameSession) getTeamID() pbChat.TeamID {
@@ -438,17 +612,72 @@ func (s *GameSession) getTeamID() pbChat.TeamID {
 	return pbChat.TeamID_TEAM_NEUTRAL
 }
 
+func (s *GameSession) channelTeamID() pbChat.TeamID {
+	if root.AllowTwoSideInteractionChannel {
+		return pbChat.TeamID_TEAM_ALLIANCE
+	}
+	return s.getTeamID()
+}
+
+func (s *GameSession) channelScopeForID(channelID uint32) (uint32, pbChat.TeamID, uint64) {
+	realmID := root.RealmID
+	if channelID != ChannelIDCustom {
+		realmID = s.dbcChannelRealmID()
+	}
+	return realmID, s.channelTeamID(), s.channelServicePlayerGUID(realmID)
+}
+
+func (s *GameSession) channelScopeForName(channelName string) (uint32, pbChat.TeamID, uint64) {
+	if s != nil && s.channelMembership != nil {
+		if ch := s.channelMembership.GetChannel(channelName); ch != nil {
+			return ch.RealmID, pbChat.TeamID(ch.TeamID), ch.ServicePlayerGUID
+		}
+	}
+	return s.channelScopeForID(ChannelIDCustom)
+}
+
+func (s *GameSession) dbcChannelRealmID() uint32 {
+	for _, routing := range []*mapTransferRouting{s.currentMapTransferRouting, s.activeMapTransferRouting, s.pendingMapTransferRouting} {
+		if routing != nil && routing.isCrossRealm {
+			return routing.realmID
+		}
+	}
+	return root.RealmID
+}
+
+func (s *GameSession) channelServicePlayerGUID(channelRealmID uint32) uint64 {
+	if s == nil || s.character == nil {
+		return 0
+	}
+	if channelRealmID != 0 && channelRealmID == root.RealmID {
+		return s.character.GUID
+	}
+	return wowguid.PlayerGUIDForRealm(channelRealmID, root.RealmID, s.character.GUID)
+}
+
+func channelMessageLanguage(language uint32) uint32 {
+	if root.AllowTwoSideInteractionChannel {
+		return 0 // LANG_UNIVERSAL, matching AzerothCore Channel::Say.
+	}
+	return language
+}
+
 // SendChannelMessageToChat sends a channel message via the chat service
 func (s *GameSession) SendChannelMessageToChat(ctx context.Context, channelName string, message string, language uint32) error {
+	language = channelMessageLanguage(language)
+	channelRealmID, channelTeamID, servicePlayerGUID := s.channelScopeForName(channelName)
+	chatTag := s.currentChatTag()
+
 	resp, err := s.chatServiceClient.SendChannelMessage(ctx, &pbChat.SendChannelMessageRequest{
-		Api:         root.Ver,
-		RealmID:     root.RealmID,
-		SenderGUID:  s.character.GUID,
-		SenderName:  s.character.Name,
-		ChannelName: channelName,
-		Language:    language,
-		Message:     message,
-		TeamID:      s.getTeamID(),
+		Api:           root.Ver,
+		RealmID:       channelRealmID,
+		SenderGUID:    servicePlayerGUID,
+		SenderName:    s.character.Name,
+		ChannelName:   channelName,
+		Language:      language,
+		Message:       message,
+		TeamID:        channelTeamID,
+		SenderChatTag: uint32(chatTag),
 	})
 	if err != nil {
 		s.logger.Error().Err(err).Str("channelName", channelName).Msg("Failed to send channel message")
@@ -458,7 +687,7 @@ func (s *GameSession) SendChannelMessageToChat(ctx context.Context, channelName 
 	switch resp.Status {
 	case pbChat.SendChannelMessageResponse_Ok:
 		// Echo the message back to the sender (like guild/party messages)
-		s.SendChannelMessage(channelName, s.character.GUID, s.character.Name, language, message)
+		s.SendChannelMessage(channelName, channelRealmID, servicePlayerGUID, s.character.Name, language, message, chatTag)
 	case pbChat.SendChannelMessageResponse_NotMember:
 		s.ChannelNotify(&ChannelInfo{Name: channelName}).Simple(ChatNotMemberNotice)
 	case pbChat.SendChannelMessageResponse_Muted:
@@ -473,19 +702,17 @@ func (s *GameSession) SendChannelMessageToChat(ctx context.Context, channelName 
 func (s *GameSession) HandleEventChannelMessage(ctx context.Context, e *eBroadcaster.Event) error {
 	eventData := e.Payload.(*eBroadcaster.ChannelMessagePayload)
 
-	fmt.Println("eventData:", eventData.Message, s.character.Name, "from", eventData.SenderName)
-
 	// Only send if we're a member of this channel
-	if !s.channelMembership.IsMember(eventData.ChannelName) {
+	if !s.channelMembership.IsMemberForEvent(eventData.ChannelName, eventData.RealmID, eventData.TeamID) {
 		return nil
 	}
 
 	// Don't send to the sender (they already got the echo)
-	if s.character != nil && s.character.GUID == eventData.SenderGUID {
+	if s.character != nil && wowguid.SamePlayer(root.RealmID, s.character.GUID, eventData.RealmID, eventData.SenderGUID) {
 		return nil
 	}
 
-	s.SendChannelMessage(eventData.ChannelName, eventData.SenderGUID, eventData.SenderName, eventData.Language, eventData.Message)
+	s.SendChannelMessage(eventData.ChannelName, eventData.RealmID, eventData.SenderGUID, eventData.SenderName, eventData.Language, eventData.Message, eventData.SenderChatTag)
 	return nil
 }
 
@@ -493,12 +720,12 @@ func (s *GameSession) HandleEventChannelJoined(ctx context.Context, e *eBroadcas
 	eventData := e.Payload.(*eBroadcaster.ChannelJoinedPayload)
 
 	// Only send if we're a member of this channel
-	if !s.channelMembership.IsMember(eventData.ChannelName) {
+	if !s.channelMembership.IsMemberForEvent(eventData.ChannelName, eventData.RealmID, eventData.TeamID) {
 		return nil
 	}
 
 	// Don't send to the player who just joined (they got YOU_JOINED notification)
-	if s.character != nil && s.character.GUID == eventData.PlayerGUID {
+	if s.character != nil && wowguid.SamePlayer(root.RealmID, s.character.GUID, eventData.RealmID, eventData.PlayerGUID) {
 		return nil
 	}
 
@@ -509,24 +736,27 @@ func (s *GameSession) HandleEventChannelJoined(ctx context.Context, e *eBroadcas
 		}
 	}
 
-	s.ChannelNotify(&ChannelInfo{Name: eventData.ChannelName}).Joined(eventData.PlayerGUID)
+	s.ChannelNotify(&ChannelInfo{Name: eventData.ChannelName}).Joined(playerObjectGUIDForRealm(eventData.RealmID, eventData.PlayerGUID))
 	return nil
 }
 
 func (s *GameSession) HandleEventChannelLeft(ctx context.Context, e *eBroadcaster.Event) error {
 	eventData := e.Payload.(*eBroadcaster.ChannelLeftPayload)
+	if eventData.Silent {
+		return nil
+	}
 
 	// Only send if we're a member of this channel
-	if !s.channelMembership.IsMember(eventData.ChannelName) {
+	if !s.channelMembership.IsMemberForEvent(eventData.ChannelName, eventData.RealmID, eventData.TeamID) {
 		return nil
 	}
 
 	// Don't send to the player who just left (they got YOU_LEFT notification)
-	if s.character != nil && s.character.GUID == eventData.PlayerGUID {
+	if s.character != nil && wowguid.SamePlayer(root.RealmID, s.character.GUID, eventData.RealmID, eventData.PlayerGUID) {
 		return nil
 	}
 
-	s.ChannelNotify(&ChannelInfo{Name: eventData.ChannelName}).Left(eventData.PlayerGUID)
+	s.ChannelNotify(&ChannelInfo{Name: eventData.ChannelName}).Left(playerObjectGUIDForRealm(eventData.RealmID, eventData.PlayerGUID))
 	return nil
 }
 
@@ -535,77 +765,22 @@ func (s *GameSession) InterceptWorldserverChannelNotify(ctx context.Context, p *
 	notifyType := r.Uint8()
 	channelName := r.String()
 
-	// Read flags and channelID
-	flags := r.Uint8()
-	channelID := r.Uint32()
-	_ = r.Uint32() // unknown field
-
-	// Ignore custom channels - we handle those separately
-	if flags&ChannelFlagCustom != 0 {
-		return nil
-	}
-
 	switch notifyType {
-	case ChatYouLeftNotice:
-		_, err := s.chatServiceClient.LeaveChannel(ctx, &pbChat.LeaveChannelRequest{
-			Api:         root.Ver,
-			RealmID:     root.RealmID,
-			PlayerGUID:  s.character.GUID,
-			ChannelName: channelName,
-			TeamID:      s.getTeamID(),
-		})
-		if err != nil {
-			return fmt.Errorf("failed to leave channel: %w", err)
-		}
-
-		// Remove from local membership
-		s.channelMembership.RemoveChannel(channelName)
 	case ChatYouJoinedNotice:
-		if channelID != 0 {
-			for _, ch := range s.channelMembership.channels {
-				if ch.ChannelID == channelID {
-					_, err := s.chatServiceClient.LeaveChannel(ctx, &pbChat.LeaveChannelRequest{
-						Api:         root.Ver,
-						RealmID:     root.RealmID,
-						PlayerGUID:  s.character.GUID,
-						ChannelName: ch.Name,
-						TeamID:      s.getTeamID(),
-					})
-					if err != nil {
-						return fmt.Errorf("failed to leave channel: %w", err)
-					}
-
-					// Remove from local membership
-					s.channelMembership.RemoveChannel(ch.Name)
-					break
-				}
-			}
+		flags := r.Uint8()
+		channelID := r.Uint32()
+		_ = r.Uint32()
+		if r.Error() == nil && flags&ChannelFlagCustom == 0 && s.channelMembership != nil {
+			channelRealmID, channelTeamID, servicePlayerGUID := s.channelScopeForID(channelID)
+			s.channelMembership.RemoveLocalChannelsByID(channelID, channelName)
+			s.channelMembership.AddLocalChannel(channelName, channelID, flags, channelRealmID, uint32(channelTeamID), servicePlayerGUID)
 		}
-
-		// Join via chat service, passing worldserver's channel ID AND flags
-		_, err := s.chatServiceClient.JoinChannel(ctx, &pbChat.JoinChannelRequest{
-			Api:          root.Ver,
-			RealmID:      root.RealmID,
-			PlayerGUID:   s.character.GUID,
-			PlayerName:   s.character.Name,
-			TeamID:       s.getTeamID(),
-			ChannelName:  channelName,
-			ChannelID:    channelID,
-			Password:     "",
-			ChannelFlags: uint32(flags),
-		})
-		if err != nil {
-			return fmt.Errorf("failed to join channel: %w", err)
+	case ChatYouLeftNotice:
+		_ = r.Uint32()
+		_ = r.Uint8()
+		if r.Error() == nil && s.channelMembership != nil {
+			s.channelMembership.RemoveChannel(channelName)
 		}
-		s.channelMembership.AddChannel(channelName, channelID, flags)
-	default:
-		s.logger.Debug().
-			Str("channelName", channelName).
-			Uint8("flags", flags).
-			Uint32("channelID", channelID).
-			Uint8("notifyType", notifyType).
-			Msg("Unhandled worldserver channel notification received")
-		return nil
 	}
 
 	s.gameSocket.SendPacket(p)
@@ -635,8 +810,14 @@ func (s *GameSession) HandleEventChannelNotification(ctx context.Context, e *eBr
 	// For invitations (CHAT_INVITE_NOTICE), we don't need to be a member
 	const ChatInviteNotice = 0x18
 
+	if eventData.AffectsPlayer != 0 {
+		if s.character == nil || !wowguid.SamePlayer(root.RealmID, s.character.GUID, eventData.RealmID, eventData.AffectsPlayer) {
+			return nil
+		}
+	}
+
 	// Check if we're a member (not required for invitations)
-	isMember := s.channelMembership.IsMember(eventData.ChannelName)
+	isMember := s.channelMembership.IsMemberForEvent(eventData.ChannelName, eventData.RealmID, eventData.TeamID)
 	if !isMember && eventData.NotifyType != ChatInviteNotice {
 		return nil
 	}
@@ -645,19 +826,25 @@ func (s *GameSession) HandleEventChannelNotification(ctx context.Context, e *eBr
 	w := packet.NewWriterWithSize(packet.SMsgChannelNotify, 0)
 	w.Uint8(eventData.NotifyType)
 	w.String(eventData.ChannelName)
-
-	// Different notification types include different data
-	switch eventData.NotifyType {
-	case ChatOwnerChangedNotice: // 0x08 - includes new owner GUID
-		w.Uint64(eventData.TargetGUID)
-	case ChatModeChangeNotice: // 0x0C - includes target GUID and flags
-		w.Uint64(eventData.TargetGUID)
-		w.Uint8(eventData.OldFlags)
-		w.Uint8(eventData.NewFlags)
-	case ChatInviteNotice: // 0x18 - includes inviter GUID
-		w.Uint64(eventData.TargetGUID)
-	}
+	targetGUID := playerObjectGUIDForRealm(eventData.RealmID, eventData.TargetGUID)
+	secondGUID := playerObjectGUIDForRealm(eventData.RealmID, eventData.SecondGUID)
+	appendAzerothCoreChannelNotifyPayload(
+		w,
+		eventData.NotifyType,
+		targetGUID,
+		secondGUID,
+		eventData.TargetName,
+		eventData.ExtraData,
+		eventData.OldFlags,
+		eventData.NewFlags,
+	)
 
 	s.gameSocket.Send(w)
+	if s.character != nil &&
+		(eventData.NotifyType == ChatPlayerKickedNotice || eventData.NotifyType == ChatPlayerBannedNotice) &&
+		wowguid.SamePlayer(root.RealmID, s.character.GUID, eventData.RealmID, eventData.TargetGUID) &&
+		s.channelMembership != nil {
+		s.channelMembership.RemoveChannel(eventData.ChannelName)
+	}
 	return nil
 }

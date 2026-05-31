@@ -29,7 +29,7 @@ type FriendEventStatusChangePayload struct {
 	ServiceID  string
 	RealmID    uint32
 	PlayerGUID uint64
-	Status     uint8  // 0=offline, 1=online
+	Status     uint8 // 0=offline, 1=online
 	Area       uint32
 	Level      uint32
 	ClassID    uint32

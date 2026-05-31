@@ -4,46 +4,36 @@ import (
 	"context"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/walkline/ToCloud9/shared/events"
 )
 
 type charactersOnlineInMem struct {
-	guidStorage map[uint32]map[uint64]*Character
-	nameStorage map[uint32]map[string]*Character
-	m           sync.RWMutex
+	guidStorage         map[uint32]map[uint64]*Character
+	nameStorage         map[uint32]map[string]*Character
+	lifecycleEventTimes map[uint32]map[uint64]uint64
+	m                   sync.RWMutex
 }
 
 func NewCharactersOnlineInMem() CharactersOnline {
 	return &charactersOnlineInMem{
-		guidStorage: map[uint32]map[uint64]*Character{},
-		nameStorage: map[uint32]map[string]*Character{},
+		guidStorage:         map[uint32]map[uint64]*Character{},
+		nameStorage:         map[uint32]map[string]*Character{},
+		lifecycleEventTimes: map[uint32]map[uint64]uint64{},
 	}
 }
 
 func (c *charactersOnlineInMem) Add(_ context.Context, character *Character) error {
 	c.m.Lock()
-	if c.guidStorage[character.RealmID] == nil {
-		c.guidStorage[character.RealmID] = map[uint64]*Character{}
-		c.nameStorage[character.RealmID] = map[string]*Character{}
-	}
-	c.guidStorage[character.RealmID][character.CharGUID] = character
-	c.nameStorage[character.RealmID][strings.ToUpper(character.CharName)] = character
+	c.addLocked(character, 0)
 	c.m.Unlock()
 	return nil
 }
 
 func (c *charactersOnlineInMem) Remove(ctx context.Context, realmID uint32, guid uint64) error {
-	char, err := c.OneByRealmAndGUID(ctx, realmID, guid)
-	if err != nil {
-		return err
-	}
-	if char == nil {
-		return nil
-	}
 	c.m.Lock()
-	delete(c.guidStorage[realmID], guid)
-	delete(c.nameStorage[realmID], char.CharName)
+	c.removeLocked(realmID, guid, 0)
 	c.m.Unlock()
 	return nil
 }
@@ -112,7 +102,8 @@ func (c *charactersOnlineInMem) AllGUIDsByRealm(ctx context.Context, realmID uin
 }
 
 func (c *charactersOnlineInMem) HandleCharacterLoggedIn(payload events.GWEventCharacterLoggedInPayload) error {
-	return c.Add(context.TODO(), &Character{
+	c.m.Lock()
+	c.addLocked(&Character{
 		RealmID:     payload.RealmID,
 		GatewayID:   payload.GatewayID,
 		CharGUID:    payload.CharGUID,
@@ -128,11 +119,16 @@ func (c *charactersOnlineInMem) HandleCharacterLoggedIn(payload events.GWEventCh
 		CharPosZ:    payload.CharPosZ,
 		CharGuildID: payload.CharGuildID,
 		AccountID:   payload.AccountID,
-	})
+	}, payload.EventTimeUnixNano)
+	c.m.Unlock()
+	return nil
 }
 
 func (c *charactersOnlineInMem) HandleCharacterLoggedOut(payload events.GWEventCharacterLoggedOutPayload) error {
-	return c.Remove(context.TODO(), payload.RealmID, payload.CharGUID)
+	c.m.Lock()
+	c.removeLocked(payload.RealmID, payload.CharGUID, payload.EventTimeUnixNano)
+	c.m.Unlock()
+	return nil
 }
 
 func (c *charactersOnlineInMem) HandleCharactersUpdates(payload events.GWEventCharactersUpdatesPayload) error {
@@ -140,6 +136,16 @@ func (c *charactersOnlineInMem) HandleCharactersUpdates(payload events.GWEventCh
 	for _, update := range payload.Updates {
 		member := c.guidStorage[payload.RealmID][update.ID]
 		if member != nil {
+			if payload.GatewayID != "" && member.GatewayID != "" && payload.GatewayID != member.GatewayID {
+				continue
+			}
+			eventTimeUnixNano := update.EventTimeUnixNano
+			if eventTimeUnixNano == 0 {
+				eventTimeUnixNano = payload.EventTimeUnixNano
+			}
+			if eventTimeUnixNano != 0 && c.lifecycleEventTimeLocked(payload.RealmID, update.ID) > eventTimeUnixNano {
+				continue
+			}
 			applyCharUpdate(member, update)
 		}
 	}
@@ -147,26 +153,101 @@ func (c *charactersOnlineInMem) HandleCharactersUpdates(payload events.GWEventCh
 	return nil
 }
 
-func (c *charactersOnlineInMem) RemoveAllWithGatewayID(ctx context.Context, realmID uint32, gatewayID string) ([]uint64, error) {
+func (c *charactersOnlineInMem) RemoveAllWithGatewayID(ctx context.Context, realmID uint32, gatewayID string, eventTimeUnixNano uint64) ([]uint64, error) {
 	charsToDelete := make([]uint64, 0, 20)
 
 	c.m.Lock()
 	storage := c.guidStorage[realmID]
 	namesStorage := c.nameStorage[realmID]
+	if eventTimeUnixNano == 0 {
+		eventTimeUnixNano = uint64(time.Now().UnixNano())
+	}
 
 	for guid, char := range storage {
-		if char.GatewayID == gatewayID {
+		if char.GatewayID == gatewayID && c.lifecycleEventTimeLocked(realmID, guid) <= eventTimeUnixNano {
 			charsToDelete = append(charsToDelete, guid)
 		}
 	}
 
 	for _, guid := range charsToDelete {
-		delete(namesStorage, storage[guid].CharName)
+		delete(namesStorage, characterNameKey(storage[guid].CharName))
 		delete(storage, guid)
+		c.rememberLifecycleEventTimeLocked(realmID, guid, eventTimeUnixNano)
 	}
 	c.m.Unlock()
 
 	return charsToDelete, nil
+}
+
+func (c *charactersOnlineInMem) addLocked(character *Character, eventTimeUnixNano uint64) {
+	if character == nil {
+		return
+	}
+	if !c.shouldApplyLifecycleEventLocked(character.RealmID, character.CharGUID, eventTimeUnixNano) {
+		return
+	}
+
+	c.ensureRealmStorageLocked(character.RealmID)
+	if previous := c.guidStorage[character.RealmID][character.CharGUID]; previous != nil {
+		delete(c.nameStorage[character.RealmID], characterNameKey(previous.CharName))
+	}
+
+	c.guidStorage[character.RealmID][character.CharGUID] = character
+	c.nameStorage[character.RealmID][characterNameKey(character.CharName)] = character
+	c.rememberLifecycleEventTimeLocked(character.RealmID, character.CharGUID, eventTimeUnixNano)
+}
+
+func (c *charactersOnlineInMem) removeLocked(realmID uint32, guid uint64, eventTimeUnixNano uint64) {
+	if !c.shouldApplyLifecycleEventLocked(realmID, guid, eventTimeUnixNano) {
+		return
+	}
+
+	storage := c.guidStorage[realmID]
+	if storage != nil {
+		if char := storage[guid]; char != nil {
+			delete(c.nameStorage[realmID], characterNameKey(char.CharName))
+		}
+		delete(storage, guid)
+	}
+	c.rememberLifecycleEventTimeLocked(realmID, guid, eventTimeUnixNano)
+}
+
+func (c *charactersOnlineInMem) ensureRealmStorageLocked(realmID uint32) {
+	if c.guidStorage[realmID] == nil {
+		c.guidStorage[realmID] = map[uint64]*Character{}
+	}
+	if c.nameStorage[realmID] == nil {
+		c.nameStorage[realmID] = map[string]*Character{}
+	}
+}
+
+func (c *charactersOnlineInMem) shouldApplyLifecycleEventLocked(realmID uint32, guid uint64, eventTimeUnixNano uint64) bool {
+	return eventTimeUnixNano == 0 || c.lifecycleEventTimeLocked(realmID, guid) <= eventTimeUnixNano
+}
+
+func (c *charactersOnlineInMem) lifecycleEventTimeLocked(realmID uint32, guid uint64) uint64 {
+	realmEvents := c.lifecycleEventTimes[realmID]
+	if realmEvents == nil {
+		return 0
+	}
+	return realmEvents[guid]
+}
+
+func (c *charactersOnlineInMem) rememberLifecycleEventTimeLocked(realmID uint32, guid uint64, eventTimeUnixNano uint64) {
+	if eventTimeUnixNano == 0 {
+		return
+	}
+	if c.lifecycleEventTimes == nil {
+		c.lifecycleEventTimes = map[uint32]map[uint64]uint64{}
+	}
+	if c.lifecycleEventTimes[realmID] == nil {
+		c.lifecycleEventTimes[realmID] = map[uint64]uint64{}
+	}
+	c.lifecycleEventTimes[realmID][guid] = eventTimeUnixNano
+}
+
+func characterNameKey(name string) string {
+	return strings.ToUpper(name)
 }
 
 func applyCharUpdate(c *Character, upd *events.CharacterUpdate) {
@@ -215,12 +296,14 @@ func (c *charactersOnlineInMem) WhoRequest(_ context.Context, requesterRealmID u
 		}
 
 		showZones := true
-		for zone := range query.Zones {
-			if char.CharZone == uint32(zone) {
-				showZones = true
-				break
-			}
+		if len(query.Zones) > 0 {
 			showZones = false
+			for _, zone := range query.Zones {
+				if char.CharZone == zone {
+					showZones = true
+					break
+				}
+			}
 		}
 
 		if !showZones {

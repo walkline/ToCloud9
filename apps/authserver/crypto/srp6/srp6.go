@@ -30,7 +30,10 @@ type SRP6 struct {
 }
 
 func (s *SRP6) DataForClient() (B []byte, g []byte, N []byte, _s []byte) {
-	B, g, N, _s = s._B, bigIntToBytesLittleEndian(_g), bigIntToBytesLittleEndian(_N), s._s
+	B = fixedLittleEndianBytes(s._B, 32)
+	g = bigIntToBytesLittleEndian(_g)
+	N = fixedLittleEndianBytes(bigIntToBytesLittleEndian(_N), 32)
+	_s = fixedLittleEndianBytes(s._s, 32)
 	return
 }
 
@@ -41,7 +44,7 @@ func NewSRP(username string, salt []byte, verifier []byte) *SRP6 {
 	b = randBytesProvider(b)
 	_b := bigIntFromLittleEndian(b)
 
-	usrHash := sha1.Sum([]byte(username))
+	usrHash := sha1.Sum([]byte(normalizeAccountName(username)))
 
 	return &SRP6{
 		_I: usrHash[:],
@@ -144,8 +147,18 @@ func _B(b, v *big.Int) []byte {
 }
 
 func ReconnectChallengeValid(username string, R1, R2, reconnectProof, K []byte) bool {
-	hash := sha1.Sum(slices.AppendBytes([]byte(username), R1, reconnectProof, K))
+	hash := sha1.Sum(slices.AppendBytes([]byte(normalizeAccountName(username)), R1, reconnectProof, K))
 	return slices.SameBytes(R2, hash[:])
+}
+
+func normalizeAccountName(username string) string {
+	normalized := []rune(username)
+	for i, r := range normalized {
+		if r >= 'a' && r <= 'z' {
+			normalized[i] = r - ('a' - 'A')
+		}
+	}
+	return string(normalized)
 }
 
 func switchEndian(b []byte) []byte {
@@ -159,6 +172,18 @@ func switchEndian(b []byte) []byte {
 
 func bigIntToBytesLittleEndian(i *big.Int) []byte {
 	return switchEndian(i.Bytes())
+}
+
+func fixedLittleEndianBytes(b []byte, size int) []byte {
+	if len(b) == size {
+		out := make([]byte, size)
+		copy(out, b)
+		return out
+	}
+
+	out := make([]byte, size)
+	copy(out, b)
+	return out
 }
 
 func bigIntFromLittleEndian(b []byte) *big.Int {

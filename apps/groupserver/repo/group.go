@@ -2,6 +2,8 @@ package repo
 
 import (
 	"context"
+
+	"github.com/walkline/ToCloud9/shared/wow/guid"
 )
 
 const MaxTargetIcons = 8
@@ -9,9 +11,12 @@ const MaxTargetIcons = 8
 type GroupTypeFlags uint8
 
 const (
-	GroupTypeFlagsNormal GroupTypeFlags = iota
-	GroupTypeFlagsBG     GroupTypeFlags = 1 << (iota - 1)
-	GroupTypeFlagsRaid
+	// Mirrors AzerothCore GroupType flags in src/server/game/Groups/Group.h.
+	GroupTypeFlagsNormal        GroupTypeFlags = 0x00
+	GroupTypeFlagsBG            GroupTypeFlags = 0x01
+	GroupTypeFlagsRaid          GroupTypeFlags = 0x02
+	GroupTypeFlagsLFGRestricted GroupTypeFlags = 0x04
+	GroupTypeFlagsLFG           GroupTypeFlags = 0x08
 )
 
 const (
@@ -22,7 +27,7 @@ const (
 type LootType uint8
 
 const (
-	LootTypeFreeForAll LootType = 0
+	LootTypeFreeForAll LootType = iota
 	LootTypeRoundRobin
 	LootTypeMasterLoot
 	LootTypeGroupLoot
@@ -32,7 +37,7 @@ const (
 type ItemQuality uint8
 
 const (
-	ItemQualityPoor ItemQuality = 0
+	ItemQualityPoor ItemQuality = iota
 	ItemQualityNormal
 	ItemQualityUncommon
 	ItemQualityRare
@@ -43,6 +48,7 @@ const (
 
 type Group struct {
 	ID               uint
+	RealmID          uint32
 	LeaderGUID       uint64
 	LootMethod       uint8
 	LooterGUID       uint64
@@ -52,13 +58,14 @@ type Group struct {
 	Difficulty       uint8
 	RaidDifficulty   uint8
 	MasterLooterGuid uint64
+	LfgDungeonEntry  uint32
 
 	Members []GroupMember
 }
 
-func (g *Group) MemberByGUID(guid uint64) *GroupMember {
+func (g *Group) MemberByGUID(playerGUID uint64) *GroupMember {
 	for i := range g.Members {
-		if g.Members[i].MemberGUID == guid {
+		if guid.SamePlayer(g.RealmID, g.Members[i].MemberGUID, g.RealmID, playerGUID) {
 			return &g.Members[i]
 		}
 	}
@@ -77,6 +84,10 @@ func (g *Group) IsRaid() bool {
 	return g.GroupType&GroupTypeFlagsRaid > 0
 }
 
+func (g *Group) IsLFG() bool {
+	return g.GroupType&GroupTypeFlagsLFG > 0
+}
+
 func (g *Group) OnlineMemberGUIDs() []uint64 {
 	onlinePlayers := []uint64{}
 	for _, member := range g.Members {
@@ -90,6 +101,12 @@ func (g *Group) OnlineMemberGUIDs() []uint64 {
 type RoleFlags uint8
 
 const (
+	MemberFlagAssistant uint8 = 1 << iota
+	MemberFlagMainTank
+	MemberFlagMainAssistant
+)
+
+const (
 	RoleFlagsAssistant RoleFlags = 1 << iota
 	RoleFlagsMainTank
 	RoleFlagsMainAssistant
@@ -97,6 +114,7 @@ const (
 
 type GroupMember struct {
 	GroupID     uint
+	RealmID     uint32
 	MemberGUID  uint64
 	MemberFlags uint8
 	MemberName  string
@@ -106,17 +124,20 @@ type GroupMember struct {
 }
 
 func (m GroupMember) IsAssistant() bool {
-	return m.Roles&RoleFlagsAssistant > 0
+	return m.MemberFlags&MemberFlagAssistant > 0
 }
 
 type GroupInvite struct {
-	Inviter     uint64
-	InviterName string
+	Inviter        uint64
+	InviterRealmID uint32
+	InviterName    string
 
-	Invitee     uint64
-	InviteeName string
+	Invitee        uint64
+	InviteeRealmID uint32
+	InviteeName    string
 
-	GroupID uint
+	GroupID      uint
+	GroupRealmID uint32
 }
 
 type GroupsRepo interface {
@@ -137,4 +158,5 @@ type GroupsRepo interface {
 
 	AddInvite(ctx context.Context, realmID uint32, invite GroupInvite) error
 	GetInviteByInvitedPlayer(ctx context.Context, realmID uint32, invitedPlayer uint64) (*GroupInvite, error)
+	RemoveInvite(ctx context.Context, realmID uint32, invitedPlayer uint64) error
 }

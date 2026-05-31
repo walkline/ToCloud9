@@ -18,6 +18,10 @@ typedef struct {
     bool isRated;
     uint32_t mapID;
     uint8_t bracketLvl;
+    uint32_t allianceArenaTeamID;
+    uint32_t hordeArenaTeamID;
+    uint32_t allianceArenaMatchmakerRating;
+    uint32_t hordeArenaMatchmakerRating;
     uint64_t *hordePlayersToAdd;
     int hordePlayersToAddSize;
     uint64_t *alliancePlayersToAdd;

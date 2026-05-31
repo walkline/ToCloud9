@@ -22,6 +22,13 @@ func (g *gameServerInMemRepo) Upsert(ctx context.Context, server *GameServer) er
 		server.ID = server.Address
 	}
 
+	for i := range g.storage {
+		if g.storage[i].ID == server.ID {
+			g.storage[i] = *server
+			return nil
+		}
+	}
+
 	g.storage = append(g.storage, *server)
 
 	return nil

@@ -10,6 +10,11 @@ type GWCharacterLoggedInHandler interface {
 	HandleCharacterLoggedIn(payload GWEventCharacterLoggedInPayload) error
 }
 
+type GWGatewayStartedHandler interface {
+	// HandleGatewayStarted handles gateway lifecycle start events.
+	HandleGatewayStarted(payload GWEventGatewayStartedPayload) error
+}
+
 type GWCharacterLoggedOutHandler interface {
 	// HandleCharacterLoggedOut handles player logged out events.
 	HandleCharacterLoggedOut(payload GWEventCharacterLoggedOutPayload) error
@@ -18,6 +23,11 @@ type GWCharacterLoggedOutHandler interface {
 type GWCharactersUpdatesHandler interface {
 	// HandleCharactersUpdates handles pack of characters updates events.
 	HandleCharactersUpdates(payload GWEventCharactersUpdatesPayload) error
+}
+
+type GWGuildCreatedHandler interface {
+	// HandleGuildCreated handles guild creation events observed by gateway.
+	HandleGuildCreated(payload GWEventGuildCreatedPayload) error
 }
 
 // GatewayConsumer listens to gateway events and handles events if there are handlers.
@@ -37,16 +47,26 @@ func NewGatewayConsumer(nc *nats.Conn, options ...GatewayConsumerOption) Gateway
 		opt.apply(params)
 	}
 	return &gatewayConsumerImpl{
-		nc:                  nc,
-		loggedInHandler:     params.loggedInHandler,
-		loggedOutHandler:    params.loggedOutHandler,
-		charsUpdatesHandler: params.charsUpdatesHandler,
+		nc:                    nc,
+		gatewayStartedHandler: params.gatewayStartedHandler,
+		loggedInHandler:       params.loggedInHandler,
+		loggedOutHandler:      params.loggedOutHandler,
+		charsUpdatesHandler:   params.charsUpdatesHandler,
+		guildCreatedHandler:   params.guildCreatedHandler,
 	}
 }
 
 // GatewayConsumerOption option to initialize gateway consumer.
 type GatewayConsumerOption interface {
 	apply(*gatewayConsumerParams)
+}
+
+// WithGWConsumerGatewayStartedHandler creates gateway consumer option with gateway started handler.
+// If not specified, listener will ignore this kind of events.
+func WithGWConsumerGatewayStartedHandler(h GWGatewayStartedHandler) GatewayConsumerOption {
+	return newFuncGatewayConsumerOption(func(params *gatewayConsumerParams) {
+		params.gatewayStartedHandler = h
+	})
 }
 
 // WithGWConsumerLoggedInHandler creates gateway consumer option with logged in handler.
@@ -73,6 +93,14 @@ func WithGWConsumerCharsUpdatesHandler(h GWCharactersUpdatesHandler) GatewayCons
 	})
 }
 
+// WithGWConsumerGuildCreatedHandler creates gateway consumer option with guild created handler.
+// If not specified, listener will ignore this kind of events.
+func WithGWConsumerGuildCreatedHandler(h GWGuildCreatedHandler) GatewayConsumerOption {
+	return newFuncGatewayConsumerOption(func(params *gatewayConsumerParams) {
+		params.guildCreatedHandler = h
+	})
+}
+
 // funcGatewayConsumerOption wraps a function that modifies funcGatewayConsumerOption into an
 // implementation of the GatewayConsumerOption interface.
 type funcGatewayConsumerOption struct {
@@ -91,9 +119,11 @@ func newFuncGatewayConsumerOption(f func(*gatewayConsumerParams)) *funcGatewayCo
 
 // gatewayConsumerParams list of all possible parameters of GatewayConsumer.
 type gatewayConsumerParams struct {
-	loggedInHandler     GWCharacterLoggedInHandler
-	loggedOutHandler    GWCharacterLoggedOutHandler
-	charsUpdatesHandler GWCharactersUpdatesHandler
+	gatewayStartedHandler GWGatewayStartedHandler
+	loggedInHandler       GWCharacterLoggedInHandler
+	loggedOutHandler      GWCharacterLoggedOutHandler
+	charsUpdatesHandler   GWCharactersUpdatesHandler
+	guildCreatedHandler   GWGuildCreatedHandler
 }
 
 // gatewayConsumerImpl implementation of GatewayConsumer.
@@ -102,13 +132,37 @@ type gatewayConsumerImpl struct {
 	// subs is all subscriptions list.
 	subs []*nats.Subscription
 
-	loggedInHandler     GWCharacterLoggedInHandler
-	loggedOutHandler    GWCharacterLoggedOutHandler
-	charsUpdatesHandler GWCharactersUpdatesHandler
+	gatewayStartedHandler GWGatewayStartedHandler
+	loggedInHandler       GWCharacterLoggedInHandler
+	loggedOutHandler      GWCharacterLoggedOutHandler
+	charsUpdatesHandler   GWCharactersUpdatesHandler
+	guildCreatedHandler   GWGuildCreatedHandler
 }
 
 // Listen is non-blocking operation that listens to gateway events.
 func (c *gatewayConsumerImpl) Listen() error {
+	if c.gatewayStartedHandler != nil {
+		sub, err := c.nc.Subscribe(GWEventGatewayStarted.SubjectName(), func(msg *nats.Msg) {
+			payload := GWEventGatewayStartedPayload{}
+			_, err := Unmarshal(msg.Data, &payload)
+			if err != nil {
+				log.Error().Err(err).Msg("can't read GWEventGatewayStarted (payload part) event")
+				return
+			}
+
+			err = c.gatewayStartedHandler.HandleGatewayStarted(payload)
+			if err != nil {
+				log.Error().Err(err).Msg("can't handle GWEventGatewayStarted event")
+				return
+			}
+		})
+		if err != nil {
+			return err
+		}
+
+		c.subs = append(c.subs, sub)
+	}
+
 	if c.loggedInHandler != nil {
 		sub, err := c.nc.Subscribe(GWEventCharacterLoggedIn.SubjectName(), func(msg *nats.Msg) {
 			loggedInP := GWEventCharacterLoggedInPayload{}
@@ -165,6 +219,28 @@ func (c *gatewayConsumerImpl) Listen() error {
 			err = c.charsUpdatesHandler.HandleCharactersUpdates(charsUpdtsP)
 			if err != nil {
 				log.Error().Err(err).Msg("can't handle GWEventCharactersUpdates event")
+				return
+			}
+		})
+		if err != nil {
+			return err
+		}
+
+		c.subs = append(c.subs, sub)
+	}
+
+	if c.guildCreatedHandler != nil {
+		sub, err := c.nc.Subscribe(GWEventGuildCreated.SubjectName(), func(msg *nats.Msg) {
+			guildCreatedP := GWEventGuildCreatedPayload{}
+			_, err := Unmarshal(msg.Data, &guildCreatedP)
+			if err != nil {
+				log.Error().Err(err).Msg("can't read GWEventGuildCreated (payload part) event")
+				return
+			}
+
+			err = c.guildCreatedHandler.HandleGuildCreated(guildCreatedP)
+			if err != nil {
+				log.Error().Err(err).Msg("can't handle GWEventGuildCreated event")
 				return
 			}
 		})

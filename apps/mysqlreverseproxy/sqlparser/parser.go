@@ -9,6 +9,7 @@ import (
 
 var charGuidColumnToTableMap = map[string]string{
 	"characters":                     "guid",
+	"character_instance":             "guid",
 	"character_inventory":            "guid",
 	"character_queststatus":          "guid",
 	"mail_items":                     "receiver",
@@ -41,6 +42,22 @@ var charGuidColumnToTableMap = map[string]string{
 	"character_aura":                 "guid",
 	"item_instance":                  "owner_guid",
 	"battleground_deserters":         "guid",
+	"arena_team":                     "captainGuid",
+	"arena_team_member":              "guid",
+	"character_arena_stats":          "guid",
+}
+
+var replicatedInstanceStateTables = map[string]struct{}{
+	"creature_respawn":             {},
+	"gameobject_respawn":           {},
+	"instance":                     {},
+	"instance_reset":               {},
+	"instance_saved_go_state_data": {},
+}
+
+var arenaTeamIDTables = map[string]struct{}{
+	"arena_team":        {},
+	"arena_team_member": {},
 }
 
 type pairOperation struct {
@@ -49,20 +66,22 @@ type pairOperation struct {
 }
 
 type CharGUIDFinder struct {
-	InputGUIDIndexes   []int
-	OutputGUIDIndexes  []int
-	IsSelectStmt       bool
-	prefix             string
-	tableExpSource     string
-	tableNames         []string
-	tableNameShortcuts map[string]string
-	binOperation       *pairOperation
-	assignOperation    *pairOperation
-	isInFieldList      bool
-	isInsert           bool
-	insertColumns      []string
-	inputParams        []string
-	outputParams       []string
+	InputGUIDIndexes         []int
+	OutputGUIDIndexes        []int
+	InputArenaTeamIDIndexes  []int
+	OutputArenaTeamIDIndexes []int
+	IsSelectStmt             bool
+	prefix                   string
+	tableExpSource           string
+	tableNames               []string
+	tableNameShortcuts       map[string]string
+	binOperation             *pairOperation
+	assignOperation          *pairOperation
+	isInFieldList            bool
+	isInsert                 bool
+	insertColumns            []string
+	inputParams              []string
+	outputParams             []string
 }
 
 func NewCharGUIDFinder() CharGUIDFinder {
@@ -79,9 +98,9 @@ func (v *CharGUIDFinder) Enter(in ast.Node) (ast.Node, bool) {
 	case *ast.SelectStmt:
 		v.IsSelectStmt = true
 	case *ast.TableSource:
-		v.tableExpSource = node.AsName.String()
+		v.tableExpSource = strings.ToLower(node.AsName.String())
 	case *ast.TableName:
-		tableName := node.Name.String()
+		tableName := strings.ToLower(node.Name.String())
 		if v.tableExpSource != "" {
 			v.tableNameShortcuts[v.tableExpSource] = tableName
 			v.tableExpSource = ""
@@ -158,20 +177,41 @@ func (v *CharGUIDFinder) handleParamMarkerExpr() {
 
 func (v *CharGUIDFinder) FillInGUIDIndexes() {
 	searchColumnNames := make(map[string]struct{})
+	touchesArenaTeamIDs := false
 	for _, name := range v.tableNames {
 		columnName := charGuidColumnToTableMap[name]
 		if columnName != "" {
 			searchColumnNames[columnName] = struct{}{}
 		}
-	}
-
-	if len(searchColumnNames) == 0 {
-		return
+		if _, ok := arenaTeamIDTables[name]; ok {
+			touchesArenaTeamIDs = true
+		}
 	}
 
 	for column := range searchColumnNames {
 		v.findGUIDIndexes(column)
 	}
+	if touchesArenaTeamIDs {
+		v.findArenaTeamIDIndexes()
+	}
+}
+
+func (v *CharGUIDFinder) TouchesReplicatedInstanceStateTable() bool {
+	for _, name := range v.tableNames {
+		if _, ok := replicatedInstanceStateTables[name]; ok {
+			return true
+		}
+	}
+	return false
+}
+
+func (v *CharGUIDFinder) TouchesTable(tableName string) bool {
+	for _, name := range v.tableNames {
+		if name == tableName {
+			return true
+		}
+	}
+	return false
 }
 
 func (v *CharGUIDFinder) findGUIDIndexes(column string) {
@@ -188,7 +228,23 @@ func (v *CharGUIDFinder) findGUIDIndexes(column string) {
 	}
 }
 
+func (v *CharGUIDFinder) findArenaTeamIDIndexes() {
+	for i, param := range v.inputParams {
+		if v.isArenaTeamIDColumn(param) {
+			v.InputArenaTeamIDIndexes = append(v.InputArenaTeamIDIndexes, i)
+		}
+	}
+
+	for i, param := range v.outputParams {
+		if v.isArenaTeamIDColumn(param) {
+			v.OutputArenaTeamIDIndexes = append(v.OutputArenaTeamIDIndexes, i)
+		}
+	}
+}
+
 func (v *CharGUIDFinder) isGUIDColumn(param, column string) bool {
+	param = strings.ToLower(param)
+	column = strings.ToLower(column)
 	if strings.ContainsRune(param, '.') {
 		strs := strings.Split(param, ".")
 		tableName := v.tableNameShortcuts[strs[0]]
@@ -199,4 +255,20 @@ func (v *CharGUIDFinder) isGUIDColumn(param, column string) bool {
 		return charGuidColumnName != "" && strs[1] == charGuidColumnName
 	}
 	return param == column
+}
+
+func (v *CharGUIDFinder) isArenaTeamIDColumn(param string) bool {
+	param = strings.ToLower(param)
+	if strings.ContainsRune(param, '.') {
+		strs := strings.Split(param, ".")
+		tableName := v.tableNameShortcuts[strs[0]]
+		if tableName == "" {
+			tableName = strs[0]
+		}
+		if _, ok := arenaTeamIDTables[tableName]; !ok {
+			return false
+		}
+		return strings.EqualFold(strs[1], "arenateamid")
+	}
+	return strings.EqualFold(param, "arenateamid")
 }

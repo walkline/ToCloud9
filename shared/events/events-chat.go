@@ -37,45 +37,59 @@ func (e ChatServiceEvent) SubjectName(gatewayID string) string {
 
 // ChatEventIncomingWhisperPayload represents payload of ChatEventIncomingWhisper event
 type ChatEventIncomingWhisperPayload struct {
-	SenderGUID   uint64
-	SenderName   string
-	SenderRace   uint8
-	ReceiverGUID uint64
-	ReceiverName string
-	Language     uint32
-	Msg          string
+	SenderRealmID   uint32
+	SenderGUID      uint64
+	SenderName      string
+	SenderRace      uint8
+	SenderClass     uint8
+	SenderGender    uint8
+	SenderChatTag   uint8
+	ReceiverRealmID uint32
+	ReceiverGUID    uint64
+	ReceiverName    string
+	Language        uint32
+	Msg             string
 }
 
 // ChatEventChannelMessagePayload represents payload of ChatEventChannelMessage event
 type ChatEventChannelMessagePayload struct {
-	RealmID     uint32
-	ChannelName string
-	ChannelID   uint32
-	SenderGUID  uint64
-	SenderName  string
-	Language    uint32
-	Message     string
+	RealmID       uint32
+	ChannelName   string
+	ChannelID     uint32
+	TeamID        uint32
+	SenderGUID    uint64
+	SenderName    string
+	Language      uint32
+	Message       string
+	SenderChatTag uint8
 }
 
 // ChatEventChannelJoinedPayload represents payload of ChatEventChannelJoined event
 type ChatEventChannelJoinedPayload struct {
-	ServiceID   string
-	RealmID     uint32
-	ChannelName string
-	ChannelID   uint32
-	PlayerGUID  uint64
-	PlayerName  string
-	PlayerFlags uint8 // MEMBER_FLAG_*
+	ServiceID    string
+	RealmID      uint32
+	ChannelName  string
+	ChannelID    uint32
+	ChannelFlags uint32
+	TeamID       uint32
+	NumMembers   uint32
+	PlayerGUID   uint64
+	PlayerName   string
+	PlayerFlags  uint8 // MEMBER_FLAG_*
 }
 
 // ChatEventChannelLeftPayload represents payload of ChatEventChannelLeft event
 type ChatEventChannelLeftPayload struct {
-	ServiceID   string
-	RealmID     uint32
-	ChannelName string
-	ChannelID   uint32
-	PlayerGUID  uint64
-	PlayerName  string
+	ServiceID    string
+	RealmID      uint32
+	ChannelName  string
+	ChannelID    uint32
+	ChannelFlags uint32
+	TeamID       uint32
+	NumMembers   uint32
+	PlayerGUID   uint64
+	PlayerName   string
+	Silent       bool
 }
 
 // ChatEventChannelNotificationPayload represents payload of ChatEventChannelNotification event
@@ -83,6 +97,9 @@ type ChatEventChannelNotificationPayload struct {
 	RealmID       uint32
 	ChannelName   string
 	ChannelID     uint32
+	ChannelFlags  uint32
+	TeamID        uint32
+	NumMembers    uint32
 	NotifyType    uint8 // ChatNotify type from Channel.h
 	TargetGUID    uint64
 	TargetName    string

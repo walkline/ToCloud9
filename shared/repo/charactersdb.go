@@ -3,6 +3,7 @@ package repo
 import (
 	"database/sql"
 	"fmt"
+	"sort"
 )
 
 // PreparedStatement represents prepared statement with id.
@@ -16,6 +17,7 @@ type PreparedStatement interface {
 
 type CharactersDB interface {
 	DBByRealm(realmID uint32) *sql.DB
+	RealmIDs() []uint32
 	SetDBForRealm(realmID uint32, db *sql.DB)
 
 	PreparedStatement(realm uint32, stmt PreparedStatement) *sql.Stmt
@@ -40,6 +42,17 @@ type characterDBImpl struct {
 
 func (c *characterDBImpl) DBByRealm(realmID uint32) *sql.DB {
 	return c.dbByReam[realmID].db
+}
+
+func (c *characterDBImpl) RealmIDs() []uint32 {
+	realmIDs := make([]uint32, 0, len(c.dbByReam))
+	for realmID := range c.dbByReam {
+		realmIDs = append(realmIDs, realmID)
+	}
+	sort.Slice(realmIDs, func(i, j int) bool {
+		return realmIDs[i] < realmIDs[j]
+	})
+	return realmIDs
 }
 
 func (c *characterDBImpl) SetDBForRealm(realmID uint32, db *sql.DB) {

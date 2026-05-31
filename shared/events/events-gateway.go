@@ -14,6 +14,12 @@ const (
 
 	// GWEventCharactersUpdates pack of characters update that occurs every N seconds.
 	GWEventCharactersUpdates
+
+	// GWEventGuildCreated is event that occurs when gateway observes successful guild creation from worldserver.
+	GWEventGuildCreated
+
+	// GWEventGatewayStarted is event that occurs when gateway is registered and ready to accept new sessions.
+	GWEventGatewayStarted
 )
 
 // SubjectName is key that nats uses.
@@ -25,50 +31,73 @@ func (e GatewayEvent) SubjectName() string {
 		return "gw.char.logged-out"
 	case GWEventCharactersUpdates:
 		return "gw.char.chars-updates"
+	case GWEventGuildCreated:
+		return "gw.guild.created"
+	case GWEventGatewayStarted:
+		return "gw.gateway.started"
 	}
 	panic(fmt.Errorf("unk event %d", e))
 }
 
-// GWEventCharacterLoggedInPayload represents payload of GWEventCharacterLoggedIn event.
-type GWEventCharacterLoggedInPayload struct {
+// GWEventGatewayStartedPayload represents payload of GWEventGatewayStarted event.
+type GWEventGatewayStartedPayload struct {
 	RealmID     uint32
 	GatewayID   string
-	CharGUID    uint64
-	CharName    string
-	CharRace    uint8
-	CharClass   uint8
-	CharGender  uint8
-	CharLevel   uint8
-	CharZone    uint32
-	CharMap     uint32
-	CharPosX    float32
-	CharPosY    float32
-	CharPosZ    float32
-	CharGuildID uint32
-	AccountID   uint32
+	StartedAtMs uint64
+}
+
+// GWEventCharacterLoggedInPayload represents payload of GWEventCharacterLoggedIn event.
+type GWEventCharacterLoggedInPayload struct {
+	RealmID           uint32
+	GatewayID         string
+	EventTimeUnixNano uint64
+	CharGUID          uint64
+	CharName          string
+	CharRace          uint8
+	CharClass         uint8
+	CharGender        uint8
+	CharLevel         uint8
+	CharZone          uint32
+	CharMap           uint32
+	CharPosX          float32
+	CharPosY          float32
+	CharPosZ          float32
+	CharGuildID       uint32
+	AccountID         uint32
 }
 
 // GWEventCharacterLoggedOutPayload represents payload of GWEventCharacterLoggedOut event.
 type GWEventCharacterLoggedOutPayload struct {
-	RealmID     uint32
-	GatewayID   string
-	CharGUID    uint64
-	CharName    string
-	CharGuildID uint32
-	AccountID   uint32
+	RealmID           uint32
+	GatewayID         string
+	EventTimeUnixNano uint64
+	CharGUID          uint64
+	CharName          string
+	CharGuildID       uint32
+	AccountID         uint32
 }
 
 type GWEventCharactersUpdatesPayload struct {
-	RealmID   uint32
-	GatewayID string
-	Updates   []*CharacterUpdate
+	RealmID           uint32
+	GatewayID         string
+	EventTimeUnixNano uint64
+	Updates           []*CharacterUpdate
+}
+
+// GWEventGuildCreatedPayload represents payload of GWEventGuildCreated event.
+type GWEventGuildCreatedPayload struct {
+	RealmID    uint32
+	GatewayID  string
+	LeaderGUID uint64
+	GuildName  string
 }
 
 // CharacterUpdate represents new values of fields for the character.
 type CharacterUpdate struct {
-	ID   uint64  `json:"i"`
-	Lvl  *uint8  `json:"l,omitempty"`
-	Map  *uint32 `json:"m,omitempty"`
-	Area *uint32 `json:"a,omitempty"`
-	Zone *uint32 `json:"z,omitempty"`
+	ID                uint64  `json:"i"`
+	EventTimeUnixNano uint64  `json:"t,omitempty"`
+	Lvl               *uint8  `json:"l,omitempty"`
+	Map               *uint32 `json:"m,omitempty"`
+	Area              *uint32 `json:"a,omitempty"`
+	Zone              *uint32 `json:"z,omitempty"`
 }

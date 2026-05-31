@@ -27,28 +27,34 @@ func (g *gameServerRedisRepo) Upsert(ctx context.Context, server *GameServer) er
 		server.ID = g.generateID(server.Address)
 	}
 
+	key := g.key(server.ID)
+	previous, err := g.serverByKey(ctx, key)
+	if err != nil {
+		return err
+	}
+
 	d, err := json.Marshal(server)
 	if err != nil {
 		return err
 	}
 
-	key := g.key(server.ID)
-	status := g.rdb.Set(ctx, key, d, 0)
-	if status.Err() != nil {
-		return status.Err()
+	newIndexKey := g.realmIndexKey(server.RealmID, server.IsCrossRealm)
+	pipe := g.rdb.TxPipeline()
+	pipe.Set(ctx, key, d, 0)
+	pipe.SAdd(ctx, newIndexKey, key)
+	if previous != nil {
+		if oldIndexKey := g.realmIndexKey(previous.RealmID, previous.IsCrossRealm); oldIndexKey != newIndexKey {
+			pipe.SRem(ctx, oldIndexKey, key)
+		}
 	}
 
-	res := g.rdb.SAdd(ctx, g.realmIndexKey(server.RealmID, server.IsCrossRealm), key)
-	if res.Err() != nil {
-		g.rdb.Del(ctx, key)
-		return res.Err()
-	}
-
-	return nil
+	_, err = pipe.Exec(ctx)
+	return err
 }
 
 func (g *gameServerRedisRepo) Update(ctx context.Context, id string, f func(*GameServer) *GameServer) error {
-	res := g.rdb.Get(ctx, g.key(id))
+	oldKey := g.key(id)
+	res := g.rdb.Get(ctx, oldKey)
 	if res.Err() != nil {
 		return res.Err()
 	}
@@ -58,6 +64,8 @@ func (g *gameServerRedisRepo) Update(ctx context.Context, id string, f func(*Gam
 	if err != nil {
 		return err
 	}
+	oldRealmID := v.RealmID
+	oldIsCrossRealm := v.IsCrossRealm
 
 	newV := f(v)
 	d, err := json.Marshal(newV)
@@ -65,9 +73,22 @@ func (g *gameServerRedisRepo) Update(ctx context.Context, id string, f func(*Gam
 		return err
 	}
 
-	key := g.key(newV.ID)
-	status := g.rdb.Set(ctx, key, d, 0)
-	return status.Err()
+	newKey := g.key(newV.ID)
+	newIndexKey := g.realmIndexKey(newV.RealmID, newV.IsCrossRealm)
+	oldIndexKey := g.realmIndexKey(oldRealmID, oldIsCrossRealm)
+
+	pipe := g.rdb.TxPipeline()
+	pipe.Set(ctx, newKey, d, 0)
+	pipe.SAdd(ctx, newIndexKey, newKey)
+	if oldIndexKey != newIndexKey || oldKey != newKey {
+		pipe.SRem(ctx, oldIndexKey, oldKey)
+	}
+	if oldKey != newKey {
+		pipe.Del(ctx, oldKey)
+	}
+
+	_, err = pipe.Exec(ctx)
+	return err
 }
 
 func (g *gameServerRedisRepo) Remove(ctx context.Context, id string) error {
@@ -178,7 +199,11 @@ func (g *gameServerRedisRepo) listForRealmOrCrossRealm(ctx context.Context, real
 }
 
 func (g *gameServerRedisRepo) One(ctx context.Context, id string) (*GameServer, error) {
-	getRes := g.rdb.Get(ctx, g.key(id))
+	return g.serverByKey(ctx, g.key(id))
+}
+
+func (g *gameServerRedisRepo) serverByKey(ctx context.Context, key string) (*GameServer, error) {
+	getRes := g.rdb.Get(ctx, key)
 	if getRes.Err() != nil {
 		if errors.Is(getRes.Err(), redis.Nil) {
 			return nil, nil

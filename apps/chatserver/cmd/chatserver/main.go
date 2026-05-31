@@ -166,7 +166,7 @@ func main() {
 	grpcServer := grpc.NewServer()
 	pb.RegisterChatServiceServer(
 		grpcServer,
-		server.NewChatService(charRepo, channelMgr, msgProducer, serviceID),
+		server.NewChatService(charRepo, channelMgr, msgProducer, serviceID, charClient),
 	)
 
 	// graceful shutdown handling

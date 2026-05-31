@@ -6,6 +6,7 @@ import (
 	"crypto/rand"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"net"
@@ -55,6 +56,15 @@ type CommandData struct {
 	ValidStatus Status
 	Size        int
 }
+
+const (
+	authChallengeLoginSizeOverhead = 30
+	maxAuthChallengeLoginLen       = 16
+)
+
+// Matches AzerothCore authserver's VersionChallenge constant for 3.3.5a auth
+// challenge and reconnect challenge responses.
+var authVersionChallenge = [16]byte{0xBA, 0xA3, 0x1E, 0x99, 0xA0, 0x0B, 0x21, 0x57, 0xFC, 0x37, 0x3F, 0xB3, 0x69, 0xCD, 0xD2, 0xF1}
 
 var Commands = map[Command]Status{
 	CommandLogonChallenge:     StatusChallenge,
@@ -172,10 +182,13 @@ func (s *AuthSession) HandleReconnectChallenge() error {
 	if err != nil {
 		return err
 	}
+	if err = validateAuthChallengeLogin(d.Size, d.ILen); err != nil {
+		return err
+	}
 
 	login := make([]byte, d.ILen)
 
-	_, err = s.conn.Read(login)
+	_, err = io.ReadFull(s.conn, login)
 	if err != nil {
 		return err
 	}
@@ -188,6 +201,10 @@ func (s *AuthSession) HandleReconnectChallenge() error {
 	s.account, err = s.accountRepo.AccountByUserName(context.TODO(), username)
 	if err != nil {
 		return err
+	}
+	if s.account == nil || len(s.account.SessionKeyAuth) == 0 {
+		s.logger.Debug().Msg("Reconnect challenge rejected: account not found or missing session key")
+		return s.Write(CommandReconnectChallenge, AuthResultUnkAccount)
 	}
 
 	s.reconnectProof = make([]byte, 16)
@@ -202,7 +219,7 @@ func (s *AuthSession) HandleReconnectChallenge() error {
 		CommandReconnectChallenge,
 		AuthResultSuccess,
 		s.reconnectProof,
-		[]byte{0xBA, 0xA3, 0x1E, 0x99, 0xA0, 0x0B, 0x21, 0x57, 0xFC, 0x37, 0x3F, 0xB3, 0x69, 0xCD, 0xD2, 0xF1},
+		authVersionChallenge[:],
 	)
 	if err != nil {
 		return err
@@ -269,10 +286,13 @@ func (s *AuthSession) HandleLogonChallenge() error {
 	if err != nil {
 		return err
 	}
+	if err = validateAuthChallengeLogin(d.Size, d.ILen); err != nil {
+		return err
+	}
 
 	login := make([]byte, d.ILen)
 
-	_, err = s.conn.Read(login)
+	_, err = io.ReadFull(s.conn, login)
 	if err != nil {
 		return err
 	}
@@ -288,7 +308,7 @@ func (s *AuthSession) HandleLogonChallenge() error {
 	}
 
 	if s.account == nil {
-		return s.Write(CommandLogonProof, AuthResultUnkAccount, uint16(0))
+		return s.Write([]byte{byte(CommandLogonChallenge), 0}, AuthResultUnkAccount)
 	}
 
 	s.srp = srp6.NewSRP(string(login), s.account.Salt, s.account.Verifier)
@@ -303,7 +323,7 @@ func (s *AuthSession) HandleLogonChallenge() error {
 		byte(32),
 		N,
 		_s,
-		[]byte{0xBA, 0xA3, 0x1E, 0x99, 0xA0, 0x0B, 0x21, 0x57, 0xFC, 0x37, 0x3F, 0xB3, 0x69, 0xCD, 0xD2, 0xF1},
+		authVersionChallenge[:],
 		byte(0),
 	)
 	if err != nil {
@@ -441,8 +461,18 @@ func (s *AuthSession) Write(v ...interface{}) error {
 	return s.write(s.conn, v...)
 }
 
+func validateAuthChallengeLogin(size uint16, loginLen uint8) error {
+	if loginLen == 0 || loginLen > maxAuthChallengeLoginLen {
+		return fmt.Errorf("invalid auth challenge login length: %d", loginLen)
+	}
+	if int(size) != authChallengeLoginSizeOverhead+int(loginLen) {
+		return fmt.Errorf("invalid auth challenge size: %d for login length %d", size, loginLen)
+	}
+	return nil
+}
+
 func (s *AuthSession) write(writer io.Writer, v ...interface{}) error {
-	var err error
+	packet := new(bytes.Buffer)
 	for i := range v {
 		d := v[i]
 		switch d.(type) {
@@ -450,10 +480,20 @@ func (s *AuthSession) write(writer io.Writer, v ...interface{}) error {
 			d = append([]byte(d.(string)), 0)
 		}
 
-		err = binary.Write(writer, binary.LittleEndian, d)
+		err := binary.Write(packet, binary.LittleEndian, d)
 		if err != nil {
 			return err
 		}
+	}
+	if packet.Len() == 0 {
+		return nil
+	}
+	n, err := writer.Write(packet.Bytes())
+	if err != nil {
+		return err
+	}
+	if n != packet.Len() {
+		return io.ErrShortWrite
 	}
 	return nil
 }

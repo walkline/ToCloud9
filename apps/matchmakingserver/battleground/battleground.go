@@ -109,6 +109,7 @@ func (b *Battleground) InviteGroups(eventsProducer events.MatchmakingServiceProd
 	for realm, queuedGroups := range groupsByRealm {
 		players := make([]guid.LowType, 0, b.MaxPlayersPerTeam)
 		slots := map[guid.LowType]uint8{}
+		arenaType, isRated := pvpOptionsForQueuedGroups(queuedGroups)
 		for _, group := range queuedGroups {
 			players = append(players, group.LeaderGUID.LowGUID)
 			for _, member := range group.Members {
@@ -131,8 +132,8 @@ func (b *Battleground) InviteGroups(eventsProducer events.MatchmakingServiceProd
 			RealmID:                  realm,
 			PlayersGUID:              players,
 			QueueSlotByPlayer:        slots,
-			ArenaType:                0,     // TODO: implement later
-			IsRated:                  false, // TODO: implement later
+			ArenaType:                arenaType,
+			IsRated:                  isRated,
 			PVPQueueMinLVL:           minLvl,
 			PVPQueueMaxLVL:           maxLvl,
 			TypeID:                   uint8(b.QueueTypeID),
@@ -146,6 +147,13 @@ func (b *Battleground) InviteGroups(eventsProducer events.MatchmakingServiceProd
 		}
 	}
 	return nil
+}
+
+func pvpOptionsForQueuedGroups(groups []QueuedGroup) (uint8, bool) {
+	if len(groups) == 0 {
+		return 0, false
+	}
+	return groups[0].ArenaType, groups[0].IsRated
 }
 
 func (b *Battleground) TeamForInvitedPlayer(playerGUID uint64, realmID uint32) (found bool, team PVPTeam) {

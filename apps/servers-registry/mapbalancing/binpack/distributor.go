@@ -94,6 +94,9 @@ func (k *binpackBalancer) greedyBinPackBalancer(weights MapsWeight, servers []re
 	}
 
 	sort.Slice(mw, func(i, j int) bool {
+		if mw[i].weight == mw[j].weight {
+			return mw[i].mapID < mw[j].mapID
+		}
 		return mw[i].weight > mw[j].weight
 	})
 
@@ -112,25 +115,14 @@ func (k *binpackBalancer) greedyBinPackBalancer(weights MapsWeight, servers []re
 		}
 	}
 
-	if len(packing) > len(servers) {
-		lenDiff := len(servers) - len(packing)
-		for i := 0; i < lenDiff; i++ {
-
-			for serversItr, j := 0, 0; j < lenDiff; j++ {
-				if serversItr >= len(servers) {
-					serversItr = 0
-				}
-
-				servers[serversItr].AssignedMapsToHandle = append(servers[serversItr].AssignedMapsToHandle, packing[i][j].mapID)
-				serversItr++
-			}
-		}
-		packing = packing[:len(servers)]
-	}
-
 	for i := range packing {
+		serverIndex := i
+		if serverIndex >= len(servers) {
+			serverIndex = i % len(servers)
+		}
+
 		for j := range packing[i] {
-			servers[i].AssignedMapsToHandle = append(servers[i].AssignedMapsToHandle, packing[i][j].mapID)
+			servers[serverIndex].AssignedMapsToHandle = append(servers[serverIndex].AssignedMapsToHandle, packing[i][j].mapID)
 		}
 	}
 

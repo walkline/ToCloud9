@@ -7,6 +7,7 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"sort"
 	"strconv"
 	"sync"
 	"syscall"
@@ -23,6 +24,7 @@ import (
 	"github.com/walkline/ToCloud9/apps/guildserver/repo"
 	"github.com/walkline/ToCloud9/apps/guildserver/server"
 	"github.com/walkline/ToCloud9/apps/guildserver/service"
+	pbGuid "github.com/walkline/ToCloud9/gen/guid/pb"
 	"github.com/walkline/ToCloud9/gen/guilds/pb"
 	"github.com/walkline/ToCloud9/shared/events"
 	shrepo "github.com/walkline/ToCloud9/shared/repo"
@@ -102,28 +104,61 @@ func createGuildService(cfg *config.Config, natsCon *nats.Conn) service.GuildSer
 		charDB.SetDBForRealm(realmID, cdb)
 	}
 
-	guildsRepo, err := repo.NewGuildsMySQLRepo(charDB)
+	worldDB, err := sql.Open("mysql", cfg.WorldDBConnection)
+	if err != nil {
+		log.Fatal().Err(err).Msg("can't connect to world db")
+	}
+	configureDBConn(worldDB)
+
+	guildsRepo, err := repo.NewGuildsMySQLRepoWithWorldDB(charDB, worldDB)
 	if err != nil {
 		log.Fatal().Err(err).Msg("can't create guilds repo")
 	}
 
+	guidConn, err := grpc.Dial(cfg.GuidProviderServiceAddress, grpc.WithInsecure())
+	if err != nil {
+		log.Fatal().Err(err).Str("address", cfg.GuidProviderServiceAddress).Msg("can't connect to guid service")
+	}
+	itemGUIDAllocator := service.NewGuidServiceItemGUIDAllocator(pbGuid.NewGuidServiceClient(guidConn))
+
 	cache := service.NewGuildsInMemCache(guildsRepo)
+	guildService := service.NewGuildServiceWithBankRepoAndItemGUIDAllocator(cache, guildsRepo, itemGUIDAllocator, events.NewGuildServiceProducerNatsJSON(natsCon, guildserver.Ver))
 	err = events.NewGatewayConsumer(
 		natsCon,
 		events.WithGWConsumerLoggedInHandler(cache),
 		events.WithGWConsumerLoggedOutHandler(cache),
 		events.WithGWConsumerCharsUpdatesHandler(cache),
+		events.WithGWConsumerGuildCreatedHandler(guildService),
 	).Listen()
 	if err != nil {
 		log.Fatal().Err(err).Msg("can't listen to gateway updates")
 	}
 
-	err = cache.Warmup(context.Background(), 1)
-	if err != nil {
+	if err = warmupGuildCache(context.Background(), cache, cfg.CharDBConnection); err != nil {
 		log.Fatal().Err(err).Msg("can't warmup guilds cache")
 	}
 
-	return service.NewGuildService(cache, events.NewGuildServiceProducerNatsJSON(natsCon, guildserver.Ver))
+	return guildService
+}
+
+type guildCacheWarmer interface {
+	Warmup(ctx context.Context, realmID uint32) error
+}
+
+func warmupGuildCache(ctx context.Context, cache guildCacheWarmer, realmConnections map[uint32]string) error {
+	realmIDs := make([]int, 0, len(realmConnections))
+	for realmID := range realmConnections {
+		realmIDs = append(realmIDs, int(realmID))
+	}
+	sort.Ints(realmIDs)
+
+	for _, realmID := range realmIDs {
+		if err := cache.Warmup(ctx, uint32(realmID)); err != nil {
+			return fmt.Errorf("warmup guild cache for realm %d: %w", realmID, err)
+		}
+	}
+
+	return nil
 }
 
 func configureDBConn(db *sql.DB) {

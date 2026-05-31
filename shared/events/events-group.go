@@ -41,6 +41,20 @@ const (
 
 	// GroupEventGroupDifficultyChanged group event when dungeon or raid difficulty changed for the group
 	GroupEventGroupDifficultyChanged
+
+	GroupEventGroupReadyCheckStarted
+	GroupEventGroupReadyCheckMemberState
+	GroupEventGroupReadyCheckFinished
+	GroupEventGroupMemberSubGroupChanged
+	GroupEventGroupMemberFlagsChanged
+	GroupEventGroupMemberStateChanged
+	GroupEventGroupInstanceResetRequest
+	GroupEventGroupInstanceBindExtensionRequest
+
+	// GroupEventInviteDeclined group event when player invite declined
+	GroupEventInviteDeclined
+
+	GroupEventGroupMemberStatesChanged
 )
 
 // SubjectName is key that nats uses
@@ -48,6 +62,8 @@ func (e GroupServiceEvent) SubjectName() string {
 	switch e {
 	case GroupEventInviteCreated:
 		return "group.invite.created"
+	case GroupEventInviteDeclined:
+		return "group.invite.declined"
 	case GroupEventGroupCreated:
 		return "group.created"
 	case GroupEventGroupMemberOnlineStatusChanged:
@@ -70,6 +86,24 @@ func (e GroupServiceEvent) SubjectName() string {
 		return "group.targeticons.new"
 	case GroupEventGroupDifficultyChanged:
 		return "group.difficulty.changed"
+	case GroupEventGroupReadyCheckStarted:
+		return "group.readycheck.started"
+	case GroupEventGroupReadyCheckMemberState:
+		return "group.readycheck.member.state"
+	case GroupEventGroupReadyCheckFinished:
+		return "group.readycheck.finished"
+	case GroupEventGroupMemberSubGroupChanged:
+		return "group.member.subgroup.changed"
+	case GroupEventGroupMemberFlagsChanged:
+		return "group.member.flags.changed"
+	case GroupEventGroupMemberStateChanged:
+		return "group.member.state.changed"
+	case GroupEventGroupMemberStatesChanged:
+		return "group.member.states.changed"
+	case GroupEventGroupInstanceResetRequest:
+		return "group.instance.reset.request"
+	case GroupEventGroupInstanceBindExtensionRequest:
+		return "group.instance.bind.extension.request"
 	}
 	panic(fmt.Errorf("unk event %d", e))
 }
@@ -88,6 +122,15 @@ type GroupEventInviteCreatedPayload struct {
 	InviteeName string
 }
 
+type GroupEventInviteDeclinedPayload struct {
+	ServiceID string
+	RealmID   uint32
+
+	InviterGUID uint64
+	InviteeGUID uint64
+	InviteeName string
+}
+
 type GroupEventGroupCreatedPayload struct {
 	ServiceID string
 	RealmID   uint32
@@ -101,6 +144,7 @@ type GroupEventGroupCreatedPayload struct {
 	Difficulty       uint8
 	RaidDifficulty   uint8
 	MasterLooterGuid uint64
+	LfgDungeonEntry  uint32
 	Members          []GroupMember
 }
 
@@ -186,8 +230,9 @@ type GroupEventNewMessagePayload struct {
 
 	GroupID uint
 
-	SenderGUID uint64
-	SenderName string
+	SenderGUID    uint64
+	SenderName    string
+	SenderChatTag uint8
 
 	Language uint32
 	Msg      string
@@ -229,4 +274,131 @@ type GroupMember struct {
 	IsOnline    bool
 	SubGroup    uint8
 	Roles       uint8
+}
+
+type GroupEventReadyCheckStartedPayload struct {
+	ServiceID  string
+	RealmID    uint32
+	GroupID    uint
+	LeaderGUID uint64
+	DurationMs uint32
+	Receivers  []uint64
+}
+
+type GroupEventReadyCheckMemberStatePayload struct {
+	ServiceID  string
+	RealmID    uint32
+	GroupID    uint
+	MemberGUID uint64
+	State      uint8 // 0 waiting, 1 ready, 2 not ready
+	Receivers  []uint64
+}
+
+type GroupEventReadyCheckFinishedPayload struct {
+	ServiceID string
+	RealmID   uint32
+	GroupID   uint
+	Receivers []uint64
+}
+
+type GroupEventMemberSubGroupChangedPayload struct {
+	ServiceID  string
+	RealmID    uint32
+	GroupID    uint
+	MemberGUID uint64
+	SubGroup   uint8
+	Receivers  []uint64
+}
+
+type GroupEventMemberFlagsChangedPayload struct {
+	ServiceID  string
+	RealmID    uint32
+	GroupID    uint
+	MemberGUID uint64
+	Flags      uint8
+	Roles      uint8
+	Receivers  []uint64
+}
+
+type GroupEventMemberStateChangedPayload struct {
+	ServiceID           string
+	RealmID             uint32
+	GroupID             uint
+	SourceGatewayID     string
+	SourceWorldserverID string
+	MemberGUID          uint64
+	Online              bool
+	Level               uint8
+	Class               uint8
+	ZoneID              uint32
+	MapID               uint32
+	Health              uint32
+	MaxHealth           uint32
+	PowerType           uint8
+	Power               uint32
+	MaxPower            uint32
+	AurasKnown          bool
+	Auras               []GroupMemberAuraState
+	DeadKnown           bool
+	Dead                bool
+	GhostKnown          bool
+	Ghost               bool
+	Receivers           []uint64
+}
+
+type GroupEventMemberStatesChangedPayload struct {
+	ServiceID           string
+	RealmID             uint32
+	GroupID             uint
+	SourceGatewayID     string
+	SourceWorldserverID string
+	States              []GroupMemberStateUpdate
+	Receivers           []uint64
+}
+
+type GroupMemberStateUpdate struct {
+	MemberGUID uint64
+	Online     bool
+	Level      uint8
+	Class      uint8
+	ZoneID     uint32
+	MapID      uint32
+	Health     uint32
+	MaxHealth  uint32
+	PowerType  uint8
+	Power      uint32
+	MaxPower   uint32
+	AurasKnown bool
+	Auras      []GroupMemberAuraState
+	DeadKnown  bool
+	Dead       bool
+	GhostKnown bool
+	Ghost      bool
+}
+
+type GroupMemberAuraState struct {
+	Slot    uint8
+	SpellID uint32
+	Flags   uint8
+}
+
+type GroupEventInstanceResetRequestPayload struct {
+	ServiceID  string
+	RealmID    uint32
+	GroupID    uint
+	PlayerGUID uint64
+	MapID      uint32
+	Difficulty uint8
+	Receivers  []uint64
+}
+
+type GroupEventInstanceBindExtensionRequestPayload struct {
+	ServiceID  string
+	RealmID    uint32
+	GroupID    uint
+	PlayerGUID uint64
+	MapID      uint32
+	Difficulty uint8
+	Extended   bool
+	Receivers  []uint64
 }

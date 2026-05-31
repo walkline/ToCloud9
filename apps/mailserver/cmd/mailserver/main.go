@@ -7,6 +7,7 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"sort"
 	"sync"
 	"syscall"
 	"time"
@@ -68,7 +69,7 @@ func main() {
 		time.Second*time.Duration(cfg.DefaultMailExpirationTimeSecs),
 	)
 
-	ticker := service.NewMailsCleanupTicker([]uint32{1}, time.Second*time.Duration(cfg.ExpiredMailsCleanupSecsDelay), mailService)
+	ticker := service.NewMailsCleanupTicker(configuredRealmIDs(cfg.CharDBConnection), time.Second*time.Duration(cfg.ExpiredMailsCleanupSecsDelay), mailService)
 	go ticker.Start(context.TODO())
 
 	// grpc setup
@@ -113,4 +114,15 @@ func configureDBConn(db *sql.DB) {
 	db.SetMaxOpenConns(10)
 	db.SetConnMaxLifetime(time.Minute * 4)
 	db.SetConnMaxIdleTime(time.Minute * 8)
+}
+
+func configuredRealmIDs(connections map[uint32]string) []uint32 {
+	realmIDs := make([]uint32, 0, len(connections))
+	for realmID := range connections {
+		realmIDs = append(realmIDs, realmID)
+	}
+	sort.Slice(realmIDs, func(i, j int) bool {
+		return realmIDs[i] < realmIDs[j]
+	})
+	return realmIDs
 }

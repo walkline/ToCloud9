@@ -21,13 +21,17 @@ func (w *WorldServerGRPCAPI) StartBattleground(ctx context.Context, request *pb.
 
 	w.writeQueue.Push(queue.HandlerFunc(func() {
 		r, err := w.bindings.StartBattleground(BattlegroundStartRequest{
-			BattlegroundTypeID:       uint8(request.BattlegroundTypeID),
-			ArenaType:                uint8(request.ArenaType),
-			IsRated:                  request.IsRated,
-			MapID:                    request.MapID,
-			BracketLvl:               uint8(request.BracketLvl),
-			HordePlayerGUIDsToAdd:    request.PlayersToAddHorde,
-			AlliancePlayerGUIDsToAdd: request.PlayersToAddAlliance,
+			BattlegroundTypeID:            uint8(request.BattlegroundTypeID),
+			ArenaType:                     uint8(request.ArenaType),
+			IsRated:                       request.IsRated,
+			MapID:                         request.MapID,
+			BracketLvl:                    uint8(request.BracketLvl),
+			AllianceArenaTeamID:           request.AllianceArenaTeamID,
+			HordeArenaTeamID:              request.HordeArenaTeamID,
+			AllianceArenaMatchmakerRating: request.AllianceArenaMatchmakerRating,
+			HordeArenaMatchmakerRating:    request.HordeArenaMatchmakerRating,
+			HordePlayerGUIDsToAdd:         request.PlayersToAddHorde,
+			AlliancePlayerGUIDsToAdd:      request.PlayersToAddAlliance,
 		})
 		respChan <- respType{
 			resp: r,
