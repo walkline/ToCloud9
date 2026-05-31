@@ -50,6 +50,9 @@ type Config struct {
 	// GroupServiceAddress is address of group service
 	GroupServiceAddress string `yaml:"groupServiceAddress" env:"GROUP_SERVICE_ADDRESS" env-default:"localhost:8998"`
 
+	// AuctionHouseServiceAddress is address of auction house service
+	AuctionHouseServiceAddress string `yaml:"auctionHouseServiceAddress" env:"AUCTION_HOUSE_SERVICE_ADDRESS" env-default:"localhost:8993"`
+
 	// NatsURL is nats connection url
 	NatsURL string `yaml:"natsUrl" env:"NATS_URL" env-default:"nats://nats:4222"`
 

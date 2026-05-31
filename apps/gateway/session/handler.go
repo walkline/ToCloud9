@@ -107,6 +107,16 @@ var HandleMap = map[packet.Opcode]HandlersQueue{
 	packet.MsgSetDungeonDifficulty: NewHandler("MsgSetDungeonDifficulty", (*GameSession).HandleSetDungeonDifficulty),
 	packet.MsgSetRaidDifficulty:    NewHandler("MsgSetRaidDifficulty", (*GameSession).HandleSetRaidDifficulty),
 
+	// Auction House
+	packet.MsgAuctionHello:            NewHandler("MsgAuctionHello", (*GameSession).HandleAuctionHello),
+	packet.CMsgAuctionSellItem:        NewHandler("CMsgAuctionSellItem", (*GameSession).HandleAuctionSellItem),
+	packet.CMsgAuctionPlaceBid:        NewHandler("CMsgAuctionPlaceBid", (*GameSession).HandleAuctionPlaceBid),
+	packet.CMsgAuctionRemoveItem:      NewHandler("CMsgAuctionRemoveItem", (*GameSession).HandleAuctionRemoveItem),
+	packet.CMsgAuctionListItems:       NewHandler("CMsgAuctionListItems", (*GameSession).HandleAuctionListItems),
+	packet.CMsgAuctionListOwnerItems:  NewHandler("CMsgAuctionListOwnerItems", (*GameSession).HandleAuctionListOwnerItems),
+	packet.CMsgAuctionListBidderItems: NewHandler("CMsgAuctionListBidderItems", (*GameSession).HandleAuctionListBidderItems),
+	packet.CMsgAuctionListPendingSales: NewHandler("CMsgAuctionListPendingSales", (*GameSession).HandleAuctionListPendingSales),
+
 	// Battlegrounds
 	packet.CMsgBattleMasterJoin: NewHandler("CMsgBattleMasterJoin", (*GameSession).HandleEnqueueToBattleground),
 	packet.CMsgBattlefieldPort:  NewHandler("CMsgBattlefieldPort", (*GameSession).HandleBattlegroundPort),

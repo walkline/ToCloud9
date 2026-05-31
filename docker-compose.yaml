@@ -69,6 +69,7 @@ services:
       MAIL_SERVICE_ADDRESS: mailserver:8997
       GROUP_SERVICE_ADDRESS: groupserver:8998
       MATCHMAKING_SERVICE_ADDRESS: matchmakingserver:8994
+      AUCTION_HOUSE_SERVICE_ADDRESS: auctionhouse:8993
       AUTH_DB_CONNECTION: ${AUTH_DB_USER}:${AUTH_DB_PASS}@tcp(${AUTH_DB_HOST}:${AUTH_DB_PORT})/${AUTH_DB_NAME}
       DB_SCHEMA_TYPE: ${DATABASE_SCHEMA_TYPE}
       PREFERRED_HOSTNAME: ${EXTERNAL_ADDRESS}
@@ -98,6 +99,7 @@ services:
       MAIL_SERVICE_ADDRESS: mailserver:8997
       GROUP_SERVICE_ADDRESS: groupserver:8998
       MATCHMAKING_SERVICE_ADDRESS: matchmakingserver:8994
+      AUCTION_HOUSE_SERVICE_ADDRESS: auctionhouse:8993
       AUTH_DB_CONNECTION: ${AUTH_DB_USER}:${AUTH_DB_PASS}@tcp(${AUTH_DB_HOST}:${AUTH_DB_PORT})/${AUTH_DB_NAME}
       DB_SCHEMA_TYPE: ${DATABASE_SCHEMA_TYPE}
       PREFERRED_HOSTNAME: ${EXTERNAL_ADDRESS}
@@ -227,6 +229,26 @@ services:
       PORT: 8997
     ports:
       - '8997:8997'
+    profiles:
+      - ac
+      - tc
+
+  auctionhouse:
+    build:
+      context: .
+      dockerfile: apps/auctionhouse/Dockerfile
+    depends_on:
+      database-ac:
+        condition: service_healthy
+    environment:
+      CHAR_DB_CONNECTION: 1:${CHAR_DB_USER}:${CHAR_DB_PASS}@tcp(${CHAR_DB_HOST}:${CHAR_DB_PORT})/${CHAR_DB_NAME}
+      WORLD_DB_CONNECTION: ${WORLD_DB_USER}:${WORLD_DB_PASS}@tcp(${WORLD_DB_HOST}:${WORLD_DB_PORT})/${WORLD_DB_NAME}
+      MAIL_SERVICE_ADDRESS: mailserver:8997
+      NATS_URL: nats://nats:4222
+      PORT: 8993
+      EXPIRED_AUCTIONS_CHECK_SECS_DELAY: 60
+    ports:
+      - '8993:8993'
     profiles:
       - ac
       - tc

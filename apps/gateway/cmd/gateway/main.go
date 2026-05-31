@@ -23,6 +23,7 @@ import (
 	pbChat "github.com/walkline/ToCloud9/gen/chat/pb"
 	pbGroup "github.com/walkline/ToCloud9/gen/group/pb"
 	pbGuild "github.com/walkline/ToCloud9/gen/guilds/pb"
+	pbAH "github.com/walkline/ToCloud9/gen/auctionhouse/pb"
 	pbMail "github.com/walkline/ToCloud9/gen/mail/pb"
 	pbMM "github.com/walkline/ToCloud9/gen/matchmaking/pb"
 	pbServ "github.com/walkline/ToCloud9/gen/servers-registry/pb"
@@ -75,6 +76,7 @@ func main() {
 	mailClient := mailService(conf)
 	groupClient := groupService(conf)
 	matchmakingClient := matchmakingService(conf)
+	auctionHouseClient := auctionHouseService(conf)
 
 	healthandmetrics.EnableActiveConnectionsMetrics()
 	healthCheckServer := healthandmetrics.NewServer(conf.HealthCheckPort, promhttp.Handler())
@@ -167,6 +169,7 @@ func main() {
 			GuildsServiceClient:              guildClient,
 			MailServiceClient:                mailClient,
 			MatchmakingServiceClient:         matchmakingClient,
+			AuctionHouseServiceClient:        auctionHouseClient,
 			GroupServiceClient:               groupClient,
 			EventsProducer:                   producer,
 			EventsBroadcaster:                broadcaster,
@@ -245,6 +248,18 @@ func mailService(cnf *config.Config) pbMail.MailServiceClient {
 	}
 
 	return pbMail.NewMailServiceClient(conn)
+}
+
+func auctionHouseService(cnf *config.Config) pbAH.AuctionHouseServiceClient {
+	conn, err := grpc.Dial(cnf.AuctionHouseServiceAddress, grpc.WithInsecure(), grpc.WithContextDialer(func(ctx context.Context, s string) (net.Conn, error) {
+		dialer := net.Dialer{Timeout: time.Second * 5}
+		return dialer.DialContext(ctx, "tcp", s)
+	}))
+	if err != nil {
+		log.Fatal().Err(err).Msg("can't connect to auction house service")
+	}
+
+	return pbAH.NewAuctionHouseServiceClient(conn)
 }
 
 func groupService(cnf *config.Config) pbGroup.GroupServiceClient {

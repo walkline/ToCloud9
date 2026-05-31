@@ -1,0 +1,65 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata: {{ $fullname := printf "%s-%s" .Release.Name .Chart.Name | trunc 63 | trimSuffix "-" }}
+  name: {{ $fullname }}-auctionhouse
+  labels:
+    chart: "{{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}"
+spec:
+  selector:
+    matchLabels:
+      app: {{ $fullname }}-auctionhouse
+  replicas: {{ default 1 .Values.auctionhouse.replicaCount | int }}
+  template:
+    metadata:
+      labels:
+        app: {{ $fullname }}-auctionhouse
+    spec:
+      containers:
+      - name: {{ .Release.Name }}-auctionhouse
+        image: "{{ .Values.auctionhouse.image.repository }}:{{ .Values.auctionhouse.image.tag }}"
+        imagePullPolicy: {{ .Values.auctionhouse.image.pullPolicy | toString }}
+        env:
+        - name: PORT
+          value: "{{ .Values.auctionhouse.service.internalPort | int }}"
+        - name: NATS_URL
+          value: nats://{{ .Release.Name }}-nats:4222
+        - name: CHAR_DB_CONNECTION
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Release.Name }}-databases-config
+              key: CHAR_DB_CONNECTION
+        - name: WORLD_DB_CONNECTION
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Release.Name }}-databases-config
+              key: WORLD_DB_CONNECTION
+        - name: MAIL_SERVICE_ADDRESS
+          value: {{ .Release.Name }}-mailserver:{{ .Values.mailserver.service.externalPort | int }}
+        - name: EXPIRED_AUCTIONS_CHECK_SECS_DELAY
+          value: "60"
+        ports:
+        - containerPort: {{ .Values.auctionhouse.service.internalPort | int  }}
+        securityContext:
+          capabilities:
+            drop: ["ALL"]
+          seccompProfile:
+            type: RuntimeDefault
+          allowPrivilegeEscalation: false
+        resources:
+{{ toYaml .Values.resources | indent 10 }}
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-auctionhouse
+  labels:
+    chart: "{{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}"
+spec:
+  type: {{ .Values.auctionhouse.service.type }}
+  ports:
+  - port: {{ .Values.auctionhouse.service.externalPort | int  }}
+    targetPort: {{ .Values.auctionhouse.service.internalPort | int  }}
+    protocol: TCP
+  selector:
+    app: {{ $fullname }}-auctionhouse

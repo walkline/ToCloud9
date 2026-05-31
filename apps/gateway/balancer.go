@@ -12,4 +12,5 @@ const (
 	SupportedGroupServiceVer       = "0.0.1"
 	SupportedMatchmakingServiceVer = "0.0.1"
 	SupportedGameServerVer         = "0.0.1"
+	SupportedAuctionHouseVer       = "0.0.1"
 )
