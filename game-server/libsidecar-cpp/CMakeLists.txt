@@ -180,7 +180,14 @@ else()
     set(gRPC_INSTALL OFF CACHE BOOL "" FORCE)
     set(protobuf_INSTALL OFF CACHE BOOL "" FORCE)
     set(utf8_range_ENABLE_INSTALL OFF CACHE BOOL "" FORCE)
-    set(gRPC_ZLIB_PROVIDER "package" CACHE STRING "" FORCE)
+
+    # On Windows, let gRPC build its own zlib. On Unix, try system first.
+    if(WIN32)
+        set(gRPC_ZLIB_PROVIDER "module" CACHE STRING "" FORCE)
+    else()
+        set(gRPC_ZLIB_PROVIDER "package" CACHE STRING "" FORCE)
+    endif()
+
     FetchContent_MakeAvailable(grpc)
 
     # Set variables for consistency
