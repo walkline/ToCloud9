@@ -42,7 +42,8 @@ jobs:
       - name: Run tests
         working-directory: game-server/libsidecar-cpp/build
         run: |
-          ctest --output-on-failure --verbose
+          # Only run libsidecar tests, not dependency tests
+          ctest --output-on-failure --verbose -R "^(libsidecar_tests|CApiCompatibility)$"
 
       - name: Package artifacts
         run: |
@@ -148,7 +149,8 @@ jobs:
       - name: Run tests
         working-directory: game-server/libsidecar-cpp/build
         run: |
-          ctest --output-on-failure --verbose
+          # Only run libsidecar tests, not dependency tests
+          ctest --output-on-failure --verbose -R "^(libsidecar_tests|CApiCompatibility)$"
 
       - name: Package artifacts
         run: |
@@ -348,7 +350,8 @@ jobs:
       - name: Run tests
         working-directory: game-server/libsidecar-cpp/build
         run: |
-          ctest --output-on-failure --verbose
+          # Only run libsidecar tests, not dependency tests
+          ctest --output-on-failure --verbose -R "^(libsidecar_tests|CApiCompatibility)$"
 
       - name: Package artifacts
         run: |
@@ -435,7 +438,8 @@ jobs:
       - name: Run tests
         working-directory: game-server/libsidecar-cpp/build
         run: |
-          ctest --output-on-failure --verbose
+          # Only run libsidecar tests, not dependency tests
+          ctest --output-on-failure --verbose -R "^(libsidecar_tests|CApiCompatibility)$"
 
       - name: Package artifacts
         run: |
