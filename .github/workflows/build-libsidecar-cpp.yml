@@ -1,0 +1,531 @@
+name: Build libsidecar-cpp
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  build-linux-x64:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache CMake build
+        uses: actions/cache@v4
+        with:
+          path: |
+            game-server/libsidecar-cpp/build/_deps
+            ~/.cache
+          key: ${{ runner.os }}-x64-cmake-${{ hashFiles('game-server/libsidecar-cpp/CMakeLists.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-x64-cmake-
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake g++ libssl-dev zlib1g-dev pkg-config
+
+      - name: Build libsidecar-cpp
+        working-directory: game-server/libsidecar-cpp
+        run: |
+          mkdir -p build
+          cd build
+          cmake .. \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DBUILD_TESTS=ON \
+            -DUSE_SYSTEM_GRPC=OFF \
+            -DUSE_SYSTEM_PROTOBUF=OFF
+          cmake --build . --config Release -j $(nproc)
+
+      - name: Run tests
+        working-directory: game-server/libsidecar-cpp/build
+        run: |
+          ctest --output-on-failure --verbose
+
+      - name: Package artifacts
+        run: |
+          mkdir -p artifacts/lib artifacts/include
+          # Copy all versioned .so files
+          cp -P game-server/libsidecar-cpp/build/libsidecar.so* artifacts/lib/
+          cp game-server/libsidecar-cpp/include/*.h artifacts/include/
+          cp -r game-server/libsidecar-cpp/include/libsidecar artifacts/include/
+
+          # Create README with dependencies
+          cat > artifacts/README.txt << 'EOF'
+          libsidecar-cpp for Linux x64
+
+          Build Information:
+          - Platform: Linux x64 (glibc 2.35+)
+          - Compiler: GCC 11.4.0
+          - C++ Standard: C++17
+          - Build Type: Release
+
+          Files:
+          - lib/libsidecar.so -> libsidecar.so.0 (symlink)
+          - lib/libsidecar.so.0 -> libsidecar.so.0.0.1 (symlink)
+          - lib/libsidecar.so.0.0.1 (actual library)
+          - include/*.h - Public C API headers
+          - include/libsidecar/ - C++ internal headers
+
+          System Dependencies (must be installed):
+          - libssl.so.3 (OpenSSL 3.x) - Install: apt install libssl3
+          - libcrypto.so.3 (OpenSSL 3.x) - Included with libssl3
+          - libz.so.1 (zlib) - Install: apt install zlib1g
+          - libstdc++.so.6 (GCC C++ stdlib) - Install: apt install libstdc++6
+          - libc.so.6, libm.so.6, libgcc_s.so.1 (glibc) - Usually pre-installed
+
+          Quick Install (Ubuntu/Debian):
+            sudo apt-get update
+            sudo apt-get install -y libssl3 zlib1g libstdc++6
+
+          Quick Install (RHEL/CentOS/Fedora):
+            sudo dnf install -y openssl-libs zlib libstdc++
+
+          Statically Linked Dependencies (no separate install needed):
+          - gRPC v1.80.0
+          - Protocol Buffers
+          - NATS.c v3.8.2
+          - prometheus-cpp v1.2.4
+          - spdlog v1.13.0
+          - cpp-httplib v0.43.1
+          - nlohmann/json v3.11.3
+
+          Installation:
+          1. Extract archive
+          2. Install system dependencies (see above)
+          3. Copy lib/libsidecar.so* to /usr/local/lib/ or /usr/lib/
+          4. Run: sudo ldconfig
+          5. Copy headers to your project
+
+          Verification:
+            ldd libsidecar.so.0.0.1
+          Should show all dependencies resolved.
+          EOF
+
+          cd artifacts
+          tar -czf ../libsidecar-cpp-linux-x64.tar.gz *
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: libsidecar-cpp-linux-x64
+          path: libsidecar-cpp-linux-x64.tar.gz
+
+  build-linux-arm64:
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache CMake build
+        uses: actions/cache@v4
+        with:
+          path: |
+            game-server/libsidecar-cpp/build/_deps
+            ~/.cache
+          key: ${{ runner.os }}-arm64-cmake-${{ hashFiles('game-server/libsidecar-cpp/CMakeLists.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-arm64-cmake-
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake g++ libssl-dev zlib1g-dev pkg-config
+
+      - name: Build libsidecar-cpp
+        working-directory: game-server/libsidecar-cpp
+        run: |
+          mkdir -p build
+          cd build
+          cmake .. \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DBUILD_TESTS=ON \
+            -DUSE_SYSTEM_GRPC=OFF \
+            -DUSE_SYSTEM_PROTOBUF=OFF
+          cmake --build . --config Release -j $(nproc)
+
+      - name: Run tests
+        working-directory: game-server/libsidecar-cpp/build
+        run: |
+          ctest --output-on-failure --verbose
+
+      - name: Package artifacts
+        run: |
+          mkdir -p artifacts/lib artifacts/include
+          # Copy all versioned .so files
+          cp -P game-server/libsidecar-cpp/build/libsidecar.so* artifacts/lib/
+          cp game-server/libsidecar-cpp/include/*.h artifacts/include/
+          cp -r game-server/libsidecar-cpp/include/libsidecar artifacts/include/
+
+          # Create README with dependencies
+          cat > artifacts/README.txt << 'EOF'
+          libsidecar-cpp for Linux ARM64
+
+          Build Information:
+          - Platform: Linux ARM64 (glibc 2.35+)
+          - Compiler: GCC 11.4.0
+          - C++ Standard: C++17
+          - Build Type: Release
+
+          Files:
+          - lib/libsidecar.so -> libsidecar.so.0 (symlink)
+          - lib/libsidecar.so.0 -> libsidecar.so.0.0.1 (symlink)
+          - lib/libsidecar.so.0.0.1 (actual library)
+          - include/*.h - Public C API headers
+          - include/libsidecar/ - C++ internal headers
+
+          System Dependencies (must be installed):
+          - libssl.so.3 (OpenSSL 3.x) - Install: apt install libssl3
+          - libcrypto.so.3 (OpenSSL 3.x) - Included with libssl3
+          - libz.so.1 (zlib) - Install: apt install zlib1g
+          - libstdc++.so.6 (GCC C++ stdlib) - Install: apt install libstdc++6
+          - libc.so.6, libm.so.6, libgcc_s.so.1 (glibc) - Usually pre-installed
+
+          Quick Install (Ubuntu/Debian):
+            sudo apt-get update
+            sudo apt-get install -y libssl3 zlib1g libstdc++6
+
+          Quick Install (RHEL/CentOS/Fedora):
+            sudo dnf install -y openssl-libs zlib libstdc++
+
+          Statically Linked Dependencies (no separate install needed):
+          - gRPC v1.80.0
+          - Protocol Buffers
+          - NATS.c v3.8.2
+          - prometheus-cpp v1.2.4
+          - spdlog v1.13.0
+          - cpp-httplib v0.43.1
+          - nlohmann/json v3.11.3
+
+          Installation:
+          1. Extract archive
+          2. Install system dependencies (see above)
+          3. Copy lib/libsidecar.so* to /usr/local/lib/ or /usr/lib/
+          4. Run: sudo ldconfig
+          5. Copy headers to your project
+
+          Verification:
+            ldd libsidecar.so.0.0.1
+          Should show all dependencies resolved.
+          EOF
+
+          cd artifacts
+          tar -czf ../libsidecar-cpp-linux-arm64.tar.gz *
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: libsidecar-cpp-linux-arm64
+          path: libsidecar-cpp-linux-arm64.tar.gz
+
+  build-windows-x64:
+    runs-on: windows-latest
+    strategy:
+      matrix:
+        include:
+          - vs_version: "Visual Studio 17 2022"
+            vs_year: "2022"
+            toolset: "v143"
+          - vs_version: "Visual Studio 17 2022"
+            vs_year: "2022"
+            toolset: "v142"  # VS2019 toolset
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache CMake build
+        uses: actions/cache@v4
+        with:
+          path: |
+            game-server/libsidecar-cpp/build/_deps
+            ~\AppData\Local\Temp\chocolatey
+          key: ${{ runner.os }}-x64-${{ matrix.toolset }}-cmake-${{ hashFiles('game-server/libsidecar-cpp/CMakeLists.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-x64-${{ matrix.toolset }}-cmake-
+
+      - name: Setup MSVC
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Build libsidecar-cpp
+        working-directory: game-server/libsidecar-cpp
+        shell: cmd
+        run: |
+          mkdir build
+          cd build
+          cmake .. ^
+            -G "${{ matrix.vs_version }}" ^
+            -A x64 ^
+            -T ${{ matrix.toolset }} ^
+            -DCMAKE_BUILD_TYPE=Release ^
+            -DBUILD_TESTS=ON ^
+            -DUSE_SYSTEM_GRPC=OFF ^
+            -DUSE_SYSTEM_PROTOBUF=OFF ^
+            -DCMAKE_MSVC_RUNTIME_LIBRARY="MultiThreaded$<$<CONFIG:Debug>:Debug>"
+          cmake --build . --config Release -j %NUMBER_OF_PROCESSORS%
+
+      - name: Run tests
+        working-directory: game-server/libsidecar-cpp/build
+        shell: cmd
+        run: |
+          ctest -C Release --output-on-failure --verbose
+
+      - name: Package artifacts
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path artifacts/lib
+          New-Item -ItemType Directory -Force -Path artifacts/include
+          Copy-Item game-server/libsidecar-cpp/build/Release/libsidecar.dll artifacts/lib/
+          Copy-Item game-server/libsidecar-cpp/build/Release/libsidecar.lib artifacts/lib/
+          Copy-Item game-server/libsidecar-cpp/include/*.h artifacts/include/
+          Copy-Item -Recurse game-server/libsidecar-cpp/include/libsidecar artifacts/include/
+
+          # Create README with build info
+          @"
+          libsidecar-cpp for Windows x64
+
+          Build Information:
+          - Visual Studio: ${{ matrix.vs_year }}
+          - Toolset: ${{ matrix.toolset }}
+          - Runtime: Static (/MT)
+          - Architecture: x64
+
+          Files:
+          - lib/libsidecar.dll - Shared library
+          - lib/libsidecar.lib - Import library for linking
+          - include/*.h - Public C API headers
+          - include/libsidecar/ - C++ internal headers
+
+          Requirements:
+          - Windows 10 or later (x64)
+          - Visual C++ ${{ matrix.vs_year }} runtime (static - no separate install needed)
+          - Compatible with applications built with ${{ matrix.vs_year }} or ${{ matrix.toolset }} toolset
+
+          Note: This build uses static runtime linking (/MT), so no separate
+          Visual C++ Redistributable installation is required.
+          "@ | Out-File -FilePath artifacts/README.txt -Encoding utf8
+
+          Compress-Archive -Path artifacts/* -DestinationPath libsidecar-cpp-windows-x64-${{ matrix.toolset }}.zip
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: libsidecar-cpp-windows-x64-${{ matrix.toolset }}
+          path: libsidecar-cpp-windows-x64-${{ matrix.toolset }}.zip
+
+  build-macos-x64:
+    runs-on: macos-13
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache CMake build
+        uses: actions/cache@v4
+        with:
+          path: |
+            game-server/libsidecar-cpp/build/_deps
+            ~/Library/Caches/Homebrew
+          key: ${{ runner.os }}-x64-cmake-${{ hashFiles('game-server/libsidecar-cpp/CMakeLists.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-x64-cmake-
+
+      - name: Install dependencies
+        run: |
+          brew install cmake openssl zlib
+
+      - name: Build libsidecar-cpp
+        working-directory: game-server/libsidecar-cpp
+        run: |
+          mkdir -p build
+          cd build
+          cmake .. \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DBUILD_TESTS=ON \
+            -DUSE_SYSTEM_GRPC=OFF \
+            -DUSE_SYSTEM_PROTOBUF=OFF \
+            -DOPENSSL_ROOT_DIR=$(brew --prefix openssl)
+          cmake --build . --config Release -j $(sysctl -n hw.ncpu)
+
+      - name: Run tests
+        working-directory: game-server/libsidecar-cpp/build
+        run: |
+          ctest --output-on-failure --verbose
+
+      - name: Package artifacts
+        run: |
+          mkdir -p artifacts/lib artifacts/include
+          # Copy dylib (macOS doesn't version shared libs the same way)
+          cp game-server/libsidecar-cpp/build/libsidecar.dylib artifacts/lib/
+          cp game-server/libsidecar-cpp/include/*.h artifacts/include/
+          cp -r game-server/libsidecar-cpp/include/libsidecar artifacts/include/
+
+          # Create README
+          cat > artifacts/README.txt << 'EOF'
+          libsidecar-cpp for macOS x64 (Intel)
+
+          Build Information:
+          - Platform: macOS x64 (Intel)
+          - Compiler: AppleClang
+          - C++ Standard: C++17
+          - Build Type: Release
+
+          Files:
+          - lib/libsidecar.dylib (shared library)
+          - include/*.h - Public C API headers
+          - include/libsidecar/ - C++ internal headers
+
+          System Dependencies:
+          - libz (zlib) - Pre-installed on macOS
+          - libssl/libcrypto (OpenSSL) - Install via Homebrew if needed
+          - libc++ (C++ standard library) - Pre-installed on macOS
+
+          Installation:
+          1. Extract archive
+          2. If needed: brew install openssl zlib
+          3. Copy lib/libsidecar.dylib to /usr/local/lib/
+          4. Copy headers to your project
+
+          Statically Linked:
+          - gRPC, protobuf, NATS, prometheus, spdlog, httplib, json
+
+          Verification:
+            otool -L libsidecar.dylib
+          EOF
+
+          cd artifacts
+          tar -czf ../libsidecar-cpp-macos-x64.tar.gz *
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: libsidecar-cpp-macos-x64
+          path: libsidecar-cpp-macos-x64.tar.gz
+
+  build-macos-arm64:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache CMake build
+        uses: actions/cache@v4
+        with:
+          path: |
+            game-server/libsidecar-cpp/build/_deps
+            ~/Library/Caches/Homebrew
+          key: ${{ runner.os }}-arm64-cmake-${{ hashFiles('game-server/libsidecar-cpp/CMakeLists.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-arm64-cmake-
+
+      - name: Install dependencies
+        run: |
+          brew install cmake openssl zlib
+
+      - name: Build libsidecar-cpp
+        working-directory: game-server/libsidecar-cpp
+        run: |
+          mkdir -p build
+          cd build
+          cmake .. \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DBUILD_TESTS=ON \
+            -DUSE_SYSTEM_GRPC=OFF \
+            -DUSE_SYSTEM_PROTOBUF=OFF \
+            -DOPENSSL_ROOT_DIR=$(brew --prefix openssl)
+          cmake --build . --config Release -j $(sysctl -n hw.ncpu)
+
+      - name: Run tests
+        working-directory: game-server/libsidecar-cpp/build
+        run: |
+          ctest --output-on-failure --verbose
+
+      - name: Package artifacts
+        run: |
+          mkdir -p artifacts/lib artifacts/include
+          # Copy dylib (macOS doesn't version shared libs the same way)
+          cp game-server/libsidecar-cpp/build/libsidecar.dylib artifacts/lib/
+          cp game-server/libsidecar-cpp/include/*.h artifacts/include/
+          cp -r game-server/libsidecar-cpp/include/libsidecar artifacts/include/
+
+          # Create README
+          cat > artifacts/README.txt << 'EOF'
+          libsidecar-cpp for macOS ARM64 (Apple Silicon)
+
+          Build Information:
+          - Platform: macOS ARM64 (Apple Silicon)
+          - Compiler: AppleClang
+          - C++ Standard: C++17
+          - Build Type: Release
+
+          Files:
+          - lib/libsidecar.dylib (shared library)
+          - include/*.h - Public C API headers
+          - include/libsidecar/ - C++ internal headers
+
+          System Dependencies:
+          - libz (zlib) - Pre-installed on macOS
+          - libssl/libcrypto (OpenSSL) - Install via Homebrew if needed
+          - libc++ (C++ standard library) - Pre-installed on macOS
+
+          Installation:
+          1. Extract archive
+          2. If needed: brew install openssl zlib
+          3. Copy lib/libsidecar.dylib to /usr/local/lib/
+          4. Copy headers to your project
+
+          Statically Linked:
+          - gRPC, protobuf, NATS, prometheus, spdlog, httplib, json
+
+          Verification:
+            otool -L libsidecar.dylib
+          EOF
+
+          cd artifacts
+          tar -czf ../libsidecar-cpp-macos-arm64.tar.gz *
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: libsidecar-cpp-macos-arm64
+          path: libsidecar-cpp-macos-arm64.tar.gz
+
+  create-release:
+    needs: [build-linux-x64, build-linux-arm64, build-windows-x64, build-macos-x64, build-macos-arm64]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            artifacts/libsidecar-cpp-linux-x64/libsidecar-cpp-linux-x64.tar.gz
+            artifacts/libsidecar-cpp-linux-arm64/libsidecar-cpp-linux-arm64.tar.gz
+            artifacts/libsidecar-cpp-windows-x64-v143/libsidecar-cpp-windows-x64-v143.zip
+            artifacts/libsidecar-cpp-windows-x64-v142/libsidecar-cpp-windows-x64-v142.zip
+            artifacts/libsidecar-cpp-macos-x64/libsidecar-cpp-macos-x64.tar.gz
+            artifacts/libsidecar-cpp-macos-arm64/libsidecar-cpp-macos-arm64.tar.gz
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+          body: |
+            ## Pre-built Binaries
+
+            ### Windows x64
+            - **v143 (VS2022)**: `libsidecar-cpp-windows-x64-v143.zip` - For Visual Studio 2022 projects
+            - **v142 (VS2019)**: `libsidecar-cpp-windows-x64-v142.zip` - For Visual Studio 2019 projects
+
+            Both Windows builds use static runtime (/MT) - no separate Visual C++ Redistributable required.
+
+            ### Linux
+            - **x64**: `libsidecar-cpp-linux-x64.tar.gz`
+            - **ARM64**: `libsidecar-cpp-linux-arm64.tar.gz`
+
+            ### macOS
+            - **x64 (Intel)**: `libsidecar-cpp-macos-x64.tar.gz`
+            - **ARM64 (Apple Silicon)**: `libsidecar-cpp-macos-arm64.tar.gz`
+
+            All dependencies (gRPC, NATS, prometheus, etc.) are statically linked into the library.
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

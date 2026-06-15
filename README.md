@@ -75,9 +75,9 @@ $ docker compose --profile ac up -d
 
 ### Without Docker/Orchestration
 
-For Windows & AzerothCore [use this guide](doc/RunNonDockerWinWSLAzerothCore.md).
-
-For Linux and Mac - TBD.
+* **Windows (Native)**: [Windows Native Build Guide](doc/RunNonDockerWindowsAzerothCore.md)
+* **Linux / WSL**: [Linux/WSL Build Guide](doc/RunNonDockerWinWSLAzerothCore.md)
+* **macOS**: Use the Linux guide with Homebrew for dependencies
 
 You can utilise [Perun tool](https://github.com/walkline/ToCloud9/tree/master/apps/perun) to simplify managing of all apps/microservices.  
 
