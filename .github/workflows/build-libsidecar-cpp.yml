@@ -220,16 +220,11 @@ jobs:
           path: libsidecar-cpp-linux-arm64.tar.gz
 
   build-windows-x64:
-    runs-on: windows-latest
+    runs-on: windows-2022
     strategy:
       matrix:
-        include:
-          - vs_version: "Visual Studio 17 2022"
-            vs_year: "2022"
-            toolset: "v143"
-          - vs_version: "Visual Studio 17 2022"
-            vs_year: "2022"
-            toolset: "v142"  # VS2019 toolset
+        toolset: [v143, v142]
+    name: build-windows-x64-${{ matrix.toolset }}
     steps:
       - uses: actions/checkout@v4
 
@@ -239,9 +234,9 @@ jobs:
           path: |
             game-server/libsidecar-cpp/build/_deps
             ~\AppData\Local\Temp\chocolatey
-          key: ${{ runner.os }}-x64-${{ matrix.toolset }}-cmake-${{ hashFiles('game-server/libsidecar-cpp/CMakeLists.txt') }}
+          key: windows-x64-${{ matrix.toolset }}-cmake-${{ hashFiles('game-server/libsidecar-cpp/CMakeLists.txt') }}
           restore-keys: |
-            ${{ runner.os }}-x64-${{ matrix.toolset }}-cmake-
+            windows-x64-${{ matrix.toolset }}-cmake-
 
       - name: Setup MSVC
         uses: microsoft/setup-msbuild@v2
@@ -253,7 +248,7 @@ jobs:
           mkdir build
           cd build
           cmake .. ^
-            -G "${{ matrix.vs_version }}" ^
+            -G "Visual Studio 17 2022" ^
             -A x64 ^
             -T ${{ matrix.toolset }} ^
             -DCMAKE_BUILD_TYPE=Release ^
@@ -279,12 +274,15 @@ jobs:
           Copy-Item game-server/libsidecar-cpp/include/*.h artifacts/include/
           Copy-Item -Recurse game-server/libsidecar-cpp/include/libsidecar artifacts/include/
 
+          # Determine VS year from toolset
+          $vsYear = if ("${{ matrix.toolset }}" -eq "v143") { "2022" } else { "2019" }
+
           # Create README with build info
           @"
           libsidecar-cpp for Windows x64
 
           Build Information:
-          - Visual Studio: ${{ matrix.vs_year }}
+          - Visual Studio: ${vsYear}
           - Toolset: ${{ matrix.toolset }}
           - Runtime: Static (/MT)
           - Architecture: x64
@@ -297,11 +295,14 @@ jobs:
 
           Requirements:
           - Windows 10 or later (x64)
-          - Visual C++ ${{ matrix.vs_year }} runtime (static - no separate install needed)
-          - Compatible with applications built with ${{ matrix.vs_year }} or ${{ matrix.toolset }} toolset
+          - Visual C++ ${vsYear} runtime (static - no separate install needed)
+          - Compatible with applications built with ${vsYear} or ${{ matrix.toolset }} toolset
 
           Note: This build uses static runtime linking (/MT), so no separate
           Visual C++ Redistributable installation is required.
+
+          All external dependencies (gRPC, NATS, prometheus, spdlog, etc.) are
+          statically linked into libsidecar.dll - no additional DLLs needed.
           "@ | Out-File -FilePath artifacts/README.txt -Encoding utf8
 
           Compress-Archive -Path artifacts/* -DestinationPath libsidecar-cpp-windows-x64-${{ matrix.toolset }}.zip
