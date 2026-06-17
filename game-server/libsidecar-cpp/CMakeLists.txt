@@ -173,6 +173,20 @@ if(USE_SYSTEM_GRPC)
 else()
     message(STATUS "Downloading and building gRPC (this may take 20-30 minutes)...")
 
+    # On Windows with MSVC, force static runtime for ALL sub-dependencies
+    # This must be done BEFORE FetchContent_Declare
+    if(WIN32 AND MSVC)
+        # Force /MT flag directly in compiler flags as a backup
+        set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} /MT" CACHE STRING "" FORCE)
+        set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /MT" CACHE STRING "" FORCE)
+        set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} /MTd" CACHE STRING "" FORCE)
+        set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} /MTd" CACHE STRING "" FORCE)
+
+        # Also set for protobuf and abseil (gRPC sub-dependencies)
+        set(protobuf_MSVC_STATIC_RUNTIME ON CACHE BOOL "" FORCE)
+        set(protobuf_WITH_ZLIB OFF CACHE BOOL "" FORCE)
+    endif()
+
     FetchContent_Declare(
         grpc
         GIT_REPOSITORY https://github.com/grpc/grpc.git
