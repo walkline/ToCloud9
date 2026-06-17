@@ -236,24 +236,29 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Cache CMake build
+      - name: Cache CMake dependencies
         uses: actions/cache@v4
         with:
           path: |
             game-server/libsidecar-cpp/build/_deps
-            ~\AppData\Local\Temp\chocolatey
-          key: windows-x64-${{ matrix.toolset }}-cmake-${{ hashFiles('game-server/libsidecar-cpp/CMakeLists.txt') }}
+          key: windows-x64-${{ matrix.toolset }}-deps-v2-${{ hashFiles('game-server/libsidecar-cpp/CMakeLists.txt') }}
           restore-keys: |
-            windows-x64-${{ matrix.toolset }}-cmake-
+            windows-x64-${{ matrix.toolset }}-deps-v2-
+            windows-x64-${{ matrix.toolset }}-deps-
 
       - name: Setup MSVC
         uses: microsoft/setup-msbuild@v2
 
+      - name: Setup sccache
+        uses: mozilla-actions/sccache-action@v0.0.6
+
       - name: Build libsidecar-cpp
         working-directory: game-server/libsidecar-cpp
         shell: cmd
+        env:
+          SCCACHE_GHA_ENABLED: "true"
         run: |
-          mkdir build
+          if not exist build mkdir build
           cd build
           cmake .. ^
             -G "Visual Studio 17 2022" ^
@@ -262,7 +267,9 @@ jobs:
             -DCMAKE_BUILD_TYPE=Release ^
             -DBUILD_TESTS=ON ^
             -DUSE_SYSTEM_GRPC=OFF ^
-            -DUSE_SYSTEM_PROTOBUF=OFF
+            -DUSE_SYSTEM_PROTOBUF=OFF ^
+            -DCMAKE_C_COMPILER_LAUNCHER=sccache ^
+            -DCMAKE_CXX_COMPILER_LAUNCHER=sccache
           cmake --build . --config Release -j %NUMBER_OF_PROCESSORS%
 
       - name: Run tests
