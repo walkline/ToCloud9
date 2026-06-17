@@ -59,7 +59,7 @@ TEST(HandlersQueueTest, ThreadSafety) {
     // Push from multiple threads
     std::vector<std::thread> push_threads;
     for (int i = 0; i < num_threads; ++i) {
-        push_threads.emplace_back([&queue, &counter]() {
+        push_threads.emplace_back([&queue, &counter, items_per_thread]() {
             for (int j = 0; j < items_per_thread; ++j) {
                 queue.Push(MakeHandler([&counter]() { counter++; }));
             }

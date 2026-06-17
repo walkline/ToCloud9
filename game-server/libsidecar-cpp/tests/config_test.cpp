@@ -2,6 +2,12 @@
 #include "../src/core/config.h"
 #include <cstdlib>
 
+// Windows doesn't have setenv/unsetenv, use _putenv_s and _putenv instead
+#ifdef _WIN32
+    #define setenv(name, value, overwrite) _putenv_s(name, value)
+    #define unsetenv(name) _putenv_s(name, "")
+#endif
+
 using namespace tc9;
 
 TEST(ConfigTest, DefaultValues) {
