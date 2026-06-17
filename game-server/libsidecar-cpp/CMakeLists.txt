@@ -5,10 +5,16 @@ if(POLICY CMP0091)
     cmake_policy(SET CMP0091 NEW)
 endif()
 
-# Auto-detect runtime library from vcpkg triplet
+# MUST set this BEFORE project() to affect all targets including dependencies
+# Force static runtime on Windows to avoid redistributable dependencies
+if(WIN32)
+    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>" CACHE STRING "MSVC runtime library" FORCE)
+endif()
+
+# Auto-detect runtime library from vcpkg triplet (if using vcpkg)
 if(DEFINED VCPKG_TARGET_TRIPLET)
     if(VCPKG_TARGET_TRIPLET MATCHES ".*-static$")
-        set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+        set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>" CACHE STRING "" FORCE)
     endif()
 endif()
 
@@ -85,6 +91,10 @@ endif()
 # Dependencies
 include(FetchContent)
 set(FETCHCONTENT_QUIET OFF)
+
+# Prevent dependencies from adding tests even if BUILD_TESTS is ON
+# This must be set BEFORE calling FetchContent for any dependency
+set(BUILD_TESTING OFF CACHE BOOL "" FORCE)
 
 # Find threads (required by multiple dependencies)
 find_package(Threads REQUIRED)

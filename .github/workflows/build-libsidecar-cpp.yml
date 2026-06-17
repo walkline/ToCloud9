@@ -256,8 +256,7 @@ jobs:
             -DCMAKE_BUILD_TYPE=Release ^
             -DBUILD_TESTS=ON ^
             -DUSE_SYSTEM_GRPC=OFF ^
-            -DUSE_SYSTEM_PROTOBUF=OFF ^
-            -DCMAKE_MSVC_RUNTIME_LIBRARY="MultiThreaded$<$<CONFIG:Debug>:Debug>"
+            -DUSE_SYSTEM_PROTOBUF=OFF
           cmake --build . --config Release -j %NUMBER_OF_PROCESSORS%
 
       - name: Run tests
