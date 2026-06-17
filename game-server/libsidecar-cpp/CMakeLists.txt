@@ -371,6 +371,7 @@ target_include_directories(libsidecar_objs
 
 target_compile_definitions(libsidecar_objs PRIVATE
     CPPHTTPLIB_OPENSSL_SUPPORT=0
+    TC9_BUILDING_DLL
 )
 
 target_link_libraries(libsidecar_objs
