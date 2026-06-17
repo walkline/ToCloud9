@@ -359,8 +359,36 @@ set(LIBSIDECAR_SOURCES
     src/api.cpp
 )
 
-# Main library target
-add_library(libsidecar SHARED ${LIBSIDECAR_SOURCES})
+# Object library for tests (contains all implementation without DLL export/import)
+add_library(libsidecar_objs OBJECT ${LIBSIDECAR_SOURCES})
+
+target_include_directories(libsidecar_objs
+    PUBLIC
+        ${CMAKE_SOURCE_DIR}/include
+        ${CMAKE_SOURCE_DIR}/src
+        ${PROTO_GENERATED_DIR}
+)
+
+target_compile_definitions(libsidecar_objs PRIVATE
+    CPPHTTPLIB_OPENSSL_SUPPORT=0
+)
+
+target_link_libraries(libsidecar_objs
+    PUBLIC
+        libsidecar_proto
+        ${_GRPC_GRPCPP}
+        ${_PROTOBUF_LIBPROTOBUF}
+        spdlog::spdlog
+        prometheus-cpp::core
+        prometheus-cpp::pull
+        httplib::httplib
+        nats_static
+        nlohmann_json::nlohmann_json
+        Threads::Threads
+)
+
+# Main library target (DLL/shared library)
+add_library(libsidecar SHARED $<TARGET_OBJECTS:libsidecar_objs>)
 
 # Library naming to match Go artifacts (libsidecar.so on all platforms)
 set_target_properties(libsidecar PROPERTIES
@@ -387,23 +415,16 @@ target_compile_definitions(libsidecar PRIVATE
 
 target_link_libraries(libsidecar
     PRIVATE
-        libsidecar_proto
-        ${_GRPC_GRPCPP}
-        ${_PROTOBUF_LIBPROTOBUF}
-        spdlog::spdlog
-        prometheus-cpp::core
-        prometheus-cpp::pull
-        httplib::httplib
-        nats_static
-        nlohmann_json::nlohmann_json
-        Threads::Threads
+        libsidecar_objs
 )
 
-# Platform-specific libraries
+# Platform-specific libraries (inherited from libsidecar_objs, but also add to DLL)
 if(UNIX AND NOT APPLE)
     target_link_libraries(libsidecar PRIVATE ${CMAKE_DL_LIBS})
+    target_link_libraries(libsidecar_objs PUBLIC ${CMAKE_DL_LIBS})
 elseif(WIN32)
     target_link_libraries(libsidecar PRIVATE ws2_32 wsock32)
+    target_link_libraries(libsidecar_objs PUBLIC ws2_32 wsock32)
 endif()
 
 # Tests
@@ -429,9 +450,11 @@ if(BUILD_TESTS)
         tests/request_processing_realistic_benchmark.cpp
     )
 
+    # Link tests against object library, not the DLL
+    # This avoids needing to export internal symbols for Windows DLL
     target_link_libraries(libsidecar_tests
         PRIVATE
-            libsidecar
+            libsidecar_objs
             gtest_main
     )
 
