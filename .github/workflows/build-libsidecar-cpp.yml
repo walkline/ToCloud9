@@ -2,12 +2,16 @@ name: Build libsidecar-cpp
 
 on:
   push:
+    branches:
+      - '**'  # TODO: REMOVE AFTER TESTING - Run on all branches for Windows build testing
     tags:
-      - 'v*'
+      - 'v*'  # Keep this - runs on version tags for releases
   workflow_dispatch:
 
 jobs:
   build-linux-x64:
+    # TODO: REMOVE CONDITION AFTER TESTING - Skip on push, run only on tags/manual
+    if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -115,6 +119,8 @@ jobs:
           path: libsidecar-cpp-linux-x64.tar.gz
 
   build-linux-arm64:
+    # TODO: REMOVE CONDITION AFTER TESTING - Skip on push, run only on tags/manual
+    if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-24.04-arm
     steps:
       - uses: actions/checkout@v4
@@ -315,6 +321,8 @@ jobs:
           path: libsidecar-cpp-windows-x64-${{ matrix.toolset }}.zip
 
   build-macos-x64:
+    # TODO: REMOVE CONDITION AFTER TESTING - Skip on push, run only on tags/manual
+    if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
     runs-on: macos-13
     steps:
       - uses: actions/checkout@v4
@@ -403,6 +411,8 @@ jobs:
           path: libsidecar-cpp-macos-x64.tar.gz
 
   build-macos-arm64:
+    # TODO: REMOVE CONDITION AFTER TESTING - Skip on push, run only on tags/manual
+    if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
