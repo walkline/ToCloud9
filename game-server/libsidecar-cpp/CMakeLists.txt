@@ -6,9 +6,10 @@ if(POLICY CMP0091)
 endif()
 
 # MUST set this BEFORE project() to affect all targets including dependencies
-# Force static runtime on Windows to avoid redistributable dependencies
+# Use dynamic runtime on Windows (/MD) - static runtime (/MT) causes conflicts with gRPC
+# Users will need Visual C++ Redistributable installed
 if(WIN32)
-    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>" CACHE STRING "MSVC runtime library" FORCE)
+    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL" CACHE STRING "MSVC runtime library" FORCE)
 endif()
 
 # Auto-detect runtime library from vcpkg triplet (if using vcpkg)
@@ -173,17 +174,11 @@ if(USE_SYSTEM_GRPC)
 else()
     message(STATUS "Downloading and building gRPC (this may take 20-30 minutes)...")
 
-    # On Windows with MSVC, force static runtime for ALL sub-dependencies
-    # This must be done BEFORE FetchContent_Declare
+    # On Windows with MSVC, configure for dynamic runtime (/MD)
+    # Static runtime (/MT) causes too many conflicts with gRPC build tools
     if(WIN32 AND MSVC)
-        # Force /MT flag directly in compiler flags as a backup
-        set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} /MT" CACHE STRING "" FORCE)
-        set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /MT" CACHE STRING "" FORCE)
-        set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} /MTd" CACHE STRING "" FORCE)
-        set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} /MTd" CACHE STRING "" FORCE)
-
-        # Also set for protobuf and abseil (gRPC sub-dependencies)
-        set(protobuf_MSVC_STATIC_RUNTIME ON CACHE BOOL "" FORCE)
+        # Use dynamic runtime - user will need Visual C++ Redistributable
+        set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL" CACHE STRING "" FORCE)
         set(protobuf_WITH_ZLIB OFF CACHE BOOL "" FORCE)
     endif()
 
