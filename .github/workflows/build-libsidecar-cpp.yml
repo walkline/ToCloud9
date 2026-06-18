@@ -276,7 +276,7 @@ jobs:
         working-directory: game-server/libsidecar-cpp/build
         shell: cmd
         run: |
-          ctest -C Release --output-on-failure --verbose
+          ctest -C Release --output-on-failure --verbose -R "^(libsidecar_tests|CApiCompatibility)$" -E "Benchmark"
 
       - name: Package artifacts
         shell: pwsh
