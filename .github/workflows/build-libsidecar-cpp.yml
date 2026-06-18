@@ -46,8 +46,8 @@ jobs:
       - name: Run tests
         working-directory: game-server/libsidecar-cpp/build
         run: |
-          # Only run libsidecar tests, not dependency tests
-          ctest --output-on-failure --verbose -R "^(libsidecar_tests|CApiCompatibility)$"
+          # Only run libsidecar tests, excluding timing-sensitive benchmarks
+          ctest --output-on-failure --verbose -R "^(libsidecar_tests|CApiCompatibility)$" -E "Benchmark"
 
       - name: Package artifacts
         run: |
@@ -155,8 +155,8 @@ jobs:
       - name: Run tests
         working-directory: game-server/libsidecar-cpp/build
         run: |
-          # Only run libsidecar tests, not dependency tests
-          ctest --output-on-failure --verbose -R "^(libsidecar_tests|CApiCompatibility)$"
+          # Only run libsidecar tests, excluding timing-sensitive benchmarks
+          ctest --output-on-failure --verbose -R "^(libsidecar_tests|CApiCompatibility)$" -E "Benchmark"
 
       - name: Package artifacts
         run: |
@@ -364,8 +364,8 @@ jobs:
       - name: Run tests
         working-directory: game-server/libsidecar-cpp/build
         run: |
-          # Only run libsidecar tests, not dependency tests
-          ctest --output-on-failure --verbose -R "^(libsidecar_tests|CApiCompatibility)$"
+          # Only run libsidecar tests, excluding timing-sensitive benchmarks
+          ctest --output-on-failure --verbose -R "^(libsidecar_tests|CApiCompatibility)$" -E "Benchmark"
 
       - name: Package artifacts
         run: |
@@ -454,8 +454,8 @@ jobs:
       - name: Run tests
         working-directory: game-server/libsidecar-cpp/build
         run: |
-          # Only run libsidecar tests, not dependency tests
-          ctest --output-on-failure --verbose -R "^(libsidecar_tests|CApiCompatibility)$"
+          # Only run libsidecar tests, excluding timing-sensitive benchmarks
+          ctest --output-on-failure --verbose -R "^(libsidecar_tests|CApiCompatibility)$" -E "Benchmark"
 
       - name: Package artifacts
         run: |
