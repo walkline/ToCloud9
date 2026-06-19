@@ -410,7 +410,7 @@ jobs:
           path: libsidecar-cpp-macos-arm64.tar.gz
 
   create-release:
-    needs: [build-linux-x64, build-linux-arm64, build-windows-x64, build-macos-x64, build-macos-arm64]
+    needs: [build-linux-x64, build-linux-arm64, build-windows-x64, build-macos-arm64]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/')
     steps:
