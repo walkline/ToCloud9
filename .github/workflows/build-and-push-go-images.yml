@@ -20,6 +20,10 @@ jobs:
           username: ${{github.actor}}
           password: ${{secrets.GITHUB_TOKEN}}
 
+      - name: 'Build and push "auctionhouse" image'
+        run: |
+          docker buildx build --push --platform linux/amd64,linux/arm64 -t ghcr.io/${{github.actor}}/auctionhouse:${{github.ref_name}} -f apps/auctionhouse/Dockerfile .
+
       - name: 'Build and push "authserver" image'
         run: |
           docker buildx build --push --platform linux/amd64,linux/arm64 -t ghcr.io/${{github.actor}}/authserver:${{github.ref_name}} -f apps/authserver/Dockerfile . 

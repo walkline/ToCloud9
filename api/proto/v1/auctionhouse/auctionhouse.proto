@@ -1,0 +1,175 @@
+syntax = "proto3";
+package v1;
+
+option go_package = "gen/auctionhouse/pb";
+
+service AuctionHouseService {
+  rpc Hello(AuctionHelloRequest) returns (AuctionHelloResponse);
+  rpc SellItem(AuctionSellItemRequest) returns (AuctionSellItemResponse);
+  rpc PlaceBid(AuctionPlaceBidRequest) returns (AuctionPlaceBidResponse);
+  rpc CancelAuction(AuctionCancelRequest) returns (AuctionCancelResponse);
+  rpc ListItems(AuctionListItemsRequest) returns (AuctionListItemsResponse);
+  rpc ListOwnerItems(AuctionListOwnerItemsRequest) returns (AuctionListOwnerItemsResponse);
+  rpc ListBidderItems(AuctionListBidderItemsRequest) returns (AuctionListBidderItemsResponse);
+  rpc ListPendingSales(AuctionListPendingSalesRequest) returns (AuctionListPendingSalesResponse);
+}
+
+enum AuctionHouseError {
+  AH_OK = 0;
+  AH_INVENTORY = 1;
+  AH_DATABASE_ERROR = 2;
+  AH_NOT_ENOUGH_MONEY = 3;
+  AH_ITEM_NOT_FOUND = 4;
+  AH_HIGHER_BID = 5;
+  AH_BID_INCREMENT = 7;
+  AH_BID_OWN = 10;
+  AH_RESTRICTED_ACCOUNT = 13;
+}
+
+message AuctionItem {
+  uint32 auctionID = 1;
+  uint32 itemEntry = 2;
+  uint32 itemCount = 3;
+  int32  charges = 4;
+  int32  randomPropertyID = 5;
+  uint32 suffixFactor = 6;
+  uint64 itemGuid = 7;
+  uint64 ownerGuid = 8;
+  uint32 startBid = 9;
+  uint32 bid = 10;
+  uint32 buyout = 11;
+  int64  expireTime = 12;
+  uint64 bidderGuid = 13;
+  uint32 deposit = 14;
+  uint32 houseID = 15;
+  repeated AuctionEnchantment enchantments = 16;
+  uint32 flags = 17;
+}
+
+message AuctionEnchantment {
+  uint32 id = 1;
+  uint32 duration = 2;
+  uint32 charges = 3;
+}
+
+message AuctionSortOrder {
+  uint32 column = 1;
+  bool   isDesc = 2;
+}
+
+message AuctionHelloRequest {
+  uint32 realmID = 1;
+  uint32 houseID = 2;
+}
+
+message AuctionHelloResponse {
+  uint32 houseID = 1;
+}
+
+message AuctionSellItemRequest {
+  uint32 realmID = 1;
+  uint64 playerGuid = 2;
+  uint32 houseID = 3;
+  uint32 itemEntry = 4;
+  uint64 itemGuid = 5;
+  uint32 itemCount = 6;
+  int32  charges = 7;
+  uint32 randomPropertyID = 8;
+  uint32 suffixFactor = 9;
+  uint32 startBid = 10;
+  uint32 buyout = 11;
+  uint32 expireTimeSecs = 12;
+  uint32 deposit = 13;
+  repeated AuctionEnchantment enchantments = 14;
+  uint32 flags = 15;
+}
+
+message AuctionSellItemResponse {
+  AuctionHouseError error = 1;
+  uint32 auctionID = 2;
+}
+
+message AuctionPlaceBidRequest {
+  uint32 realmID = 1;
+  uint64 playerGuid = 2;
+  uint32 houseID = 3;
+  uint32 auctionID = 4;
+  uint32 price = 5;
+}
+
+message AuctionPlaceBidResponse {
+  AuctionHouseError error = 1;
+  uint32 auctionID = 2;
+  bool   isBuyout = 3;
+  uint32 moneyToDeduct = 4;
+}
+
+message AuctionCancelRequest {
+  uint32 realmID = 1;
+  uint64 playerGuid = 2;
+  uint32 houseID = 3;
+  uint32 auctionID = 4;
+}
+
+message AuctionCancelResponse {
+  AuctionHouseError error = 1;
+  uint32 auctionID = 2;
+  uint32 auctionCut = 3;
+}
+
+message AuctionListItemsRequest {
+  uint32 realmID = 1;
+  uint64 playerGuid = 2;
+  uint32 houseID = 3;
+  uint32 listFrom = 4;
+  string searchedName = 5;
+  uint32 levelMin = 6;
+  uint32 levelMax = 7;
+  uint32 inventoryType = 8;
+  uint32 itemClass = 9;
+  uint32 itemSubClass = 10;
+  uint32 quality = 11;
+  bool   getAll = 12;
+  bool   usable = 13;
+  repeated AuctionSortOrder sorting = 14;
+}
+
+message AuctionListItemsResponse {
+  repeated AuctionItem items = 1;
+  uint32 totalCount = 2;
+  uint32 searchDelay = 3;
+}
+
+message AuctionListOwnerItemsRequest {
+  uint32 realmID = 1;
+  uint64 playerGuid = 2;
+  uint32 houseID = 3;
+}
+
+message AuctionListOwnerItemsResponse {
+  repeated AuctionItem items = 1;
+  uint32 totalCount = 2;
+  uint32 searchDelay = 3;
+}
+
+message AuctionListBidderItemsRequest {
+  uint32 realmID = 1;
+  uint64 playerGuid = 2;
+  uint32 houseID = 3;
+  repeated uint32 outbiddedAuctionIDs = 4;
+}
+
+message AuctionListBidderItemsResponse {
+  repeated AuctionItem items = 1;
+  uint32 totalCount = 2;
+  uint32 searchDelay = 3;
+}
+
+message AuctionListPendingSalesRequest {
+  uint32 realmID = 1;
+  uint64 playerGuid = 2;
+}
+
+message AuctionListPendingSalesResponse {
+  uint32 count = 1;
+}

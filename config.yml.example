@@ -60,6 +60,7 @@ gateway:
   mailServiceAddress: "localhost:8997"
   groupServiceAddress: "localhost:8998"
   matchmakingServiceAddress: "localhost:8994"
+  auctionHouseServiceAddress: "localhost:8993"
   packetProcessTimeoutSecs: 20
   showGameserverConnChangeToClient: true
   natsUrl: *defaultNatsUrl
@@ -90,6 +91,14 @@ group:
   natsUrl: *defaultNatsUrl
   charactersDB: *defaultCharactersDB
   charactersServiceAddress: "localhost:8991"
+  logging: *defaultLogging
+
+auctionhouse:
+  port: 8993
+  natsUrl: *defaultNatsUrl
+  charactersDB: *defaultCharactersDB
+  mailServiceAddress: "localhost:8997"
+  expiredAuctionsCheckSecsDelay: 60
   logging: *defaultLogging
 
 servers-registry:
@@ -184,6 +193,12 @@ perun:
         - "group"
         - "gr"
       binary: "./groupserver"
+      startupTimeoutSecs: 10
+    - name: "auctionhouse"
+      alias:
+        - "ah"
+        - "auction"
+      binary: "./auctionhouse"
       startupTimeoutSecs: 10
     - name: "gateway"
       alias:

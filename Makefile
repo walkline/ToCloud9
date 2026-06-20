@@ -21,6 +21,7 @@ generate:
 	protoc --proto_path=api/proto/v1/worldserver --go-grpc_out=. --go_out=. worldserver.proto
 	protoc --proto_path=api/proto/v1/group --go-grpc_out=. --go_out=. group.proto
 	protoc --proto_path=api/proto/v1/matchmaking --go-grpc_out=. --go_out=. matchmaking.proto
+	protoc --proto_path=api/proto/v1/auctionhouse --go-grpc_out=. --go_out=. auctionhouse.proto
 
 migrate-characters:
 	migrate -database "mysql://trinity:trinity@tcp(localhost:3306)/characters" -path sql/characters/mysql up
@@ -61,6 +62,9 @@ build-matchmakingserver:
 build-groupserver:
 	go build -o $(INSTALL_PATH)/groupserver apps/groupserver/cmd/groupserver/main.go
 
+build-auctionhouse:
+	go build -o $(INSTALL_PATH)/auctionhouse apps/auctionhouse/cmd/auctionhouse/main.go
+
 build-perun:
 	cd apps/perun && go build -o ../../$(INSTALL_PATH)/perun cmd/perun/main.go && cd ../..
 
@@ -100,4 +104,4 @@ compose-rebuild-groupserver:
 compose-rebuild-gameserver:
 	docker compose up -d --build --no-deps gameserver
 
-install: build-authserver build-charserver build-chatserver build-gateway build-servers-registry build-sidecar build-guidserver build-guildserver build-mailserver build-groupserver build-perun build-matchmakingserver build-mysqlreverseproxy
+install: build-authserver build-charserver build-chatserver build-gateway build-servers-registry build-sidecar build-guidserver build-guildserver build-mailserver build-groupserver build-perun build-matchmakingserver build-mysqlreverseproxy build-auctionhouse

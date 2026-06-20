@@ -19,6 +19,7 @@ import (
 	pbChat "github.com/walkline/ToCloud9/gen/chat/pb"
 	pbGroup "github.com/walkline/ToCloud9/gen/group/pb"
 	pbGuild "github.com/walkline/ToCloud9/gen/guilds/pb"
+	pbAH "github.com/walkline/ToCloud9/gen/auctionhouse/pb"
 	pbMail "github.com/walkline/ToCloud9/gen/mail/pb"
 	pbMatchmaking "github.com/walkline/ToCloud9/gen/matchmaking/pb"
 	pbServ "github.com/walkline/ToCloud9/gen/servers-registry/pb"
@@ -51,6 +52,7 @@ type GameSession struct {
 	groupServiceClient            pbGroup.GroupServiceClient
 	gameServerGRPCClient          pbGameServ.WorldServerServiceClient
 	matchmakingServiceClient      pbMatchmaking.MatchmakingServiceClient
+	auctionHouseServiceClient     pbAH.AuctionHouseServiceClient
 	eventsProducer                events.GatewayProducer
 	eventsBroadcaster             eBroadcaster.Broadcaster
 	chatChannelsEventsBroadcaster *eBroadcaster.ChatChannelsService
@@ -90,6 +92,7 @@ type GameSessionParams struct {
 	GuildsServiceClient              pbGuild.GuildServiceClient
 	MailServiceClient                pbMail.MailServiceClient
 	MatchmakingServiceClient         pbMatchmaking.MatchmakingServiceClient
+	AuctionHouseServiceClient        pbAH.AuctionHouseServiceClient
 	GroupServiceClient               pbGroup.GroupServiceClient
 	EventsProducer                   events.GatewayProducer
 	CharsUpdsBarrier                 *service.CharactersUpdatesBarrier
@@ -125,6 +128,7 @@ func NewGameSession(
 		guildServiceClient:               params.GuildsServiceClient,
 		mailServiceClient:                params.MailServiceClient,
 		matchmakingServiceClient:         params.MatchmakingServiceClient,
+		auctionHouseServiceClient:        params.AuctionHouseServiceClient,
 		groupServiceClient:               params.GroupServiceClient,
 		eventsProducer:                   params.EventsProducer,
 		eventsBroadcaster:                params.EventsBroadcaster,
