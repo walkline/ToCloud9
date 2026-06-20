@@ -439,7 +439,7 @@ jobs:
         run: |
           mkdir -p binaries configs
 
-          SERVICES="authserver charserver chatserver gateway groupserver guidserver guildserver mailserver matchmakingserver mysqlreverseproxy perun servers-registry"
+          SERVICES="authserver auctionhouse charserver chatserver gateway groupserver guidserver guildserver mailserver matchmakingserver mysqlreverseproxy perun servers-registry"
 
           for SERVICE in $SERVICES; do
             echo "Building $SERVICE..."
@@ -501,8 +501,7 @@ jobs:
           Build: Statically linked (CGO_ENABLED=0)
 
           Directory Structure:
-          - bin/           - All service executables
-          - configs/       - Default configuration files (service-name.yaml)
+          - bin/           - All service executables and config.yml
           - README.txt     - This file
 
           Services Included:
@@ -522,9 +521,8 @@ jobs:
           Installation:
           1. Extract archive
           2. Make executables (Linux/macOS): chmod +x bin/*
-          3. Copy relevant configs: cp configs/<service>.yaml config.yaml
-          4. Edit config.yaml for your environment
-          5. Run service: ./bin/<service>
+          3. Edit bin/config.yml for your environment
+          4. Run service: ./bin/<service>
 
           All binaries have no runtime dependencies and can run standalone.
           EOF
@@ -606,7 +604,7 @@ jobs:
 
             **Services included:**
             - authserver, charserver, chatserver, gateway
-            - groupserver, guidserver, guildserver, mailserver
+            - groupserver, guidserver, guildserver, mailserver, auctionhouse
             - matchmakingserver, mysqlreverseproxy, perun, servers-registry
 
             All Go binaries are statically linked (CGO_ENABLED=0) with no dependencies.
