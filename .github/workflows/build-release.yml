@@ -1,0 +1,612 @@
+name: Build Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  build-linux-x64:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache CMake build
+        uses: actions/cache@v4
+        with:
+          path: |
+            game-server/libsidecar-cpp/build/_deps
+            ~/.cache
+          key: ${{ runner.os }}-x64-cmake-${{ hashFiles('game-server/libsidecar-cpp/CMakeLists.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-x64-cmake-
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake g++ libssl-dev zlib1g-dev pkg-config
+
+      - name: Build libsidecar-cpp
+        working-directory: game-server/libsidecar-cpp
+        run: |
+          mkdir -p build
+          cd build
+          cmake .. \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DBUILD_TESTS=ON \
+            -DUSE_SYSTEM_GRPC=OFF \
+            -DUSE_SYSTEM_PROTOBUF=OFF
+          cmake --build . --config Release -j $(nproc)
+
+      - name: Run tests
+        working-directory: game-server/libsidecar-cpp/build
+        run: |
+          # Only run libsidecar tests, excluding timing-sensitive benchmarks
+          ctest --output-on-failure --verbose -R "^(libsidecar_tests|CApiCompatibility)$" -E "Benchmark"
+
+      - name: Package artifacts
+        run: |
+          mkdir -p artifacts/lib artifacts/include
+          # Copy all versioned .so files
+          cp -P game-server/libsidecar-cpp/build/libsidecar.so* artifacts/lib/
+          cp game-server/libsidecar-cpp/include/*.h artifacts/include/
+          cp -r game-server/libsidecar-cpp/include/libsidecar artifacts/include/
+
+          # Create README with dependencies
+          cat > artifacts/README.txt << 'EOF'
+          libsidecar-cpp for Linux x64
+
+          Build Information:
+          - Platform: Linux x64 (glibc 2.35+)
+          - Compiler: GCC 11.4.0
+          - C++ Standard: C++17
+          - Build Type: Release
+
+          Files:
+          - lib/libsidecar.so -> libsidecar.so.0 (symlink)
+          - lib/libsidecar.so.0 -> libsidecar.so.0.0.1 (symlink)
+          - lib/libsidecar.so.0.0.1 (actual library)
+          - include/*.h - Public C API headers
+          - include/libsidecar/ - C++ internal headers
+
+          System Dependencies (must be installed):
+          - libssl.so.3 (OpenSSL 3.x) - Install: apt install libssl3
+          - libcrypto.so.3 (OpenSSL 3.x) - Included with libssl3
+          - libz.so.1 (zlib) - Install: apt install zlib1g
+          - libstdc++.so.6 (GCC C++ stdlib) - Install: apt install libstdc++6
+          - libc.so.6, libm.so.6, libgcc_s.so.1 (glibc) - Usually pre-installed
+
+          Quick Install (Ubuntu/Debian):
+            sudo apt-get update
+            sudo apt-get install -y libssl3 zlib1g libstdc++6
+
+          Quick Install (RHEL/CentOS/Fedora):
+            sudo dnf install -y openssl-libs zlib libstdc++
+
+          Statically Linked Dependencies (no separate install needed):
+          - gRPC v1.80.0
+          - Protocol Buffers
+          - NATS.c v3.8.2
+          - prometheus-cpp v1.2.4
+          - spdlog v1.13.0
+          - cpp-httplib v0.43.1
+          - nlohmann/json v3.11.3
+
+          Installation:
+          1. Extract archive
+          2. Install system dependencies (see above)
+          3. Copy lib/libsidecar.so* to /usr/local/lib/ or /usr/lib/
+          4. Run: sudo ldconfig
+          5. Copy headers to your project
+
+          Verification:
+            ldd libsidecar.so.0.0.1
+          Should show all dependencies resolved.
+          EOF
+
+          cd artifacts
+          tar -czf ../libsidecar-cpp-linux-x64.tar.gz *
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: libsidecar-cpp-linux-x64
+          path: libsidecar-cpp-linux-x64.tar.gz
+
+  build-linux-arm64:
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache CMake build
+        uses: actions/cache@v4
+        with:
+          path: |
+            game-server/libsidecar-cpp/build/_deps
+            ~/.cache
+          key: ${{ runner.os }}-arm64-cmake-${{ hashFiles('game-server/libsidecar-cpp/CMakeLists.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-arm64-cmake-
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake g++ libssl-dev zlib1g-dev pkg-config
+
+      - name: Build libsidecar-cpp
+        working-directory: game-server/libsidecar-cpp
+        run: |
+          mkdir -p build
+          cd build
+          cmake .. \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DBUILD_TESTS=ON \
+            -DUSE_SYSTEM_GRPC=OFF \
+            -DUSE_SYSTEM_PROTOBUF=OFF
+          cmake --build . --config Release -j $(nproc)
+
+      - name: Run tests
+        working-directory: game-server/libsidecar-cpp/build
+        run: |
+          # Only run libsidecar tests, excluding timing-sensitive benchmarks
+          ctest --output-on-failure --verbose -R "^(libsidecar_tests|CApiCompatibility)$" -E "Benchmark"
+
+      - name: Package artifacts
+        run: |
+          mkdir -p artifacts/lib artifacts/include
+          # Copy all versioned .so files
+          cp -P game-server/libsidecar-cpp/build/libsidecar.so* artifacts/lib/
+          cp game-server/libsidecar-cpp/include/*.h artifacts/include/
+          cp -r game-server/libsidecar-cpp/include/libsidecar artifacts/include/
+
+          # Create README with dependencies
+          cat > artifacts/README.txt << 'EOF'
+          libsidecar-cpp for Linux ARM64
+
+          Build Information:
+          - Platform: Linux ARM64 (glibc 2.35+)
+          - Compiler: GCC 11.4.0
+          - C++ Standard: C++17
+          - Build Type: Release
+
+          Files:
+          - lib/libsidecar.so -> libsidecar.so.0 (symlink)
+          - lib/libsidecar.so.0 -> libsidecar.so.0.0.1 (symlink)
+          - lib/libsidecar.so.0.0.1 (actual library)
+          - include/*.h - Public C API headers
+          - include/libsidecar/ - C++ internal headers
+
+          System Dependencies (must be installed):
+          - libssl.so.3 (OpenSSL 3.x) - Install: apt install libssl3
+          - libcrypto.so.3 (OpenSSL 3.x) - Included with libssl3
+          - libz.so.1 (zlib) - Install: apt install zlib1g
+          - libstdc++.so.6 (GCC C++ stdlib) - Install: apt install libstdc++6
+          - libc.so.6, libm.so.6, libgcc_s.so.1 (glibc) - Usually pre-installed
+
+          Quick Install (Ubuntu/Debian):
+            sudo apt-get update
+            sudo apt-get install -y libssl3 zlib1g libstdc++6
+
+          Quick Install (RHEL/CentOS/Fedora):
+            sudo dnf install -y openssl-libs zlib libstdc++
+
+          Statically Linked Dependencies (no separate install needed):
+          - gRPC v1.80.0
+          - Protocol Buffers
+          - NATS.c v3.8.2
+          - prometheus-cpp v1.2.4
+          - spdlog v1.13.0
+          - cpp-httplib v0.43.1
+          - nlohmann/json v3.11.3
+
+          Installation:
+          1. Extract archive
+          2. Install system dependencies (see above)
+          3. Copy lib/libsidecar.so* to /usr/local/lib/ or /usr/lib/
+          4. Run: sudo ldconfig
+          5. Copy headers to your project
+
+          Verification:
+            ldd libsidecar.so.0.0.1
+          Should show all dependencies resolved.
+          EOF
+
+          cd artifacts
+          tar -czf ../libsidecar-cpp-linux-arm64.tar.gz *
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: libsidecar-cpp-linux-arm64
+          path: libsidecar-cpp-linux-arm64.tar.gz
+
+  build-windows-x64:
+    runs-on: windows-2022
+    strategy:
+      matrix:
+        toolset: [v143, v142]
+    name: build-windows-x64-${{ matrix.toolset }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache CMake dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            game-server/libsidecar-cpp/build/_deps
+          key: windows-x64-${{ matrix.toolset }}-deps-v2-${{ hashFiles('game-server/libsidecar-cpp/CMakeLists.txt') }}
+          restore-keys: |
+            windows-x64-${{ matrix.toolset }}-deps-v2-
+            windows-x64-${{ matrix.toolset }}-deps-
+
+      - name: Setup MSVC
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Setup sccache
+        uses: mozilla-actions/sccache-action@v0.0.6
+
+      - name: Build libsidecar-cpp
+        working-directory: game-server/libsidecar-cpp
+        shell: cmd
+        env:
+          SCCACHE_GHA_ENABLED: "true"
+        run: |
+          if not exist build mkdir build
+          cd build
+          cmake .. ^
+            -G "Visual Studio 17 2022" ^
+            -A x64 ^
+            -T ${{ matrix.toolset }} ^
+            -DCMAKE_BUILD_TYPE=Release ^
+            -DBUILD_TESTS=ON ^
+            -DUSE_SYSTEM_GRPC=OFF ^
+            -DUSE_SYSTEM_PROTOBUF=OFF ^
+            -DCMAKE_C_COMPILER_LAUNCHER=sccache ^
+            -DCMAKE_CXX_COMPILER_LAUNCHER=sccache
+          cmake --build . --config Release -j %NUMBER_OF_PROCESSORS%
+
+      - name: Run tests
+        working-directory: game-server/libsidecar-cpp/build
+        shell: cmd
+        run: |
+          ctest -C Release --output-on-failure --verbose -R "^(libsidecar_tests|CApiCompatibility)$" -E "Benchmark"
+
+      - name: Package artifacts
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path artifacts/lib
+          New-Item -ItemType Directory -Force -Path artifacts/include
+          Copy-Item game-server/libsidecar-cpp/build/Release/libsidecar.dll artifacts/lib/
+          Copy-Item game-server/libsidecar-cpp/build/Release/libsidecar.lib artifacts/lib/
+          Copy-Item game-server/libsidecar-cpp/include/*.h artifacts/include/
+          Copy-Item -Recurse game-server/libsidecar-cpp/include/libsidecar artifacts/include/
+
+          # Determine VS year from toolset
+          $vsYear = if ("${{ matrix.toolset }}" -eq "v143") { "2022" } else { "2019" }
+
+          # Create README with build info
+          @"
+          libsidecar-cpp for Windows x64
+
+          Build Information:
+          - Visual Studio: ${vsYear}
+          - Toolset: ${{ matrix.toolset }}
+          - Runtime: Static (/MT)
+          - Architecture: x64
+
+          Files:
+          - lib/libsidecar.dll - Shared library
+          - lib/libsidecar.lib - Import library for linking
+          - include/*.h - Public C API headers
+          - include/libsidecar/ - C++ internal headers
+
+          Requirements:
+          - Windows 10 or later (x64)
+          - Visual C++ ${vsYear} runtime (static - no separate install needed)
+          - Compatible with applications built with ${vsYear} or ${{ matrix.toolset }} toolset
+
+          Note: This build uses static runtime linking (/MT), so no separate
+          Visual C++ Redistributable installation is required.
+
+          All external dependencies (gRPC, NATS, prometheus, spdlog, etc.) are
+          statically linked into libsidecar.dll - no additional DLLs needed.
+          "@ | Out-File -FilePath artifacts/README.txt -Encoding utf8
+
+          Compress-Archive -Path artifacts/* -DestinationPath libsidecar-cpp-windows-x64-${{ matrix.toolset }}.zip
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: libsidecar-cpp-windows-x64-${{ matrix.toolset }}
+          path: libsidecar-cpp-windows-x64-${{ matrix.toolset }}.zip
+
+  build-macos-arm64:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache CMake build
+        uses: actions/cache@v4
+        with:
+          path: |
+            game-server/libsidecar-cpp/build/_deps
+            ~/Library/Caches/Homebrew
+          key: ${{ runner.os }}-arm64-cmake-${{ hashFiles('game-server/libsidecar-cpp/CMakeLists.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-arm64-cmake-
+
+      - name: Install dependencies
+        run: |
+          brew install cmake openssl zlib
+
+      - name: Build libsidecar-cpp
+        working-directory: game-server/libsidecar-cpp
+        run: |
+          mkdir -p build
+          cd build
+          cmake .. \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DBUILD_TESTS=ON \
+            -DUSE_SYSTEM_GRPC=OFF \
+            -DUSE_SYSTEM_PROTOBUF=OFF \
+            -DOPENSSL_ROOT_DIR=$(brew --prefix openssl)
+          cmake --build . --config Release -j $(sysctl -n hw.ncpu)
+
+      - name: Run tests
+        working-directory: game-server/libsidecar-cpp/build
+        run: |
+          # Only run libsidecar tests, excluding timing-sensitive benchmarks
+          ctest --output-on-failure --verbose -R "^(libsidecar_tests|CApiCompatibility)$" -E "Benchmark"
+
+      - name: Package artifacts
+        run: |
+          mkdir -p artifacts/lib artifacts/include
+          # Copy all versioned dylib files and symlinks
+          cp -P game-server/libsidecar-cpp/build/libsidecar*.dylib artifacts/lib/
+          cp game-server/libsidecar-cpp/include/*.h artifacts/include/
+          cp -r game-server/libsidecar-cpp/include/libsidecar artifacts/include/
+
+          # Create README
+          cat > artifacts/README.txt << 'EOF'
+          libsidecar-cpp for macOS ARM64 (Apple Silicon)
+
+          Build Information:
+          - Platform: macOS ARM64 (Apple Silicon)
+          - Compiler: AppleClang
+          - C++ Standard: C++17
+          - Build Type: Release
+
+          Files:
+          - lib/libsidecar.dylib -> libsidecar.0.dylib (symlink)
+          - lib/libsidecar.0.dylib -> libsidecar.0.0.1.dylib (symlink)
+          - lib/libsidecar.0.0.1.dylib (actual library)
+          - include/*.h - Public C API headers
+          - include/libsidecar/ - C++ internal headers
+
+          System Dependencies:
+          - libz (zlib) - Pre-installed on macOS
+          - libssl/libcrypto (OpenSSL) - Install via Homebrew if needed
+          - libc++ (C++ standard library) - Pre-installed on macOS
+
+          Installation:
+          1. Extract archive
+          2. If needed: brew install openssl zlib
+          3. Copy lib/libsidecar.dylib to /usr/local/lib/
+          4. Copy headers to your project
+
+          Statically Linked:
+          - gRPC, protobuf, NATS, prometheus, spdlog, httplib, json
+
+          Verification:
+            otool -L libsidecar.dylib
+          EOF
+
+          cd artifacts
+          tar -czf ../libsidecar-cpp-macos-arm64.tar.gz *
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: libsidecar-cpp-macos-arm64
+          path: libsidecar-cpp-macos-arm64.tar.gz
+
+  build-go-services:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        goos: [linux, darwin, windows]
+        goarch: [amd64, arm64]
+        exclude:
+          - goos: windows
+            goarch: arm64
+    name: go-services-${{ matrix.goos }}-${{ matrix.goarch }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+          cache: true
+
+      - name: Build all services
+        env:
+          CGO_ENABLED: 0
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+        run: |
+          mkdir -p binaries configs
+
+          SERVICES="authserver auctionhouse charserver chatserver gateway groupserver guidserver guildserver mailserver matchmakingserver mysqlreverseproxy perun servers-registry"
+
+          for SERVICE in $SERVICES; do
+            echo "Building $SERVICE..."
+
+            # Set binary name
+            BINARY_NAME="${SERVICE}"
+            if [ "${{ matrix.goos }}" = "windows" ]; then
+              BINARY_NAME="${SERVICE}.exe"
+            fi
+
+            # Check if service has its own go.mod (separate module like perun)
+            if [ -f "apps/${SERVICE}/go.mod" ]; then
+              echo "  Separate module detected, building in apps/${SERVICE}"
+              (
+                cd "apps/${SERVICE}"
+                go build -v -trimpath \
+                  -ldflags="-s -w -X main.version=${{ github.ref_name }} -X main.commit=${{ github.sha }}" \
+                  -o "../../binaries/${BINARY_NAME}" \
+                  "./cmd/${SERVICE}"
+              )
+            else
+              # Find main.go in main module
+              if [ -f "apps/${SERVICE}/cmd/${SERVICE}/main.go" ]; then
+                BUILD_PATH="./apps/${SERVICE}/cmd/${SERVICE}"
+              elif [ -f "apps/${SERVICE}/main.go" ]; then
+                BUILD_PATH="./apps/${SERVICE}"
+              else
+                echo "WARNING: Could not find main.go for ${SERVICE}, skipping"
+                continue
+              fi
+
+              # Build
+              go build -v -trimpath \
+                -ldflags="-s -w -X main.version=${{ github.ref_name }} -X main.commit=${{ github.sha }}" \
+                -o "binaries/${BINARY_NAME}" \
+                "${BUILD_PATH}"
+            fi
+
+          done
+
+      - name: Create package
+        run: |
+          mkdir -p package/bin
+
+          # Copy binaries
+          cp binaries/* package/bin/ 2>/dev/null || true
+
+          # Copy root config.yml.example as config.yml into bin folder
+          if [ -f "config.yml.example" ]; then
+            cp config.yml.example package/bin/config.yml
+          fi
+
+          # Create README
+          cat > package/README.txt << 'EOF'
+          ToCloud9 Services - ${{ matrix.goos }}/${{ matrix.goarch }}
+
+          Version: ${{ github.ref_name }}
+          Commit: ${{ github.sha }}
+          Build: Statically linked (CGO_ENABLED=0)
+
+          Directory Structure:
+          - bin/           - All service executables and config.yml
+          - README.txt     - This file
+
+          Services Included:
+          - authserver
+          - charserver
+          - chatserver
+          - gateway
+          - groupserver
+          - guidserver
+          - guildserver
+          - mailserver
+          - matchmakingserver
+          - mysqlreverseproxy
+          - perun
+          - servers-registry
+
+          Installation:
+          1. Extract archive
+          2. Make executables (Linux/macOS): chmod +x bin/*
+          3. Edit bin/config.yml for your environment
+          4. Run service: ./bin/<service>
+
+          All binaries have no runtime dependencies and can run standalone.
+          EOF
+
+          # Create archive
+          ARCHIVE_NAME="tocloud9-services-${{ matrix.goos }}-${{ matrix.goarch }}"
+          cd package
+          if [ "${{ matrix.goos }}" = "windows" ]; then
+            zip -r "../${ARCHIVE_NAME}.zip" .
+          else
+            tar -czf "../${ARCHIVE_NAME}.tar.gz" .
+          fi
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: tocloud9-services-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: tocloud9-services-*
+
+  create-release:
+    needs: [build-linux-x64, build-linux-arm64, build-windows-x64, build-macos-arm64, build-go-services]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Prepare release assets
+        run: |
+          mkdir -p release-assets
+          find artifacts -type f \( -name "*.tar.gz" -o -name "*.zip" \) -exec cp {} release-assets/ \;
+          ls -lh release-assets/
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release-assets/*
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+          body: |
+            ## ToCloud9 Release ${{ github.ref_name }}
+
+            This release includes pre-built binaries for all services and libraries.
+
+            ### libsidecar-cpp (C++ Library)
+
+            **Windows x64**
+            - `libsidecar-cpp-windows-x64-v143.zip` - Visual Studio 2022 (v143 toolset)
+            - `libsidecar-cpp-windows-x64-v142.zip` - Visual Studio 2019 (v142 toolset)
+            - Uses dynamic runtime (/MD) - requires Visual C++ Redistributable
+
+            **Linux**
+            - `libsidecar-cpp-linux-x64.tar.gz` - x86_64
+            - `libsidecar-cpp-linux-arm64.tar.gz` - ARM64
+
+            **macOS**
+            - `libsidecar-cpp-macos-arm64.tar.gz` - Apple Silicon (M1/M2/M3)
+
+            All dependencies (gRPC, NATS, prometheus, etc.) are statically linked.
+
+            ---
+
+            ### Go Services (Bundled per Platform)
+
+            All ToCloud9 services bundled together by platform:
+            - `tocloud9-services-linux-amd64.tar.gz` - Linux x64
+            - `tocloud9-services-linux-arm64.tar.gz` - Linux ARM64
+            - `tocloud9-services-darwin-amd64.tar.gz` - macOS x64 (Intel)
+            - `tocloud9-services-darwin-arm64.tar.gz` - macOS ARM64 (Apple Silicon)
+            - `tocloud9-services-windows-amd64.zip` - Windows x64
+
+            **Each archive includes:**
+            - `bin/` - All 11 service executables
+            - `configs/` - Default configuration files (service-name.yaml)
+            - `README.txt` - Installation instructions
+
+            **Services included:**
+            - authserver, charserver, chatserver, gateway
+            - groupserver, guidserver, guildserver, mailserver, auctionhouse
+            - matchmakingserver, mysqlreverseproxy, perun, servers-registry
+
+            All Go binaries are statically linked (CGO_ENABLED=0) with no dependencies.
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

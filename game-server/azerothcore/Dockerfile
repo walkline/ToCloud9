@@ -1,15 +1,37 @@
-FROM golang:1.23 AS build-sidecar
+FROM ubuntu:22.04 AS build-sidecar
 
-# runs from project directory
-WORKDIR $GOPATH/src/github.com/walkline/ToCloud9
+ENV DEBIAN_FRONTEND=noninteractive
 
-COPY .. .
+WORKDIR /build
 
-ENV CGO_ENABLED=1
+# Install build dependencies for libsidecar-cpp
+RUN apt-get update && \
+    apt-get install -y \
+        git \
+        cmake \
+        make \
+        gcc \
+        g++ \
+        build-essential \
+        libssl-dev \
+        zlib1g-dev \
+        ca-certificates \
+        pkg-config && \
+    rm -rf /var/lib/apt/lists/*
 
-RUN go mod download
+# Copy source files (proto must be at /api/proto for CMake path resolution)
+COPY api/proto /api/proto
+COPY game-server/libsidecar-cpp /build/libsidecar-cpp
 
-RUN go build -o libsidecar.so -buildmode=c-shared ./game-server/libsidecar/
+# Build libsidecar-cpp
+WORKDIR /build/libsidecar-cpp
+RUN mkdir -p build && cd build && \
+    cmake .. \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DBUILD_TESTS=OFF \
+        -DUSE_SYSTEM_GRPC=OFF \
+        -DUSE_SYSTEM_PROTOBUF=OFF && \
+    cmake --build . --config Release -j $(nproc)
 
 FROM ubuntu:22.04 AS build-core
 
@@ -32,14 +54,16 @@ RUN cd repo && git init && \
     git fetch --depth 1 origin f3d7356ec652a9fc1d75835e642fd8b760282979  && \
     git checkout FETCH_HEAD
 
-COPY --from=build-sidecar ./go/src/github.com/walkline/ToCloud9/libsidecar.so ./repo/deps/libsidecar/libsidecar.so
-COPY --from=build-sidecar ./go/src/github.com/walkline/ToCloud9/libsidecar.h ./repo/deps/libsidecar/include/libsidecar.h
-COPY --from=build-sidecar ./go/src/github.com/walkline/ToCloud9/game-server/libsidecar/events-guild.h ./repo/deps/libsidecar/include/events-guild.h
-COPY --from=build-sidecar ./go/src/github.com/walkline/ToCloud9/game-server/libsidecar/events-group.h ./repo/deps/libsidecar/include/events-group.h
-COPY --from=build-sidecar ./go/src/github.com/walkline/ToCloud9/game-server/libsidecar/events-servers-registry.h ./repo/deps/libsidecar/include/events-servers-registry.h
-COPY --from=build-sidecar ./go/src/github.com/walkline/ToCloud9/game-server/libsidecar/player-items-api.h ./repo/deps/libsidecar/include/player-items-api.h
-COPY --from=build-sidecar ./go/src/github.com/walkline/ToCloud9/game-server/libsidecar/player-money-api.h ./repo/deps/libsidecar/include/player-money-api.h
-COPY --from=build-sidecar ./go/src/github.com/walkline/ToCloud9/game-server/libsidecar/player-interactions-api.h ./repo/deps/libsidecar/include/player-interactions-api.h
+COPY --from=build-sidecar /build/libsidecar-cpp/build/libsidecar.so ./repo/deps/libsidecar/libsidecar.so
+COPY --from=build-sidecar /build/libsidecar-cpp/include/libsidecar.h ./repo/deps/libsidecar/include/libsidecar.h
+COPY --from=build-sidecar /build/libsidecar-cpp/include/events-guild.h ./repo/deps/libsidecar/include/events-guild.h
+COPY --from=build-sidecar /build/libsidecar-cpp/include/events-group.h ./repo/deps/libsidecar/include/events-group.h
+COPY --from=build-sidecar /build/libsidecar-cpp/include/events-servers-registry.h ./repo/deps/libsidecar/include/events-servers-registry.h
+COPY --from=build-sidecar /build/libsidecar-cpp/include/player-items-api.h ./repo/deps/libsidecar/include/player-items-api.h
+COPY --from=build-sidecar /build/libsidecar-cpp/include/player-money-api.h ./repo/deps/libsidecar/include/player-money-api.h
+COPY --from=build-sidecar /build/libsidecar-cpp/include/player-interactions-api.h ./repo/deps/libsidecar/include/player-interactions-api.h
+COPY --from=build-sidecar /build/libsidecar-cpp/include/battleground-api.h ./repo/deps/libsidecar/include/battleground-api.h
+COPY --from=build-sidecar /build/libsidecar-cpp/include/monitoring.h ./repo/deps/libsidecar/include/monitoring.h
 
 WORKDIR /repo
 
@@ -73,7 +97,7 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/*
 
 
-COPY --from=build-sidecar ./go/src/github.com/walkline/ToCloud9/libsidecar.so /usr/lib/libsidecar.so
+COPY --from=build-sidecar /build/libsidecar-cpp/build/libsidecar.so* /usr/lib/
 
 # The paths are hardcoded in the binary
 COPY --from=build-core /repo/data /repo/data
@@ -95,7 +119,7 @@ RUN apt-get update && \
       gettext-base default-mysql-client && \
     rm -rf /var/lib/apt/lists/*
 
-COPY --from=build-sidecar ./go/src/github.com/walkline/ToCloud9/libsidecar.so /usr/lib/libsidecar.so
+COPY --from=build-sidecar /build/libsidecar-cpp/build/libsidecar.so* /usr/lib/
 
 COPY --from=build-core /repo/bin/etc/worldserver.conf.dist /repo/bin/etc/worldserver.conf
 COPY --from=build-core /repo/bin/bin/worldserver /repo/bin/worldserver
