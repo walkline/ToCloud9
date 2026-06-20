@@ -478,23 +478,19 @@ jobs:
                 "${BUILD_PATH}"
             fi
 
-            # Copy config if exists
-            if [ -f "apps/${SERVICE}/config.yaml" ]; then
-              cp "apps/${SERVICE}/config.yaml" "configs/${SERVICE}.yaml"
-            elif [ -f "apps/${SERVICE}/config/config.yaml" ]; then
-              cp "apps/${SERVICE}/config/config.yaml" "configs/${SERVICE}.yaml"
-            fi
           done
 
       - name: Create package
         run: |
-          mkdir -p package/bin package/configs
+          mkdir -p package/bin
 
           # Copy binaries
           cp binaries/* package/bin/ 2>/dev/null || true
 
-          # Copy configs
-          cp configs/* package/configs/ 2>/dev/null || true
+          # Copy root config.yml.example as config.yml into bin folder
+          if [ -f "config.yml.example" ]; then
+            cp config.yml.example package/bin/config.yml
+          fi
 
           # Create README
           cat > package/README.txt << 'EOF'
