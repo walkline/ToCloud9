@@ -444,27 +444,39 @@ jobs:
           for SERVICE in $SERVICES; do
             echo "Building $SERVICE..."
 
-            # Find main.go
-            if [ -f "apps/${SERVICE}/cmd/${SERVICE}/main.go" ]; then
-              BUILD_PATH="./apps/${SERVICE}/cmd/${SERVICE}"
-            elif [ -f "apps/${SERVICE}/main.go" ]; then
-              BUILD_PATH="./apps/${SERVICE}"
-            else
-              echo "WARNING: Could not find main.go for ${SERVICE}, skipping"
-              continue
-            fi
-
             # Set binary name
             BINARY_NAME="${SERVICE}"
             if [ "${{ matrix.goos }}" = "windows" ]; then
               BINARY_NAME="${SERVICE}.exe"
             fi
 
-            # Build
-            go build -v -trimpath \
-              -ldflags="-s -w -X main.version=${{ github.ref_name }} -X main.commit=${{ github.sha }}" \
-              -o "binaries/${BINARY_NAME}" \
-              "${BUILD_PATH}"
+            # Check if service has its own go.mod (separate module like perun)
+            if [ -f "apps/${SERVICE}/go.mod" ]; then
+              echo "  Separate module detected, building in apps/${SERVICE}"
+              (
+                cd "apps/${SERVICE}"
+                go build -v -trimpath \
+                  -ldflags="-s -w -X main.version=${{ github.ref_name }} -X main.commit=${{ github.sha }}" \
+                  -o "../../binaries/${BINARY_NAME}" \
+                  "./cmd/${SERVICE}"
+              )
+            else
+              # Find main.go in main module
+              if [ -f "apps/${SERVICE}/cmd/${SERVICE}/main.go" ]; then
+                BUILD_PATH="./apps/${SERVICE}/cmd/${SERVICE}"
+              elif [ -f "apps/${SERVICE}/main.go" ]; then
+                BUILD_PATH="./apps/${SERVICE}"
+              else
+                echo "WARNING: Could not find main.go for ${SERVICE}, skipping"
+                continue
+              fi
+
+              # Build
+              go build -v -trimpath \
+                -ldflags="-s -w -X main.version=${{ github.ref_name }} -X main.commit=${{ github.sha }}" \
+                -o "binaries/${BINARY_NAME}" \
+                "${BUILD_PATH}"
+            fi
 
             # Copy config if exists
             if [ -f "apps/${SERVICE}/config.yaml" ]; then
