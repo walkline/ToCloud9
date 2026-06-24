@@ -1,0 +1,39 @@
+syntax = "proto3";
+package v1;
+
+option go_package = "gen/pathfinding/pb";
+
+service PathfindingService {
+  rpc FindPath(FindPathRequest) returns (FindPathResponse);
+  rpc FindRandomPath(FindRandomPathRequest) returns (FindPathResponse);
+}
+
+message Vector3 {
+  float x = 1;
+  float y = 2;
+  float z = 3;
+}
+
+message FindPathRequest {
+  uint32 map_id = 1;
+  Vector3 start = 2;
+  Vector3 dest = 3;
+}
+
+message FindRandomPathRequest {
+  uint32 map_id = 1;
+  Vector3 center = 2;
+  float radius = 3;
+}
+
+enum PathResultType {
+  PATH_RESULT_NORMAL = 0;
+  PATH_RESULT_INCOMPLETE = 1;
+  PATH_RESULT_NOPATH = 2;
+}
+
+message FindPathResponse {
+  PathResultType result_type = 1;
+  repeated Vector3 points = 2;
+  float path_length = 3;
+}
