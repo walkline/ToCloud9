@@ -6,16 +6,20 @@ package main
 import "C"
 import (
 	"context"
+	"unsafe"
 
 	"github.com/rs/zerolog/log"
 	"google.golang.org/grpc"
 
 	"github.com/walkline/ToCloud9/game-server/libsidecar/config"
 	"github.com/walkline/ToCloud9/gen/matchmaking/pb"
+	"github.com/walkline/ToCloud9/shared/wow/guid"
 )
 
 var playerLeftBattlegroundRequestsChan chan matchmakingPlayerLeftBattlegroundRequest
 var battlegroundStatusChangedRequestsChan chan matchmakingBattlegroundStatusChangedRequest
+var lfgDungeonCompletedRequestsChan chan matchmakingLfgDungeonCompletedRequest
+var matchmakingServiceClient pb.MatchmakingServiceClient
 
 type matchmakingPlayerLeftBattlegroundRequest struct {
 	player     uint64
@@ -28,16 +32,23 @@ type matchmakingBattlegroundStatusChangedRequest struct {
 	status     uint8
 }
 
+type matchmakingLfgDungeonCompletedRequest struct {
+	completedDungeonEntry uint32
+	selectedDungeonEntry  uint32
+	players               []uint64
+}
+
 func SetupMatchmakingConnection(ctx context.Context, cfg *config.Config) {
 	conn, err := grpc.Dial(cfg.MatchmakingServiceAddress, grpc.WithInsecure())
 	if err != nil {
 		log.Fatal().Err(err).Msg("can't connect to the matchmaking server")
 	}
 
-	matchmakingClient := pb.NewMatchmakingServiceClient(conn)
+	matchmakingServiceClient = pb.NewMatchmakingServiceClient(conn)
 
 	playerLeftBattlegroundRequestsChan = make(chan matchmakingPlayerLeftBattlegroundRequest, 100)
 	battlegroundStatusChangedRequestsChan = make(chan matchmakingBattlegroundStatusChangedRequest, 50)
+	lfgDungeonCompletedRequestsChan = make(chan matchmakingLfgDungeonCompletedRequest, 50)
 
 	const processorsCount = 4
 	for i := 0; i < processorsCount; i++ {
@@ -45,7 +56,7 @@ func SetupMatchmakingConnection(ctx context.Context, cfg *config.Config) {
 			for {
 				select {
 				case r := <-playerLeftBattlegroundRequestsChan:
-					_, err := matchmakingClient.PlayerLeftBattleground(ctx, &pb.PlayerLeftBattlegroundRequest{
+					_, err := matchmakingServiceClient.PlayerLeftBattleground(ctx, &pb.PlayerLeftBattlegroundRequest{
 						Api:          matchmakingSupportedVer,
 						RealmID:      r.realmID,
 						PlayerGUID:   r.player,
@@ -56,7 +67,7 @@ func SetupMatchmakingConnection(ctx context.Context, cfg *config.Config) {
 						log.Err(err).Msg("PlayerLeftBattleground failed")
 					}
 				case r := <-battlegroundStatusChangedRequestsChan:
-					_, err := matchmakingClient.BattlegroundStatusChanged(ctx, &pb.BattlegroundStatusChangedRequest{
+					_, err := matchmakingServiceClient.BattlegroundStatusChanged(ctx, &pb.BattlegroundStatusChangedRequest{
 						Api:          matchmakingSupportedVer,
 						RealmID:      RealmID,
 						Status:       pb.BattlegroundStatusChangedRequest_Status(r.status),
@@ -65,6 +76,16 @@ func SetupMatchmakingConnection(ctx context.Context, cfg *config.Config) {
 					})
 					if err != nil {
 						log.Err(err).Msg("BattlegroundStatusChanged failed")
+					}
+				case r := <-lfgDungeonCompletedRequestsChan:
+					_, err := matchmakingServiceClient.CompleteLfgDungeon(ctx, &pb.CompleteLfgDungeonRequest{
+						Api:                   matchmakingSupportedVer,
+						CompletedDungeonEntry: r.completedDungeonEntry,
+						SelectedDungeonEntry:  r.selectedDungeonEntry,
+						Players:               lfgCompletedPlayersForRequest(r.players),
+					})
+					if err != nil {
+						log.Err(err).Msg("CompleteLfgDungeon failed")
 					}
 				case <-ctx.Done():
 					return
@@ -78,6 +99,7 @@ func SetupMatchmakingConnection(ctx context.Context, cfg *config.Config) {
 
 		close(playerLeftBattlegroundRequestsChan)
 		close(battlegroundStatusChangedRequestsChan)
+		close(lfgDungeonCompletedRequestsChan)
 
 		if err := conn.Close(); err != nil {
 			log.Fatal().Err(err).Msg("can't close matchmaking connection")
@@ -104,4 +126,42 @@ func TC9BattlegroundStatusChanged(instanceID C.uint32_t, status C.uint8_t) {
 		instanceID: uint32(instanceID),
 		status:     uint8(status),
 	}
+}
+
+// TC9CompleteLfgDungeon notifies matchmaking server that AzerothCore completed an LFG dungeon.
+//
+//export TC9CompleteLfgDungeon
+func TC9CompleteLfgDungeon(completedDungeonEntry C.uint32_t, selectedDungeonEntry C.uint32_t, players *C.uint64_t, playersSize C.int) {
+	lfgDungeonCompletedRequestsChan <- matchmakingLfgDungeonCompletedRequest{
+		completedDungeonEntry: uint32(completedDungeonEntry),
+		selectedDungeonEntry:  uint32(selectedDungeonEntry),
+		players:               uint64SliceFromC(players, playersSize),
+	}
+}
+
+func uint64SliceFromC(values *C.uint64_t, size C.int) []uint64 {
+	if values == nil || size <= 0 {
+		return nil
+	}
+	result := make([]uint64, 0, int(size))
+	stride := unsafe.Sizeof(*values)
+	for i := 0; i < int(size); i++ {
+		value := *(*C.uint64_t)(unsafe.Pointer(uintptr(unsafe.Pointer(values)) + uintptr(i)*stride))
+		if value == 0 {
+			continue
+		}
+		result = append(result, uint64(value))
+	}
+	return result
+}
+
+func lfgCompletedPlayersForRequest(players []uint64) []*pb.CompleteLfgDungeonPlayer {
+	result := make([]*pb.CompleteLfgDungeonPlayer, 0, len(players))
+	for _, player := range players {
+		result = append(result, &pb.CompleteLfgDungeonPlayer{
+			RealmID:    guid.PlayerRealmIDOrDefault(RealmID, player),
+			PlayerGUID: guid.PlayerLowGUID(player),
+		})
+	}
+	return result
 }

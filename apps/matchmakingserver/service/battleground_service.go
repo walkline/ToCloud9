@@ -17,12 +17,15 @@ import (
 	"github.com/walkline/ToCloud9/gen/worldserver/pb"
 	"github.com/walkline/ToCloud9/shared/events"
 	"github.com/walkline/ToCloud9/shared/gameserver/conn"
+	wowarena "github.com/walkline/ToCloud9/shared/wow/arena"
 	"github.com/walkline/ToCloud9/shared/wow/guid"
 )
 
 var (
-	ErrAlreadyInQueue = errors.New("already in queue")
-	ErrNotFound       = errors.New("not found")
+	ErrAlreadyInQueue        = errors.New("already in queue")
+	ErrInvalidArenaType      = errors.New("invalid arena type")
+	ErrRatedArenaUnavailable = errors.New("rated arena team data unavailable")
+	ErrNotFound              = errors.New("not found")
 )
 
 type BracketID uint8
@@ -60,6 +63,8 @@ type BattleGroundService interface {
 		typeID battleground.QueueTypeID,
 		leaderLvl uint8,
 		teamID battleground.PVPTeam,
+		arenaType uint8,
+		isRated bool,
 	) error
 
 	InviteGroups(ctx context.Context, groups []QueuedGroup, bg *battleground.Battleground, team battleground.PVPTeam) error
@@ -73,6 +78,8 @@ type BattleGroundService interface {
 	PlayerJoinedBattleground(ctx context.Context, playerGUID uint64, realmID, instanceID uint32, isCrossrealm bool) error
 
 	BattlegroundStatusChanged(ctx context.Context, status battleground.Status, realmID, instanceID uint32, isCrossrealm bool) error
+
+	FinishRatedArenaMatch(ctx context.Context, request RatedArenaMatchResultRequest) (*RatedArenaMatchResult, error)
 
 	RemovePlayerFromQueue(ctx context.Context, playerGUID uint64, realmID uint32, typeID battleground.QueueTypeID) error
 
@@ -108,13 +115,26 @@ type battleGroundService struct {
 	queues                          map[QueueByRealmOrBattlegroupKey]map[battleground.QueueTypeID]map[BracketID]PVPQueue
 	playersQueueOrBattleground      map[QueuesByRealmAndPlayerKey][]QueueOrBattlegroundLink
 	playersQueueOrBattlegroundMutex sync.RWMutex
+	arenaPreviousOpponents          map[uint32]uint32
+	arenaPreviousOpponentsMutex     sync.RWMutex
 
 	battleGroupsRepo       repo.BattleGroupsRepository
+	arenaTeamRepo          repo.ArenaTeamRepository
 	battlegroundsRepo      repo.BattlegroundRepo
 	crossRealmNodesTracker *CrossRealmNodesTracker
 	eventsProducer         events.MatchmakingServiceProducer
 	serversRegistryClient  pbServRegistry.ServersRegistryServiceClient
 	gameserverGRPCConnMgr  conn.GameServerGRPCConnMgr
+	arenaStartMMR          uint32
+	arenaRatingConfig      ArenaRatingConfig
+}
+
+type ArenaRatingConfig struct {
+	WinModifier1       float64
+	WinModifier2       float64
+	LoseModifier       float64
+	MatchmakerModifier float64
+	MaxAllowedMMRDrop  uint32
 }
 
 func (s *battleGroundService) BattlegroundsThatNeedPlayers(ctx context.Context, battlegroundTypeID battleground.QueueTypeID, bracketID uint8, battleGroupID, realmID uint32) ([]battleground.Battleground, error) {
@@ -140,12 +160,15 @@ func (s *battleGroundService) BattlegroundsThatNeedPlayers(ctx context.Context, 
 
 func NewBattleGroundService(
 	templatesRepo repo.BattlegroundTemplesRepo,
+	arenaTeamRepo repo.ArenaTeamRepository,
 	battleGroupsRepo repo.BattleGroupsRepository,
 	battlegroundsRepo repo.BattlegroundRepo,
 	crossRealmNodesTracker *CrossRealmNodesTracker,
 	eventsProducer events.MatchmakingServiceProducer,
 	serversRegistryClient pbServRegistry.ServersRegistryServiceClient,
 	gameserverGRPCConnMgr conn.GameServerGRPCConnMgr,
+	arenaStartMMR uint32,
+	arenaRatingConfig ArenaRatingConfig,
 	realmIDs []uint32,
 ) (BattleGroundService, error) {
 	templates, err := templatesRepo.GetAll(context.Background())
@@ -155,12 +178,16 @@ func NewBattleGroundService(
 
 	service := battleGroundService{
 		playersQueueOrBattleground: map[QueuesByRealmAndPlayerKey][]QueueOrBattlegroundLink{},
+		arenaPreviousOpponents:     map[uint32]uint32{},
 		battleGroupsRepo:           battleGroupsRepo,
+		arenaTeamRepo:              arenaTeamRepo,
 		battlegroundsRepo:          battlegroundsRepo,
 		crossRealmNodesTracker:     crossRealmNodesTracker,
 		eventsProducer:             eventsProducer,
 		serversRegistryClient:      serversRegistryClient,
 		gameserverGRPCConnMgr:      gameserverGRPCConnMgr,
+		arenaStartMMR:              arenaStartMMR,
+		arenaRatingConfig:          arenaRatingConfig,
 	}
 
 	for _, template := range templates {
@@ -170,6 +197,24 @@ func NewBattleGroundService(
 	battlegroups, err := battleGroupsRepo.AllBattleGroupsIDs(context.Background())
 	if err != nil {
 		return nil, fmt.Errorf("cannot get all battlegroups: %w", err)
+	}
+	if service.arenaStartMMR == 0 {
+		service.arenaStartMMR = 1500
+	}
+	if service.arenaRatingConfig.WinModifier1 == 0 {
+		service.arenaRatingConfig.WinModifier1 = 48
+	}
+	if service.arenaRatingConfig.WinModifier2 == 0 {
+		service.arenaRatingConfig.WinModifier2 = 24
+	}
+	if service.arenaRatingConfig.LoseModifier == 0 {
+		service.arenaRatingConfig.LoseModifier = 24
+	}
+	if service.arenaRatingConfig.MatchmakerModifier == 0 {
+		service.arenaRatingConfig.MatchmakerModifier = 24
+	}
+	if service.arenaRatingConfig.MaxAllowedMMRDrop == 0 {
+		service.arenaRatingConfig.MaxAllowedMMRDrop = 500
 	}
 
 	service.queues = generateQueuesForAllBattlegroundTypes(&service, realmIDs, battlegroups)
@@ -243,7 +288,37 @@ func (s *battleGroundService) AddGroupToQueue(
 	typeID battleground.QueueTypeID,
 	leaderLvl uint8,
 	teamID battleground.PVPTeam,
+	arenaType uint8,
+	isRated bool,
 ) error {
+	var arenaQueueData *repo.ArenaTeamQueueData
+	if typeID == battleground.QueueTypeIDAllArenas {
+		if arenaType != 2 && arenaType != 3 && arenaType != 5 {
+			return ErrInvalidArenaType
+		}
+		if isRated {
+			if s.arenaTeamRepo == nil {
+				return ErrRatedArenaUnavailable
+			}
+
+			playerGUIDs := make([]uint64, 0, len(partyMembers)+1)
+			playerGUIDs = append(playerGUIDs, uint64(guid.LowType(leaderGUID)))
+			for _, memberGUID := range partyMembers {
+				playerGUIDs = append(playerGUIDs, uint64(guid.LowType(memberGUID)))
+			}
+
+			var err error
+			arenaQueueData, err = s.arenaTeamRepo.QueueDataForRatedArena(ctx, realmID, uint64(guid.LowType(leaderGUID)), playerGUIDs, arenaType, s.arenaStartMMR)
+			if err != nil {
+				return fmt.Errorf("%w: %v", ErrRatedArenaUnavailable, err)
+			}
+		}
+		teamID = battleground.TeamAny
+	} else {
+		arenaType = 0
+		isRated = false
+	}
+
 	leaderUnwrappedGUID := guid.PlayerUnwrapped{
 		RealmID: uint16(realmID),
 		LowGUID: guid.LowType(leaderGUID),
@@ -306,7 +381,15 @@ func (s *battleGroundService) AddGroupToQueue(
 		Members:      partyMembersGUIDs,
 		RealmID:      realmID,
 		TeamID:       teamID,
+		ArenaType:    arenaType,
+		IsRated:      isRated,
 		EnqueuedTime: time.Now(),
+	}
+	if arenaQueueData != nil {
+		group.ArenaTeamID = arenaQueueData.ArenaTeamID
+		group.ArenaTeamRating = arenaQueueData.TeamRating
+		group.ArenaMatchmakerRating = arenaQueueData.MatchmakerRating
+		group.ArenaPreviousOpponentsTeamID = s.previousRatedArenaOpponentID(realmID, arenaQueueData.ArenaTeamID)
 	}
 
 	slots := s.addQueueForGroupMembers(queue, group)
@@ -315,6 +398,22 @@ func (s *battleGroundService) AddGroupToQueue(
 	if err != nil {
 		s.removeQueueForGroupMembers(queue, group)
 		return fmt.Errorf("cannot add queue for bracket id %v and type id: %v: %w", bracketID, typeID, err)
+	}
+
+	if typeID == battleground.QueueTypeIDAllArenas {
+		log.Debug().
+			Uint32("realmID", realmID).
+			Uint64("leaderGUID", uint64(guid.LowType(leaderGUID))).
+			Interface("partyMembers", partyMembersGUIDs).
+			Uint8("arenaType", arenaType).
+			Bool("isRated", isRated).
+			Uint32("arenaTeamID", group.ArenaTeamID).
+			Uint32("arenaTeamRating", group.ArenaTeamRating).
+			Uint32("arenaMatchmakerRating", group.ArenaMatchmakerRating).
+			Interface("queueKey", queueKey).
+			Uint8("bracketID", uint8(bracketID)).
+			Interface("queueSlots", slots).
+			Msg("TC9 arena group queued")
 	}
 
 	minLvl, maxLvl := battleground.LevelsDiapasonForBracket(uint8(bracketID))
@@ -334,8 +433,8 @@ func (s *battleGroundService) AddGroupToQueue(
 		RealmID:                        realmID,
 		PlayersGUID:                    playersLowGuids,
 		QueueSlotByPlayer:              slotsWithLowGUIDs,
-		ArenaType:                      0,
-		IsRated:                        false,
+		ArenaType:                      arenaType,
+		IsRated:                        isRated,
 		PVPQueueMinLVL:                 minLvl,
 		PVPQueueMaxLVL:                 maxLvl,
 		TypeID:                         uint8(typeID),
@@ -524,16 +623,22 @@ func (s *battleGroundService) CreateBattleground(
 	}
 
 	minLvl, _ := battleground.LevelsDiapasonForBracket(uint8(bracketID))
+	arenaType, isRated := queuePVPOptions(allianceGroups, hordeGroups)
+	arenaStart := arenaStartOptionsForGroups(allianceGroups, hordeGroups, isCrossRealm)
 
 	startBGResponse, err := gameServerGRPCClient.StartBattleground(ctx, &pb.StartBattlegroundRequest{
-		Api:                  matchmaking.SupportedGameServerVer,
-		BattlegroundTypeID:   pb.BattlegroundType(template.TypeID),
-		ArenaType:            0,     // TODO: implement later
-		IsRated:              false, // TODO: implement later
-		MapID:                template.MapID,
-		BracketLvl:           uint32(minLvl),
-		PlayersToAddAlliance: alliancePlayers,
-		PlayersToAddHorde:    hordePlayers,
+		Api:                           matchmaking.SupportedGameServerVer,
+		BattlegroundTypeID:            pb.BattlegroundType(template.TypeID),
+		ArenaType:                     uint32(arenaType),
+		IsRated:                       isRated,
+		MapID:                         template.MapID,
+		BracketLvl:                    uint32(minLvl),
+		PlayersToAddAlliance:          alliancePlayers,
+		PlayersToAddHorde:             hordePlayers,
+		AllianceArenaTeamID:           arenaStart.allianceTeamID,
+		HordeArenaTeamID:              arenaStart.hordeTeamID,
+		AllianceArenaMatchmakerRating: arenaStart.allianceMMR,
+		HordeArenaMatchmakerRating:    arenaStart.hordeMMR,
 	})
 	if err != nil {
 		return fmt.Errorf("start battleground failed: %w", err)
@@ -556,24 +661,36 @@ func (s *battleGroundService) CreateBattleground(
 	bgHordeGroups := make([]battleground.QueuedGroup, len(hordeGroups))
 	for i, group := range hordeGroups {
 		bgHordeGroups[i] = battleground.QueuedGroup{
-			LeaderGUID:     group.LeaderGUID,
-			Members:        group.Members,
-			SlotsPerMember: group.SlotsPerMember,
-			RealmID:        group.RealmID,
-			TeamID:         group.TeamID,
-			EnqueuedTime:   group.EnqueuedTime,
+			LeaderGUID:                   group.LeaderGUID,
+			Members:                      group.Members,
+			SlotsPerMember:               group.SlotsPerMember,
+			RealmID:                      group.RealmID,
+			TeamID:                       group.TeamID,
+			ArenaType:                    group.ArenaType,
+			IsRated:                      group.IsRated,
+			ArenaTeamID:                  group.ArenaTeamID,
+			ArenaTeamRating:              group.ArenaTeamRating,
+			ArenaMatchmakerRating:        group.ArenaMatchmakerRating,
+			ArenaPreviousOpponentsTeamID: group.ArenaPreviousOpponentsTeamID,
+			EnqueuedTime:                 group.EnqueuedTime,
 		}
 	}
 
 	bgAllianceGroups := make([]battleground.QueuedGroup, len(allianceGroups))
 	for i, group := range allianceGroups {
 		bgAllianceGroups[i] = battleground.QueuedGroup{
-			LeaderGUID:     group.LeaderGUID,
-			Members:        group.Members,
-			SlotsPerMember: group.SlotsPerMember,
-			RealmID:        group.RealmID,
-			TeamID:         group.TeamID,
-			EnqueuedTime:   group.EnqueuedTime,
+			LeaderGUID:                   group.LeaderGUID,
+			Members:                      group.Members,
+			SlotsPerMember:               group.SlotsPerMember,
+			RealmID:                      group.RealmID,
+			TeamID:                       group.TeamID,
+			ArenaType:                    group.ArenaType,
+			IsRated:                      group.IsRated,
+			ArenaTeamID:                  group.ArenaTeamID,
+			ArenaTeamRating:              group.ArenaTeamRating,
+			ArenaMatchmakerRating:        group.ArenaMatchmakerRating,
+			ArenaPreviousOpponentsTeamID: group.ArenaPreviousOpponentsTeamID,
+			EnqueuedTime:                 group.EnqueuedTime,
 		}
 	}
 
@@ -607,11 +724,21 @@ func (s *battleGroundService) CreateBattleground(
 		s.removeQueueForGroupMembers(queue, &group)
 		s.addBattlegroundForGroupMembers(bg, &group)
 	}
+	s.recordRatedArenaOpponents(allianceGroups, hordeGroups)
 
 	log.Debug().
 		Interface("RealmKey", realmOrBGGroupQueueKey).
 		Uint8("QType", uint8(queueType)).
 		Uint8("Bracket", bg.BracketID).
+		Uint8("ArenaType", arenaType).
+		Bool("IsRated", isRated).
+		Uint32("InstanceID", bg.InstanceID).
+		Uint32("MapID", bg.MapID).
+		Uint32("BattlegroupID", bg.BattleGroupID).
+		Uint32("AllianceArenaTeamID", arenaStart.allianceTeamID).
+		Uint32("HordeArenaTeamID", arenaStart.hordeTeamID).
+		Uint32("AllianceArenaMMR", arenaStart.allianceMMR).
+		Uint32("HordeArenaMMR", arenaStart.hordeMMR).
 		Interface("AlliancePlayers", alliancePlayers).
 		Interface("HordePlayers", hordePlayers).
 		Msg("Created New Battleground")
@@ -630,6 +757,10 @@ func (s *battleGroundService) PlayerLeftBattleground(ctx context.Context, player
 	if isCrossrealm {
 		realmKey.RealmID = 0
 	}
+	linkKey := BattlegroundKey{
+		RealmID:    realmKey.RealmID,
+		InstanceID: instanceID,
+	}
 
 	err := s.battlegroundsRepo.UpdateBattleground(ctx, instanceID, realmKey, func(b *battleground.Battleground) error {
 		b.RemovePlayer(playerGUID, realmID)
@@ -637,17 +768,21 @@ func (s *battleGroundService) PlayerLeftBattleground(ctx context.Context, player
 	})
 	if err != nil {
 		if errors.Is(err, repo.ErrNotFound) {
+			s.removeBattlegroundLinkForPlayer(linkKey, playerGUID, realmID)
 			return nil
 		}
 
 		return err
 	}
 
-	s.removeBattlegroundLinkForPlayer(BattlegroundKey{
-		RealmID:       realmKey.RealmID,
-		InstanceID:    instanceID,
-		BattlegroupID: 0,
-	}, playerGUID, realmID)
+	s.removeBattlegroundLinkForPlayer(linkKey, playerGUID, realmID)
+
+	log.Debug().
+		Uint64("playerGUID", playerGUID).
+		Uint32("realmID", realmID).
+		Uint32("instanceID", instanceID).
+		Bool("isCrossrealm", isCrossrealm).
+		Msg("TC9 PVP player left battleground")
 
 	return nil
 }
@@ -674,6 +809,13 @@ func (s *battleGroundService) PlayerJoinedBattleground(ctx context.Context, play
 		return err
 	}
 
+	log.Debug().
+		Uint64("playerGUID", playerGUID).
+		Uint32("realmID", realmID).
+		Uint32("instanceID", instanceID).
+		Bool("isCrossrealm", isCrossrealm).
+		Msg("TC9 PVP player joined battleground")
+
 	return nil
 }
 
@@ -681,12 +823,18 @@ func (s *battleGroundService) InviteGroups(ctx context.Context, groups []QueuedG
 	bgGroups := make([]battleground.QueuedGroup, len(groups))
 	for i, group := range groups {
 		bgGroups[i] = battleground.QueuedGroup{
-			LeaderGUID:     group.LeaderGUID,
-			Members:        group.Members,
-			SlotsPerMember: group.SlotsPerMember,
-			RealmID:        group.RealmID,
-			TeamID:         group.TeamID,
-			EnqueuedTime:   group.EnqueuedTime,
+			LeaderGUID:                   group.LeaderGUID,
+			Members:                      group.Members,
+			SlotsPerMember:               group.SlotsPerMember,
+			RealmID:                      group.RealmID,
+			TeamID:                       group.TeamID,
+			ArenaType:                    group.ArenaType,
+			IsRated:                      group.IsRated,
+			ArenaTeamID:                  group.ArenaTeamID,
+			ArenaTeamRating:              group.ArenaTeamRating,
+			ArenaMatchmakerRating:        group.ArenaMatchmakerRating,
+			ArenaPreviousOpponentsTeamID: group.ArenaPreviousOpponentsTeamID,
+			EnqueuedTime:                 group.EnqueuedTime,
 		}
 	}
 
@@ -748,6 +896,13 @@ func (s *battleGroundService) BattlegroundStatusChanged(ctx context.Context, sta
 
 		return err
 	}
+
+	log.Debug().
+		Uint8("status", uint8(status)).
+		Uint32("realmID", realmID).
+		Uint32("instanceID", instanceID).
+		Bool("isCrossrealm", isCrossrealm).
+		Msg("TC9 PVP battleground status changed")
 
 	return nil
 }
@@ -986,12 +1141,88 @@ func (s *battleGroundService) GetQueueOrBattlegroundLinkForPlayer(k QueuesByReal
 	return s.playersQueueOrBattleground[k]
 }
 
+func queuePVPOptions(allianceGroups, hordeGroups []QueuedGroup) (uint8, bool) {
+	for _, group := range allianceGroups {
+		return group.ArenaType, group.IsRated
+	}
+	for _, group := range hordeGroups {
+		return group.ArenaType, group.IsRated
+	}
+	return 0, false
+}
+
+type arenaStartOptions struct {
+	allianceTeamID uint32
+	hordeTeamID    uint32
+	allianceMMR    uint32
+	hordeMMR       uint32
+}
+
+func arenaStartOptionsForGroups(allianceGroups, hordeGroups []QueuedGroup, isCrossRealm bool) arenaStartOptions {
+	var opts arenaStartOptions
+	for _, group := range allianceGroups {
+		if group.IsRated {
+			opts.allianceTeamID = arenaTeamIDForStart(group, isCrossRealm)
+			opts.allianceMMR = group.ArenaMatchmakerRating
+			break
+		}
+	}
+	for _, group := range hordeGroups {
+		if group.IsRated {
+			opts.hordeTeamID = arenaTeamIDForStart(group, isCrossRealm)
+			opts.hordeMMR = group.ArenaMatchmakerRating
+			break
+		}
+	}
+	return opts
+}
+
+func arenaTeamIDForStart(group QueuedGroup, isCrossRealm bool) uint32 {
+	if !isCrossRealm {
+		return group.ArenaTeamID
+	}
+	return wowarena.NewCrossrealmTeamID(uint16(group.RealmID), group.ArenaTeamID)
+}
+
+func (s *battleGroundService) previousRatedArenaOpponentID(realmID, teamID uint32) uint32 {
+	if teamID == 0 {
+		return 0
+	}
+	key := wowarena.NewCrossrealmTeamID(uint16(realmID), teamID)
+	s.arenaPreviousOpponentsMutex.RLock()
+	defer s.arenaPreviousOpponentsMutex.RUnlock()
+	return s.arenaPreviousOpponents[key]
+}
+
+func (s *battleGroundService) recordRatedArenaOpponents(allianceGroups, hordeGroups []QueuedGroup) {
+	allianceTeamID := ratedArenaTeamIDForOpponentTracking(allianceGroups)
+	hordeTeamID := ratedArenaTeamIDForOpponentTracking(hordeGroups)
+	if allianceTeamID == 0 || hordeTeamID == 0 {
+		return
+	}
+
+	s.arenaPreviousOpponentsMutex.Lock()
+	defer s.arenaPreviousOpponentsMutex.Unlock()
+	s.arenaPreviousOpponents[allianceTeamID] = hordeTeamID
+	s.arenaPreviousOpponents[hordeTeamID] = allianceTeamID
+}
+
+func ratedArenaTeamIDForOpponentTracking(groups []QueuedGroup) uint32 {
+	for _, group := range groups {
+		if group.IsRated && group.ArenaTeamID != 0 {
+			return wowarena.NewCrossrealmTeamID(uint16(group.RealmID), group.ArenaTeamID)
+		}
+	}
+	return 0
+}
+
 func generateQueuesForAllBattlegroundTypes(service BattleGroundService, realmIDs []uint32, battlegroups []uint32) map[QueueByRealmOrBattlegroupKey]map[battleground.QueueTypeID]map[BracketID]PVPQueue {
 	res := map[QueueByRealmOrBattlegroupKey]map[battleground.QueueTypeID]map[BracketID]PVPQueue{}
 	types := []battleground.QueueTypeID{
 		battleground.QueueTypeIDAlteracValley,
 		battleground.QueueTypeIDWarsongGulch,
 		battleground.QueueTypeIDArathiBasin,
+		battleground.QueueTypeIDAllArenas,
 		battleground.QueueTypeIDEyeOfTheStorm,
 		battleground.QueueTypeIDIsleOfConquest,
 		battleground.QueueTypeIDStrandOfTheAncients,

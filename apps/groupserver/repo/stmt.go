@@ -13,6 +13,9 @@ const (
 	// StmtSelectGroupInviteByInvited selects group invite by invited GUID.
 	StmtSelectGroupInviteByInvited
 
+	// StmtDeleteGroupInviteByInvited deletes group invite by invited GUID.
+	StmtDeleteGroupInviteByInvited
+
 	// StmtInsertNewGroup inserts new group record.
 	StmtInsertNewGroup
 
@@ -33,6 +36,12 @@ const (
 
 	// StmtDeleteGroupMembersWithGroupID deletes group members with given guild ID.
 	StmtDeleteGroupMembersWithGroupID
+
+	// StmtReplaceLfgData creates or replaces native LFG data for a group.
+	StmtReplaceLfgData
+
+	// StmtDeleteLfgData deletes native LFG data for a group.
+	StmtDeleteLfgData
 )
 
 // ID returns identifier of prepared statement.
@@ -44,9 +53,11 @@ func (s CharsPreparedStatements) ID() uint32 {
 func (s CharsPreparedStatements) Stmt() string {
 	switch s {
 	case StmtReplaceGroupInvite:
-		return "REPLACE INTO group_invites (invited, inviter, groupId, invitedName, inviterName) VALUES (?, ?, ?, ?, ?)"
+		return "REPLACE INTO group_invites (invited, inviter, groupId, invitedName, inviterName, groupRealmId) VALUES (?, ?, ?, ?, ?, ?)"
 	case StmtSelectGroupInviteByInvited:
-		return "SELECT inviter, groupId, invitedName, inviterName FROM group_invites WHERE invited = ?"
+		return "SELECT inviter, groupId, invitedName, inviterName, groupRealmId FROM group_invites WHERE invited = ?"
+	case StmtDeleteGroupInviteByInvited:
+		return "DELETE FROM group_invites WHERE invited = ?"
 	case StmtInsertNewGroup:
 		return `INSERT INTO 
     				` + "`groups`" + `(leaderGuid, lootMethod, looterGuid, lootThreshold, icon1, icon2, icon3, icon4, icon5, icon6, icon7, icon8, groupType, difficulty, raidDifficulty, masterLooterGuid) 
@@ -60,11 +71,11 @@ func (s CharsPreparedStatements) Stmt() string {
                   groupType = ?, difficulty = ?, raidDifficulty = ?, masterLooterGuid = ? 
                 WHERE guid = ?`
 	case StmtInsertNewGroupMember:
-		return `INSERT INTO group_member(guid, memberGuid, memberFlags, subgroup, roles)
-				VALUES (?, ?, ?, ?, ?)`
+		return `INSERT INTO group_member(guid, memberGuid, memberName, memberFlags, subgroup, roles)
+				VALUES (?, ?, ?, ?, ?, ?)`
 	case StmtUpdateGroupMemberWithID:
 		return `UPDATE group_member 
-				SET guid = ?, memberFlags = ?, subgroup = ?, roles = ?
+				SET guid = ?, memberName = ?, memberFlags = ?, subgroup = ?, roles = ?
 				WHERE memberGuid = ?`
 	case StmtDeleteGroupMemberWithID:
 		return "DELETE FROM group_member WHERE memberGuid = ?"
@@ -72,6 +83,10 @@ func (s CharsPreparedStatements) Stmt() string {
 		return "DELETE FROM `groups` WHERE guid = ?"
 	case StmtDeleteGroupMembersWithGroupID:
 		return "DELETE FROM group_member WHERE guid = ?"
+	case StmtReplaceLfgData:
+		return "REPLACE INTO lfg_data (guid, dungeon, state) VALUES (?, ?, ?)"
+	case StmtDeleteLfgData:
+		return "DELETE FROM lfg_data WHERE guid = ?"
 	}
 	panic(fmt.Errorf("unk stmt %d", s))
 }

@@ -47,6 +47,12 @@ const (
 
 	// GuildEventNewMessage guild event when guild member sent some message
 	GuildEventNewMessage
+
+	// GuildEventPetitionOffered guild event when a guild charter is offered to a same-realm target.
+	GuildEventPetitionOffered
+
+	// GuildEventPetitionSigned guild event when a same-realm guild charter signature was processed.
+	GuildEventPetitionSigned
 )
 
 // SubjectName is key that nats uses
@@ -80,6 +86,10 @@ func (e GuildServiceEvent) SubjectName() string {
 		return "guild.info.updated"
 	case GuildEventNewMessage:
 		return "guild.message.new"
+	case GuildEventPetitionOffered:
+		return "guild.petition.offered"
+	case GuildEventPetitionSigned:
+		return "guild.petition.signed"
 	}
 	panic(fmt.Errorf("unk event %d", e))
 }
@@ -231,8 +241,9 @@ type GuildEventNewMessagePayload struct {
 
 	GuildID uint64
 
-	SenderGUID uint64
-	SenderName string
+	SenderGUID    uint64
+	SenderName    string
+	SenderChatTag uint8
 
 	Language uint32
 	Msg      string
@@ -240,4 +251,37 @@ type GuildEventNewMessagePayload struct {
 	ForOfficers bool
 
 	Receivers []uint64
+}
+
+type GuildPetitionSignature struct {
+	PlayerGUID    uint64
+	PlayerAccount uint32
+}
+
+type GuildEventPetitionOfferedPayload struct {
+	ServiceID string
+	RealmID   uint32
+
+	PetitionGUID uint64
+	PetitionID   uint32
+	OwnerGUID    uint64
+	TargetGUID   uint64
+	TargetName   string
+	GuildName    string
+
+	RequiredSigns uint32
+	Signatures    []GuildPetitionSignature
+}
+
+type GuildEventPetitionSignedPayload struct {
+	ServiceID string
+	RealmID   uint32
+
+	PetitionGUID uint64
+	OwnerGUID    uint64
+	SignerGUID   uint64
+	SignerName   string
+	NativeStatus uint32
+
+	RequiredSigns uint32
 }

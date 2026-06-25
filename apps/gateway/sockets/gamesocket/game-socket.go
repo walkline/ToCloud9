@@ -8,6 +8,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"net"
+	"time"
 
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
@@ -22,6 +23,18 @@ import (
 
 // useEncryption used to disable encryption during testing
 var useEncryption = true
+
+var authSessionKeyRefreshDelay = 100 * time.Millisecond
+var authSessionKeyRefreshAttempts = 30
+
+func ConfigureAuthSessionKeyRefresh(delay time.Duration, attempts int) {
+	if attempts > 0 {
+		authSessionKeyRefreshAttempts = attempts
+	}
+	if delay >= 0 {
+		authSessionKeyRefreshDelay = delay
+	}
+}
 
 // GameSocket socket between game client and gateway
 type GameSocket struct {
@@ -89,6 +102,7 @@ func (s *GameSocket) Handshake() error {
 func (s *GameSocket) ListenAndProcess(ctx context.Context) error {
 	newCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
+	defer close(s.readChan)
 
 	s.ctx = newCtx
 
@@ -199,17 +213,9 @@ func (s *GameSocket) AuthSession(p *packet.Packet) error {
 		return fmt.Errorf("can't process AuthSession, err: %w", reader.Error())
 	}
 
-	accountObj, err := s.accountRepo.AccountByUserName(context.TODO(), account)
+	accountObj, err := s.accountForAuthSession(context.TODO(), account, localChallenge, theirDigest)
 	if err != nil {
 		return err
-	}
-
-	if useEncryption {
-		t := []byte{0, 0, 0, 0}
-		ourDigest := sha1.Sum(slices.AppendBytes([]byte(account), t, localChallenge, s.authSeed, accountObj.SessionKeyAuth))
-		if !slices.SameBytes(ourDigest[:], theirDigest) {
-			return fmt.Errorf("authentication failed, account: %s (%d)", account, accountObj.ID)
-		}
 	}
 
 	s.accountID = accountObj.ID
@@ -248,6 +254,60 @@ func (s *GameSocket) AuthSession(p *packet.Packet) error {
 	go s.session.HandlePackets(s.ctx)
 
 	return nil
+}
+
+func (s *GameSocket) accountForAuthSession(ctx context.Context, account string, localChallenge []byte, theirDigest []byte) (*repo.Account, error) {
+	accountObj, err := s.accountRepo.AccountByUserName(ctx, account)
+	if err != nil {
+		return nil, err
+	}
+	if accountObj == nil {
+		return nil, fmt.Errorf("account %q not found", account)
+	}
+
+	if !useEncryption || authSessionDigestMatches(account, localChallenge, s.authSeed, accountObj.SessionKeyAuth, theirDigest) {
+		return accountObj, nil
+	}
+
+	var refreshedAccount *repo.Account
+	for attempt := 0; attempt < authSessionKeyRefreshAttempts; attempt++ {
+		if authSessionKeyRefreshDelay > 0 {
+			timer := time.NewTimer(authSessionKeyRefreshDelay)
+			select {
+			case <-timer.C:
+			case <-ctx.Done():
+				if !timer.Stop() {
+					select {
+					case <-timer.C:
+					default:
+					}
+				}
+				return nil, ctx.Err()
+			}
+		}
+
+		refreshedAccount, err = s.accountRepo.AccountByUserName(ctx, account)
+		if err != nil {
+			return nil, err
+		}
+		if refreshedAccount == nil {
+			return nil, fmt.Errorf("account %q not found", account)
+		}
+		if authSessionDigestMatches(account, localChallenge, s.authSeed, refreshedAccount.SessionKeyAuth, theirDigest) {
+			return refreshedAccount, nil
+		}
+	}
+
+	if refreshedAccount != nil {
+		return nil, fmt.Errorf("authentication failed, account: %s (%d)", account, refreshedAccount.ID)
+	}
+	return nil, fmt.Errorf("authentication failed, account: %s", account)
+}
+
+func authSessionDigestMatches(account string, localChallenge []byte, authSeed []byte, sessionKey []byte, theirDigest []byte) bool {
+	t := []byte{0, 0, 0, 0}
+	ourDigest := sha1.Sum(slices.AppendBytes([]byte(account), t, localChallenge, authSeed, sessionKey))
+	return slices.SameBytes(ourDigest[:], theirDigest)
 }
 
 func (s *GameSocket) Address() string {
@@ -359,6 +419,14 @@ func (s *GameSocket) processPacket(p *packet.Packet) error {
 	switch p.Opcode {
 	case packet.CMsgAuthSession:
 		if s.session == nil {
+			return s.AuthSession(p)
+		}
+		if s.session.CanRestartConnectionAuthSession() {
+			s.logger.Debug().
+				Uint32("account", s.accountID).
+				Msg("Restarting character-select gateway session from client auth session")
+			s.session.StopForConnectionAuthSession()
+			s.session = nil
 			return s.AuthSession(p)
 		}
 	default:

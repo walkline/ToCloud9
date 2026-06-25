@@ -142,6 +142,26 @@ func (g *guildNatsListener) Listen() error {
 		return err
 	}
 
+	err = g.newSubscribe(events.GuildEventPetitionOffered, func() (interface{}, func()) {
+		d := &events.GuildEventPetitionOfferedPayload{}
+		return d, func() {
+			g.broadcaster.NewGuildPetitionOfferedEvent(d)
+		}
+	})
+	if err != nil {
+		return err
+	}
+
+	err = g.newSubscribe(events.GuildEventPetitionSigned, func() (interface{}, func()) {
+		d := &events.GuildEventPetitionSignedPayload{}
+		return d, func() {
+			g.broadcaster.NewGuildPetitionSignedEvent(d)
+		}
+	})
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 

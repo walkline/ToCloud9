@@ -35,7 +35,7 @@ func (c *ServersRegistryListener) Listen() error {
 			return
 		}
 
-		userIDs, err := c.charRepo.RemoveAllWithGatewayID(context.TODO(), payload.RealmID, payload.ID)
+		userIDs, err := c.charRepo.RemoveAllWithGatewayID(context.TODO(), payload.RealmID, payload.ID, payload.EventTimeUnixNano)
 		if err != nil {
 			log.Error().Err(err).Msg("can't delete characters in ServerRegistryEventGWRemovedUnhealthy event")
 			return
@@ -43,9 +43,10 @@ func (c *ServersRegistryListener) Listen() error {
 
 		if len(userIDs) > 0 {
 			err = c.producer.CharsDisconnectedUnhealthyLB(&events.CharEventCharsDisconnectedUnhealthyGWPayload{
-				RealmID:        payload.RealmID,
-				GatewayID:      payload.ID,
-				CharactersGUID: userIDs,
+				RealmID:           payload.RealmID,
+				GatewayID:         payload.ID,
+				EventTimeUnixNano: payload.EventTimeUnixNano,
+				CharactersGUID:    userIDs,
 			})
 
 			if err != nil {
@@ -67,7 +68,7 @@ func (c *ServersRegistryListener) Listen() error {
 			return
 		}
 
-		_, err = c.charRepo.RemoveAllWithGatewayID(context.TODO(), payload.RealmID, payload.GatewayID)
+		_, err = c.charRepo.RemoveAllWithGatewayID(context.TODO(), payload.RealmID, payload.GatewayID, payload.EventTimeUnixNano)
 		if err != nil {
 			log.Error().Err(err).Msg("can't delete characters in CharEventCharsDisconnectedUnhealthyGW event")
 			return

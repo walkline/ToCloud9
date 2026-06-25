@@ -28,6 +28,9 @@ type GuildServiceProducer interface {
 	GuildInfoUpdated(payload *GuildEventGuildInfoUpdatedPayload) error
 
 	NewMessage(payload *GuildEventNewMessagePayload) error
+
+	PetitionOffered(payload *GuildEventPetitionOfferedPayload) error
+	PetitionSigned(payload *GuildEventPetitionSignedPayload) error
 }
 
 type guildServiceProducerNatsJSON struct {
@@ -96,6 +99,14 @@ func (s *guildServiceProducerNatsJSON) GuildInfoUpdated(payload *GuildEventGuild
 
 func (s *guildServiceProducerNatsJSON) NewMessage(payload *GuildEventNewMessagePayload) error {
 	return s.publish(GuildEventNewMessage, payload)
+}
+
+func (s *guildServiceProducerNatsJSON) PetitionOffered(payload *GuildEventPetitionOfferedPayload) error {
+	return s.publish(GuildEventPetitionOffered, payload)
+}
+
+func (s *guildServiceProducerNatsJSON) PetitionSigned(payload *GuildEventPetitionSignedPayload) error {
+	return s.publish(GuildEventPetitionSigned, payload)
 }
 
 func (s *guildServiceProducerNatsJSON) publish(e GuildServiceEvent, payload interface{}) error {

@@ -67,6 +67,76 @@ func (w *WorldServerGRPCAPI) GetPlayerItemsByGuids(ctx context.Context, request 
 	}, nil
 }
 
+func (w *WorldServerGRPCAPI) TakePlayerItemByPos(ctx context.Context, request *pb.TakePlayerItemByPosRequest) (*pb.TakePlayerItemByPosResponse, error) {
+	if request.PlayerGuid == 0 {
+		return &pb.TakePlayerItemByPosResponse{
+			Api:    LibVer,
+			Status: pb.TakePlayerItemByPosResponse_PlayerNotFound,
+		}, nil
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, w.timeout)
+	defer cancel()
+
+	type respType struct {
+		resp *TakePlayerItemByPosResponse
+		err  error
+	}
+	var resp respType
+
+	respChan := make(chan respType, 1)
+
+	w.writeQueue.Push(queue.HandlerFunc(func() {
+		takeResp, err := w.bindings.TakePlayerItemByPos(
+			request.PlayerGuid,
+			uint8(request.BagSlot),
+			uint8(request.Slot),
+			request.Count,
+			request.AssignToPlayerGuid,
+		)
+		respChan <- respType{
+			resp: takeResp,
+			err:  err,
+		}
+		close(respChan)
+	}))
+
+	select {
+	case <-ctx.Done():
+		return nil, ErrTimeout
+	case resp = <-respChan:
+	}
+
+	if resp.err != nil {
+		return nil, resp.err
+	}
+	if resp.resp == nil {
+		return &pb.TakePlayerItemByPosResponse{
+			Api:    LibVer,
+			Status: pb.TakePlayerItemByPosResponse_Failed,
+		}, nil
+	}
+
+	item := resp.resp.Item
+	return &pb.TakePlayerItemByPosResponse{
+		Api:    LibVer,
+		Status: takePlayerItemByPosStatusToPB(resp.resp.Status),
+		Item: &pb.TakePlayerItemByPosResponse_Item{
+			Guid:             item.Guid,
+			Entry:            item.Entry,
+			Owner:            item.Owner,
+			BagSlot:          uint32(item.BagSlot),
+			Slot:             uint32(item.Slot),
+			IsTradable:       item.IsTradable,
+			Count:            item.Count,
+			Flags:            item.Flags,
+			Durability:       item.Durability,
+			RandomPropertyID: item.RandomPropertyID,
+			Text:             item.Text,
+		},
+	}, nil
+}
+
 func (w *WorldServerGRPCAPI) RemoveItemsWithGuidsFromPlayer(ctx context.Context, request *pb.RemoveItemsWithGuidsFromPlayerRequest) (*pb.RemoveItemsWithGuidsFromPlayerResponse, error) {
 	if request.PlayerGuid == 0 || len(request.Guids) == 0 {
 		return &pb.RemoveItemsWithGuidsFromPlayerResponse{
@@ -129,10 +199,13 @@ func (w *WorldServerGRPCAPI) AddExistingItemToPlayer(ctx context.Context, reques
 			Guid:             request.Item.Guid,
 			Entry:            request.Item.Entry,
 			Count:            request.Item.Count,
-			Flags:            uint16(request.Item.Flags),
+			Flags:            uint32(request.Item.Flags),
 			Durability:       request.Item.Durability,
-			RandomPropertyID: request.Item.RandomPropertyID,
+			RandomPropertyID: int32(request.Item.RandomPropertyID),
 			Text:             request.Item.Text,
+			StoreAtPos:       request.StoreAtPos,
+			BagSlot:          uint8(request.BagSlot),
+			Slot:             uint8(request.Slot),
 		})
 		close(respChan)
 	}))
@@ -156,4 +229,19 @@ func (w *WorldServerGRPCAPI) AddExistingItemToPlayer(ctx context.Context, reques
 		Api:    LibVer,
 		Status: pb.AddExistingItemToPlayerResponse_Success,
 	}, nil
+}
+
+func takePlayerItemByPosStatusToPB(status PlayerItemTakeStatus) pb.TakePlayerItemByPosResponse_Status {
+	switch status {
+	case PlayerItemTakeSuccess:
+		return pb.TakePlayerItemByPosResponse_Success
+	case PlayerItemTakePlayerNotFound:
+		return pb.TakePlayerItemByPosResponse_PlayerNotFound
+	case PlayerItemTakeItemNotFound:
+		return pb.TakePlayerItemByPosResponse_ItemNotFound
+	case PlayerItemTakeItemNotTradable:
+		return pb.TakePlayerItemByPosResponse_ItemNotTradable
+	default:
+		return pb.TakePlayerItemByPosResponse_Failed
+	}
 }

@@ -66,7 +66,7 @@ build-auctionhouse:
 	go build -o $(INSTALL_PATH)/auctionhouse apps/auctionhouse/cmd/auctionhouse/main.go
 
 build-perun:
-	cd apps/perun && go build -o ../../$(INSTALL_PATH)/perun cmd/perun/main.go && cd ../..
+	cd apps/perun && go build -o $(abspath $(INSTALL_PATH))/perun cmd/perun/main.go && cd ../..
 
 build-mysqlreverseproxy:
 	go build -o $(INSTALL_PATH)/mysqlreverseproxy apps/mysqlreverseproxy/cmd/mysqlreverseproxy/main.go

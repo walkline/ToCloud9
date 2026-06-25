@@ -63,7 +63,7 @@ func (p *PacketsReader) Next() bool {
 					p.err = fmt.Errorf("packet size too large: %d", pack.Size)
 					return false
 				}
-				
+
 				if p.opcodeSize == 2 {
 					pack.Opcode = packet.Opcode(binary.LittleEndian.Uint16(p.headerBuffer[2:]))
 				} else {

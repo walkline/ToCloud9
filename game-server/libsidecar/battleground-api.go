@@ -11,6 +11,24 @@ import (
 	"github.com/walkline/ToCloud9/game-server/libsidecar/grpcapi"
 )
 
+func tc9BattlegroundGUIDArray(values []uint64) (*C.uint64_t, error) {
+	if len(values) == 0 {
+		return nil, nil
+	}
+
+	ptr := (*C.uint64_t)(C.malloc(C.size_t(len(values)) * C.size_t(unsafe.Sizeof(C.uint64_t(0)))))
+	if ptr == nil {
+		return nil, grpcapi.BattlegroundError(C.BattlegroundErrorCodeNoHandler)
+	}
+
+	slice := unsafe.Slice(ptr, len(values))
+	for i, guid := range values {
+		slice[i] = C.uint64_t(guid)
+	}
+
+	return ptr, nil
+}
+
 // TC9SetBattlegroundStartHandler sets handler for starting battleground.
 //
 //export TC9SetBattlegroundStartHandler
@@ -26,37 +44,26 @@ func BattlegroundStartHandler(request grpcapi.BattlegroundStartRequest) (*grpcap
 	crequest.isRated = C.bool(request.IsRated)
 	crequest.mapID = C.uint32_t(request.MapID)
 	crequest.bracketLvl = C.uint8_t(request.BracketLvl)
+	crequest.allianceArenaTeamID = C.uint32_t(request.AllianceArenaTeamID)
+	crequest.hordeArenaTeamID = C.uint32_t(request.HordeArenaTeamID)
+	crequest.allianceArenaMatchmakerRating = C.uint32_t(request.AllianceArenaMatchmakerRating)
+	crequest.hordeArenaMatchmakerRating = C.uint32_t(request.HordeArenaMatchmakerRating)
 	crequest.alliancePlayersToAddSize = C.int(len(request.AlliancePlayerGUIDsToAdd))
 	crequest.hordePlayersToAddSize = C.int(len(request.HordePlayerGUIDsToAdd))
 	// TODO: add later
 	crequest.randomBGPlayersSize = 0
 
-	if len(request.AlliancePlayerGUIDsToAdd) > 0 {
-		crequest.alliancePlayersToAdd = (*C.uint64_t)(C.malloc(C.size_t(len(request.AlliancePlayerGUIDsToAdd)) * C.size_t(unsafe.Sizeof(C.uint64_t(0)))))
-		if crequest.alliancePlayersToAdd == nil {
-			return nil, grpcapi.BattlegroundError(C.BattlegroundErrorCodeNoHandler) // or an appropriate error
-		}
-
-		for i, guid := range request.AlliancePlayerGUIDsToAdd {
-			cguid := (*C.uint64_t)(unsafe.Pointer(uintptr(unsafe.Pointer(crequest.alliancePlayersToAdd)) + uintptr(i)*unsafe.Sizeof(*crequest.alliancePlayersToAdd)))
-			*cguid = C.uint64_t(guid)
-		}
-	} else {
-		crequest.alliancePlayersToAdd = nil
+	var err error
+	crequest.alliancePlayersToAdd, err = tc9BattlegroundGUIDArray(request.AlliancePlayerGUIDsToAdd)
+	if err != nil {
+		return nil, err
 	}
-
-	if len(request.HordePlayerGUIDsToAdd) > 0 {
-		crequest.hordePlayersToAdd = (*C.uint64_t)(C.malloc(C.size_t(len(request.HordePlayerGUIDsToAdd)) * C.size_t(unsafe.Sizeof(C.uint64_t(0)))))
-		if crequest.hordePlayersToAdd == nil {
-			return nil, grpcapi.BattlegroundError(C.BattlegroundErrorCodeNoHandler) // or an appropriate error
+	crequest.hordePlayersToAdd, err = tc9BattlegroundGUIDArray(request.HordePlayerGUIDsToAdd)
+	if err != nil {
+		if crequest.alliancePlayersToAdd != nil {
+			C.free(unsafe.Pointer(crequest.alliancePlayersToAdd))
 		}
-
-		for i, guid := range request.HordePlayerGUIDsToAdd {
-			cguid := (*C.uint64_t)(unsafe.Pointer(uintptr(unsafe.Pointer(crequest.hordePlayersToAdd)) + uintptr(i)*unsafe.Sizeof(*crequest.alliancePlayersToAdd)))
-			*cguid = C.uint64_t(guid)
-		}
-	} else {
-		crequest.hordePlayersToAdd = nil
+		return nil, err
 	}
 
 	res := C.CallBattlegroundStartHandler((*C.BattlegroundStartRequest)(unsafe.Pointer(&crequest)))
@@ -96,32 +103,17 @@ func BattlegroundAddPlayersHandler(request grpcapi.BattlegroundAddPlayersRequest
 	// TODO: add later
 	crequest.randomBGPlayersSize = 0
 
-	if len(request.AlliancePlayerGUIDsToAdd) > 0 {
-		crequest.alliancePlayersToAdd = (*C.uint64_t)(C.malloc(C.size_t(len(request.AlliancePlayerGUIDsToAdd)) * C.size_t(unsafe.Sizeof(C.uint64_t(0)))))
-		if crequest.alliancePlayersToAdd == nil {
-			return grpcapi.BattlegroundError(C.BattlegroundErrorCodeNoHandler) // or an appropriate error
-		}
-
-		for i, guid := range request.AlliancePlayerGUIDsToAdd {
-			cguid := (*C.uint64_t)(unsafe.Pointer(uintptr(unsafe.Pointer(crequest.alliancePlayersToAdd)) + uintptr(i)*unsafe.Sizeof(*crequest.alliancePlayersToAdd)))
-			*cguid = C.uint64_t(guid)
-		}
-	} else {
-		crequest.alliancePlayersToAdd = nil
+	var err error
+	crequest.alliancePlayersToAdd, err = tc9BattlegroundGUIDArray(request.AlliancePlayerGUIDsToAdd)
+	if err != nil {
+		return err
 	}
-
-	if len(request.HordePlayerGUIDsToAdd) > 0 {
-		crequest.hordePlayersToAdd = (*C.uint64_t)(C.malloc(C.size_t(len(request.HordePlayerGUIDsToAdd)) * C.size_t(unsafe.Sizeof(C.uint64_t(0)))))
-		if crequest.hordePlayersToAdd == nil {
-			return grpcapi.BattlegroundError(C.BattlegroundErrorCodeNoHandler) // or an appropriate error
+	crequest.hordePlayersToAdd, err = tc9BattlegroundGUIDArray(request.HordePlayerGUIDsToAdd)
+	if err != nil {
+		if crequest.alliancePlayersToAdd != nil {
+			C.free(unsafe.Pointer(crequest.alliancePlayersToAdd))
 		}
-
-		for i, guid := range request.HordePlayerGUIDsToAdd {
-			cguid := (*C.uint64_t)(unsafe.Pointer(uintptr(unsafe.Pointer(crequest.hordePlayersToAdd)) + uintptr(i)*unsafe.Sizeof(*crequest.alliancePlayersToAdd)))
-			*cguid = C.uint64_t(guid)
-		}
-	} else {
-		crequest.hordePlayersToAdd = nil
+		return err
 	}
 
 	res := C.CallBattlegroundAddPlayersHandler((*C.BattlegroundAddPlayersRequest)(unsafe.Pointer(&crequest)))

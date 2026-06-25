@@ -11,7 +11,10 @@ type Character struct {
 	RealmID uint32
 	GUID    uint64
 	Race    uint8
+	Class   uint8
+	Gender  uint8
 	Name    string
+	ChatTag uint8
 }
 
 type MsgSender interface {
@@ -37,13 +40,18 @@ func NewMsgSenderNatsJSON(conn *nats.Conn, gatewayID string) MsgSender {
 
 func (m msgSenderNatsJSON) SendWhisper(sender *Character, receiver *Character, language uint32, msg string) error {
 	return m.producer.IncomingWhisper(&events.ChatEventIncomingWhisperPayload{
-		SenderGUID:   sender.GUID,
-		SenderName:   sender.Name,
-		SenderRace:   sender.Race,
-		ReceiverGUID: receiver.GUID,
-		ReceiverName: receiver.Name,
-		Language:     language,
-		Msg:          msg,
+		SenderRealmID:   sender.RealmID,
+		SenderGUID:      sender.GUID,
+		SenderName:      sender.Name,
+		SenderRace:      sender.Race,
+		SenderClass:     sender.Class,
+		SenderGender:    sender.Gender,
+		SenderChatTag:   sender.ChatTag,
+		ReceiverRealmID: receiver.RealmID,
+		ReceiverGUID:    receiver.GUID,
+		ReceiverName:    receiver.Name,
+		Language:        language,
+		Msg:             msg,
 	})
 }
 

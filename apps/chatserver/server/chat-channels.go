@@ -14,8 +14,13 @@ import (
 )
 
 func (s *ChatService) JoinChannel(ctx context.Context, req *pb.JoinChannelRequest) (*pb.JoinChannelResponse, error) {
+	channelFlags := uint8(req.ChannelFlags)
+	if req.ChannelID == 0 && channelFlags == 0 {
+		channelFlags = service.ChannelFlagCustom
+	}
+
 	// Get or create the channel with worldserver's flags if provided
-	channel, err := s.channelMgr.GetOrCreateChannel(ctx, req.RealmID, req.ChannelName, req.ChannelID, req.TeamID, req.Password, uint8(req.ChannelFlags))
+	channel, err := s.channelMgr.GetOrCreateChannel(ctx, req.RealmID, req.ChannelName, req.ChannelID, req.TeamID, req.Password, channelFlags)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get/create channel: %w", err)
 	}
@@ -62,7 +67,7 @@ func (s *ChatService) LeaveChannel(ctx context.Context, req *pb.LeaveChannelRequ
 		Str("channelName", req.ChannelName).
 		Msg("LeaveChannel request")
 
-	playerName, isCustom, newOwnerGUID, err := s.channelMgr.LeaveChannelByGUID(ctx, req.RealmID, req.ChannelName, req.TeamID, req.PlayerGUID)
+	playerName, isCustom, newOwnerGUID, oldFlags, newFlags, err := s.channelMgr.LeaveChannelByGUID(ctx, req.RealmID, req.ChannelName, req.TeamID, req.PlayerGUID)
 	if err != nil {
 		if errors.Is(err, service.ErrNotMember) || errors.Is(err, service.ErrChannelNotFound) {
 			return &pb.LeaveChannelResponse{
@@ -77,13 +82,13 @@ func (s *ChatService) LeaveChannel(ctx context.Context, req *pb.LeaveChannelRequ
 	if isCustom {
 		channel := s.channelMgr.GetChannel(req.RealmID, req.ChannelName, req.TeamID)
 		if channel != nil {
-			if err := s.broadcastChannelLeft(req.RealmID, channel, req.PlayerGUID, playerName); err != nil {
+			if err := s.broadcastChannelLeft(req.RealmID, channel, req.PlayerGUID, playerName, false); err != nil {
 				log.Error().Err(err).Msg("Failed to broadcast channel leave")
 			}
 
 			// If ownership was transferred, broadcast the ownership change
 			if newOwnerGUID != 0 {
-				if err := s.broadcastModeChange(req.RealmID, channel, newOwnerGUID); err != nil {
+				if err := s.broadcastModeChange(req.RealmID, channel, newOwnerGUID, oldFlags, newFlags); err != nil {
 					log.Error().Err(err).Msg("Failed to broadcast owner mode change after leave")
 				}
 				if err := s.broadcastOwnerChanged(req.RealmID, channel, newOwnerGUID); err != nil {
@@ -118,7 +123,7 @@ func (s *ChatService) SendChannelMessage(ctx context.Context, req *pb.SendChanne
 	}
 
 	// Broadcast the message
-	if err := s.broadcastChannelMessage(req.RealmID, channel, req.SenderGUID, req.SenderName, req.Language, req.Message); err != nil {
+	if err := s.broadcastChannelMessage(req.RealmID, channel, req.SenderGUID, req.SenderName, req.Language, req.Message, uint8(req.SenderChatTag)); err != nil {
 		log.Error().Err(err).Msg("Failed to broadcast channel message")
 		return nil, err
 	}
@@ -170,7 +175,7 @@ func (s *ChatService) GetChannelList(ctx context.Context, req *pb.GetChannelList
 }
 
 func (s *ChatService) KickFromChannel(ctx context.Context, req *pb.KickFromChannelRequest) (*pb.KickFromChannelResponse, error) {
-	channel, targetGUID, err := s.channelMgr.KickPlayer(ctx, req.RealmID, req.ChannelName, req.TeamID, req.KickerGUID, req.TargetName)
+	channel, targetGUID, newOwnerGUID, oldFlags, newFlags, err := s.channelMgr.KickPlayer(ctx, req.RealmID, req.ChannelName, req.TeamID, req.KickerGUID, req.TargetName)
 	if err != nil {
 		if errors.Is(err, service.ErrNotMember) || errors.Is(err, service.ErrChannelNotFound) {
 			return &pb.KickFromChannelResponse{
@@ -193,9 +198,21 @@ func (s *ChatService) KickFromChannel(ctx context.Context, req *pb.KickFromChann
 		return nil, err
 	}
 
-	// Broadcast kick notification
-	if err := s.broadcastChannelLeft(req.RealmID, channel, targetGUID, req.TargetName); err != nil {
-		log.Error().Err(err).Msg("Failed to broadcast channel kick")
+	if err := s.broadcastPlayerKicked(req.RealmID, channel, targetGUID, req.KickerGUID); err != nil {
+		log.Error().Err(err).Msg("Failed to broadcast channel kick notification")
+	}
+
+	if err := s.broadcastChannelLeft(req.RealmID, channel, targetGUID, req.TargetName, true); err != nil {
+		log.Error().Err(err).Msg("Failed to broadcast silent channel kick")
+	}
+
+	if newOwnerGUID != 0 {
+		if err := s.broadcastModeChange(req.RealmID, channel, newOwnerGUID, oldFlags, newFlags); err != nil {
+			log.Error().Err(err).Msg("Failed to broadcast owner mode change after kick")
+		}
+		if err := s.broadcastOwnerChanged(req.RealmID, channel, newOwnerGUID); err != nil {
+			log.Error().Err(err).Msg("Failed to broadcast owner changed after kick")
+		}
 	}
 
 	return &pb.KickFromChannelResponse{
@@ -205,7 +222,7 @@ func (s *ChatService) KickFromChannel(ctx context.Context, req *pb.KickFromChann
 }
 
 func (s *ChatService) BanFromChannel(ctx context.Context, req *pb.BanFromChannelRequest) (*pb.BanFromChannelResponse, error) {
-	_, _, err := s.channelMgr.BanPlayerByName(ctx, req.RealmID, req.ChannelName, req.TeamID, req.BannerGUID, req.TargetName)
+	channel, targetGUID, newOwnerGUID, oldFlags, newFlags, err := s.channelMgr.BanPlayerByName(ctx, req.RealmID, req.ChannelName, req.TeamID, req.BannerGUID, req.TargetName)
 	if err != nil {
 		if errors.Is(err, service.ErrNotMember) || errors.Is(err, service.ErrChannelNotFound) {
 			return &pb.BanFromChannelResponse{
@@ -229,6 +246,23 @@ func (s *ChatService) BanFromChannel(ctx context.Context, req *pb.BanFromChannel
 		return nil, err
 	}
 
+	if err := s.broadcastPlayerBanned(req.RealmID, channel, targetGUID, req.BannerGUID); err != nil {
+		log.Error().Err(err).Msg("Failed to broadcast channel ban notification")
+	}
+
+	if err := s.broadcastChannelLeft(req.RealmID, channel, targetGUID, req.TargetName, true); err != nil {
+		log.Error().Err(err).Msg("Failed to broadcast silent channel ban")
+	}
+
+	if newOwnerGUID != 0 {
+		if err := s.broadcastModeChange(req.RealmID, channel, newOwnerGUID, oldFlags, newFlags); err != nil {
+			log.Error().Err(err).Msg("Failed to broadcast owner mode change after ban")
+		}
+		if err := s.broadcastOwnerChanged(req.RealmID, channel, newOwnerGUID); err != nil {
+			log.Error().Err(err).Msg("Failed to broadcast owner changed after ban")
+		}
+	}
+
 	return &pb.BanFromChannelResponse{
 		Api:    chatserver.Ver,
 		Status: pb.BanFromChannelResponse_Ok,
@@ -236,7 +270,7 @@ func (s *ChatService) BanFromChannel(ctx context.Context, req *pb.BanFromChannel
 }
 
 func (s *ChatService) UnbanFromChannel(ctx context.Context, req *pb.UnbanFromChannelRequest) (*pb.UnbanFromChannelResponse, error) {
-	_, err := s.channelMgr.UnbanPlayerByName(ctx, req.RealmID, req.ChannelName, req.TeamID, req.UnbannerGUID, req.TargetName)
+	targetGUID, err := s.channelMgr.UnbanPlayerByName(ctx, req.RealmID, req.ChannelName, req.TeamID, req.UnbannerGUID, req.TargetName)
 	if err != nil {
 		if errors.Is(err, service.ErrChannelNotFound) {
 			return &pb.UnbanFromChannelResponse{
@@ -260,6 +294,13 @@ func (s *ChatService) UnbanFromChannel(ctx context.Context, req *pb.UnbanFromCha
 		return nil, err
 	}
 
+	channel := s.channelMgr.GetChannel(req.RealmID, req.ChannelName, req.TeamID)
+	if channel != nil {
+		if err := s.broadcastPlayerUnbanned(req.RealmID, channel, targetGUID, req.UnbannerGUID); err != nil {
+			log.Error().Err(err).Msg("Failed to broadcast channel unban notification")
+		}
+	}
+
 	return &pb.UnbanFromChannelResponse{
 		Api:    chatserver.Ver,
 		Status: pb.UnbanFromChannelResponse_Ok,
@@ -267,7 +308,7 @@ func (s *ChatService) UnbanFromChannel(ctx context.Context, req *pb.UnbanFromCha
 }
 
 func (s *ChatService) SetChannelModerator(ctx context.Context, req *pb.SetChannelModeratorRequest) (*pb.SetChannelModeratorResponse, error) {
-	targetGUID, err := s.channelMgr.SetModeratorByName(ctx, req.RealmID, req.ChannelName, req.TeamID, req.SetterGUID, req.TargetName, true)
+	targetGUID, oldFlags, newFlags, err := s.channelMgr.SetModeratorByName(ctx, req.RealmID, req.ChannelName, req.TeamID, req.SetterGUID, req.TargetName, true)
 	if err != nil {
 		if errors.Is(err, service.ErrNotMember) || errors.Is(err, service.ErrChannelNotFound) {
 			return &pb.SetChannelModeratorResponse{
@@ -293,7 +334,7 @@ func (s *ChatService) SetChannelModerator(ctx context.Context, req *pb.SetChanne
 	// Broadcast mode change notification to all channel members
 	channel := s.channelMgr.GetChannel(req.RealmID, req.ChannelName, req.TeamID)
 	if channel != nil {
-		if err := s.broadcastModeChange(req.RealmID, channel, targetGUID); err != nil {
+		if err := s.broadcastModeChange(req.RealmID, channel, targetGUID, oldFlags, newFlags); err != nil {
 			log.Error().Err(err).Msg("Failed to broadcast moderator change")
 		}
 	}
@@ -305,7 +346,7 @@ func (s *ChatService) SetChannelModerator(ctx context.Context, req *pb.SetChanne
 }
 
 func (s *ChatService) UnsetChannelModerator(ctx context.Context, req *pb.UnsetChannelModeratorRequest) (*pb.UnsetChannelModeratorResponse, error) {
-	targetGUID, err := s.channelMgr.SetModeratorByName(ctx, req.RealmID, req.ChannelName, req.TeamID, req.SetterGUID, req.TargetName, false)
+	targetGUID, oldFlags, newFlags, err := s.channelMgr.SetModeratorByName(ctx, req.RealmID, req.ChannelName, req.TeamID, req.SetterGUID, req.TargetName, false)
 	if err != nil {
 		if errors.Is(err, service.ErrNotMember) || errors.Is(err, service.ErrChannelNotFound) {
 			return &pb.UnsetChannelModeratorResponse{
@@ -331,7 +372,7 @@ func (s *ChatService) UnsetChannelModerator(ctx context.Context, req *pb.UnsetCh
 	// Broadcast mode change notification to all channel members
 	channel := s.channelMgr.GetChannel(req.RealmID, req.ChannelName, req.TeamID)
 	if channel != nil {
-		if err := s.broadcastModeChange(req.RealmID, channel, targetGUID); err != nil {
+		if err := s.broadcastModeChange(req.RealmID, channel, targetGUID, oldFlags, newFlags); err != nil {
 			log.Error().Err(err).Msg("Failed to broadcast moderator change")
 		}
 	}
@@ -343,7 +384,7 @@ func (s *ChatService) UnsetChannelModerator(ctx context.Context, req *pb.UnsetCh
 }
 
 func (s *ChatService) SetChannelMute(ctx context.Context, req *pb.SetChannelMuteRequest) (*pb.SetChannelMuteResponse, error) {
-	targetGUID, err := s.channelMgr.SetMuteByName(ctx, req.RealmID, req.ChannelName, req.TeamID, req.MuterGUID, req.TargetName, true)
+	targetGUID, oldFlags, newFlags, err := s.channelMgr.SetMuteByName(ctx, req.RealmID, req.ChannelName, req.TeamID, req.MuterGUID, req.TargetName, true)
 	if err != nil {
 		if errors.Is(err, service.ErrNotMember) || errors.Is(err, service.ErrChannelNotFound) {
 			return &pb.SetChannelMuteResponse{
@@ -369,7 +410,7 @@ func (s *ChatService) SetChannelMute(ctx context.Context, req *pb.SetChannelMute
 	// Broadcast mode change notification to all channel members
 	channel := s.channelMgr.GetChannel(req.RealmID, req.ChannelName, req.TeamID)
 	if channel != nil {
-		if err := s.broadcastModeChange(req.RealmID, channel, targetGUID); err != nil {
+		if err := s.broadcastModeChange(req.RealmID, channel, targetGUID, oldFlags, newFlags); err != nil {
 			log.Error().Err(err).Msg("Failed to broadcast mute change")
 		}
 	}
@@ -381,7 +422,7 @@ func (s *ChatService) SetChannelMute(ctx context.Context, req *pb.SetChannelMute
 }
 
 func (s *ChatService) UnsetChannelMute(ctx context.Context, req *pb.UnsetChannelMuteRequest) (*pb.UnsetChannelMuteResponse, error) {
-	targetGUID, err := s.channelMgr.SetMuteByName(ctx, req.RealmID, req.ChannelName, req.TeamID, req.UnmuterGUID, req.TargetName, false)
+	targetGUID, oldFlags, newFlags, err := s.channelMgr.SetMuteByName(ctx, req.RealmID, req.ChannelName, req.TeamID, req.UnmuterGUID, req.TargetName, false)
 	if err != nil {
 		if errors.Is(err, service.ErrNotMember) || errors.Is(err, service.ErrChannelNotFound) {
 			return &pb.UnsetChannelMuteResponse{
@@ -407,7 +448,7 @@ func (s *ChatService) UnsetChannelMute(ctx context.Context, req *pb.UnsetChannel
 	// Broadcast mode change notification to all channel members
 	channel := s.channelMgr.GetChannel(req.RealmID, req.ChannelName, req.TeamID)
 	if channel != nil {
-		if err := s.broadcastModeChange(req.RealmID, channel, targetGUID); err != nil {
+		if err := s.broadcastModeChange(req.RealmID, channel, targetGUID, oldFlags, newFlags); err != nil {
 			log.Error().Err(err).Msg("Failed to broadcast unmute change")
 		}
 	}
@@ -419,7 +460,7 @@ func (s *ChatService) UnsetChannelMute(ctx context.Context, req *pb.UnsetChannel
 }
 
 func (s *ChatService) SetChannelOwner(ctx context.Context, req *pb.SetChannelOwnerRequest) (*pb.SetChannelOwnerResponse, error) {
-	targetGUID, err := s.channelMgr.SetOwnerByName(ctx, req.RealmID, req.ChannelName, req.TeamID, req.SetterGUID, req.TargetName)
+	targetGUID, oldFlags, newFlags, err := s.channelMgr.SetOwnerByName(ctx, req.RealmID, req.ChannelName, req.TeamID, req.SetterGUID, req.TargetName)
 	if err != nil {
 		if errors.Is(err, service.ErrChannelNotFound) {
 			return &pb.SetChannelOwnerResponse{
@@ -447,7 +488,7 @@ func (s *ChatService) SetChannelOwner(ctx context.Context, req *pb.SetChannelOwn
 	channel := s.channelMgr.GetChannel(req.RealmID, req.ChannelName, req.TeamID)
 	if channel != nil {
 		// First send mode change (same as C++ line 893-894)
-		if err := s.broadcastModeChange(req.RealmID, channel, targetGUID); err != nil {
+		if err := s.broadcastModeChange(req.RealmID, channel, targetGUID, oldFlags, newFlags); err != nil {
 			log.Error().Err(err).Msg("Failed to broadcast owner mode change")
 		}
 		// Then send owner changed notification with GUID (same as C++ line 899-900)
@@ -581,7 +622,8 @@ func (s *ChatService) InviteToChannel(ctx context.Context, req *pb.InviteToChann
 		RealmID:       req.RealmID,
 		ChannelName:   req.ChannelName,
 		ChannelID:     channel.GetChannelID(),
-		NotifyType:    0x18, // ChatInviteNotice
+		TeamID:        uint32(channel.GetTeamID()),
+		NotifyType:    0x18,            // ChatInviteNotice
 		TargetGUID:    req.InviterGUID, // The inviter's GUID (shown in the packet)
 		TargetName:    req.TargetName,
 		SecondGUID:    req.InviterGUID,
@@ -600,15 +642,17 @@ func (s *ChatService) InviteToChannel(ctx context.Context, req *pb.InviteToChann
 
 // Broadcast helpers
 
-func (s *ChatService) broadcastChannelMessage(realmID uint32, channel *service.ActiveChannel, senderGUID uint64, senderName string, language uint32, message string) error {
+func (s *ChatService) broadcastChannelMessage(realmID uint32, channel *service.ActiveChannel, senderGUID uint64, senderName string, language uint32, message string, senderChatTag uint8) error {
 	payload := &events.ChatEventChannelMessagePayload{
-		RealmID:     realmID,
-		ChannelName: channel.GetName(),
-		ChannelID:   channel.GetChannelID(),
-		SenderGUID:  senderGUID,
-		SenderName:  senderName,
-		Language:    language,
-		Message:     message,
+		RealmID:       realmID,
+		ChannelName:   channel.GetName(),
+		ChannelID:     channel.GetChannelID(),
+		TeamID:        uint32(channel.GetTeamID()),
+		SenderGUID:    senderGUID,
+		SenderName:    senderName,
+		Language:      language,
+		Message:       message,
+		SenderChatTag: senderChatTag,
 	}
 
 	return s.msgProducer.ProduceChannelMessage(payload)
@@ -616,38 +660,50 @@ func (s *ChatService) broadcastChannelMessage(realmID uint32, channel *service.A
 
 func (s *ChatService) broadcastChannelJoined(realmID uint32, channel *service.ActiveChannel, playerGUID uint64, playerName string) error {
 	payload := &events.ChatEventChannelJoinedPayload{
-		ServiceID:   s.serviceID,
-		RealmID:     realmID,
-		ChannelName: channel.GetName(),
-		ChannelID:   channel.GetChannelID(),
-		PlayerGUID:  playerGUID,
-		PlayerName:  playerName,
-		PlayerFlags: channel.GetMemberFlags(playerGUID),
+		ServiceID:    s.serviceID,
+		RealmID:      realmID,
+		ChannelName:  channel.GetName(),
+		ChannelID:    channel.GetChannelID(),
+		ChannelFlags: uint32(channel.GetFlags()),
+		TeamID:       uint32(channel.GetTeamID()),
+		NumMembers:   uint32(channel.GetNumMembers()),
+		PlayerGUID:   playerGUID,
+		PlayerName:   playerName,
+		PlayerFlags:  channel.GetMemberFlags(playerGUID),
 	}
 
 	return s.msgProducer.ProduceChannelJoined(payload)
 }
 
-func (s *ChatService) broadcastChannelLeft(realmID uint32, channel *service.ActiveChannel, playerGUID uint64, playerName string) error {
+func (s *ChatService) broadcastChannelLeft(realmID uint32, channel *service.ActiveChannel, playerGUID uint64, playerName string, silent bool) error {
 	payload := &events.ChatEventChannelLeftPayload{
-		ServiceID:   s.serviceID,
-		RealmID:     realmID,
-		ChannelName: channel.GetName(),
-		ChannelID:   channel.GetChannelID(),
-		PlayerGUID:  playerGUID,
-		PlayerName:  playerName,
+		ServiceID:    s.serviceID,
+		RealmID:      realmID,
+		ChannelName:  channel.GetName(),
+		ChannelID:    channel.GetChannelID(),
+		ChannelFlags: uint32(channel.GetFlags()),
+		TeamID:       uint32(channel.GetTeamID()),
+		NumMembers:   uint32(channel.GetNumMembers()),
+		PlayerGUID:   playerGUID,
+		PlayerName:   playerName,
+		Silent:       silent,
 	}
 
 	return s.msgProducer.ProduceChannelLeft(payload)
 }
 
-func (s *ChatService) broadcastModeChange(realmID uint32, channel *service.ActiveChannel, targetGUID uint64) error {
+func (s *ChatService) broadcastModeChange(realmID uint32, channel *service.ActiveChannel, targetGUID uint64, oldFlags uint8, newFlags uint8) error {
 	payload := &events.ChatEventChannelNotificationPayload{
-		RealmID:     realmID,
-		ChannelName: channel.GetName(),
-		ChannelID:   channel.GetChannelID(),
-		NotifyType:  0x0C, // CHAT_MODE_CHANGE_NOTICE
-		TargetGUID:  targetGUID,
+		RealmID:      realmID,
+		ChannelName:  channel.GetName(),
+		ChannelID:    channel.GetChannelID(),
+		ChannelFlags: uint32(channel.GetFlags()),
+		TeamID:       uint32(channel.GetTeamID()),
+		NumMembers:   uint32(channel.GetNumMembers()),
+		NotifyType:   0x0C, // CHAT_MODE_CHANGE_NOTICE
+		TargetGUID:   targetGUID,
+		OldFlags:     oldFlags,
+		NewFlags:     newFlags,
 	}
 
 	return s.msgProducer.ProduceChannelNotification(payload)
@@ -655,11 +711,42 @@ func (s *ChatService) broadcastModeChange(realmID uint32, channel *service.Activ
 
 func (s *ChatService) broadcastOwnerChanged(realmID uint32, channel *service.ActiveChannel, newOwnerGUID uint64) error {
 	payload := &events.ChatEventChannelNotificationPayload{
-		RealmID:     realmID,
-		ChannelName: channel.GetName(),
-		ChannelID:   channel.GetChannelID(),
-		NotifyType:  0x08, // CHAT_OWNER_CHANGED_NOTICE
-		TargetGUID:  newOwnerGUID,
+		RealmID:      realmID,
+		ChannelName:  channel.GetName(),
+		ChannelID:    channel.GetChannelID(),
+		ChannelFlags: uint32(channel.GetFlags()),
+		TeamID:       uint32(channel.GetTeamID()),
+		NumMembers:   uint32(channel.GetNumMembers()),
+		NotifyType:   0x08, // CHAT_OWNER_CHANGED_NOTICE
+		TargetGUID:   newOwnerGUID,
+	}
+
+	return s.msgProducer.ProduceChannelNotification(payload)
+}
+
+func (s *ChatService) broadcastPlayerKicked(realmID uint32, channel *service.ActiveChannel, targetGUID, actorGUID uint64) error {
+	return s.broadcastTwoPlayerChannelNotification(realmID, channel, 0x12, targetGUID, actorGUID)
+}
+
+func (s *ChatService) broadcastPlayerBanned(realmID uint32, channel *service.ActiveChannel, targetGUID, actorGUID uint64) error {
+	return s.broadcastTwoPlayerChannelNotification(realmID, channel, 0x14, targetGUID, actorGUID)
+}
+
+func (s *ChatService) broadcastPlayerUnbanned(realmID uint32, channel *service.ActiveChannel, targetGUID, actorGUID uint64) error {
+	return s.broadcastTwoPlayerChannelNotification(realmID, channel, 0x15, targetGUID, actorGUID)
+}
+
+func (s *ChatService) broadcastTwoPlayerChannelNotification(realmID uint32, channel *service.ActiveChannel, notifyType uint8, targetGUID, actorGUID uint64) error {
+	payload := &events.ChatEventChannelNotificationPayload{
+		RealmID:      realmID,
+		ChannelName:  channel.GetName(),
+		ChannelID:    channel.GetChannelID(),
+		ChannelFlags: uint32(channel.GetFlags()),
+		TeamID:       uint32(channel.GetTeamID()),
+		NumMembers:   uint32(channel.GetNumMembers()),
+		NotifyType:   notifyType,
+		TargetGUID:   targetGUID,
+		SecondGUID:   actorGUID,
 	}
 
 	return s.msgProducer.ProduceChannelNotification(payload)

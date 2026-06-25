@@ -10,6 +10,11 @@ type GroupEventInviteCreatedHandler interface {
 	GroupInviteCreatedEvent(payload *GroupEventInviteCreatedPayload) error
 }
 
+type GroupEventInviteDeclinedHandler interface {
+	// GroupInviteDeclinedEvent handles group invite declined events.
+	GroupInviteDeclinedEvent(payload *GroupEventInviteDeclinedPayload) error
+}
+
 type GroupEventGroupCreatedHandler interface {
 	// GroupCreatedEvent handles group invite created events.
 	GroupCreatedEvent(payload *GroupEventGroupCreatedPayload) error
@@ -65,6 +70,42 @@ type GroupEventGroupDifficultyChangedHandler interface {
 	GroupDifficultyChangedEvent(payload *GroupEventGroupDifficultyChangedPayload) error
 }
 
+type GroupEventReadyCheckStartedHandler interface {
+	GroupReadyCheckStartedEvent(payload *GroupEventReadyCheckStartedPayload) error
+}
+
+type GroupEventReadyCheckMemberStateHandler interface {
+	GroupReadyCheckMemberStateEvent(payload *GroupEventReadyCheckMemberStatePayload) error
+}
+
+type GroupEventReadyCheckFinishedHandler interface {
+	GroupReadyCheckFinishedEvent(payload *GroupEventReadyCheckFinishedPayload) error
+}
+
+type GroupEventMemberSubGroupChangedHandler interface {
+	GroupMemberSubGroupChangedEvent(payload *GroupEventMemberSubGroupChangedPayload) error
+}
+
+type GroupEventMemberFlagsChangedHandler interface {
+	GroupMemberFlagsChangedEvent(payload *GroupEventMemberFlagsChangedPayload) error
+}
+
+type GroupEventMemberStateChangedHandler interface {
+	GroupMemberStateChangedEvent(payload *GroupEventMemberStateChangedPayload) error
+}
+
+type GroupEventMemberStatesChangedHandler interface {
+	GroupMemberStatesChangedEvent(payload *GroupEventMemberStatesChangedPayload) error
+}
+
+type GroupEventInstanceResetRequestHandler interface {
+	GroupInstanceResetRequestEvent(payload *GroupEventInstanceResetRequestPayload) error
+}
+
+type GroupEventInstanceBindExtensionRequestHandler interface {
+	GroupInstanceBindExtensionRequestEvent(payload *GroupEventInstanceBindExtensionRequestPayload) error
+}
+
 // GroupEventsConsumer listens to group events and handles events if there are handlers.
 type GroupEventsConsumer interface {
 	// Listen is non-blocking operation that listens to the group events.
@@ -84,6 +125,7 @@ func NewGroupEventsConsumer(nc *nats.Conn, options ...GroupEventsConsumerOption)
 	return &groupEventsConsumerImpl{
 		nc:                                    nc,
 		inviteCreatedHandler:                  params.inviteCreatedHandler,
+		inviteDeclinedHandler:                 params.inviteDeclinedHandler,
 		groupCreatedHandler:                   params.groupCreatedHandler,
 		groupMemberOnlineStatusChangedHandler: params.groupMemberOnlineStatusChangedHandler,
 		groupMemberLeftHandler:                params.groupMemberLeftHandler,
@@ -95,6 +137,15 @@ func NewGroupEventsConsumer(nc *nats.Conn, options ...GroupEventsConsumerOption)
 		newMessageHandler:                     params.newMessageHandler,
 		newTargetIconHandler:                  params.newTargetIconHandler,
 		difficultyChangedHandler:              params.difficultyChangedHandler,
+		readyCheckStartedHandler:              params.readyCheckStartedHandler,
+		readyCheckMemberStateHandler:          params.readyCheckMemberStateHandler,
+		readyCheckFinishedHandler:             params.readyCheckFinishedHandler,
+		memberSubGroupChangedHandler:          params.memberSubGroupChangedHandler,
+		memberFlagsChangedHandler:             params.memberFlagsChangedHandler,
+		memberStateChangedHandler:             params.memberStateChangedHandler,
+		memberStatesChangedHandler:            params.memberStatesChangedHandler,
+		instanceResetRequestHandler:           params.instanceResetRequestHandler,
+		instanceBindExtensionRequestHandler:   params.instanceBindExtensionRequestHandler,
 	}
 }
 
@@ -108,6 +159,14 @@ type GroupEventsConsumerOption interface {
 func WithGroupEventConsumerInviteCreatedHandler(h GroupEventInviteCreatedHandler) GroupEventsConsumerOption {
 	return newFuncGroupEventsConsumerOption(func(params *groupEventsConsumerParams) {
 		params.inviteCreatedHandler = h
+	})
+}
+
+// WithGroupEventConsumerInviteDeclinedHandler creates group events consumer option with invite declined handler.
+// If not specified, listener will ignore this kind of events.
+func WithGroupEventConsumerInviteDeclinedHandler(h GroupEventInviteDeclinedHandler) GroupEventsConsumerOption {
+	return newFuncGroupEventsConsumerOption(func(params *groupEventsConsumerParams) {
+		params.inviteDeclinedHandler = h
 	})
 }
 
@@ -200,6 +259,60 @@ func WithGroupDifficultyChangedHandler(h GroupEventGroupDifficultyChangedHandler
 	})
 }
 
+func WithGroupEventReadyCheckStartedHandler(h GroupEventReadyCheckStartedHandler) GroupEventsConsumerOption {
+	return newFuncGroupEventsConsumerOption(func(params *groupEventsConsumerParams) {
+		params.readyCheckStartedHandler = h
+	})
+}
+
+func WithGroupEventReadyCheckMemberStateHandler(h GroupEventReadyCheckMemberStateHandler) GroupEventsConsumerOption {
+	return newFuncGroupEventsConsumerOption(func(params *groupEventsConsumerParams) {
+		params.readyCheckMemberStateHandler = h
+	})
+}
+
+func WithGroupEventReadyCheckFinishedHandler(h GroupEventReadyCheckFinishedHandler) GroupEventsConsumerOption {
+	return newFuncGroupEventsConsumerOption(func(params *groupEventsConsumerParams) {
+		params.readyCheckFinishedHandler = h
+	})
+}
+
+func WithGroupEventMemberSubGroupChangedHandler(h GroupEventMemberSubGroupChangedHandler) GroupEventsConsumerOption {
+	return newFuncGroupEventsConsumerOption(func(params *groupEventsConsumerParams) {
+		params.memberSubGroupChangedHandler = h
+	})
+}
+
+func WithGroupEventMemberFlagsChangedHandler(h GroupEventMemberFlagsChangedHandler) GroupEventsConsumerOption {
+	return newFuncGroupEventsConsumerOption(func(params *groupEventsConsumerParams) {
+		params.memberFlagsChangedHandler = h
+	})
+}
+
+func WithGroupEventMemberStateChangedHandler(h GroupEventMemberStateChangedHandler) GroupEventsConsumerOption {
+	return newFuncGroupEventsConsumerOption(func(params *groupEventsConsumerParams) {
+		params.memberStateChangedHandler = h
+	})
+}
+
+func WithGroupEventMemberStatesChangedHandler(h GroupEventMemberStatesChangedHandler) GroupEventsConsumerOption {
+	return newFuncGroupEventsConsumerOption(func(params *groupEventsConsumerParams) {
+		params.memberStatesChangedHandler = h
+	})
+}
+
+func WithGroupEventInstanceResetRequestHandler(h GroupEventInstanceResetRequestHandler) GroupEventsConsumerOption {
+	return newFuncGroupEventsConsumerOption(func(params *groupEventsConsumerParams) {
+		params.instanceResetRequestHandler = h
+	})
+}
+
+func WithGroupEventInstanceBindExtensionRequestHandler(h GroupEventInstanceBindExtensionRequestHandler) GroupEventsConsumerOption {
+	return newFuncGroupEventsConsumerOption(func(params *groupEventsConsumerParams) {
+		params.instanceBindExtensionRequestHandler = h
+	})
+}
+
 // funcGatewayConsumerOption wraps a function that modifies funcGatewayConsumerOption into an
 // implementation of the GatewayConsumerOption interface.
 type funcGroupEventsConsumerOption struct {
@@ -219,6 +332,7 @@ func newFuncGroupEventsConsumerOption(f func(*groupEventsConsumerParams)) *funcG
 // groupEventsConsumerParams list of all possible parameters of GroupEventsConsumer.
 type groupEventsConsumerParams struct {
 	inviteCreatedHandler                  GroupEventInviteCreatedHandler
+	inviteDeclinedHandler                 GroupEventInviteDeclinedHandler
 	groupCreatedHandler                   GroupEventGroupCreatedHandler
 	groupMemberOnlineStatusChangedHandler GroupEventGroupMemberOnlineStatusChangedHandler
 	groupMemberLeftHandler                GroupEventGroupMemberLeftHandler
@@ -230,6 +344,15 @@ type groupEventsConsumerParams struct {
 	newMessageHandler                     GroupEventNewMessageHandler
 	newTargetIconHandler                  GroupEventNewTargetIconHandler
 	difficultyChangedHandler              GroupEventGroupDifficultyChangedHandler
+	readyCheckStartedHandler              GroupEventReadyCheckStartedHandler
+	readyCheckMemberStateHandler          GroupEventReadyCheckMemberStateHandler
+	readyCheckFinishedHandler             GroupEventReadyCheckFinishedHandler
+	memberSubGroupChangedHandler          GroupEventMemberSubGroupChangedHandler
+	memberFlagsChangedHandler             GroupEventMemberFlagsChangedHandler
+	memberStateChangedHandler             GroupEventMemberStateChangedHandler
+	memberStatesChangedHandler            GroupEventMemberStatesChangedHandler
+	instanceResetRequestHandler           GroupEventInstanceResetRequestHandler
+	instanceBindExtensionRequestHandler   GroupEventInstanceBindExtensionRequestHandler
 }
 
 // groupEventsConsumerImpl implementation of GroupEventsConsumer.
@@ -239,6 +362,7 @@ type groupEventsConsumerImpl struct {
 	subs []*nats.Subscription
 
 	inviteCreatedHandler                  GroupEventInviteCreatedHandler
+	inviteDeclinedHandler                 GroupEventInviteDeclinedHandler
 	groupCreatedHandler                   GroupEventGroupCreatedHandler
 	groupMemberOnlineStatusChangedHandler GroupEventGroupMemberOnlineStatusChangedHandler
 	groupMemberLeftHandler                GroupEventGroupMemberLeftHandler
@@ -250,6 +374,15 @@ type groupEventsConsumerImpl struct {
 	newMessageHandler                     GroupEventNewMessageHandler
 	newTargetIconHandler                  GroupEventNewTargetIconHandler
 	difficultyChangedHandler              GroupEventGroupDifficultyChangedHandler
+	readyCheckStartedHandler              GroupEventReadyCheckStartedHandler
+	readyCheckMemberStateHandler          GroupEventReadyCheckMemberStateHandler
+	readyCheckFinishedHandler             GroupEventReadyCheckFinishedHandler
+	memberSubGroupChangedHandler          GroupEventMemberSubGroupChangedHandler
+	memberFlagsChangedHandler             GroupEventMemberFlagsChangedHandler
+	memberStateChangedHandler             GroupEventMemberStateChangedHandler
+	memberStatesChangedHandler            GroupEventMemberStatesChangedHandler
+	instanceResetRequestHandler           GroupEventInstanceResetRequestHandler
+	instanceBindExtensionRequestHandler   GroupEventInstanceBindExtensionRequestHandler
 }
 
 // Listen is non-blocking operation that listens to gateway events.
@@ -266,6 +399,28 @@ func (c *groupEventsConsumerImpl) Listen() error {
 			err = c.inviteCreatedHandler.GroupInviteCreatedEvent(&payload)
 			if err != nil {
 				log.Error().Err(err).Msg("can't handle GroupEventInviteCreated event")
+				return
+			}
+		})
+		if err != nil {
+			return err
+		}
+
+		c.subs = append(c.subs, sub)
+	}
+
+	if c.inviteDeclinedHandler != nil {
+		sub, err := c.nc.Subscribe(GroupEventInviteDeclined.SubjectName(), func(msg *nats.Msg) {
+			payload := GroupEventInviteDeclinedPayload{}
+			_, err := Unmarshal(msg.Data, &payload)
+			if err != nil {
+				log.Error().Err(err).Msg("can't read GroupEventInviteDeclined (payload part) event")
+				return
+			}
+
+			err = c.inviteDeclinedHandler.GroupInviteDeclinedEvent(&payload)
+			if err != nil {
+				log.Error().Err(err).Msg("can't handle GroupEventInviteDeclined event")
 				return
 			}
 		})
@@ -518,6 +673,82 @@ func (c *groupEventsConsumerImpl) Listen() error {
 		c.subs = append(c.subs, sub)
 	}
 
+	if c.readyCheckStartedHandler != nil {
+		if err := subscribeGroupEvent(c, GroupEventGroupReadyCheckStarted, "GroupEventGroupReadyCheckStarted", c.readyCheckStartedHandler.GroupReadyCheckStartedEvent); err != nil {
+			return err
+		}
+	}
+
+	if c.readyCheckMemberStateHandler != nil {
+		if err := subscribeGroupEvent(c, GroupEventGroupReadyCheckMemberState, "GroupEventGroupReadyCheckMemberState", c.readyCheckMemberStateHandler.GroupReadyCheckMemberStateEvent); err != nil {
+			return err
+		}
+	}
+
+	if c.readyCheckFinishedHandler != nil {
+		if err := subscribeGroupEvent(c, GroupEventGroupReadyCheckFinished, "GroupEventGroupReadyCheckFinished", c.readyCheckFinishedHandler.GroupReadyCheckFinishedEvent); err != nil {
+			return err
+		}
+	}
+
+	if c.memberSubGroupChangedHandler != nil {
+		if err := subscribeGroupEvent(c, GroupEventGroupMemberSubGroupChanged, "GroupEventGroupMemberSubGroupChanged", c.memberSubGroupChangedHandler.GroupMemberSubGroupChangedEvent); err != nil {
+			return err
+		}
+	}
+
+	if c.memberFlagsChangedHandler != nil {
+		if err := subscribeGroupEvent(c, GroupEventGroupMemberFlagsChanged, "GroupEventGroupMemberFlagsChanged", c.memberFlagsChangedHandler.GroupMemberFlagsChangedEvent); err != nil {
+			return err
+		}
+	}
+
+	if c.memberStateChangedHandler != nil {
+		if err := subscribeGroupEvent(c, GroupEventGroupMemberStateChanged, "GroupEventGroupMemberStateChanged", c.memberStateChangedHandler.GroupMemberStateChangedEvent); err != nil {
+			return err
+		}
+	}
+
+	if c.memberStatesChangedHandler != nil {
+		if err := subscribeGroupEvent(c, GroupEventGroupMemberStatesChanged, "GroupEventGroupMemberStatesChanged", c.memberStatesChangedHandler.GroupMemberStatesChangedEvent); err != nil {
+			return err
+		}
+	}
+
+	if c.instanceResetRequestHandler != nil {
+		if err := subscribeGroupEvent(c, GroupEventGroupInstanceResetRequest, "GroupEventGroupInstanceResetRequest", c.instanceResetRequestHandler.GroupInstanceResetRequestEvent); err != nil {
+			return err
+		}
+	}
+
+	if c.instanceBindExtensionRequestHandler != nil {
+		if err := subscribeGroupEvent(c, GroupEventGroupInstanceBindExtensionRequest, "GroupEventGroupInstanceBindExtensionRequest", c.instanceBindExtensionRequestHandler.GroupInstanceBindExtensionRequestEvent); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func subscribeGroupEvent[T any](c *groupEventsConsumerImpl, event GroupServiceEvent, eventName string, handler func(*T) error) error {
+	sub, err := c.nc.Subscribe(event.SubjectName(), func(msg *nats.Msg) {
+		payload := new(T)
+		_, err := Unmarshal(msg.Data, payload)
+		if err != nil {
+			log.Error().Err(err).Msgf("can't read %s (payload part) event", eventName)
+			return
+		}
+
+		if err = handler(payload); err != nil {
+			log.Error().Err(err).Msgf("can't handle %s event", eventName)
+			return
+		}
+	})
+	if err != nil {
+		return err
+	}
+
+	c.subs = append(c.subs, sub)
 	return nil
 }
 

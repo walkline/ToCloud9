@@ -28,15 +28,15 @@ func NewCharactersUpdatesBarrier(logger *zerolog.Logger, producer events.Gateway
 }
 
 func (b *CharactersUpdatesBarrier) UpdateLevel(charGUID uint64, lvl uint8) {
-	b.updsChan <- events.CharacterUpdate{ID: charGUID, Lvl: &lvl}
+	b.updsChan <- events.CharacterUpdate{ID: charGUID, EventTimeUnixNano: uint64(time.Now().UnixNano()), Lvl: &lvl}
 }
 
 func (b *CharactersUpdatesBarrier) UpdateZone(charGUID uint64, area, zone uint32) {
-	b.updsChan <- events.CharacterUpdate{ID: charGUID, Area: &area, Zone: &zone}
+	b.updsChan <- events.CharacterUpdate{ID: charGUID, EventTimeUnixNano: uint64(time.Now().UnixNano()), Area: &area, Zone: &zone}
 }
 
 func (b *CharactersUpdatesBarrier) UpdateMap(charGUID uint64, mapID uint32) {
-	b.updsChan <- events.CharacterUpdate{ID: charGUID, Map: &mapID}
+	b.updsChan <- events.CharacterUpdate{ID: charGUID, EventTimeUnixNano: uint64(time.Now().UnixNano()), Map: &mapID}
 }
 
 func (b *CharactersUpdatesBarrier) Run(ctx context.Context) {
@@ -100,6 +100,10 @@ func (b *CharactersUpdatesBarrier) send(upds map[uint64]*events.CharacterUpdate)
 }
 
 func mergeCharUpdates(oldCharUpd, newCharUpd events.CharacterUpdate) events.CharacterUpdate {
+	if newCharUpd.EventTimeUnixNano > oldCharUpd.EventTimeUnixNano {
+		oldCharUpd.EventTimeUnixNano = newCharUpd.EventTimeUnixNano
+	}
+
 	if newCharUpd.Lvl != nil {
 		oldCharUpd.Lvl = newCharUpd.Lvl
 	}

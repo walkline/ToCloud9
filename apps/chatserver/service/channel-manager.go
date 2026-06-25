@@ -120,40 +120,53 @@ func (cm *ChannelManager) GetOrCreateChannel(ctx context.Context, realmID uint32
 	// Try to load from database
 	var dbChannel *repo.Channel
 	var err error
-	if channelID != 0 && flags&ChannelFlagCustom != 0 {
-		dbChannel, err = cm.repo.GetChannelByID(ctx, realmID, channelID)
-	} else {
-		dbChannel, err = cm.repo.GetChannelByName(ctx, realmID, channelName, uint32(team))
-	}
-	if err != nil {
-		return nil, fmt.Errorf("failed to get channel from DB: %w", err)
+	if realmID != 0 {
+		if channelID != 0 && flags&ChannelFlagCustom != 0 {
+			dbChannel, err = cm.repo.GetChannelByID(ctx, realmID, channelID)
+		} else {
+			dbChannel, err = cm.repo.GetChannelByName(ctx, realmID, channelName, uint32(team))
+		}
+		if err != nil {
+			return nil, fmt.Errorf("failed to get channel from DB: %w", err)
+		}
 	}
 
 	// Create new channel if not found in DB
 	if dbChannel == nil {
 		dbChannel = &repo.Channel{
+			ChannelID: channelID,
 			Name:      channelName,
 			Team:      uint32(team),
 			Announce:  true,
-			Ownership: true,
+			Ownership: flags&ChannelFlagCustom != 0,
 			Password:  password,
 			LastUsed:  time.Now(),
 		}
-		if err := cm.repo.CreateChannel(ctx, realmID, dbChannel); err != nil {
-			return nil, fmt.Errorf("failed to create channel in DB: %w", err)
+		if realmID != 0 {
+			if err := cm.repo.CreateChannel(ctx, realmID, dbChannel); err != nil {
+				return nil, fmt.Errorf("failed to create channel in DB: %w", err)
+			}
+		} else if dbChannel.ChannelID == 0 {
+			dbChannel.ChannelID = uint32(len(cm.channels) + 1)
 		}
 	}
 
 	// Load channel rights
-	rights, err := cm.repo.GetChannelRights(ctx, realmID, channelName)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get channel rights: %w", err)
+	var rights *repo.ChannelRights
+	if realmID != 0 {
+		rights, err = cm.repo.GetChannelRights(ctx, realmID, channelName)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get channel rights: %w", err)
+		}
 	}
 
 	// Load bans
-	bans, err := cm.repo.GetChannelBans(ctx, realmID, dbChannel.ChannelID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get channel bans: %w", err)
+	var bans []repo.ChannelBan
+	if realmID != 0 {
+		bans, err = cm.repo.GetChannelBans(ctx, realmID, dbChannel.ChannelID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get channel bans: %w", err)
+		}
 	}
 
 	bannedUntil := make(map[uint64]time.Time)
@@ -164,9 +177,12 @@ func (cm *ChannelManager) GetOrCreateChannel(ctx context.Context, realmID uint32
 	}
 
 	// Load members
-	loadedMembers, err := cm.repo.LoadChannelMembers(ctx, realmID, dbChannel.ChannelID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to load channel members: %w", err)
+	var loadedMembers []repo.ChannelMember
+	if realmID != 0 {
+		loadedMembers, err = cm.repo.LoadChannelMembers(ctx, realmID, dbChannel.ChannelID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load channel members: %w", err)
+		}
 	}
 
 	members := make(map[uint64]*repo.ChannelMember)
@@ -230,7 +246,7 @@ func (ch *ActiveChannel) JoinChannel(ctx context.Context, cm *ChannelManager, re
 	flags := MemberFlagNone
 	if len(ch.members) == 0 && ch.ownership {
 		// First member becomes owner
-		flags = MemberFlagOwner
+		flags = MemberFlagOwner | MemberFlagModerator
 		ch.ownerGUID = playerGUID
 	}
 
@@ -253,37 +269,43 @@ func (ch *ActiveChannel) JoinChannel(ctx context.Context, cm *ChannelManager, re
 	ch.members[playerGUID] = member
 
 	// Write through to DB
-	if err := cm.repo.SaveChannelMember(ctx, realmID, ch.channelID, member); err != nil {
-		// Remove from memory on DB failure
-		delete(ch.members, playerGUID)
-		return fmt.Errorf("failed to persist channel member: %w", err)
+	if realmID != 0 {
+		if err := cm.repo.SaveChannelMember(ctx, realmID, ch.channelID, member); err != nil {
+			// Remove from memory on DB failure
+			delete(ch.members, playerGUID)
+			return fmt.Errorf("failed to persist channel member: %w", err)
+		}
 	}
 
 	return nil
 }
 
-// LeaveChannel removes a player from a channel with write-through persistence
-// Returns (newOwnerGUID, error) - newOwnerGUID is non-zero if ownership was transferred
-func (ch *ActiveChannel) LeaveChannel(ctx context.Context, cm *ChannelManager, realmID uint32, playerGUID uint64) (uint64, error) {
+// LeaveChannel removes a player from a channel with write-through persistence.
+// Returns new owner data when ownership was transferred.
+func (ch *ActiveChannel) LeaveChannel(ctx context.Context, cm *ChannelManager, realmID uint32, playerGUID uint64) (uint64, uint8, uint8, error) {
 	ch.mu.Lock()
 	defer ch.mu.Unlock()
 
 	member, exists := ch.members[playerGUID]
 	if !exists {
-		return 0, ErrNotMember
+		return 0, 0, 0, ErrNotMember
 	}
 
 	wasOwner := member.Flags&MemberFlagOwner != 0
 	delete(ch.members, playerGUID)
 
 	// Write through to DB
-	if err := cm.repo.RemoveChannelMember(ctx, realmID, ch.channelID, playerGUID); err != nil {
-		// Re-add to memory on DB failure
-		ch.members[playerGUID] = member
-		return 0, fmt.Errorf("failed to remove channel member from DB: %w", err)
+	if realmID != 0 {
+		if err := cm.repo.RemoveChannelMember(ctx, realmID, ch.channelID, playerGUID); err != nil {
+			// Re-add to memory on DB failure
+			ch.members[playerGUID] = member
+			return 0, 0, 0, fmt.Errorf("failed to remove channel member from DB: %w", err)
+		}
 	}
 
 	var newOwnerGUID uint64
+	var oldFlags uint8
+	var newFlags uint8
 
 	// Transfer ownership if owner left
 	if wasOwner && len(ch.members) > 0 && ch.ownership {
@@ -302,19 +324,24 @@ func (ch *ActiveChannel) LeaveChannel(ctx context.Context, cm *ChannelManager, r
 			}
 		}
 		if newOwnerGUID != 0 {
-			ch.members[newOwnerGUID].Flags |= MemberFlagOwner
+			newOwner := ch.members[newOwnerGUID]
+			oldFlags = newOwner.Flags | MemberFlagModerator
+			newOwner.Flags = oldFlags | MemberFlagOwner
+			newFlags = newOwner.Flags
 			ch.ownerGUID = newOwnerGUID
 			// Persist new owner flag
-			if err := cm.repo.UpdateMemberFlags(ctx, realmID, ch.channelID, newOwnerGUID, ch.members[newOwnerGUID].Flags); err != nil {
-				// Log but don't fail - ownership transfer is in-memory
-				log.Error().Err(err).
-					Uint64("newOwnerGUID", newOwnerGUID).
-					Msg("Failed to persist owner flag transfer")
+			if realmID != 0 {
+				if err := cm.repo.UpdateMemberFlags(ctx, realmID, ch.channelID, newOwnerGUID, ch.members[newOwnerGUID].Flags); err != nil {
+					// Log but don't fail - ownership transfer is in-memory
+					log.Error().Err(err).
+						Uint64("newOwnerGUID", newOwnerGUID).
+						Msg("Failed to persist owner flag transfer")
+				}
 			}
 		}
 	}
 
-	return newOwnerGUID, nil
+	return newOwnerGUID, oldFlags, newFlags, nil
 }
 
 // GetMembers returns a copy of all channel members
@@ -377,10 +404,12 @@ func (ch *ActiveChannel) SetModerator(ctx context.Context, cm *ChannelManager, r
 	}
 
 	// Write through to DB
-	if err := cm.repo.UpdateMemberFlags(ctx, realmID, ch.channelID, playerGUID, member.Flags); err != nil {
-		// Revert on failure
-		member.Flags = oldFlags
-		return fmt.Errorf("failed to persist moderator flag: %w", err)
+	if realmID != 0 {
+		if err := cm.repo.UpdateMemberFlags(ctx, realmID, ch.channelID, playerGUID, member.Flags); err != nil {
+			// Revert on failure
+			member.Flags = oldFlags
+			return fmt.Errorf("failed to persist moderator flag: %w", err)
+		}
 	}
 
 	return nil
@@ -404,10 +433,12 @@ func (ch *ActiveChannel) SetMute(ctx context.Context, cm *ChannelManager, realmI
 	}
 
 	// Write through to DB
-	if err := cm.repo.UpdateMemberFlags(ctx, realmID, ch.channelID, playerGUID, member.Flags); err != nil {
-		// Revert on failure
-		member.Flags = oldFlags
-		return fmt.Errorf("failed to persist mute flag: %w", err)
+	if realmID != 0 {
+		if err := cm.repo.UpdateMemberFlags(ctx, realmID, ch.channelID, playerGUID, member.Flags); err != nil {
+			// Revert on failure
+			member.Flags = oldFlags
+			return fmt.Errorf("failed to persist mute flag: %w", err)
+		}
 	}
 
 	return nil
@@ -418,6 +449,13 @@ func (ch *ActiveChannel) GetChannelID() uint32 {
 	ch.mu.RLock()
 	defer ch.mu.RUnlock()
 	return ch.channelID
+}
+
+// GetTeamID returns the channel team ID.
+func (ch *ActiveChannel) GetTeamID() pbChat.TeamID {
+	ch.mu.RLock()
+	defer ch.mu.RUnlock()
+	return ch.team
 }
 
 // GetName returns the channel name
@@ -499,6 +537,9 @@ func (cm *ChannelManager) BanPlayer(ctx context.Context, realmID uint32, channel
 	ch.mu.Unlock()
 
 	// Write through to DB
+	if realmID == 0 {
+		return nil
+	}
 	ban := &repo.ChannelBan{
 		ChannelID:  ch.channelID,
 		PlayerGUID: playerGUID,
@@ -520,6 +561,9 @@ func (cm *ChannelManager) UnbanPlayer(ctx context.Context, realmID uint32, chann
 	ch.mu.Unlock()
 
 	// Write through to DB
+	if realmID == 0 {
+		return nil
+	}
 	return cm.repo.RemoveChannelBan(ctx, realmID, channelID, playerGUID)
 }
 
@@ -539,6 +583,9 @@ func (ch *ActiveChannel) SetPassword(ctx context.Context, cm *ChannelManager, re
 	ch.mu.Unlock()
 
 	// Write through to DB
+	if realmID == 0 {
+		return nil
+	}
 	return cm.repo.UpdateChannel(ctx, realmID, dbChannel)
 }
 
@@ -561,28 +608,32 @@ func (ch *ActiveChannel) SetOwner(ctx context.Context, cm *ChannelManager, realm
 			oldOwnerOldFlags = oldOwner.Flags
 			oldOwner.Flags &= ^MemberFlagOwner
 			// Persist old owner flag change
-			if err := cm.repo.UpdateMemberFlags(ctx, realmID, ch.channelID, ch.ownerGUID, oldOwner.Flags); err != nil {
-				// Revert
-				oldOwner.Flags = oldOwnerOldFlags
-				return fmt.Errorf("failed to persist old owner flag removal: %w", err)
+			if realmID != 0 {
+				if err := cm.repo.UpdateMemberFlags(ctx, realmID, ch.channelID, ch.ownerGUID, oldOwner.Flags); err != nil {
+					// Revert
+					oldOwner.Flags = oldOwnerOldFlags
+					return fmt.Errorf("failed to persist old owner flag removal: %w", err)
+				}
 			}
 		}
 	}
 
 	// Set new owner
 	newOwnerOldFlags := newOwner.Flags
-	newOwner.Flags |= MemberFlagOwner
+	newOwner.Flags |= MemberFlagOwner | MemberFlagModerator
 
 	// Persist new owner flag
-	if err := cm.repo.UpdateMemberFlags(ctx, realmID, ch.channelID, newOwnerGUID, newOwner.Flags); err != nil {
-		// Revert both changes
-		newOwner.Flags = newOwnerOldFlags
-		if oldOwnerGUID != 0 {
-			if oldOwner, exists := ch.members[oldOwnerGUID]; exists {
-				oldOwner.Flags = oldOwnerOldFlags
+	if realmID != 0 {
+		if err := cm.repo.UpdateMemberFlags(ctx, realmID, ch.channelID, newOwnerGUID, newOwner.Flags); err != nil {
+			// Revert both changes
+			newOwner.Flags = newOwnerOldFlags
+			if oldOwnerGUID != 0 {
+				if oldOwner, exists := ch.members[oldOwnerGUID]; exists {
+					oldOwner.Flags = oldOwnerOldFlags
+				}
 			}
+			return fmt.Errorf("failed to persist new owner flag: %w", err)
 		}
-		return fmt.Errorf("failed to persist new owner flag: %w", err)
 	}
 
 	ch.ownerGUID = newOwnerGUID
@@ -600,7 +651,7 @@ func (cm *ChannelManager) UpdateLastUsed(ctx context.Context, realmID uint32, ch
 	channelID := ch.channelID
 	ch.mu.RUnlock()
 
-	if channelID == 0 {
+	if realmID == 0 || channelID == 0 {
 		return nil
 	}
 
@@ -621,67 +672,83 @@ func (ch *ActiveChannel) PersistToggleAnnouncements(ctx context.Context, cm *Cha
 	}
 	ch.mu.RUnlock()
 
+	if realmID == 0 {
+		return nil
+	}
 	return cm.repo.UpdateChannel(ctx, realmID, dbChannel)
 }
 
 // High-level service methods that combine permission checks, name resolution, and business logic
 
+func (ch *ActiveChannel) removeMemberAfterModeration(ctx context.Context, cm *ChannelManager, realmID uint32, actorGUID uint64, targetGUID uint64) (uint64, uint8, uint8, error) {
+	if targetGUID != actorGUID && ch.ownership && ch.GetMemberFlags(targetGUID)&MemberFlagOwner != 0 && ch.IsMember(actorGUID) {
+		oldFlags := ch.GetMemberFlags(actorGUID) | MemberFlagModerator
+		if err := ch.SetOwner(ctx, cm, realmID, actorGUID); err != nil {
+			return 0, 0, 0, err
+		}
+		if _, _, _, err := ch.LeaveChannel(ctx, cm, realmID, targetGUID); err != nil {
+			return 0, 0, 0, err
+		}
+		return actorGUID, oldFlags, ch.GetMemberFlags(actorGUID), nil
+	}
+
+	return ch.LeaveChannel(ctx, cm, realmID, targetGUID)
+}
+
 // KickPlayer kicks a player from a channel after checking permissions.
-// Returns the channel and target GUID for broadcasting.
-func (cm *ChannelManager) KickPlayer(ctx context.Context, realmID uint32, channelName string, team pbChat.TeamID, kickerGUID uint64, targetName string) (*ActiveChannel, uint64, error) {
+// Returns the channel, target GUID, and owner-transfer data for broadcasting.
+func (cm *ChannelManager) KickPlayer(ctx context.Context, realmID uint32, channelName string, team pbChat.TeamID, kickerGUID uint64, targetName string) (*ActiveChannel, uint64, uint64, uint8, uint8, error) {
 	channel := cm.GetChannel(realmID, channelName, team)
 	if channel == nil {
-		return nil, 0, ErrChannelNotFound
+		return nil, 0, 0, 0, 0, ErrChannelNotFound
 	}
 
 	if !channel.IsMember(kickerGUID) {
-		return nil, 0, ErrNotMember
+		return nil, 0, 0, 0, 0, ErrNotMember
 	}
 
 	kickerFlags := channel.GetMemberFlags(kickerGUID)
 	if kickerFlags&(MemberFlagModerator|MemberFlagOwner) == 0 {
-		return nil, 0, ErrNotModerator
+		return nil, 0, 0, 0, 0, ErrNotModerator
 	}
 
 	targetGUID := channel.FindMemberByName(targetName)
 	if targetGUID == 0 {
-		return nil, 0, ErrPlayerNotFound
+		return nil, 0, 0, 0, 0, ErrPlayerNotFound
 	}
 
-	newOwnerGUID, err := channel.LeaveChannel(ctx, cm, realmID, targetGUID)
+	newOwnerGUID, oldFlags, newFlags, err := channel.removeMemberAfterModeration(ctx, cm, realmID, kickerGUID, targetGUID)
 	if err != nil {
-		return nil, 0, err
+		return nil, 0, 0, 0, 0, err
 	}
 
-	// If ownership was transferred, we need to notify (caller should broadcast)
-	_ = newOwnerGUID // Caller will handle broadcasting
-
-	return channel, targetGUID, nil
+	return channel, targetGUID, newOwnerGUID, oldFlags, newFlags, nil
 }
 
 // BanPlayerByName kicks and bans a player, persisting the ban to DB.
-func (cm *ChannelManager) BanPlayerByName(ctx context.Context, realmID uint32, channelName string, team pbChat.TeamID, bannerGUID uint64, targetName string) (*ActiveChannel, uint64, error) {
+func (cm *ChannelManager) BanPlayerByName(ctx context.Context, realmID uint32, channelName string, team pbChat.TeamID, bannerGUID uint64, targetName string) (*ActiveChannel, uint64, uint64, uint8, uint8, error) {
 	channel := cm.GetChannel(realmID, channelName, team)
 	if channel == nil {
-		return nil, 0, ErrChannelNotFound
+		return nil, 0, 0, 0, 0, ErrChannelNotFound
 	}
 
 	if !channel.IsMember(bannerGUID) {
-		return nil, 0, ErrNotMember
+		return nil, 0, 0, 0, 0, ErrNotMember
 	}
 
 	bannerFlags := channel.GetMemberFlags(bannerGUID)
 	if bannerFlags&(MemberFlagModerator|MemberFlagOwner) == 0 {
-		return nil, 0, ErrNotModerator
+		return nil, 0, 0, 0, 0, ErrNotModerator
 	}
 
 	targetGUID := channel.FindMemberByName(targetName)
 	if targetGUID == 0 {
-		return nil, 0, ErrPlayerNotFound
+		return nil, 0, 0, 0, 0, ErrPlayerNotFound
 	}
 
 	// Kick from channel
-	if _, err := channel.LeaveChannel(ctx, cm, realmID, targetGUID); err != nil {
+	newOwnerGUID, oldFlags, newFlags, err := channel.removeMemberAfterModeration(ctx, cm, realmID, bannerGUID, targetGUID)
+	if err != nil {
 		// Log but don't fail if already left
 		log.Debug().Err(err).Msg("Failed to kick player during ban (already left?)")
 	}
@@ -689,10 +756,10 @@ func (cm *ChannelManager) BanPlayerByName(ctx context.Context, realmID uint32, c
 	// Add permanent ban (100 years)
 	banTime := time.Now().Add(100 * 365 * 24 * time.Hour)
 	if err := cm.BanPlayer(ctx, realmID, channelName, team, targetGUID, banTime); err != nil {
-		return nil, 0, fmt.Errorf("failed to persist ban: %w", err)
+		return nil, 0, 0, 0, 0, fmt.Errorf("failed to persist ban: %w", err)
 	}
 
-	return channel, targetGUID, nil
+	return channel, targetGUID, newOwnerGUID, oldFlags, newFlags, nil
 }
 
 // UnbanPlayerByName removes a ban after checking permissions.
@@ -724,83 +791,86 @@ func (cm *ChannelManager) UnbanPlayerByName(ctx context.Context, realmID uint32,
 }
 
 // SetModeratorByName sets/unsets moderator for a player found by name. Requires owner.
-func (cm *ChannelManager) SetModeratorByName(ctx context.Context, realmID uint32, channelName string, team pbChat.TeamID, setterGUID uint64, targetName string, isModerator bool) (uint64, error) {
+func (cm *ChannelManager) SetModeratorByName(ctx context.Context, realmID uint32, channelName string, team pbChat.TeamID, setterGUID uint64, targetName string, isModerator bool) (uint64, uint8, uint8, error) {
 	channel := cm.GetChannel(realmID, channelName, team)
 	if channel == nil {
-		return 0, ErrChannelNotFound
+		return 0, 0, 0, ErrChannelNotFound
 	}
 
 	if !channel.IsMember(setterGUID) {
-		return 0, ErrNotMember
+		return 0, 0, 0, ErrNotMember
 	}
 
 	setterFlags := channel.GetMemberFlags(setterGUID)
 	if setterFlags&MemberFlagOwner == 0 {
-		return 0, ErrNotOwner
+		return 0, 0, 0, ErrNotOwner
 	}
 
 	targetGUID := channel.FindMemberByName(targetName)
 	if targetGUID == 0 {
-		return 0, ErrPlayerNotFound
+		return 0, 0, 0, ErrPlayerNotFound
 	}
 
+	oldFlags := channel.GetMemberFlags(targetGUID)
 	if err := channel.SetModerator(ctx, cm, realmID, targetGUID, isModerator); err != nil {
-		return 0, err
+		return 0, 0, 0, err
 	}
 
-	return targetGUID, nil
+	return targetGUID, oldFlags, channel.GetMemberFlags(targetGUID), nil
 }
 
 // SetMuteByName sets/unsets mute for a player found by name. Requires moderator or owner.
-func (cm *ChannelManager) SetMuteByName(ctx context.Context, realmID uint32, channelName string, team pbChat.TeamID, muterGUID uint64, targetName string, isMuted bool) (uint64, error) {
+func (cm *ChannelManager) SetMuteByName(ctx context.Context, realmID uint32, channelName string, team pbChat.TeamID, muterGUID uint64, targetName string, isMuted bool) (uint64, uint8, uint8, error) {
 	channel := cm.GetChannel(realmID, channelName, team)
 	if channel == nil {
-		return 0, ErrChannelNotFound
+		return 0, 0, 0, ErrChannelNotFound
 	}
 
 	if !channel.IsMember(muterGUID) {
-		return 0, ErrNotMember
+		return 0, 0, 0, ErrNotMember
 	}
 
 	muterFlags := channel.GetMemberFlags(muterGUID)
 	if muterFlags&(MemberFlagModerator|MemberFlagOwner) == 0 {
-		return 0, ErrNotModerator
+		return 0, 0, 0, ErrNotModerator
 	}
 
 	targetGUID := channel.FindMemberByName(targetName)
 	if targetGUID == 0 {
-		return 0, ErrPlayerNotFound
+		return 0, 0, 0, ErrPlayerNotFound
 	}
 
+	oldFlags := channel.GetMemberFlags(targetGUID)
 	if err := channel.SetMute(ctx, cm, realmID, targetGUID, isMuted); err != nil {
-		return 0, err
+		return 0, 0, 0, err
 	}
 
-	return targetGUID, nil
+	return targetGUID, oldFlags, channel.GetMemberFlags(targetGUID), nil
 }
 
 // SetOwnerByName transfers ownership. Requires current owner.
-func (cm *ChannelManager) SetOwnerByName(ctx context.Context, realmID uint32, channelName string, team pbChat.TeamID, setterGUID uint64, targetName string) (uint64, error) {
+func (cm *ChannelManager) SetOwnerByName(ctx context.Context, realmID uint32, channelName string, team pbChat.TeamID, setterGUID uint64, targetName string) (uint64, uint8, uint8, error) {
 	channel := cm.GetChannel(realmID, channelName, team)
 	if channel == nil {
-		return 0, ErrChannelNotFound
+		return 0, 0, 0, ErrChannelNotFound
 	}
 
 	setterFlags := channel.GetMemberFlags(setterGUID)
 	if setterFlags&MemberFlagOwner == 0 {
-		return 0, ErrNotOwner
+		return 0, 0, 0, ErrNotOwner
 	}
 
 	targetGUID := channel.FindMemberByName(targetName)
 	if targetGUID == 0 {
-		return 0, ErrPlayerNotFound
+		return 0, 0, 0, ErrPlayerNotFound
 	}
 
+	oldFlags := channel.GetMemberFlags(targetGUID) | MemberFlagModerator
 	if err := channel.SetOwner(ctx, cm, realmID, targetGUID); err != nil {
-		return 0, err
+		return 0, 0, 0, err
 	}
 
-	return targetGUID, nil
+	return targetGUID, oldFlags, channel.GetMemberFlags(targetGUID), nil
 }
 
 // SetChannelPassword sets the password. Requires owner. Persists to DB.
@@ -828,6 +898,9 @@ func (cm *ChannelManager) SetChannelPassword(ctx context.Context, realmID uint32
 	}
 	channel.mu.Unlock()
 
+	if realmID == 0 {
+		return nil
+	}
 	return cm.repo.UpdateChannel(ctx, realmID, dbChannel)
 }
 
@@ -882,6 +955,9 @@ func (cm *ChannelManager) ToggleChannelAnnouncements(ctx context.Context, realmI
 	}
 	channel.mu.RUnlock()
 
+	if realmID == 0 {
+		return enabled, nil
+	}
 	if err := cm.repo.UpdateChannel(ctx, realmID, dbChannel); err != nil {
 		return enabled, fmt.Errorf("failed to persist announcement toggle: %w", err)
 	}
@@ -889,11 +965,12 @@ func (cm *ChannelManager) ToggleChannelAnnouncements(ctx context.Context, realmI
 	return enabled, nil
 }
 
-// LeaveChannelByGUID handles a player leaving a channel. Returns player name, whether channel is custom, and new owner GUID if transferred.
-func (cm *ChannelManager) LeaveChannelByGUID(ctx context.Context, realmID uint32, channelName string, team pbChat.TeamID, playerGUID uint64) (string, bool, uint64, error) {
+// LeaveChannelByGUID handles a player leaving a channel.
+// Returns player name, whether channel is custom, and new owner data if transferred.
+func (cm *ChannelManager) LeaveChannelByGUID(ctx context.Context, realmID uint32, channelName string, team pbChat.TeamID, playerGUID uint64) (string, bool, uint64, uint8, uint8, error) {
 	channel := cm.GetChannel(realmID, channelName, team)
 	if channel == nil {
-		return "", false, 0, ErrChannelNotFound
+		return "", false, 0, 0, 0, ErrChannelNotFound
 	}
 
 	// Find player name before leaving
@@ -906,13 +983,13 @@ func (cm *ChannelManager) LeaveChannelByGUID(ctx context.Context, realmID uint32
 		}
 	}
 
-	newOwnerGUID, err := channel.LeaveChannel(ctx, cm, realmID, playerGUID)
+	newOwnerGUID, oldFlags, newFlags, err := channel.LeaveChannel(ctx, cm, realmID, playerGUID)
 	if err != nil {
-		return "", false, 0, err
+		return "", false, 0, 0, 0, err
 	}
 
 	isCustom := channel.GetFlags()&ChannelFlagCustom != 0
-	return playerName, isCustom, newOwnerGUID, nil
+	return playerName, isCustom, newOwnerGUID, oldFlags, newFlags, nil
 }
 
 // ValidateSendMessage validates that a player can send a message. Returns channel for broadcasting.
@@ -937,8 +1014,12 @@ func (cm *ChannelManager) ValidateSendMessage(realmID uint32, channelName string
 type OwnershipTransfer struct {
 	ChannelName  string
 	ChannelID    uint32
+	ChannelFlags uint8
 	TeamID       pbChat.TeamID
+	NumMembers   uint32
 	NewOwnerGUID uint64
+	OldFlags     uint8
+	NewFlags     uint8
 }
 
 // TransferOwnershipOnLogout transfers channel ownership when owner logs out (but keeps them as member)
@@ -1012,7 +1093,9 @@ func (cm *ChannelManager) TransferOwnershipOnLogout(realmID uint32, playerGUID u
 			}
 
 			// Transfer ownership to new owner
-			channel.members[newOwnerGUID].Flags |= MemberFlagOwner
+			oldFlags := channel.members[newOwnerGUID].Flags | MemberFlagModerator
+			channel.members[newOwnerGUID].Flags = oldFlags | MemberFlagOwner
+			newFlags := channel.members[newOwnerGUID].Flags
 			channel.ownerGUID = newOwnerGUID
 
 			// Persist new owner flag
@@ -1027,8 +1110,12 @@ func (cm *ChannelManager) TransferOwnershipOnLogout(realmID uint32, playerGUID u
 			transfers = append(transfers, OwnershipTransfer{
 				ChannelName:  channel.name,
 				ChannelID:    channel.channelID,
+				ChannelFlags: channel.flags,
 				TeamID:       channel.team,
+				NumMembers:   uint32(len(channel.members)),
 				NewOwnerGUID: newOwnerGUID,
+				OldFlags:     oldFlags,
+				NewFlags:     newFlags,
 			})
 
 			log.Debug().
@@ -1219,7 +1306,7 @@ func (ch *ActiveChannel) PruneOfflineMembers(ctx context.Context, cm *ChannelMan
 				}
 			}
 			if newOwnerGUID != 0 {
-				ch.members[newOwnerGUID].Flags |= MemberFlagOwner
+				ch.members[newOwnerGUID].Flags |= MemberFlagOwner | MemberFlagModerator
 				ch.ownerGUID = newOwnerGUID
 				// Persist new owner flag
 				if err := cm.repo.UpdateMemberFlags(ctx, realmID, ch.channelID, newOwnerGUID, ch.members[newOwnerGUID].Flags); err != nil {

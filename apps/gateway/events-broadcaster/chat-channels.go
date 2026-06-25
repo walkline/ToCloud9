@@ -1,10 +1,25 @@
 package events_broadcaster
 
 import (
+	"strings"
 	"sync"
 
 	"github.com/rs/zerolog/log"
 )
+
+type ChatChannelScope struct {
+	RealmID uint32
+	TeamID  uint32
+	Name    string
+}
+
+func NewChatChannelScope(realmID uint32, teamID uint32, name string) ChatChannelScope {
+	return ChatChannelScope{
+		RealmID: realmID,
+		TeamID:  teamID,
+		Name:    strings.ToLower(name),
+	}
+}
 
 type PlayerStreams struct {
 	streams map[uint64]chan Event
@@ -91,41 +106,41 @@ func (c *ChatChannel) Members() []uint64 {
 }
 
 type ChatChannelsInMemRepo struct {
-	channels   map[string]*ChatChannel
+	channels   map[ChatChannelScope]*ChatChannel
 	channelsMu sync.RWMutex
 }
 
 func NewChatChannelsInMemRepo() *ChatChannelsInMemRepo {
 	return &ChatChannelsInMemRepo{
-		channels: make(map[string]*ChatChannel),
+		channels: make(map[ChatChannelScope]*ChatChannel),
 	}
 }
 
-func (r *ChatChannelsInMemRepo) GetOrCreate(name string) *ChatChannel {
+func (r *ChatChannelsInMemRepo) GetOrCreate(scope ChatChannelScope) *ChatChannel {
 	r.channelsMu.Lock()
 	defer r.channelsMu.Unlock()
 
-	if ch, ok := r.channels[name]; ok {
+	if ch, ok := r.channels[scope]; ok {
 		return ch
 	}
 
-	ch := NewChatChannel(name)
-	r.channels[name] = ch
+	ch := NewChatChannel(scope.Name)
+	r.channels[scope] = ch
 	return ch
 }
 
-func (r *ChatChannelsInMemRepo) Get(name string) *ChatChannel {
+func (r *ChatChannelsInMemRepo) Get(scope ChatChannelScope) *ChatChannel {
 	r.channelsMu.RLock()
 	defer r.channelsMu.RUnlock()
 
-	return r.channels[name]
+	return r.channels[scope]
 }
 
-func (r *ChatChannelsInMemRepo) Remove(name string) {
+func (r *ChatChannelsInMemRepo) Remove(scope ChatChannelScope) {
 	r.channelsMu.Lock()
 	defer r.channelsMu.Unlock()
 
-	delete(r.channels, name)
+	delete(r.channels, scope)
 }
 
 type ChatChannelsService struct {
@@ -133,7 +148,7 @@ type ChatChannelsService struct {
 	playerStreams *PlayerStreams
 
 	// reverse index: player -> channels
-	playerChannels map[uint64]map[string]struct{}
+	playerChannels map[uint64]map[ChatChannelScope]struct{}
 	pcMu           sync.RWMutex
 }
 
@@ -141,33 +156,43 @@ func NewChatChannelsService() *ChatChannelsService {
 	return &ChatChannelsService{
 		repo:           NewChatChannelsInMemRepo(),
 		playerStreams:  NewPlayerStreams(),
-		playerChannels: make(map[uint64]map[string]struct{}),
+		playerChannels: make(map[uint64]map[ChatChannelScope]struct{}),
 	}
 }
 
 func (s *ChatChannelsService) AddPlayerToChannel(playerGUID uint64, chanName string) <-chan Event {
-	channel := s.repo.GetOrCreate(chanName)
+	return s.AddPlayerToScopedChannel(playerGUID, 0, 0, chanName)
+}
+
+func (s *ChatChannelsService) AddPlayerToScopedChannel(playerGUID uint64, realmID uint32, teamID uint32, chanName string) <-chan Event {
+	scope := NewChatChannelScope(realmID, teamID, chanName)
+	channel := s.repo.GetOrCreate(scope)
 	channel.AddMember(playerGUID)
 
 	s.pcMu.Lock()
 	if _, ok := s.playerChannels[playerGUID]; !ok {
-		s.playerChannels[playerGUID] = make(map[string]struct{})
+		s.playerChannels[playerGUID] = make(map[ChatChannelScope]struct{})
 	}
-	s.playerChannels[playerGUID][chanName] = struct{}{}
+	s.playerChannels[playerGUID][scope] = struct{}{}
 	s.pcMu.Unlock()
 
 	return s.playerStreams.GetOrCreate(playerGUID)
 }
 
 func (s *ChatChannelsService) RemovePlayerFromChannel(playerGUID uint64, chanName string) {
-	channel := s.repo.Get(chanName)
+	s.RemovePlayerFromScopedChannel(playerGUID, 0, 0, chanName)
+}
+
+func (s *ChatChannelsService) RemovePlayerFromScopedChannel(playerGUID uint64, realmID uint32, teamID uint32, chanName string) {
+	scope := NewChatChannelScope(realmID, teamID, chanName)
+	channel := s.repo.Get(scope)
 	if channel != nil {
 		channel.RemoveMember(playerGUID)
 	}
 
 	s.pcMu.Lock()
 	if chans, ok := s.playerChannels[playerGUID]; ok {
-		delete(chans, chanName)
+		delete(chans, scope)
 		if len(chans) == 0 {
 			delete(s.playerChannels, playerGUID)
 		}
@@ -176,7 +201,12 @@ func (s *ChatChannelsService) RemovePlayerFromChannel(playerGUID uint64, chanNam
 }
 
 func (s *ChatChannelsService) BroadcastToChannel(channelName string, event Event) {
-	channel := s.repo.Get(channelName)
+	s.BroadcastToScopedChannel(0, 0, channelName, event)
+}
+
+func (s *ChatChannelsService) BroadcastToScopedChannel(realmID uint32, teamID uint32, channelName string, event Event) {
+	scope := NewChatChannelScope(realmID, teamID, channelName)
+	channel := s.repo.Get(scope)
 	if channel == nil {
 		return
 	}
@@ -193,7 +223,9 @@ func (s *ChatChannelsService) BroadcastToChannel(channelName string, event Event
 			log.Warn().
 				Uint64("playerGUID", playerGUID).
 				Int("eventType", int(event.Type)).
-				Str("channel", channelName).
+				Uint32("realmID", realmID).
+				Uint32("teamID", teamID).
+				Str("channel", scope.Name).
 				Msg("Dropped channel event because channel is full")
 		}
 	}
@@ -208,8 +240,8 @@ func (s *ChatChannelsService) DisconnectPlayer(playerGUID uint64) {
 	s.pcMu.Unlock()
 
 	if ok {
-		for chanName := range chans {
-			channel := s.repo.Get(chanName)
+		for scope := range chans {
+			channel := s.repo.Get(scope)
 			if channel != nil {
 				channel.RemoveMember(playerGUID)
 			}

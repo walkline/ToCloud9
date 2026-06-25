@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"time"
 
 	"github.com/walkline/ToCloud9/apps/authserver/repo"
 	"github.com/walkline/ToCloud9/gen/servers-registry/pb"
@@ -12,6 +13,10 @@ const (
 	RealmFlagVersionMismatch = 0x1
 	RealmFlagOffline         = 0x2
 	RealmFlagRecommended     = 0x20
+
+	offlineRealmAddress = "0.0.0.0:0"
+
+	realmGatewayLookupTimeout = 2 * time.Second
 )
 
 type RealmListItem struct {
@@ -54,17 +59,23 @@ func (r *realmServiceImpl) RealmListForAccount(ctx context.Context, account *rep
 		realmIDs = append(realmIDs, realm.ID)
 	}
 
-	gatewaysResp, err := r.servRegistry.GatewaysForRealms(ctx, &pb.GatewaysForRealmsRequest{
+	gatewayCtx := ctx
+	var cancel context.CancelFunc
+	if deadline, ok := ctx.Deadline(); !ok || time.Until(deadline) > realmGatewayLookupTimeout {
+		gatewayCtx, cancel = context.WithTimeout(ctx, realmGatewayLookupTimeout)
+		defer cancel()
+	}
+
+	gatewaysResp, err := r.servRegistry.GatewaysForRealms(gatewayCtx, &pb.GatewaysForRealmsRequest{
 		Api:      "v1.0",
 		RealmIDs: realmIDs,
 	})
-	if err != nil {
-		return nil, err
-	}
 
 	gatewaysAddressesMap := map[uint32]string{}
-	for _, lb := range gatewaysResp.Gateways {
-		gatewaysAddressesMap[lb.RealmID] = lb.Address
+	if err == nil && gatewaysResp != nil {
+		for _, lb := range gatewaysResp.Gateways {
+			gatewaysAddressesMap[lb.RealmID] = lb.Address
+		}
 	}
 
 	chars, err := r.realmRepo.CountCharsPerRealmByAccountID(ctx, account.ID)
@@ -80,8 +91,9 @@ func (r *realmServiceImpl) RealmListForAccount(ctx context.Context, account *rep
 	result := []RealmListItem{}
 	for _, realm := range realms {
 		address, found := gatewaysAddressesMap[realm.ID]
-		if !found {
+		if !found || address == "" {
 			realm.Flag |= RealmFlagOffline
+			address = offlineRealmAddress
 		} else {
 			realm.Flag &^= RealmFlagOffline
 		}

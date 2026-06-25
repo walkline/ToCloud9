@@ -28,6 +28,24 @@ service GuildService {
   rpc DemoteMember(PromoteDemoteParams) returns (PromoteDemoteResponse);
 
   rpc SendGuildMessage(SendGuildMessageParams) returns (SendGuildMessageResponse);
+
+  rpc GetGuildPetition(GetGuildPetitionParams) returns (GetGuildPetitionResponse);
+  rpc OfferGuildPetition(OfferGuildPetitionParams) returns (OfferGuildPetitionResponse);
+  rpc SignGuildPetition(SignGuildPetitionParams) returns (SignGuildPetitionResponse);
+
+  rpc GetGuildBank(GetGuildBankParams) returns (GetGuildBankResponse);
+  rpc GetGuildBankLog(GetGuildBankLogParams) returns (GetGuildBankLogResponse);
+  rpc GetGuildBankTabText(GetGuildBankTabTextParams) returns (GetGuildBankTabTextResponse);
+  rpc UpdateGuildBankTab(UpdateGuildBankTabParams) returns (GuildBankActionResponse);
+  rpc SetGuildBankTabText(SetGuildBankTabTextParams) returns (GuildBankActionResponse);
+  rpc BuyGuildBankTab(BuyGuildBankTabParams) returns (BuyGuildBankTabResponse);
+  rpc DepositGuildBankMoney(DepositGuildBankMoneyParams) returns (GuildBankActionResponse);
+  rpc WithdrawGuildBankMoney(WithdrawGuildBankMoneyParams) returns (GuildBankActionResponse);
+  rpc RollbackGuildBankMoneyWithdraw(RollbackGuildBankMoneyWithdrawParams) returns (GuildBankActionResponse);
+  rpc DepositGuildBankItem(DepositGuildBankItemParams) returns (GuildBankItemMutationResponse);
+  rpc WithdrawGuildBankItem(WithdrawGuildBankItemParams) returns (GuildBankItemMutationResponse);
+  rpc RollbackGuildBankItemWithdraw(RollbackGuildBankItemWithdrawParams) returns (GuildBankItemMutationResponse);
+  rpc MoveGuildBankItem(MoveGuildBankItemParams) returns (GuildBankItemMutationResponse);
 }
 
 message GetInfoParams {
@@ -73,12 +91,21 @@ message GetRosterInfoResponse {
     int64 logoutTime = 9;
     string note = 10;
     string officerNote = 11;
+    repeated uint32 bankWithdraw = 12;
   }
 
   message Rank {
     uint32 id = 1;
     uint32 flags = 2;
     uint32 goldLimit = 3;
+
+    message BankTabRight {
+      uint32 tabID = 1;
+      uint32 flags = 2;
+      uint32 withdrawItemLimit = 3;
+    }
+
+    repeated BankTabRight bankTabRights = 4;
   }
 
   message Guild {
@@ -88,6 +115,7 @@ message GetRosterInfoResponse {
 
     repeated Member members = 4;
     repeated Rank ranks = 5;
+    uint32 purchasedBankTabs = 6;
   };
 
   Guild guild = 2;
@@ -100,6 +128,8 @@ message InviteMemberParams {
   uint64 inviter = 3;
   uint64 invitee = 4;
   string inviteeName = 5;
+  uint32 inviteeRace = 6;
+  bool allowCrossFaction = 7;
 }
 
 message InviteMemberResponse {
@@ -128,6 +158,7 @@ message InviteAcceptedParams {
   }
 
   Character character = 3;
+  bool allowCrossFaction = 4;
 }
 
 message InviteAcceptedResponse {
@@ -198,6 +229,14 @@ message RankUpdateParams {
   string rankName = 5;
   uint32 rights = 6;
   uint32 moneyPerDay = 7;
+
+  message BankTabRight {
+    uint32 tabID = 1;
+    uint32 flags = 2;
+    uint32 withdrawItemLimit = 3;
+  }
+
+  repeated BankTabRight bankTabRights = 8;
 }
 
 message RankUpdateResponse {
@@ -243,8 +282,308 @@ message SendGuildMessageParams {
   bool   isOfficerMessage = 4;
   string message = 5;
   uint32 language = 6;
+  uint32 senderChatTag = 7;
 }
 
 message SendGuildMessageResponse {
   string api = 1;
+}
+
+message GuildPetitionSignature {
+  uint64 playerGUID = 1;
+  uint32 playerAccount = 2;
+}
+
+message GuildPetition {
+  uint64 petitionGUID = 1;
+  uint32 petitionID = 2;
+  uint64 ownerGUID = 3;
+  string name = 4;
+  uint32 type = 5;
+  repeated GuildPetitionSignature signatures = 6;
+}
+
+message GetGuildPetitionParams {
+  string api = 1;
+  uint32 realmID = 2;
+  uint64 petitionGUID = 3;
+}
+
+message GetGuildPetitionResponse {
+  string api = 1;
+  GuildPetition petition = 2;
+}
+
+message OfferGuildPetitionParams {
+  string api = 1;
+  uint32 realmID = 2;
+  uint64 ownerGUID = 3;
+  uint64 targetGUID = 4;
+  string targetName = 5;
+  uint64 petitionGUID = 6;
+}
+
+message OfferGuildPetitionResponse {
+  string api = 1;
+
+  enum Status {
+    Ok = 0;
+    NotFound = 1;
+    NotOwner = 2;
+    TargetNotFound = 3;
+    TargetAlreadyInGuild = 4;
+    TargetAlreadyInvited = 5;
+    Failed = 6;
+  }
+
+  Status status = 2;
+}
+
+message SignGuildPetitionParams {
+  string api = 1;
+  uint32 realmID = 2;
+  uint64 signerGUID = 3;
+  string signerName = 4;
+  uint32 signerAccountID = 5;
+  uint32 signerGuildID = 6;
+  uint64 petitionGUID = 7;
+}
+
+message SignGuildPetitionResponse {
+  string api = 1;
+
+  enum Status {
+    Ok = 0;
+    AlreadySigned = 1;
+    AlreadyInGuild = 2;
+    CantSignOwn = 3;
+    NotServer = 4;
+    NotFound = 5;
+    Full = 6;
+    Failed = 7;
+    AlreadyInvited = 8;
+  }
+
+  Status status = 2;
+}
+
+message GuildBankSocketEnchant {
+  uint32 socketIndex = 1;
+  uint32 socketEnchantID = 2;
+}
+
+message GuildBankItem {
+  uint64 itemGUID = 1;
+  uint32 entry = 2;
+  uint32 slot = 3;
+  uint32 count = 4;
+  uint32 flags = 5;
+  int32 randomPropertyID = 6;
+  int32 randomPropertySeed = 7;
+  uint32 durability = 8;
+  uint32 enchantmentID = 9;
+  repeated GuildBankSocketEnchant socketEnchants = 10;
+  uint32 charges = 11;
+  string text = 12;
+}
+
+message GuildBankTab {
+  uint32 tabID = 1;
+  string name = 2;
+  string icon = 3;
+  string text = 4;
+  repeated GuildBankItem items = 5;
+}
+
+message GuildBankStatus {
+  enum Status {
+    Ok = 0;
+    Failed = 1;
+    GuildNotFound = 2;
+    NotInGuild = 3;
+    NotEnoughRights = 4;
+    InvalidTab = 5;
+    InvalidSlot = 6;
+    NotEnoughMoney = 7;
+    BankFull = 8;
+    WithdrawLimit = 9;
+    ItemNotFound = 10;
+  }
+}
+
+message GetGuildBankParams {
+  string api = 1;
+  uint32 realmID = 2;
+  uint64 guildID = 3;
+  uint64 memberGUID = 4;
+  uint32 tabID = 5;
+  bool fullUpdate = 6;
+}
+
+message GetGuildBankResponse {
+  string api = 1;
+  GuildBankStatus.Status status = 2;
+  uint64 money = 3;
+  uint32 tabID = 4;
+  int32 withdrawalsRemaining = 5;
+  bool fullUpdate = 6;
+  repeated GuildBankTab tabs = 7;
+  repeated GuildBankItem items = 8;
+}
+
+message GetGuildBankLogParams {
+  string api = 1;
+  uint32 realmID = 2;
+  uint64 guildID = 3;
+  uint64 memberGUID = 4;
+  uint32 tabID = 5;
+}
+
+message GuildBankLogEntry {
+  uint64 playerGUID = 1;
+  uint32 timeOffset = 2;
+  int32 entryType = 3;
+  uint32 money = 4;
+  int32 itemID = 5;
+  int32 count = 6;
+  int32 otherTab = 7;
+}
+
+message GetGuildBankLogResponse {
+  string api = 1;
+  GuildBankStatus.Status status = 2;
+  uint32 tabID = 3;
+  repeated GuildBankLogEntry entries = 4;
+}
+
+message GetGuildBankTabTextParams {
+  string api = 1;
+  uint32 realmID = 2;
+  uint64 guildID = 3;
+  uint64 memberGUID = 4;
+  uint32 tabID = 5;
+}
+
+message GetGuildBankTabTextResponse {
+  string api = 1;
+  GuildBankStatus.Status status = 2;
+  uint32 tabID = 3;
+  string text = 4;
+}
+
+message UpdateGuildBankTabParams {
+  string api = 1;
+  uint32 realmID = 2;
+  uint64 guildID = 3;
+  uint64 memberGUID = 4;
+  uint32 tabID = 5;
+  string name = 6;
+  string icon = 7;
+}
+
+message SetGuildBankTabTextParams {
+  string api = 1;
+  uint32 realmID = 2;
+  uint64 guildID = 3;
+  uint64 memberGUID = 4;
+  uint32 tabID = 5;
+  string text = 6;
+}
+
+message BuyGuildBankTabParams {
+  string api = 1;
+  uint32 realmID = 2;
+  uint64 guildID = 3;
+  uint64 memberGUID = 4;
+  uint32 tabID = 5;
+}
+
+message BuyGuildBankTabResponse {
+  string api = 1;
+  GuildBankStatus.Status status = 2;
+  uint32 tabCost = 3;
+}
+
+message DepositGuildBankMoneyParams {
+  string api = 1;
+  uint32 realmID = 2;
+  uint64 guildID = 3;
+  uint64 memberGUID = 4;
+  uint32 amount = 5;
+}
+
+message WithdrawGuildBankMoneyParams {
+  string api = 1;
+  uint32 realmID = 2;
+  uint64 guildID = 3;
+  uint64 memberGUID = 4;
+  uint32 amount = 5;
+  bool repair = 6;
+}
+
+message RollbackGuildBankMoneyWithdrawParams {
+  string api = 1;
+  uint32 realmID = 2;
+  uint64 guildID = 3;
+  uint64 memberGUID = 4;
+  uint32 amount = 5;
+  bool repair = 6;
+  uint32 logGUID = 7;
+}
+
+message DepositGuildBankItemParams {
+  string api = 1;
+  uint32 realmID = 2;
+  uint64 guildID = 3;
+  uint64 memberGUID = 4;
+  uint32 tabID = 5;
+  uint32 slotID = 6;
+  GuildBankItem item = 7;
+}
+
+message WithdrawGuildBankItemParams {
+  string api = 1;
+  uint32 realmID = 2;
+  uint64 guildID = 3;
+  uint64 memberGUID = 4;
+  uint32 tabID = 5;
+  uint32 slotID = 6;
+  uint32 count = 7;
+}
+
+message RollbackGuildBankItemWithdrawParams {
+  string api = 1;
+  uint32 realmID = 2;
+  uint64 guildID = 3;
+  uint64 memberGUID = 4;
+  uint32 tabID = 5;
+  uint32 slotID = 6;
+  GuildBankItem item = 7;
+  uint32 logGUID = 8;
+}
+
+message MoveGuildBankItemParams {
+  string api = 1;
+  uint32 realmID = 2;
+  uint64 guildID = 3;
+  uint64 memberGUID = 4;
+  uint32 sourceTabID = 5;
+  uint32 sourceSlotID = 6;
+  uint32 destinationTabID = 7;
+  uint32 destinationSlotID = 8;
+  uint32 count = 9;
+}
+
+message GuildBankActionResponse {
+  string api = 1;
+  GuildBankStatus.Status status = 2;
+  uint32 logGUID = 3;
+}
+
+message GuildBankItemMutationResponse {
+  string api = 1;
+  GuildBankStatus.Status status = 2;
+  GuildBankItem item = 3;
+  repeated uint32 changedSlots = 4;
+  uint32 logGUID = 5;
 }

@@ -1316,4 +1316,5 @@ const (
 	SMsgMultipleMoves                            Opcode = 0x51E
 	TC9CMsgPrepareForRedirect                    Opcode = 0x51F
 	TC9SMsgReadyForRedirect                      Opcode = 0x520
+	TC9SMsgWorldSessionReady                     Opcode = 0x521
 )

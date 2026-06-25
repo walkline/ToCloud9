@@ -12,10 +12,12 @@ service GroupService {
   rpc ChangeLeader(ChangeLeaderParams) returns (ChangeLeaderResponse);
 
   rpc AcceptInvite(AcceptInviteParams) returns (AcceptInviteResponse);
+  rpc DeclineInvite(DeclineInviteParams) returns (DeclineInviteResponse);
 
   rpc GetGroup(GetGroupRequest) returns (GetGroupResponse);
   rpc GetGroupByMember(GetGroupByMemberRequest) returns (GetGroupResponse);
   rpc GetGroupIDByPlayer(GetGroupIDByPlayerRequest) returns (GetGroupIDByPlayerResponse);
+  rpc GetMemberPlacements(GetMemberPlacementsRequest) returns (GetMemberPlacementsResponse);
 
   rpc SetGroupTargetIcon(SetGroupTargetIconRequest) returns (SetGroupTargetIconResponse);
   rpc SetLootMethod(SetLootMethodRequest) returns (SetLootMethodResponse);
@@ -24,6 +26,18 @@ service GroupService {
   rpc SetRaidDifficulty(SetRaidDifficultyRequest) returns (SetRaidDifficultyResponse);
 
   rpc SendMessage(SendGroupMessageParams) returns (SendGroupMessageResponse);
+
+  rpc StartReadyCheck(StartReadyCheckRequest) returns (StartReadyCheckResponse);
+  rpc SetReadyCheckMemberState(SetReadyCheckMemberStateRequest) returns (SetReadyCheckMemberStateResponse);
+  rpc FinishReadyCheck(FinishReadyCheckRequest) returns (FinishReadyCheckResponse);
+  rpc ChangeMemberSubGroup(ChangeMemberSubGroupRequest) returns (ChangeMemberSubGroupResponse);
+  rpc SetMemberFlags(SetMemberFlagsRequest) returns (SetMemberFlagsResponse);
+  rpc RegisterAcceptedLfgGroup(RegisterAcceptedLfgGroupRequest) returns (RegisterAcceptedLfgGroupResponse);
+  rpc RegisterMaterializedLfgGroup(RegisterMaterializedLfgGroupRequest) returns (RegisterMaterializedLfgGroupResponse);
+  rpc UpdateMemberState(UpdateMemberStateRequest) returns (UpdateMemberStateResponse);
+  rpc BulkUpdateMemberStates(BulkUpdateMemberStatesRequest) returns (BulkUpdateMemberStatesResponse);
+  rpc ResetInstance(ResetInstanceRequest) returns (ResetInstanceResponse);
+  rpc SetInstanceBindExtension(SetInstanceBindExtensionRequest) returns (SetInstanceBindExtensionResponse);
 }
 
 message InviteParams {
@@ -68,6 +82,25 @@ message AcceptInviteResponse {
   Status status = 2;
 }
 
+message DeclineInviteParams {
+  string api = 1;
+
+  uint32 realmID = 2;
+  uint64 player = 3;
+}
+
+message DeclineInviteResponse {
+  enum Status {
+    Ok = 0;
+    InviteNotFound = 1;
+    Error = 2;
+  }
+
+  string api = 1;
+
+  Status status = 2;
+}
+
 message GetGroupRequest {
   string api = 1;
 
@@ -85,6 +118,7 @@ message GetGroupResponse {
     bool isOnline = 4;
     uint32 subGroup = 5;
     uint32 roles = 6;
+    uint32 realmID = 7;
   }
 
   message Group {
@@ -99,6 +133,7 @@ message GetGroupResponse {
     uint64 masterLooter = 9;
     repeated uint64 targetIconsList = 10;
     repeated GroupMember members = 11;
+    uint32 realmID = 12;
   }
 
   Group group = 2;
@@ -122,6 +157,33 @@ message GetGroupIDByPlayerResponse {
   string api = 1;
 
   uint32 groupID = 2;
+  uint32 groupRealmID = 3;
+}
+
+message GetMemberPlacementsRequest {
+  string api = 1;
+
+  uint32 realmID = 2;
+  repeated uint64 memberGUIDs = 3;
+}
+
+message MemberPlacement {
+  uint64 memberGUID = 1;
+  bool online = 2;
+  bool fresh = 3;
+  string gatewayID = 4;
+  string worldserverID = 5;
+  uint32 mapID = 6;
+  uint32 instanceID = 7;
+  bool instanceKnown = 8;
+  uint64 timestampMs = 9;
+  uint64 updatedAtMs = 10;
+}
+
+message GetMemberPlacementsResponse {
+  string api = 1;
+
+  repeated MemberPlacement placements = 2;
 }
 
 message UninviteParams {
@@ -185,6 +247,7 @@ message SendGroupMessageParams {
   uint32 messageType = 4;
   string message = 5;
   uint32 language = 6;
+  uint32 senderChatTag = 7;
 }
 
 message SendGroupMessageResponse {
@@ -264,4 +327,195 @@ message SetRaidDifficultyResponse {
   }
 
   Status status = 2;
+}
+
+message StartReadyCheckRequest {
+  string api = 1;
+  uint32 realmID = 2;
+  uint64 leaderGUID = 3;
+  uint32 durationMs = 4;
+}
+
+message StartReadyCheckResponse {
+  string api = 1;
+}
+
+message SetReadyCheckMemberStateRequest {
+  string api = 1;
+  uint32 realmID = 2;
+  uint64 memberGUID = 3;
+  uint32 state = 4;
+}
+
+message SetReadyCheckMemberStateResponse {
+  string api = 1;
+}
+
+message FinishReadyCheckRequest {
+  string api = 1;
+  uint32 realmID = 2;
+  uint64 playerGUID = 3;
+}
+
+message FinishReadyCheckResponse {
+  string api = 1;
+}
+
+message ChangeMemberSubGroupRequest {
+  string api = 1;
+  uint32 realmID = 2;
+  uint64 updaterGUID = 3;
+  uint64 memberGUID = 4;
+  uint32 subGroup = 5;
+}
+
+message ChangeMemberSubGroupResponse {
+  string api = 1;
+}
+
+message SetMemberFlagsRequest {
+  string api = 1;
+  uint32 realmID = 2;
+  uint64 updaterGUID = 3;
+  uint64 memberGUID = 4;
+  uint32 flags = 5;
+  uint32 roles = 6;
+}
+
+message SetMemberFlagsResponse {
+  string api = 1;
+}
+
+message AcceptedLfgGroupMember {
+  uint32 realmID = 1;
+  uint64 playerGUID = 2;
+  uint32 selectedRoles = 3;
+  uint32 assignedRole = 4;
+  uint32 queueLeaderRealmID = 5;
+  uint64 queueLeaderGUID = 6;
+}
+
+message RegisterAcceptedLfgGroupRequest {
+  string api = 1;
+  uint32 realmID = 2;
+  uint32 proposalID = 3;
+  uint32 dungeonEntry = 4;
+  uint32 leaderRealmID = 5;
+  uint64 leaderGUID = 6;
+  bool crossRealm = 7;
+  repeated AcceptedLfgGroupMember members = 8;
+}
+
+message RegisterAcceptedLfgGroupResponse {
+  string api = 1;
+  uint32 groupID = 2;
+}
+
+message MaterializedLfgGroupMember {
+  uint32 realmID = 1;
+  uint64 playerGUID = 2;
+  string name = 3;
+  bool isOnline = 4;
+  uint32 flags = 5;
+  uint32 roles = 6;
+  uint32 subGroup = 7;
+}
+
+message RegisterMaterializedLfgGroupRequest {
+  string api = 1;
+  uint32 realmID = 2;
+  uint32 groupID = 3;
+  uint64 leaderGUID = 4;
+  uint32 groupType = 5;
+  uint32 difficulty = 6;
+  uint32 raidDifficulty = 7;
+  repeated MaterializedLfgGroupMember members = 8;
+}
+
+message RegisterMaterializedLfgGroupResponse {
+  string api = 1;
+}
+
+message UpdateMemberStateRequest {
+  string api = 1;
+  uint32 realmID = 2;
+  uint64 memberGUID = 3;
+  bool online = 4;
+  uint32 level = 5;
+  uint32 classID = 6;
+  uint32 zoneID = 7;
+  uint32 mapID = 8;
+  uint32 health = 9;
+  uint32 maxHealth = 10;
+  uint32 powerType = 11;
+  uint32 power = 12;
+  uint32 maxPower = 13;
+  optional uint32 instanceID = 14;
+}
+
+message UpdateMemberStateResponse {
+  string api = 1;
+}
+
+message PlayerStateSnapshot {
+  uint64 memberGUID = 1;
+  bool online = 2;
+  uint32 level = 3;
+  uint32 classID = 4;
+  uint32 zoneID = 5;
+  uint32 mapID = 6;
+  uint32 health = 7;
+  uint32 maxHealth = 8;
+  uint32 powerType = 9;
+  uint32 power = 10;
+  uint32 maxPower = 11;
+  uint64 timestampMs = 12;
+  bool aurasKnown = 13;
+  repeated PlayerAuraSnapshot auras = 14;
+  optional uint32 instanceID = 15;
+  optional bool dead = 16;
+  optional bool ghost = 17;
+}
+
+message PlayerAuraSnapshot {
+  uint32 slot = 1;
+  uint32 spellID = 2;
+  uint32 flags = 3;
+}
+
+message BulkUpdateMemberStatesRequest {
+  string api = 1;
+  uint32 realmID = 2;
+  string sourceGatewayID = 3;
+  string sourceWorldserverID = 4;
+  repeated PlayerStateSnapshot snapshots = 5;
+}
+
+message BulkUpdateMemberStatesResponse {
+  string api = 1;
+}
+
+message ResetInstanceRequest {
+  string api = 1;
+  uint32 realmID = 2;
+  uint64 playerGUID = 3;
+  uint32 mapID = 4;
+  uint32 difficulty = 5;
+}
+
+message ResetInstanceResponse {
+  string api = 1;
+}
+
+message SetInstanceBindExtensionRequest {
+  string api = 1;
+  uint32 realmID = 2;
+  uint64 playerGUID = 3;
+  uint32 mapID = 4;
+  uint32 difficulty = 5;
+  bool extended = 6;
+}
+
+message SetInstanceBindExtensionResponse {
+  string api = 1;
 }

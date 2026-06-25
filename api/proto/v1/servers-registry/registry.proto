@@ -14,6 +14,8 @@ service ServersRegistryService {
   rpc RegisterGateway(RegisterGatewayRequest) returns (RegisterGatewayResponse);
   rpc GatewaysForRealms(GatewaysForRealmsRequest) returns (GatewaysForRealmsResponse);
   rpc ListGatewaysForRealm(ListGatewaysForRealmRequest) returns (ListGatewaysForRealmResponse);
+
+  rpc RegisterMatchmakingServer(RegisterMatchmakingServerRequest) returns (RegisterMatchmakingServerResponse);
 }
 
 //
@@ -186,6 +188,24 @@ message ListGatewaysForRealmResponse {
 }
 
 //
+// RegisterMatchmakingServer
+//
+message RegisterMatchmakingServerRequest {
+  string api = 1;
+
+  uint32 servicePort = 2;
+  uint32 healthPort = 3;
+  string preferredHostName = 4;
+  int64 startedAtUnixMs = 5;
+}
+
+message RegisterMatchmakingServerResponse {
+  string api = 1;
+
+  string id = 2;
+}
+
+//
 // Shared
 //
 message Server {
@@ -193,5 +213,5 @@ message Server {
   uint32 realmID = 2;
   bool   isCrossRealm = 3;
   string grpcAddress = 4;
+  string id = 5;
 }
-

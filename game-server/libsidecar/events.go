@@ -3,6 +3,9 @@ package main
 import "C"
 
 import (
+	stdlog "log"
+	"runtime/debug"
+
 	nats "github.com/nats-io/nats.go"
 	"github.com/rs/zerolog"
 
@@ -18,9 +21,19 @@ var eventsHandlersQueue queue.HandlersQueue
 func TC9ProcessEventsHooks() {
 	handler := eventsHandlersQueue.Pop()
 	for handler != nil {
-		handler.Handle()
+		handleEventHook(handler)
 		handler = eventsHandlersQueue.Pop()
 	}
+}
+
+func handleEventHook(handler queue.Handler) {
+	defer func() {
+		if r := recover(); r != nil {
+			stdlog.Printf("TC9 event hook panic recovered: %v\n%s", r, debug.Stack())
+		}
+	}()
+
+	handler.Handle()
 }
 
 func SetupEventsListener(nc *nats.Conn, realmID uint32, log zerolog.Logger) consumer.Consumer {

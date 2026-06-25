@@ -12,6 +12,14 @@ service MatchmakingService {
   rpc PlayerLeftBattleground(PlayerLeftBattlegroundRequest) returns (PlayerLeftBattlegroundResponse);
   rpc PlayerJoinedBattleground(PlayerJoinedBattlegroundRequest) returns (PlayerJoinedBattlegroundResponse);
   rpc BattlegroundStatusChanged(BattlegroundStatusChangedRequest) returns (BattlegroundStatusChangedResponse);
+  rpc FinishRatedArenaMatch(FinishRatedArenaMatchRequest) returns (FinishRatedArenaMatchResponse);
+
+  rpc JoinLfg(JoinLfgRequest) returns (JoinLfgResponse);
+  rpc LeaveLfg(LeaveLfgRequest) returns (LeaveLfgResponse);
+  rpc SetLfgRoles(SetLfgRolesRequest) returns (SetLfgRolesResponse);
+  rpc AnswerLfgProposal(AnswerLfgProposalRequest) returns (AnswerLfgProposalResponse);
+  rpc LfgStatus(LfgStatusRequest) returns (LfgStatusResponse);
+  rpc CompleteLfgDungeon(CompleteLfgDungeonRequest) returns (CompleteLfgDungeonResponse);
 }
 
 enum PVPTeamID {
@@ -38,6 +46,8 @@ message EnqueueToBattlegroundRequest {
 
   uint32 bgTypeID = 6;
   PVPTeamID teamID = 7;
+  uint32 arenaType = 8;
+  bool isRated = 9;
 }
 
 message EnqueueToBattlegroundResponse {
@@ -72,6 +82,7 @@ message BattlegroundQueueDataForPlayerResponse {
     uint32 battlegroupID = 3;
     string gameserverAddress = 4;
     string gameserverGRPCAddress = 5;
+    PVPTeamID assignedTeamID = 6;
   }
 
   message QueueSlot {
@@ -128,5 +139,213 @@ message BattlegroundStatusChangedRequest {
 }
 
 message BattlegroundStatusChangedResponse {
+  string api = 1;
+}
+
+enum MatchmakingArenaTeamMutationStatus {
+  MATCHMAKING_ARENA_TEAM_MUTATION_OK = 0;
+  MATCHMAKING_ARENA_TEAM_MUTATION_NOT_FOUND = 1;
+  MATCHMAKING_ARENA_TEAM_MUTATION_MEMBER_MISMATCH = 2;
+  MATCHMAKING_ARENA_TEAM_MUTATION_INVALID_TYPE = 3;
+  MATCHMAKING_ARENA_TEAM_MUTATION_NAME_EXISTS = 4;
+  MATCHMAKING_ARENA_TEAM_MUTATION_ALREADY_IN_TEAM = 5;
+  MATCHMAKING_ARENA_TEAM_MUTATION_ROSTER_FULL = 6;
+  MATCHMAKING_ARENA_TEAM_MUTATION_FAILED = 7;
+  MATCHMAKING_ARENA_TEAM_MUTATION_INVALID_NAME = 8;
+}
+
+message RatedArenaParticipant {
+  PVPTeamID team = 1;
+  uint64 playerGUID = 2;
+}
+
+message RatedArenaTeamScore {
+  uint32 realmID = 1;
+  uint32 arenaTeamID = 2;
+  string teamName = 3;
+  int32 ratingChange = 4;
+  uint32 matchmakerRating = 5;
+}
+
+message RatedArenaMemberResult {
+  PVPTeamID team = 1;
+  uint64 playerGUID = 2;
+  uint32 personalRating = 3;
+  uint32 weekGames = 4;
+  uint32 seasonGames = 5;
+  uint32 weekWins = 6;
+  uint32 seasonWins = 7;
+  uint32 matchmakerRating = 8;
+}
+
+message FinishRatedArenaMatchRequest {
+  string api = 1;
+
+  uint32 ownerRealmID = 2;
+  bool isCrossRealm = 3;
+  uint32 instanceID = 4;
+  uint32 arenaType = 5;
+  PVPTeamID winnerTeam = 6;
+  bool validArena = 7;
+
+  uint32 allianceArenaTeamID = 8;
+  uint32 hordeArenaTeamID = 9;
+  uint32 allianceArenaMatchmakerRating = 10;
+  uint32 hordeArenaMatchmakerRating = 11;
+  repeated RatedArenaParticipant participants = 12;
+}
+
+message FinishRatedArenaMatchResponse {
+  string api = 1;
+  MatchmakingArenaTeamMutationStatus status = 2;
+  RatedArenaTeamScore allianceScore = 3;
+  RatedArenaTeamScore hordeScore = 4;
+  repeated RatedArenaMemberResult memberResults = 5;
+}
+
+enum LfgState {
+  LFG_STATE_NONE = 0;
+  LFG_STATE_ROLECHECK = 1;
+  LFG_STATE_QUEUED = 2;
+  LFG_STATE_PROPOSAL = 3;
+  LFG_STATE_BOOT = 4;
+  LFG_STATE_DUNGEON = 5;
+  LFG_STATE_FINISHED_DUNGEON = 6;
+  LFG_STATE_RAIDBROWSER = 7;
+}
+
+enum LfgProposalState {
+  LFG_PROPOSAL_INITIATING = 0;
+  LFG_PROPOSAL_FAILED = 1;
+  LFG_PROPOSAL_SUCCESS = 2;
+}
+
+enum LfgJoinResult {
+  LFG_JOIN_OK = 0;
+  LFG_JOIN_FAILED = 1;
+  LFG_JOIN_GROUP_FULL = 2;
+  LFG_JOIN_INTERNAL_ERROR = 4;
+  LFG_JOIN_NOT_MEET_REQS = 5;
+  LFG_JOIN_PARTY_NOT_MEET_REQS = 6;
+  LFG_JOIN_MIXED_RAID_DUNGEON = 7;
+  LFG_JOIN_MULTI_REALM = 8;
+  LFG_JOIN_DISCONNECTED = 9;
+  LFG_JOIN_PARTY_INFO_FAILED = 10;
+  LFG_JOIN_DUNGEON_INVALID = 11;
+  LFG_JOIN_DESERTER = 12;
+  LFG_JOIN_PARTY_DESERTER = 13;
+  LFG_JOIN_RANDOM_COOLDOWN = 14;
+  LFG_JOIN_PARTY_RANDOM_COOLDOWN = 15;
+  LFG_JOIN_TOO_MANY_MEMBERS = 16;
+  LFG_JOIN_USING_BG_SYSTEM = 17;
+}
+
+message LfgMember {
+  uint64 playerGUID = 1;
+  uint32 roles = 2;
+  bool leader = 3;
+  string worldserverID = 4;
+  uint32 realmID = 5;
+  uint32 queueLeaderRealmID = 6;
+  uint64 queueLeaderGUID = 7;
+}
+
+message LfgProposalMember {
+  uint64 playerGUID = 1;
+  uint32 selectedRoles = 2;
+  uint32 assignedRole = 3;
+  bool answered = 4;
+  bool accepted = 5;
+  uint32 realmID = 6;
+}
+
+message LfgStatusData {
+  LfgState state = 1;
+  uint32 proposalID = 2;
+  LfgProposalState proposalState = 3;
+  uint32 dungeonEntry = 4;
+  repeated uint32 selectedDungeons = 5;
+  repeated LfgMember queuedMembers = 6;
+  repeated LfgProposalMember proposalMembers = 7;
+  uint32 queuedTimeMilliseconds = 8;
+  uint32 tanksNeeded = 9;
+  uint32 healersNeeded = 10;
+  uint32 damageNeeded = 11;
+}
+
+message JoinLfgRequest {
+  string api = 1;
+  uint32 realmID = 2;
+  uint64 leaderGUID = 3;
+  repeated LfgMember members = 4;
+  repeated uint32 dungeonEntries = 5;
+  string comment = 6;
+}
+
+message JoinLfgResponse {
+  string api = 1;
+  LfgJoinResult result = 2;
+  LfgStatusData status = 3;
+}
+
+message LeaveLfgRequest {
+  string api = 1;
+  uint32 realmID = 2;
+  uint64 playerGUID = 3;
+}
+
+message LeaveLfgResponse {
+  string api = 1;
+}
+
+message SetLfgRolesRequest {
+  string api = 1;
+  uint32 realmID = 2;
+  uint64 playerGUID = 3;
+  uint32 roles = 4;
+}
+
+message SetLfgRolesResponse {
+  string api = 1;
+  LfgStatusData status = 2;
+}
+
+message AnswerLfgProposalRequest {
+  string api = 1;
+  uint32 realmID = 2;
+  uint64 playerGUID = 3;
+  uint32 proposalID = 4;
+  bool accept = 5;
+}
+
+message AnswerLfgProposalResponse {
+  string api = 1;
+  LfgStatusData status = 2;
+}
+
+message LfgStatusRequest {
+  string api = 1;
+  uint32 realmID = 2;
+  uint64 playerGUID = 3;
+}
+
+message LfgStatusResponse {
+  string api = 1;
+  LfgStatusData status = 2;
+}
+
+message CompleteLfgDungeonPlayer {
+  uint32 realmID = 1;
+  uint64 playerGUID = 2;
+}
+
+message CompleteLfgDungeonRequest {
+  string api = 1;
+  uint32 completedDungeonEntry = 2;
+  uint32 selectedDungeonEntry = 3;
+  repeated CompleteLfgDungeonPlayer players = 4;
+}
+
+message CompleteLfgDungeonResponse {
   string api = 1;
 }

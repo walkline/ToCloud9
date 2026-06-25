@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -20,12 +21,14 @@ type serversRegistry struct {
 	pb.UnimplementedServersRegistryServiceServer
 	gService  service.GameServer
 	lbService service.Gateway
+	mmService service.Matchmaking
 }
 
-func NewServersRegistry(gService service.GameServer, lbService service.Gateway) pb.ServersRegistryServiceServer {
+func NewServersRegistry(gService service.GameServer, lbService service.Gateway, mmService service.Matchmaking) pb.ServersRegistryServiceServer {
 	return &serversRegistry{
 		gService:  gService,
 		lbService: lbService,
+		mmService: mmService,
 	}
 }
 
@@ -69,6 +72,7 @@ func (s *serversRegistry) AvailableGameServersForMapAndRealm(ctx context.Context
 	resultServers := make([]*pb.Server, 0, len(servers))
 	for i := range servers {
 		resultServers = append(resultServers, &pb.Server{
+			Id:           servers[i].ID,
 			Address:      servers[i].Address,
 			RealmID:      servers[i].RealmID,
 			IsCrossRealm: servers[i].IsCrossRealm,
@@ -174,6 +178,7 @@ func (s *serversRegistry) RandomGameServerForRealm(ctx context.Context, request 
 	return &pb.RandomGameServerForRealmResponse{
 		Api: ver,
 		GameServer: &pb.Server{
+			Id:      server.ID,
 			Address: server.Address,
 			RealmID: server.RealmID,
 		},
@@ -227,6 +232,7 @@ func (s *serversRegistry) GatewaysForRealms(ctx context.Context, request *pb.Gat
 		}
 
 		servers = append(servers, &pb.Server{
+			Id:      server.ID,
 			Address: server.Address,
 			RealmID: server.RealmID,
 		})
@@ -261,6 +267,34 @@ func (s *serversRegistry) ListGatewaysForRealm(ctx context.Context, request *pb.
 	}, nil
 }
 
+func (s *serversRegistry) RegisterMatchmakingServer(ctx context.Context, request *pb.RegisterMatchmakingServerRequest) (*pb.RegisterMatchmakingServerResponse, error) {
+	log.Info().Interface("request", request).Msg("New request to add matchmaking server")
+
+	host := "localhost"
+	if p, ok := peer.FromContext(ctx); ok && p.Addr != nil {
+		host = removePortFromAddress(p.Addr.String())
+	}
+	if request.PreferredHostName != "" {
+		host = request.PreferredHostName
+	}
+
+	matchmakingServer := &service.MatchmakingServer{
+		Address:         fmt.Sprintf("%s:%d", host, request.ServicePort),
+		HealthCheckAddr: fmt.Sprintf("%s:%d", host, request.HealthPort),
+		StartedAtUnixMs: request.StartedAtUnixMs,
+	}
+
+	server, err := s.mmService.Register(ctx, matchmakingServer)
+	if err != nil {
+		return nil, err
+	}
+
+	return &pb.RegisterMatchmakingServerResponse{
+		Api: ver,
+		Id:  server.ID,
+	}, nil
+}
+
 func removePortFromAddress(address string) string {
 	for i := len(address) - 1; i >= 0; i-- {
 		if address[i] == ':' {
@@ -272,20 +306,32 @@ func removePortFromAddress(address string) string {
 }
 
 func stringToAvailableMaps(s string) []uint32 {
-	v := strings.Split(s, ",")
-	if len(v) == 0 {
-		return []uint32{}
-	}
-
-	result := make([]uint32, 0, len(v))
-	for i := range v {
-		r, err := strconv.Atoi(v[i])
-		if err != nil {
+	parts := strings.Split(s, ",")
+	seen := map[uint32]struct{}{}
+	result := make([]uint32, 0, len(parts))
+	for _, raw := range parts {
+		token := strings.TrimSpace(raw)
+		if token == "" {
 			continue
 		}
 
-		result = append(result, uint32(r))
+		r, err := strconv.ParseUint(token, 10, 32)
+		if err != nil {
+			log.Warn().Str("availableMap", raw).Msg("ignoring invalid available map id")
+			continue
+		}
+
+		mapID := uint32(r)
+		if _, ok := seen[mapID]; ok {
+			continue
+		}
+		seen[mapID] = struct{}{}
+		result = append(result, mapID)
 	}
+
+	sort.Slice(result, func(i, j int) bool {
+		return result[i] < result[j]
+	})
 
 	return result
 }

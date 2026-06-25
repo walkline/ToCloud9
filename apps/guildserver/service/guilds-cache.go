@@ -22,4 +22,7 @@ type GuildsCache interface {
 
 	// Warmup called on startup to warmup cache if possible.
 	Warmup(ctx context.Context, realmID uint32) error
+
+	// RefreshGuildByMemberGUID reloads one guild from backing storage by member guid.
+	RefreshGuildByMemberGUID(ctx context.Context, realmID uint32, memberGUID uint64) (*repo.Guild, error)
 }

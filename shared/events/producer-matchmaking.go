@@ -11,6 +11,8 @@ type MatchmakingServiceProducer interface {
 	JoinedQueue(payload *MatchmakingEventPlayersQueuedPayload) error
 	InvitedToBGOrArena(payload *MatchmakingEventPlayersInvitedPayload) error
 	InviteExpired(payload *MatchmakingEventPlayersInviteExpiredPayload) error
+	LfgStatusChanged(payload *MatchmakingEventLfgStatusChangedPayload) error
+	LfgProposalAccepted(payload *MatchmakingEventLfgProposalAcceptedPayload) error
 }
 
 type matchmakingServiceProducerNatsJSON struct {
@@ -35,6 +37,14 @@ func (c *matchmakingServiceProducerNatsJSON) InvitedToBGOrArena(payload *Matchma
 
 func (c *matchmakingServiceProducerNatsJSON) InviteExpired(payload *MatchmakingEventPlayersInviteExpiredPayload) error {
 	return c.publish(MatchmakingEventPlayersInviteExpired, payload)
+}
+
+func (c *matchmakingServiceProducerNatsJSON) LfgStatusChanged(payload *MatchmakingEventLfgStatusChangedPayload) error {
+	return c.publish(MatchmakingEventLfgStatusChanged, payload)
+}
+
+func (c *matchmakingServiceProducerNatsJSON) LfgProposalAccepted(payload *MatchmakingEventLfgProposalAcceptedPayload) error {
+	return c.publish(MatchmakingEventLfgProposalAccepted, payload)
 }
 
 func (c *matchmakingServiceProducerNatsJSON) publish(e MatchmakingServiceEvent, payload interface{}) error {

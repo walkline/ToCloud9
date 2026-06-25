@@ -6,13 +6,16 @@ import (
 	"time"
 
 	"github.com/walkline/ToCloud9/shared/events"
+	wowguid "github.com/walkline/ToCloud9/shared/wow/guid"
 )
 
 //go:generate mockery --name=OnlinePlayersCache
 type OnlinePlayersCache interface {
-	PlayerLoggedIn(playerGUID uint64, level, class, area uint32)
-	PlayerLoggedOut(playerGUID uint64)
-	GetOnlineInfo(playerGUID uint64) (OnlinePlayerInfo, bool)
+	PlayerLoggedIn(realmID uint32, playerGUID uint64, accountID uint32, name string, race, level, class, area uint32)
+	PlayerLoggedOut(realmID uint32, playerGUID uint64)
+	GetOnlineInfo(realmID uint32, playerGUID uint64) (OnlinePlayerInfo, bool)
+	GetOnlineInfoForAccount(accountID uint32) (OnlinePlayerInfo, bool)
+	GetOnlineInfosForAccount(accountID uint32) []OnlinePlayerInfo
 	SetFriendsService(friendsService FriendsService)
 
 	HandleCharacterLoggedIn(payload events.GWEventCharacterLoggedInPayload) error
@@ -24,8 +27,15 @@ type onlinePlayersCacheImpl struct {
 	// cacheMutex guards onlineInfoByGUID map
 	cacheMutex sync.RWMutex
 
-	// onlineInfoByGUID maps player GUID to their online info
-	onlineInfoByGUID map[uint64]*OnlinePlayerInfo
+	// onlineInfoByGUID maps realm-scoped player keys to their online info.
+	onlineInfoByGUID map[onlinePlayerKey]*OnlinePlayerInfo
+
+	// onlineInfoByAccount maps account ids to their active characters.
+	onlineInfoByAccount map[uint32]map[onlinePlayerKey]*OnlinePlayerInfo
+
+	// lifecycleEventTimes stores the newest login/logout event time per player
+	// so delayed cross-subject NATS delivery cannot resurrect stale presence.
+	lifecycleEventTimes map[onlinePlayerKey]uint64
 
 	// friendsService is used to notify friends about status changes
 	friendsService FriendsService
@@ -33,7 +43,9 @@ type onlinePlayersCacheImpl struct {
 
 func NewOnlinePlayersCache() OnlinePlayersCache {
 	return &onlinePlayersCacheImpl{
-		onlineInfoByGUID: make(map[uint64]*OnlinePlayerInfo),
+		onlineInfoByGUID:    make(map[onlinePlayerKey]*OnlinePlayerInfo),
+		onlineInfoByAccount: make(map[uint32]map[onlinePlayerKey]*OnlinePlayerInfo),
+		lifecycleEventTimes: make(map[onlinePlayerKey]uint64),
 	}
 }
 
@@ -41,40 +53,118 @@ func (o *onlinePlayersCacheImpl) SetFriendsService(friendsService FriendsService
 	o.friendsService = friendsService
 }
 
-func (o *onlinePlayersCacheImpl) PlayerLoggedIn(playerGUID uint64, level, class, area uint32) {
+type onlinePlayerKey struct {
+	realmID uint32
+	guid    uint64
+}
+
+func (o *onlinePlayersCacheImpl) PlayerLoggedIn(realmID uint32, playerGUID uint64, accountID uint32, name string, race, level, class, area uint32) {
+	o.playerLoggedInAt(realmID, playerGUID, accountID, name, race, level, class, area, 0)
+}
+
+func (o *onlinePlayersCacheImpl) playerLoggedInAt(realmID uint32, playerGUID uint64, accountID uint32, name string, race, level, class, area uint32, eventTimeUnixNano uint64) bool {
 	o.cacheMutex.Lock()
 	defer o.cacheMutex.Unlock()
 
-	o.onlineInfoByGUID[playerGUID] = &OnlinePlayerInfo{
-		GUID:   playerGUID,
-		Level:  level,
-		Class:  class,
-		Area:   area,
-		Status: 1, // online
+	playerGUID = wowguid.PlayerLowGUID(playerGUID)
+	key := onlinePlayerKey{realmID: realmID, guid: playerGUID}
+	if !o.shouldApplyLifecycleEventLocked(key, eventTimeUnixNano) {
+		return false
 	}
+	if previous := o.onlineInfoByGUID[key]; previous != nil && previous.AccountID != accountID {
+		delete(o.onlineInfoByAccount[previous.AccountID], key)
+		if len(o.onlineInfoByAccount[previous.AccountID]) == 0 {
+			delete(o.onlineInfoByAccount, previous.AccountID)
+		}
+	}
+
+	info := &OnlinePlayerInfo{
+		RealmID:   realmID,
+		AccountID: accountID,
+		GUID:      playerGUID,
+		Name:      name,
+		Race:      race,
+		Level:     level,
+		Class:     class,
+		Area:      area,
+		Status:    1, // online
+	}
+	o.onlineInfoByGUID[key] = info
+	if o.onlineInfoByAccount[accountID] == nil {
+		o.onlineInfoByAccount[accountID] = make(map[onlinePlayerKey]*OnlinePlayerInfo)
+	}
+	o.onlineInfoByAccount[accountID][key] = info
+	o.rememberLifecycleEventTimeLocked(key, eventTimeUnixNano)
+	return true
 }
 
-func (o *onlinePlayersCacheImpl) PlayerLoggedOut(playerGUID uint64) {
+func (o *onlinePlayersCacheImpl) PlayerLoggedOut(realmID uint32, playerGUID uint64) {
+	o.playerLoggedOutAt(realmID, playerGUID, 0)
+}
+
+func (o *onlinePlayersCacheImpl) playerLoggedOutAt(realmID uint32, playerGUID uint64, eventTimeUnixNano uint64) bool {
 	o.cacheMutex.Lock()
 	defer o.cacheMutex.Unlock()
 
-	delete(o.onlineInfoByGUID, playerGUID)
+	playerGUID = wowguid.PlayerLowGUID(playerGUID)
+	key := onlinePlayerKey{realmID: realmID, guid: playerGUID}
+	if !o.shouldApplyLifecycleEventLocked(key, eventTimeUnixNano) {
+		return false
+	}
+
+	info := o.onlineInfoByGUID[key]
+	delete(o.onlineInfoByGUID, key)
+	if info != nil {
+		delete(o.onlineInfoByAccount[info.AccountID], key)
+		if len(o.onlineInfoByAccount[info.AccountID]) == 0 {
+			delete(o.onlineInfoByAccount, info.AccountID)
+		}
+	}
+	o.rememberLifecycleEventTimeLocked(key, eventTimeUnixNano)
+	return true
 }
 
-func (o *onlinePlayersCacheImpl) GetOnlineInfo(playerGUID uint64) (OnlinePlayerInfo, bool) {
+func (o *onlinePlayersCacheImpl) GetOnlineInfo(realmID uint32, playerGUID uint64) (OnlinePlayerInfo, bool) {
 	o.cacheMutex.RLock()
 	defer o.cacheMutex.RUnlock()
 
-	info, ok := o.onlineInfoByGUID[playerGUID]
+	playerGUID = wowguid.PlayerLowGUID(playerGUID)
+	info, ok := o.onlineInfoByGUID[onlinePlayerKey{realmID: realmID, guid: playerGUID}]
 	if !ok {
 		return OnlinePlayerInfo{}, false
 	}
 	return *info, true
 }
 
+func (o *onlinePlayersCacheImpl) GetOnlineInfoForAccount(accountID uint32) (OnlinePlayerInfo, bool) {
+	o.cacheMutex.RLock()
+	defer o.cacheMutex.RUnlock()
+
+	infos := o.onlineInfoByAccount[accountID]
+	for _, info := range infos {
+		return *info, true
+	}
+	return OnlinePlayerInfo{}, false
+}
+
+func (o *onlinePlayersCacheImpl) GetOnlineInfosForAccount(accountID uint32) []OnlinePlayerInfo {
+	o.cacheMutex.RLock()
+	defer o.cacheMutex.RUnlock()
+
+	infos := o.onlineInfoByAccount[accountID]
+	result := make([]OnlinePlayerInfo, 0, len(infos))
+	for _, info := range infos {
+		result = append(result, *info)
+	}
+	return result
+}
+
 // HandleCharacterLoggedIn handles character login event from gateway
 func (o *onlinePlayersCacheImpl) HandleCharacterLoggedIn(payload events.GWEventCharacterLoggedInPayload) error {
-	o.PlayerLoggedIn(payload.CharGUID, uint32(payload.CharLevel), uint32(payload.CharClass), payload.CharZone)
+	playerGUID := wowguid.PlayerLowGUID(payload.CharGUID)
+	if !o.playerLoggedInAt(payload.RealmID, playerGUID, payload.AccountID, payload.CharName, uint32(payload.CharRace), uint32(payload.CharLevel), uint32(payload.CharClass), payload.CharZone, payload.EventTimeUnixNano) {
+		return nil
+	}
 
 	// Notify friends service about login
 	if o.friendsService != nil {
@@ -83,7 +173,7 @@ func (o *onlinePlayersCacheImpl) HandleCharacterLoggedIn(payload events.GWEventC
 		return o.friendsService.NotifyStatusChange(
 			ctx,
 			payload.RealmID,
-			payload.CharGUID,
+			playerGUID,
 			1, // online
 			payload.CharZone,
 			uint32(payload.CharLevel),
@@ -96,7 +186,10 @@ func (o *onlinePlayersCacheImpl) HandleCharacterLoggedIn(payload events.GWEventC
 
 // HandleCharacterLoggedOut handles character logout event from gateway
 func (o *onlinePlayersCacheImpl) HandleCharacterLoggedOut(payload events.GWEventCharacterLoggedOutPayload) error {
-	o.PlayerLoggedOut(payload.CharGUID)
+	playerGUID := wowguid.PlayerLowGUID(payload.CharGUID)
+	if !o.playerLoggedOutAt(payload.RealmID, playerGUID, payload.EventTimeUnixNano) {
+		return nil
+	}
 
 	// Notify friends service about logout
 	if o.friendsService != nil {
@@ -105,7 +198,7 @@ func (o *onlinePlayersCacheImpl) HandleCharacterLoggedOut(payload events.GWEvent
 		return o.friendsService.NotifyStatusChange(
 			ctx,
 			payload.RealmID,
-			payload.CharGUID,
+			playerGUID,
 			0, // offline
 			0, 0, 0,
 		)
@@ -120,8 +213,16 @@ func (o *onlinePlayersCacheImpl) HandleCharactersUpdates(payload events.GWEventC
 	defer o.cacheMutex.Unlock()
 
 	for _, update := range payload.Updates {
-		info, exists := o.onlineInfoByGUID[update.ID]
+		key := onlinePlayerKey{realmID: payload.RealmID, guid: wowguid.PlayerLowGUID(update.ID)}
+		info, exists := o.onlineInfoByGUID[key]
 		if !exists {
+			continue
+		}
+		eventTimeUnixNano := update.EventTimeUnixNano
+		if eventTimeUnixNano == 0 {
+			eventTimeUnixNano = payload.EventTimeUnixNano
+		}
+		if eventTimeUnixNano != 0 && o.lifecycleEventTimes[key] > eventTimeUnixNano {
 			continue
 		}
 
@@ -139,4 +240,18 @@ func (o *onlinePlayersCacheImpl) HandleCharactersUpdates(payload events.GWEventC
 	}
 
 	return nil
+}
+
+func (o *onlinePlayersCacheImpl) shouldApplyLifecycleEventLocked(key onlinePlayerKey, eventTimeUnixNano uint64) bool {
+	return eventTimeUnixNano == 0 || o.lifecycleEventTimes[key] <= eventTimeUnixNano
+}
+
+func (o *onlinePlayersCacheImpl) rememberLifecycleEventTimeLocked(key onlinePlayerKey, eventTimeUnixNano uint64) {
+	if eventTimeUnixNano == 0 {
+		return
+	}
+	if o.lifecycleEventTimes == nil {
+		o.lifecycleEventTimes = map[onlinePlayerKey]uint64{}
+	}
+	o.lifecycleEventTimes[key] = eventTimeUnixNano
 }

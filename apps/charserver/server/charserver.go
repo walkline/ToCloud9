@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	"github.com/rs/zerolog/log"
@@ -9,6 +10,7 @@ import (
 	"github.com/walkline/ToCloud9/apps/charserver/repo"
 	"github.com/walkline/ToCloud9/apps/charserver/service"
 	"github.com/walkline/ToCloud9/gen/characters/pb"
+	"github.com/walkline/ToCloud9/shared/events"
 )
 
 const (
@@ -18,20 +20,39 @@ const (
 type CharServer struct {
 	pb.UnimplementedCharactersServiceServer
 	repo           repo.Characters
+	arenaTeams     repo.ArenaTeams
 	whoHandler     repo.WhoHandler
 	itemsTemplate  repo.ItemsTemplate
 	onlineChars    repo.CharactersOnline
 	friendsService service.FriendsService
+	eventsProducer events.CharactersServiceProducer
+	arenaInvitesMu sync.Mutex
+	arenaInvites   map[arenaTeamInviteKey]arenaTeamInvite
 }
 
-func NewCharServer(repo repo.Characters, onlineChars repo.CharactersOnline, whoHandler repo.WhoHandler, itemsTemplate repo.ItemsTemplate, friendsService service.FriendsService) pb.CharactersServiceServer {
+func NewCharServer(repo repo.Characters, arenaTeams repo.ArenaTeams, onlineChars repo.CharactersOnline, whoHandler repo.WhoHandler, itemsTemplate repo.ItemsTemplate, friendsService service.FriendsService, eventsProducer events.CharactersServiceProducer) pb.CharactersServiceServer {
 	return &CharServer{
 		repo:           repo,
+		arenaTeams:     arenaTeams,
 		whoHandler:     whoHandler,
 		itemsTemplate:  itemsTemplate,
 		onlineChars:    onlineChars,
 		friendsService: friendsService,
+		eventsProducer: eventsProducer,
+		arenaInvites:   make(map[arenaTeamInviteKey]arenaTeamInvite),
 	}
+}
+
+type arenaTeamInviteKey struct {
+	realmID    uint32
+	playerGUID uint64
+}
+
+type arenaTeamInvite struct {
+	arenaTeamID uint32
+	inviterGUID uint64
+	inviterName string
+	teamName    string
 }
 
 func (c *CharServer) CharactersToLoginForAccount(ctx context.Context, request *pb.CharactersToLoginForAccountRequest) (*pb.CharactersToLoginForAccountResponse, error) {
@@ -95,6 +116,7 @@ func (c *CharServer) CharactersToLoginForAccount(ctx context.Context, request *p
 			Equipments:  equipments,
 			Banned:      char.Banned,
 			AccountID:   char.AccountID,
+			ExtraFlags:  char.ExtraFlags,
 		}
 		result = append(result, item)
 	}
@@ -134,16 +156,41 @@ func (c *CharServer) AccountDataForAccount(ctx context.Context, request *pb.Acco
 	}, nil
 }
 
+func (c *CharServer) UpdateAccountDataForAccount(ctx context.Context, request *pb.UpdateAccountDataForAccountRequest) (*pb.UpdateAccountDataForAccountResponse, error) {
+	defer func(t time.Time) {
+		log.Debug().
+			Uint32("accountID", request.AccountID).
+			Uint32("realmID", request.RealmID).
+			Uint32("type", request.Type).
+			Str("timeTook", time.Since(t).String()).
+			Msg("Handled account data update")
+	}(time.Now())
+
+	err := c.repo.UpdateAccountDataForAccountID(ctx, request.RealmID, request.AccountID, repo.AccountData{
+		Type: uint8(request.Type),
+		Time: request.Time,
+		Data: request.Data,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return &pb.UpdateAccountDataForAccountResponse{
+		Api: ver,
+	}, nil
+}
+
 func (c *CharServer) CharactersToLoginByGUID(ctx context.Context, request *pb.CharactersToLoginByGUIDRequest) (*pb.CharactersToLoginByGUIDResponse, error) {
 	defer func(t time.Time) {
 		log.Debug().
 			Uint64("characterID", request.CharacterGUID).
+			Uint32("accountID", request.AccountID).
 			Uint32("realmID", request.RealmID).
 			Str("timeTook", time.Since(t).String()).
 			Msg("Handled characters to login by GUID")
 	}(time.Now())
 
-	char, err := c.repo.CharacterToLogInByGUID(ctx, request.RealmID, request.CharacterGUID)
+	char, err := c.repo.CharacterToLogInByGUID(ctx, request.RealmID, request.AccountID, request.CharacterGUID)
 	if err != nil {
 		return nil, err
 	}
@@ -194,6 +241,7 @@ func (c *CharServer) CharactersToLoginByGUID(ctx context.Context, request *pb.Ch
 			Equipments:  equipments,
 			Banned:      char.Banned,
 			AccountID:   char.AccountID,
+			ExtraFlags:  char.ExtraFlags,
 		}
 	}
 
@@ -201,6 +249,83 @@ func (c *CharServer) CharactersToLoginByGUID(ctx context.Context, request *pb.Ch
 		Api:       ver,
 		Character: charResult,
 	}, nil
+}
+
+func (c *CharServer) RecordLfgDungeonRoute(ctx context.Context, request *pb.RecordLfgDungeonRouteRequest) (*pb.RecordLfgDungeonRouteResponse, error) {
+	route := request.GetRoute()
+	if route == nil {
+		return &pb.RecordLfgDungeonRouteResponse{Api: ver}, nil
+	}
+
+	err := c.repo.RecordLfgDungeonRoute(ctx, repo.LfgDungeonRoute{
+		RealmID:               route.GetRealmID(),
+		PlayerGUID:            route.GetPlayerGUID(),
+		DungeonEntry:          route.GetDungeonEntry(),
+		MapID:                 route.GetMapID(),
+		Difficulty:            uint8(route.GetDifficulty()),
+		OwnerRealmID:          route.GetOwnerRealmID(),
+		IsCrossRealm:          route.GetIsCrossRealm(),
+		RequiresBoundInstance: route.GetRequiresBoundInstance(),
+		InstanceID:            route.GetInstanceID(),
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &pb.RecordLfgDungeonRouteResponse{Api: ver}, nil
+}
+
+func (c *CharServer) ConfirmLfgDungeonRouteEntered(ctx context.Context, request *pb.ConfirmLfgDungeonRouteEnteredRequest) (*pb.ConfirmLfgDungeonRouteEnteredResponse, error) {
+	route, err := c.repo.ConfirmLfgDungeonRouteEntered(ctx, request.GetRealmID(), request.GetPlayerGUID(), request.GetMapID(), uint8(request.GetDifficulty()), request.GetInstanceID())
+	if err != nil {
+		return nil, err
+	}
+	return &pb.ConfirmLfgDungeonRouteEnteredResponse{
+		Api:   ver,
+		Route: lfgDungeonRouteToProto(route),
+	}, nil
+}
+
+func (c *CharServer) ClearUnboundLfgDungeonRoute(ctx context.Context, request *pb.ClearUnboundLfgDungeonRouteRequest) (*pb.ClearUnboundLfgDungeonRouteResponse, error) {
+	if err := c.repo.ClearUnboundLfgDungeonRoute(ctx, request.GetRealmID(), request.GetPlayerGUID(), request.GetMapID()); err != nil {
+		return nil, err
+	}
+	return &pb.ClearUnboundLfgDungeonRouteResponse{Api: ver}, nil
+}
+
+func (c *CharServer) GetLfgDungeonRoute(ctx context.Context, request *pb.GetLfgDungeonRouteRequest) (*pb.GetLfgDungeonRouteResponse, error) {
+	route, err := c.repo.LfgDungeonRouteForPlayer(ctx, request.GetRealmID(), request.GetPlayerGUID(), request.GetMapID())
+	if err != nil {
+		return nil, err
+	}
+	if route == nil {
+		return &pb.GetLfgDungeonRouteResponse{Api: ver}, nil
+	}
+
+	available := !route.RequiresBoundInstance || route.BoundInstanceID != 0
+	return &pb.GetLfgDungeonRouteResponse{
+		Api:       ver,
+		Found:     true,
+		Available: available,
+		Route:     lfgDungeonRouteToProto(route),
+	}, nil
+}
+
+func lfgDungeonRouteToProto(route *repo.LfgDungeonRoute) *pb.LfgDungeonRoute {
+	if route == nil {
+		return nil
+	}
+	return &pb.LfgDungeonRoute{
+		RealmID:               route.RealmID,
+		PlayerGUID:            route.PlayerGUID,
+		DungeonEntry:          route.DungeonEntry,
+		MapID:                 route.MapID,
+		Difficulty:            uint32(route.Difficulty),
+		OwnerRealmID:          route.OwnerRealmID,
+		IsCrossRealm:          route.IsCrossRealm,
+		RequiresBoundInstance: route.RequiresBoundInstance,
+		InstanceID:            route.InstanceID,
+		BoundInstanceID:       route.BoundInstanceID,
+	}
 }
 
 func (c *CharServer) WhoQuery(ctx context.Context, request *pb.WhoQueryRequest) (*pb.WhoQueryResponse, error) {
@@ -351,6 +476,73 @@ func (c *CharServer) CharacterByName(ctx context.Context, request *pb.CharacterB
 	}, nil
 }
 
+func (c *CharServer) CharacterByGUID(ctx context.Context, request *pb.CharacterByGUIDRequest) (*pb.CharacterByGUIDResponse, error) {
+	defer func(t time.Time) {
+		log.Debug().
+			Uint64("guid", request.CharacterGUID).
+			Uint32("realmID", request.RealmID).
+			Str("timeTook", time.Since(t).String()).
+			Msg("Handled character by guid")
+	}(time.Now())
+
+	chars, err := c.onlineChars.CharactersByRealmAndGUIDs(ctx, request.RealmID, []uint64{request.CharacterGUID})
+	if err != nil {
+		return nil, err
+	}
+
+	if len(chars) > 0 {
+		char := chars[0]
+		return &pb.CharacterByGUIDResponse{
+			Api: ver,
+			Character: &pb.CharacterByNameResponse_Char{
+				RealmID:     char.RealmID,
+				IsOnline:    true,
+				GatewayID:   char.GatewayID,
+				CharGUID:    char.CharGUID,
+				CharName:    char.CharName,
+				CharRace:    uint32(char.CharRace),
+				CharClass:   uint32(char.CharClass),
+				CharGender:  uint32(char.CharGender),
+				CharLvl:     uint32(char.CharLevel),
+				CharZone:    char.CharZone,
+				CharMap:     char.CharMap,
+				CharGuildID: uint64(char.CharGuildID),
+				AccountID:   char.AccountID,
+			},
+		}, nil
+	}
+
+	char, err := c.repo.CharacterByGUID(ctx, request.RealmID, request.CharacterGUID)
+	if err != nil {
+		return nil, err
+	}
+	if char == nil {
+		return &pb.CharacterByGUIDResponse{
+			Api:       ver,
+			Character: nil,
+		}, nil
+	}
+
+	return &pb.CharacterByGUIDResponse{
+		Api: ver,
+		Character: &pb.CharacterByNameResponse_Char{
+			RealmID:     char.RealmID,
+			IsOnline:    false,
+			GatewayID:   "",
+			CharGUID:    char.CharGUID,
+			CharName:    char.CharName,
+			CharRace:    uint32(char.CharRace),
+			CharClass:   uint32(char.CharClass),
+			CharGender:  uint32(char.CharGender),
+			CharLvl:     uint32(char.CharLevel),
+			CharZone:    char.CharZone,
+			CharMap:     char.CharMap,
+			CharGuildID: uint64(char.CharGuildID),
+			AccountID:   char.AccountID,
+		},
+	}, nil
+}
+
 func (c *CharServer) ShortOnlineCharactersDataByGUIDs(ctx context.Context, request *pb.ShortCharactersDataByGUIDsRequest) (*pb.ShortCharactersDataByGUIDsResponse, error) {
 	defer func(t time.Time) {
 		log.Debug().
@@ -418,6 +610,7 @@ func (c *CharServer) GetFriendsList(ctx context.Context, request *pb.GetFriendsL
 	friends := make([]*pb.GetFriendsListResponse_Friend, 0, len(friendsList.Friends))
 	for _, friend := range friendsList.Friends {
 		friends = append(friends, &pb.GetFriendsListResponse_Friend{
+			RealmID: friend.RealmID,
 			Guid:    friend.GUID,
 			Note:    friend.Note,
 			Status:  uint32(friend.Status),
@@ -457,12 +650,92 @@ func (c *CharServer) AddFriend(ctx context.Context, request *pb.AddFriendRequest
 	}
 
 	return &pb.AddFriendResponse{
-		Api:     ver,
-		Result:  result.Result,
-		Status:  uint32(result.Status),
-		Area:    result.Area,
-		Level:   result.Level,
-		ClassID: result.ClassID,
+		Api:        ver,
+		Result:     result.Result,
+		Status:     uint32(result.Status),
+		Area:       result.Area,
+		Level:      result.Level,
+		ClassID:    result.ClassID,
+		FriendGUID: result.FriendGUID,
+		Pending:    result.Pending,
+		Accepted:   result.Accepted,
+	}, nil
+}
+
+func (c *CharServer) AddRealIDFriendByEmail(ctx context.Context, request *pb.AddRealIDFriendByEmailRequest) (*pb.AddRealIDFriendByEmailResponse, error) {
+	defer func(t time.Time) {
+		log.Debug().
+			Uint64("playerGUID", request.PlayerGUID).
+			Uint32("accountID", request.AccountID).
+			Uint32("realmID", request.RealmID).
+			Str("timeTook", time.Since(t).String()).
+			Msg("Handled add real id friend by email")
+	}(time.Now())
+
+	result, err := c.friendsService.AddRealIDFriendByEmail(ctx, request.RealmID, request.PlayerGUID, request.AccountID, request.Email, request.Note)
+	if err != nil {
+		return nil, err
+	}
+
+	return &pb.AddRealIDFriendByEmailResponse{
+		Api:        ver,
+		Result:     result.Result,
+		Status:     uint32(result.Status),
+		Area:       result.Area,
+		Level:      result.Level,
+		ClassID:    result.ClassID,
+		FriendGUID: result.FriendGUID,
+		Pending:    result.Pending,
+		Accepted:   result.Accepted,
+	}, nil
+}
+
+func (c *CharServer) AcceptRealIDFriend(ctx context.Context, request *pb.AcceptRealIDFriendRequest) (*pb.AcceptRealIDFriendResponse, error) {
+	defer func(t time.Time) {
+		log.Debug().
+			Uint64("playerGUID", request.PlayerGUID).
+			Uint32("accountID", request.AccountID).
+			Uint32("requesterAccountID", request.RequesterAccountID).
+			Uint32("realmID", request.RealmID).
+			Str("timeTook", time.Since(t).String()).
+			Msg("Handled accept real id friend")
+	}(time.Now())
+
+	result, err := c.friendsService.AcceptRealIDFriend(ctx, request.RealmID, request.PlayerGUID, request.AccountID, request.RequesterAccountID, request.Note)
+	if err != nil {
+		return nil, err
+	}
+
+	return &pb.AcceptRealIDFriendResponse{
+		Api:        ver,
+		Result:     result.Result,
+		Status:     uint32(result.Status),
+		Area:       result.Area,
+		Level:      result.Level,
+		ClassID:    result.ClassID,
+		FriendGUID: result.FriendGUID,
+		Pending:    result.Pending,
+		Accepted:   result.Accepted,
+	}, nil
+}
+
+func (c *CharServer) AreRealIDFriends(ctx context.Context, request *pb.AreRealIDFriendsRequest) (*pb.AreRealIDFriendsResponse, error) {
+	defer func(t time.Time) {
+		log.Debug().
+			Uint32("accountID", request.AccountID).
+			Uint32("friendAccountID", request.FriendAccountID).
+			Str("timeTook", time.Since(t).String()).
+			Msg("Handled are real id friends")
+	}(time.Now())
+
+	accepted, err := c.friendsService.AreRealIDFriends(ctx, request.AccountID, request.FriendAccountID)
+	if err != nil {
+		return nil, err
+	}
+
+	return &pb.AreRealIDFriendsResponse{
+		Api:      ver,
+		Accepted: accepted,
 	}, nil
 }
 
@@ -581,8 +854,8 @@ func (c *CharServer) GetOnlineCharacters(ctx context.Context, request *pb.GetOnl
 	}
 
 	return &pb.GetOnlineCharactersResponse{
-		Api:             ver,
-		CharacterGUIDs:  guids,
-		TotalCount:      uint32(len(guids)),
+		Api:            ver,
+		CharacterGUIDs: guids,
+		TotalCount:     uint32(len(guids)),
 	}, nil
 }

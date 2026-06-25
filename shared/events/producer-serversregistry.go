@@ -2,6 +2,7 @@ package events
 
 import (
 	"encoding/json"
+	"time"
 
 	"github.com/nats-io/nats.go"
 )
@@ -13,6 +14,8 @@ type ServerRegistryProducer interface {
 	GSMapsReassigned(payload *ServerRegistryEventGSMapsReassignedPayload) error
 	GSAdded(payload *ServerRegistryEventGSAddedPayload) error
 	GSRemoved(payload *ServerRegistryEventGSRemovedPayload) error
+	MatchmakingRemovedUnhealthy(payload *ServerRegistryEventMatchmakingRemovedUnhealthyPayload) error
+	MatchmakingRecovered(payload *ServerRegistryEventMatchmakingRecoveredPayload) error
 }
 
 type serverRegistryProducerNatsJSON struct {
@@ -32,6 +35,9 @@ func (s serverRegistryProducerNatsJSON) GatewayAdded(payload *ServerRegistryEven
 }
 
 func (s serverRegistryProducerNatsJSON) GatewayRemovedUnhealthy(payload *ServerRegistryEventGWRemovedUnhealthyPayload) error {
+	if payload.EventTimeUnixNano == 0 {
+		payload.EventTimeUnixNano = uint64(time.Now().UnixNano())
+	}
 	return s.publish(ServerRegistryEventGWRemovedUnhealthy, payload)
 }
 
@@ -45,6 +51,14 @@ func (s serverRegistryProducerNatsJSON) GSAdded(payload *ServerRegistryEventGSAd
 
 func (s serverRegistryProducerNatsJSON) GSRemoved(payload *ServerRegistryEventGSRemovedPayload) error {
 	return s.publish(ServerRegistryEventGSRemoved, payload)
+}
+
+func (s serverRegistryProducerNatsJSON) MatchmakingRemovedUnhealthy(payload *ServerRegistryEventMatchmakingRemovedUnhealthyPayload) error {
+	return s.publish(ServerRegistryEventMatchmakingRemovedUnhealthy, payload)
+}
+
+func (s serverRegistryProducerNatsJSON) MatchmakingRecovered(payload *ServerRegistryEventMatchmakingRecoveredPayload) error {
+	return s.publish(ServerRegistryEventMatchmakingRecovered, payload)
 }
 
 func (s *serverRegistryProducerNatsJSON) publish(e ServerRegistryEvent, payload interface{}) error {

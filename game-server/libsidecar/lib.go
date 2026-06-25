@@ -21,6 +21,13 @@ import (
 const (
 	libVer = "0.0.1"
 	matchmakingSupportedVer
+
+	mapsLoadedAckMaxAttempts = 5
+)
+
+var (
+	mapsLoadedAckRetryDelay     = time.Millisecond * 500
+	mapsLoadedAckAttemptTimeout = time.Second * 10
 )
 
 var (
@@ -54,7 +61,7 @@ func initLib(realmID uint32) (*config.Config, healthandmetrics.Server, ShutdownF
 	healthandmetrics.EnableActiveConnectionsMetrics()
 	healthandmetrics.EnableDelayMetrics()
 
-	healthCheckServer := healthandmetrics.NewServer(cfg.HealthCheckPort, monitoringHttpHandler())
+	healthCheckServer := healthandmetrics.NewServerWithHealthProbe(cfg.HealthCheckPort, monitoringHttpHandler(), worldLoopHealthProbe)
 	go healthCheckServer.ListenAndServe()
 
 	natsConsumer := SetupEventsListener(nc, realmID, log)
@@ -62,6 +69,10 @@ func initLib(realmID uint32) (*config.Config, healthandmetrics.Server, ShutdownF
 	srvRegConn := SetupServersRegistryConnection(cfg)
 
 	guidConn := SetupGuidServiceConnection(cfg)
+
+	groupConn := SetupGroupServiceConnection(cfg)
+
+	characterConn := SetupCharacterServiceConnection(cfg)
 
 	SetupMatchmakingConnection(ctx, cfg)
 
@@ -101,6 +112,14 @@ func initLib(realmID uint32) (*config.Config, healthandmetrics.Server, ShutdownF
 
 		if err = guidConn.Close(); err != nil {
 			log.Fatal().Err(err).Msg("failed to close guid service connection")
+		}
+
+		if err = groupConn.Close(); err != nil {
+			log.Fatal().Err(err).Msg("failed to close group service connection")
+		}
+
+		if err = characterConn.Close(); err != nil {
+			log.Fatal().Err(err).Msg("failed to close character service connection")
 		}
 
 		log.Info().Msg("👍 Sidecar successfully stopped.")
@@ -244,13 +263,85 @@ func TC9ReadyToAcceptPlayersFromMaps(maps *C.uint32_t, mapsLen C.int) {
 		pItr = (*C.uint32_t)(unsafe.Pointer(uintptr(unsafe.Pointer(pItr)) + uintptr(unsafe.Sizeof(C.uint32_t(0)))))
 	}
 	go func() {
-		_, err := registryClient.GameServerMapsLoaded(context.Background(), &pb.GameServerMapsLoadedRequest{
-			Api:          libVer,
-			GameServerID: AssignedGameServerID,
-			MapsLoaded:   mapsSlice,
-		})
+		err := sendGameServerMapsLoadedWithRetry(
+			context.Background(),
+			AssignedGameServerID,
+			mapsSlice,
+			mapsLoadedAckMaxAttempts,
+			mapsLoadedAckRetryDelay,
+			mapsLoadedAckAttemptTimeout,
+			func(ctx context.Context, req *pb.GameServerMapsLoadedRequest) error {
+				_, err := registryClient.GameServerMapsLoaded(ctx, req)
+				return err
+			},
+		)
 		if err != nil {
-			log.Err(err).Msg("can't mark maps as loaded failed")
+			log.Err(err).Int("attempts", mapsLoadedAckMaxAttempts).Msg("can't mark maps as loaded after retries")
 		}
 	}()
+}
+
+func sendGameServerMapsLoadedWithRetry(
+	ctx context.Context,
+	serverID string,
+	maps []uint32,
+	maxAttempts int,
+	retryDelay time.Duration,
+	attemptTimeout time.Duration,
+	send func(context.Context, *pb.GameServerMapsLoadedRequest) error,
+) error {
+	if maxAttempts < 1 {
+		maxAttempts = 1
+	}
+
+	req := &pb.GameServerMapsLoadedRequest{
+		Api:          libVer,
+		GameServerID: serverID,
+		MapsLoaded:   append([]uint32(nil), maps...),
+	}
+
+	var err error
+	delay := retryDelay
+	for attempt := 1; attempt <= maxAttempts; attempt++ {
+		attemptCtx := ctx
+		cancel := func() {}
+		if attemptTimeout > 0 {
+			attemptCtx, cancel = context.WithTimeout(ctx, attemptTimeout)
+		}
+
+		err = send(attemptCtx, req)
+		cancel()
+		if err == nil {
+			if attempt > 1 {
+				log.Info().Int("attempt", attempt).Str("serverID", serverID).Int("maps", len(maps)).Msg("marked maps as loaded after retry")
+			}
+			return nil
+		}
+
+		if attempt == maxAttempts {
+			return err
+		}
+
+		log.Warn().Err(err).Int("attempt", attempt).Str("serverID", serverID).Int("maps", len(maps)).Msg("failed to mark maps as loaded; retrying")
+		if delay <= 0 {
+			continue
+		}
+
+		timer := time.NewTimer(delay)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return ctx.Err()
+		case <-timer.C:
+		}
+
+		if delay < time.Second*5 {
+			delay *= 2
+			if delay > time.Second*5 {
+				delay = time.Second * 5
+			}
+		}
+	}
+
+	return err
 }

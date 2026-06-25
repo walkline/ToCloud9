@@ -33,6 +33,7 @@ func SetupGRPCService(conf *config.Config) (net.Listener, *grpc.Server) {
 		grpcapi.NewWorldServerGRPCAPI(
 			grpcapi.CppBindings{
 				GetPlayerItemsByGuids:           GetPlayerItemsByGuidHandler,
+				TakePlayerItemByPos:             TakePlayerItemByPosHandler,
 				RemoveItemsWithGuidsFromPlayer:  RemoveItemsWithGuidsFromPlayerHandler,
 				AddExistingItemToPlayer:         AddExistingItemToPlayerHandler,
 				GetMoneyForPlayer:               GetMoneyForPlayerHandler,
@@ -43,6 +44,13 @@ func SetupGRPCService(conf *config.Config) (net.Listener, *grpc.Server) {
 				AddPlayersToBattleground:        BattlegroundAddPlayersHandler,
 				CanPlayerJoinBattlegroundQueue:  CanPlayerJoinBattlegroundQueueHandler,
 				CanPlayerTeleportToBattleground: CanPlayerTeleportToBattlegroundHandler,
+				GetLFGPlayerLockInfo:            LfgPlayerLockInfoHandler,
+				GetLFGPlayerInfo:                LfgPlayerInfoHandler,
+				GetLFGDungeonInfo:               LfgDungeonInfoHandler,
+				TeleportLFGPlayer:               LfgTeleportPlayerHandler,
+				SetLFGBootVote:                  LfgBootVoteHandler,
+				MaterializeLFGProposal:          LfgMaterializeProposalHandler,
+				CreateGuild:                     CreateGuildHandler,
 			},
 			time.Second*5,
 			readRequestsQueue,
