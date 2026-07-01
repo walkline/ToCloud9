@@ -53,6 +53,14 @@ func (s *pathfindingServer) FindRandomPath(_ context.Context, req *pb.FindRandom
 	return toProtoResponse(result), nil
 }
 
+func (s *pathfindingServer) GetHeight(_ context.Context, req *pb.GetHeightRequest) (*pb.GetHeightResponse, error) {
+	if req.Point == nil {
+		return &pb.GetHeightResponse{Success: false}, nil
+	}
+	h, ok := s.svc.GetHeight(req.MapId, req.Point.X, req.Point.Y, req.Point.Z)
+	return &pb.GetHeightResponse{Height: h, Success: ok}, nil
+}
+
 func toProtoResponse(result *service.PathResult) *pb.FindPathResponse {
 	resp := &pb.FindPathResponse{
 		PathLength: result.PathLength(),

@@ -14,9 +14,9 @@ import (
 
 // Auth command opcodes
 const (
-	AuthLogonChallenge  byte = 0x00
-	AuthLogonProof      byte = 0x01
-	AuthRealmList       byte = 0x10
+	AuthLogonChallenge byte = 0x00
+	AuthLogonProof     byte = 0x01
+	AuthRealmList      byte = 0x10
 )
 
 // SRP6 parameters
@@ -98,10 +98,10 @@ func (a *AuthClient) Authenticate(authAddr string) ([]RealmInfo, error) {
 
 func (a *AuthClient) sendLogonChallenge() error {
 	// FourCC values are sent in reverse byte order per the WoW protocol
-	gameName := [4]byte{0, 'W', 'o', 'W'}   // "WoW" reversed
-	platform := [4]byte{0, '6', '8', 'x'}   // "x86" reversed
-	os := [4]byte{0, 'n', 'i', 'W'}         // "Win" reversed
-	country := [4]byte{'S', 'U', 'n', 'e'}  // "enUS" reversed
+	gameName := [4]byte{0, 'W', 'o', 'W'}  // "WoW" reversed
+	platform := [4]byte{0, '6', '8', 'x'}  // "x86" reversed
+	os := [4]byte{0, 'n', 'i', 'W'}        // "Win" reversed
+	country := [4]byte{'S', 'U', 'n', 'e'} // "enUS" reversed
 
 	loginBytes := []byte(a.username)
 
@@ -111,14 +111,14 @@ func (a *AuthClient) sendLogonChallenge() error {
 	buf.WriteByte(3) // error (protocol version)
 	binary.Write(buf, binary.LittleEndian, uint16(30+len(loginBytes)))
 	buf.Write(gameName[:])
-	buf.WriteByte(3)  // version1
-	buf.WriteByte(3)  // version2
-	buf.WriteByte(5)  // version3
+	buf.WriteByte(3)                                      // version1
+	buf.WriteByte(3)                                      // version2
+	buf.WriteByte(5)                                      // version3
 	binary.Write(buf, binary.LittleEndian, uint16(12340)) // build
 	buf.Write(platform[:])
 	buf.Write(os[:])
 	buf.Write(country[:])
-	binary.Write(buf, binary.LittleEndian, uint32(0)) // timezone bias
+	binary.Write(buf, binary.LittleEndian, uint32(0))          // timezone bias
 	binary.Write(buf, binary.LittleEndian, uint32(0x0100007f)) // IP (127.0.0.1)
 	buf.WriteByte(byte(len(loginBytes)))
 	buf.Write(loginBytes)

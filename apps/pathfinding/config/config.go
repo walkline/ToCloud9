@@ -13,6 +13,9 @@ type Config struct {
 
 	// MmapsDir is path to the directory containing mmap files
 	MmapsDir string `yaml:"mmapsDir" env:"MMAPS_DIR" env-default:"mmaps"`
+
+	// MapsDir is path to the directory containing .map terrain files for accurate height (Z)
+	MapsDir string `yaml:"mapsDir" env:"MAPS_DIR" env-default:"maps"`
 }
 
 // LoadConfig loads config from env variables

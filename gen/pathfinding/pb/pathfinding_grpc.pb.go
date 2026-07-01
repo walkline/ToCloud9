@@ -21,6 +21,7 @@ const _ = grpc.SupportPackageIsVersion7
 const (
 	PathfindingService_FindPath_FullMethodName       = "/v1.PathfindingService/FindPath"
 	PathfindingService_FindRandomPath_FullMethodName = "/v1.PathfindingService/FindRandomPath"
+	PathfindingService_GetHeight_FullMethodName      = "/v1.PathfindingService/GetHeight"
 )
 
 // PathfindingServiceClient is the client API for PathfindingService service.
@@ -29,6 +30,7 @@ const (
 type PathfindingServiceClient interface {
 	FindPath(ctx context.Context, in *FindPathRequest, opts ...grpc.CallOption) (*FindPathResponse, error)
 	FindRandomPath(ctx context.Context, in *FindRandomPathRequest, opts ...grpc.CallOption) (*FindPathResponse, error)
+	GetHeight(ctx context.Context, in *GetHeightRequest, opts ...grpc.CallOption) (*GetHeightResponse, error)
 }
 
 type pathfindingServiceClient struct {
@@ -57,12 +59,22 @@ func (c *pathfindingServiceClient) FindRandomPath(ctx context.Context, in *FindR
 	return out, nil
 }
 
+func (c *pathfindingServiceClient) GetHeight(ctx context.Context, in *GetHeightRequest, opts ...grpc.CallOption) (*GetHeightResponse, error) {
+	out := new(GetHeightResponse)
+	err := c.cc.Invoke(ctx, PathfindingService_GetHeight_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // PathfindingServiceServer is the server API for PathfindingService service.
 // All implementations must embed UnimplementedPathfindingServiceServer
 // for forward compatibility
 type PathfindingServiceServer interface {
 	FindPath(context.Context, *FindPathRequest) (*FindPathResponse, error)
 	FindRandomPath(context.Context, *FindRandomPathRequest) (*FindPathResponse, error)
+	GetHeight(context.Context, *GetHeightRequest) (*GetHeightResponse, error)
 	mustEmbedUnimplementedPathfindingServiceServer()
 }
 
@@ -75,6 +87,9 @@ func (UnimplementedPathfindingServiceServer) FindPath(context.Context, *FindPath
 }
 func (UnimplementedPathfindingServiceServer) FindRandomPath(context.Context, *FindRandomPathRequest) (*FindPathResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method FindRandomPath not implemented")
+}
+func (UnimplementedPathfindingServiceServer) GetHeight(context.Context, *GetHeightRequest) (*GetHeightResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetHeight not implemented")
 }
 func (UnimplementedPathfindingServiceServer) mustEmbedUnimplementedPathfindingServiceServer() {}
 
@@ -125,6 +140,24 @@ func _PathfindingService_FindRandomPath_Handler(srv interface{}, ctx context.Con
 	return interceptor(ctx, in, info, handler)
 }
 
+func _PathfindingService_GetHeight_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetHeightRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PathfindingServiceServer).GetHeight(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PathfindingService_GetHeight_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PathfindingServiceServer).GetHeight(ctx, req.(*GetHeightRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // PathfindingService_ServiceDesc is the grpc.ServiceDesc for PathfindingService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -139,6 +172,10 @@ var PathfindingService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "FindRandomPath",
 			Handler:    _PathfindingService_FindRandomPath_Handler,
+		},
+		{
+			MethodName: "GetHeight",
+			Handler:    _PathfindingService_GetHeight_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

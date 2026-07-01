@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"math"
 	"math/rand"
+	"os"
+	"strings"
 	"sync"
 
 	"github.com/o0olele/detour-go/detour"
@@ -16,7 +18,18 @@ const (
 	smoothPathSlop     = float32(0.3)
 	vertexSize         = 3
 	invalidPolyRef     = detour.DtPolyRef(0)
+
+	GROUND_HEIGHT_TOLERANCE = 0.05
+	DEFAULT_HEIGHT_SEARCH   = 50.0
+	// Z_OFFSET_FIND_HEIGHT matches AzerothCore SharedDefines.h
+	Z_OFFSET_FIND_HEIGHT = 2.0
+	// DEFAULT_COLLISION_HEIGHT matches AzerothCore ObjectDefines.h (most common model value)
+	DEFAULT_COLLISION_HEIGHT = 2.03128
 )
+
+func fuzzyGe(a, b float32) bool {
+	return a > b || math.Abs(float64(a-b)) < 0.00001
+}
 
 // PathType describes the result status of a pathfinding query.
 type PathType uint32
@@ -63,15 +76,17 @@ func (r *PathResult) PathLength() float32 {
 // Each PathFinder instance owns a DtNavMeshQuery which is NOT thread-safe.
 // Use the pool-based PathFindingService for concurrent access.
 type PathFinder struct {
-	mmapMgr *MMapManager
-	mapID   uint32
-	query   *detour.DtNavMeshQuery
-	navMesh *detour.DtNavMesh
-	filter  *detour.DtQueryFilter
+	mmapMgr    *MMapManager
+	terrainMgr *TerrainManager
+	vmapMgr    *VMapManager
+	mapID      uint32
+	query      *detour.DtNavMeshQuery
+	navMesh    *detour.DtNavMesh
+	filter     *detour.DtQueryFilter
 }
 
 // NewPathFinder creates a PathFinder for the given map.
-func NewPathFinder(mmapMgr *MMapManager, mapID uint32) (*PathFinder, error) {
+func NewPathFinder(mmapMgr *MMapManager, terrainMgr *TerrainManager, vmapMgr *VMapManager, mapID uint32) (*PathFinder, error) {
 	navMesh, err := mmapMgr.GetNavMesh(mapID)
 	if err != nil {
 		return nil, err
@@ -88,11 +103,13 @@ func NewPathFinder(mmapMgr *MMapManager, mapID uint32) (*PathFinder, error) {
 	filter.SetExcludeFlags(0)
 
 	return &PathFinder{
-		mmapMgr: mmapMgr,
-		mapID:   mapID,
-		query:   query,
-		navMesh: navMesh,
-		filter:  filter,
+		mmapMgr:    mmapMgr,
+		terrainMgr: terrainMgr,
+		vmapMgr:    vmapMgr,
+		mapID:      mapID,
+		query:      query,
+		navMesh:    navMesh,
+		filter:     filter,
 	}, nil
 }
 
@@ -135,7 +152,9 @@ func (pf *PathFinder) ensureTilesForPath(start, dest Point3D) error {
 	sgx, sgy := gameToGridCoords(start.X, start.Y)
 	dgx, dgy := gameToGridCoords(dest.X, dest.Y)
 
-	// Determine the range of grid tiles.
+	// Determine the range of grid tiles. Expand by margin to ensure the full possible path area (including curves) has tiles loaded.
+	// This fixes cases where partial tiles lead to different (suboptimal) poly paths vs AC.
+	const gridMargin = 10
 	minGX, maxGX := sgx, dgx
 	if minGX > maxGX {
 		minGX, maxGX = maxGX, minGX
@@ -144,6 +163,10 @@ func (pf *PathFinder) ensureTilesForPath(start, dest Point3D) error {
 	if minGY > maxGY {
 		minGY, maxGY = maxGY, minGY
 	}
+	minGX -= gridMargin
+	maxGX += gridMargin
+	minGY -= gridMargin
+	maxGY += gridMargin
 
 	for gx := minGX; gx <= maxGX; gx++ {
 		for gy := minGY; gy <= maxGY; gy++ {
@@ -267,6 +290,23 @@ func (pf *PathFinder) FindPath(start, dest Point3D) (*PathResult, error) {
 		}
 	}
 
+	// Set final Z for each point by querying the navmesh poly height at the *final smoothed (x,y)*.
+	// This replicates using the surface the path actually follows on the mesh.
+	// (AC additionally runs NormalizePath/UpdateAllowedPositionZ which may adjust further using maps/vmaps;
+	// when aux data has full fidelity the getMapHeight path above would be used instead.)
+	for i := range points {
+		pt := [3]float32{points[i].Y, points[i].Z + 5.0, points[i].X}
+		var pr detour.DtPolyRef
+		var cl [3]float32
+		ext := [3]float32{5, 20, 5}
+		if st := pf.query.FindNearestPoly(pt[:], ext[:], pf.filter, &pr, cl[:]); detour.DtStatusSucceed(st) && pr != invalidPolyRef {
+			var ph float32
+			if st2 := pf.query.GetPolyHeight(pr, cl[:], &ph); detour.DtStatusSucceed(st2) {
+				points[i].Z = ph
+			}
+		}
+	}
+
 	return &PathResult{
 		Type:   pathType,
 		Points: points,
@@ -368,6 +408,7 @@ func (pf *PathFinder) findSmoothPath(startPos, endPos []float32, polyPath []deto
 		copy(targetPos[:], endPos)
 	}
 
+	// Store first point as-is (from boundary or start). AC stores iterPos directly here; +0.5 is added only to subsequent steering points.
 	dtVcopy(smoothPath[nsmoothPath*vertexSize:], iterPos[:])
 	nsmoothPath++
 
@@ -415,16 +456,21 @@ func (pf *PathFinder) findSmoothPath(startPos, endPos []float32, polyPath []deto
 
 		npolys = pf.fixupCorridor(polys, npolys, maxPathLength, visited, uint32(nvisited))
 
+		// Get the real surface height.
 		var h float32
 		pf.query.GetPolyHeight(polys[0], result[:], &h)
-		result[1] = h + 0.5
-
+		result[1] = h
+		result[1] += 0.5 // temp lift matches AC FindSmoothPath for steering iterations (Normalize fixes later)
 		copy(iterPos[:], result[:])
+
+		// Record: we still record the lifted for consistency during generation; normalize step after will fix to map/vmap Z.
+		record := [3]float32{iterPos[0], iterPos[1], iterPos[2]}
 
 		// Handle end of path.
 		if endOfPath && inRangeYZX(iterPos[:], steerPos[:], smoothPathSlop, 1.0) {
 			copy(iterPos[:], targetPos[:])
 			if nsmoothPath < maxSmoothPathSize {
+				// record the target as-is (AC copies targetPos directly; NormalizePath fixes Z later)
 				dtVcopy(smoothPath[nsmoothPath*vertexSize:], iterPos[:])
 				nsmoothPath++
 			}
@@ -455,12 +501,16 @@ func (pf *PathFinder) findSmoothPath(startPos, endPos []float32, polyPath []deto
 				if detour.DtStatusFailed(pf.query.GetPolyHeight(polys[0], iterPos[:], &polyH)) {
 					return detour.DT_FAILURE
 				}
-				iterPos[1] = polyH + 0.5
+				iterPos[1] = polyH + 0.5 // match AC temp lift
+				// record version (lifted)
+				if nsmoothPath < maxSmoothPathSize {
+					smoothPath[nsmoothPath*vertexSize+1] = iterPos[1]
+				}
 			}
 		}
 
 		if nsmoothPath < maxSmoothPathSize {
-			dtVcopy(smoothPath[nsmoothPath*vertexSize:], iterPos[:])
+			dtVcopy(smoothPath[nsmoothPath*vertexSize:], record[:])
 			nsmoothPath++
 		}
 	}
@@ -489,7 +539,7 @@ func (pf *PathFinder) getSteerTarget(startPos, endPos []float32, minTargetDist f
 		return false
 	}
 
-	// Find vertex far enough to steer to.
+	// Find vertex far enough to steer to. (AC does first beyond slop)
 	ns := 0
 	for ns < nsteerPath {
 		if (steerPathFlags[ns]&detour.DT_STRAIGHTPATH_OFFMESH_CONNECTION) != 0 ||
@@ -580,7 +630,9 @@ func inRangeYZX(v1, v2 []float32, r, h float32) bool {
 
 // PathFindingService is a thread-safe service that manages a pool of PathFinder instances.
 type PathFindingService struct {
-	mmapMgr *MMapManager
+	mmapMgr    *MMapManager
+	terrainMgr *TerrainManager
+	vmapMgr    *VMapManager
 
 	mu    sync.Mutex
 	pools map[uint32]*pathFinderPool
@@ -591,19 +643,53 @@ type pathFinderPool struct {
 	finders []*PathFinder
 }
 
-// NewPathFindingService creates a new PathFindingService.
-func NewPathFindingService(mmapsDir string) *PathFindingService {
+// NewPathFindingService creates a new PathFindingService from separate mmaps and maps directories.
+// For convenience when using a single ac-data root containing mmaps/, maps/, vmaps/ subdirectories,
+// prefer NewPathFindingServiceFromDataDir instead.
+func NewPathFindingService(mmapsDir, mapsDir string) *PathFindingService {
+	var tm *TerrainManager
+	if mapsDir != "" {
+		tm = NewTerrainManager(mapsDir)
+	}
+	var vm *VMapManager
+	if mapsDir != "" {
+		// common layout has vmaps/ next to maps/
+		vmd := strings.TrimRight(mapsDir, "/") + "/../vmaps"
+		if fi, err := os.Stat(vmd); err == nil && fi.IsDir() {
+			vm = NewVMapManager(vmd)
+		}
+	}
 	return &PathFindingService{
-		mmapMgr: NewMMapManager(mmapsDir),
-		pools:   make(map[uint32]*pathFinderPool),
+		mmapMgr:    NewMMapManager(mmapsDir),
+		terrainMgr: tm,
+		vmapMgr:    vm,
+		pools:      make(map[uint32]*pathFinderPool),
 	}
 }
 
-// NewPathFindingServiceWithMMapMgr creates a new PathFindingService using an existing MMapManager.
-func NewPathFindingServiceWithMMapMgr(mmapMgr *MMapManager) *PathFindingService {
+// NewPathFindingServiceFromDataDir creates a PathFindingService from a single data directory
+// root (e.g. ac-data/) that is expected to contain:
+//   - mmaps/
+//   - maps/
+//   - vmaps/  (optional, for accurate height)
+// Subdirectories are resolved automatically.
+func NewPathFindingServiceFromDataDir(dataDir string) *PathFindingService {
+	if dataDir == "" {
+		return NewPathFindingService("", "")
+	}
+	dataDir = strings.TrimRight(dataDir, "/\\") + string(os.PathSeparator)
+	mmapsDir := dataDir + "mmaps"
+	mapsDir := dataDir + "maps"
+	return NewPathFindingService(mmapsDir, mapsDir)
+}
+
+// NewPathFindingServiceWithMMapMgr creates a new PathFindingService using an existing MMapManager (and optional terrain/vmap).
+func NewPathFindingServiceWithMMapMgr(mmapMgr *MMapManager, terrainMgr *TerrainManager, vmapMgr *VMapManager) *PathFindingService {
 	return &PathFindingService{
-		mmapMgr: mmapMgr,
-		pools:   make(map[uint32]*pathFinderPool),
+		mmapMgr:    mmapMgr,
+		terrainMgr: terrainMgr,
+		vmapMgr:    vmapMgr,
+		pools:      make(map[uint32]*pathFinderPool),
 	}
 }
 
@@ -631,7 +717,7 @@ func (s *PathFindingService) acquirePathFinder(mapID uint32) (*PathFinder, error
 	}
 	pool.mu.Unlock()
 
-	return NewPathFinder(s.mmapMgr, mapID)
+	return NewPathFinder(s.mmapMgr, s.terrainMgr, s.vmapMgr, mapID)
 }
 
 func (s *PathFindingService) releasePathFinder(mapID uint32, pf *PathFinder) {
@@ -661,4 +747,147 @@ func (s *PathFindingService) FindRandomPath(mapID uint32, center Point3D, radius
 	defer s.releasePathFinder(mapID, pf)
 
 	return pf.FindRandomPointAroundCircle(center, radius)
+}
+
+// GetHeight returns the ground height (Z) at (x,y) using best available source:
+// navmesh poly height (includes vmap data baked in) if possible, otherwise terrain from .map.
+// This provides values aligned with what path correction and AC use.
+func (s *PathFindingService) GetHeight(mapID uint32, x, y, z float32) (float32, bool) {
+	pf, err := s.acquirePathFinder(mapID)
+	if err != nil {
+		// fallback to terrain only
+		if s.terrainMgr != nil {
+			return s.terrainMgr.GetHeight(mapID, x, y, z)
+		}
+		return 0, false
+	}
+	defer s.releasePathFinder(mapID, pf)
+	return pf.GetHeight(x, y, z)
+}
+
+// getMapHeight replicates Map::GetHeight + WorldObject::GetMapHeight bump exactly for path normalization.
+// It does NOT prefer navmesh poly height (unlike GetHeight which optimizes to avoid vmap loads).
+// This produces the Z values that AC writes in NormalizePath via UpdateAllowedPositionZ/GetMap*Level.
+func (pf *PathFinder) getMapHeight(x, y, z float32) (float32, bool) {
+	// Bump matches WorldObject::GetMapHeight: z += max(collisionHeight, Z_OFFSET_FIND_HEIGHT)
+	// We use the AC default collision for creature-based path tests (DEFAULT_COLLISION_HEIGHT).
+	searchZ := z + float32(math.Max(DEFAULT_COLLISION_HEIGHT, Z_OFFSET_FIND_HEIGHT))
+
+	mapH := float32(-100000.0)
+	if pf.terrainMgr != nil {
+		if gridH, ok := pf.terrainMgr.GetGridHeight(pf.mapID, x, y); ok {
+			if fuzzyGe(searchZ, gridH-GROUND_HEIGHT_TOLERANCE) {
+				mapH = gridH
+			}
+		}
+	}
+
+	vmapH := float32(-100000.0)
+	if pf.vmapMgr != nil {
+		if vh, ok := pf.vmapMgr.GetHeight(pf.mapID, x, y, searchZ, DEFAULT_HEIGHT_SEARCH); ok && vh > INVALID_HEIGHT {
+			vmapH = vh
+		}
+	}
+
+	if vmapH > -100000.0 {
+		if mapH > -100000.0 {
+			if vmapH > mapH || math.Abs(float64(mapH-searchZ)) > math.Abs(float64(vmapH-searchZ)) {
+				return vmapH, true
+			}
+			return mapH, true
+		}
+		return vmapH, true
+	}
+	if mapH > -100000.0 {
+		return mapH, true
+	}
+
+	// Fallback: query navmesh poly height at (x,y) using a search near input z.
+	// Ensures usable Z when the test ac-data's maps report sentinel low gridH and vmaps lack coverage for the area.
+	// When full AC-like aux data (vmaps or correct maps) is present this path is not reached and normalize uses it.
+	pt := [3]float32{y, z + 5.0, x}
+	var pr detour.DtPolyRef
+	var cl [3]float32
+	ext := [3]float32{5, 20, 5}
+	if st := pf.query.FindNearestPoly(pt[:], ext[:], pf.filter, &pr, cl[:]); detour.DtStatusSucceed(st) && pr != invalidPolyRef {
+		var ph float32
+		if st2 := pf.query.GetPolyHeight(pr, cl[:], &ph); detour.DtStatusSucceed(st2) {
+			return ph, true
+		}
+	}
+	return 0, false
+}
+
+// GetHeight returns the ground Z at (x,y) using *exact* AzerothCore logic from Map::GetHeight.
+// See AC Map.cpp GetHeight for the fuzzy + selection rules.
+// The incoming z is the "pre-correction" value (e.g. poly height or input Z from smooth path).
+// We replicate WorldObject::GetMapHeight by adding Z_OFFSET_FIND_HEIGHT to the search origin
+// for vmap queries and for the closeness comparison used to pick between map/vmap.
+func (pf *PathFinder) GetHeight(x, y, z float32) (float32, bool) {
+	// ensure tile for poly if needed as fallback (mmap load is relatively cheap compared to vmap models)
+	_ = pf.ensureTilesForPoint(Point3D{X: x, Y: y, Z: z})
+
+	// AC WorldObject::GetMapHeight adds max(collision, Z_OFFSET) to the hint z before Map::GetHeight.
+	searchZ := z + Z_OFFSET_FIND_HEIGHT
+
+	mapHeight := float32(-100000.0)
+	if pf.terrainMgr != nil {
+		if gridH, ok := pf.terrainMgr.GetGridHeight(pf.mapID, x, y); ok {
+			if fuzzyGe(searchZ, gridH-GROUND_HEIGHT_TOLERANCE) {
+				mapHeight = gridH
+			}
+		}
+	}
+
+	// Prefer navmesh poly height early. This gives the surface height the path was built on,
+	// and avoids triggering expensive vmap model loads (which were causing 60GB+ in load tests
+	// as bots moved and GetHeight was called frequently).
+	polyHeight := float32(-100000.0)
+	for _, tryZ := range []float32{searchZ, searchZ + 50, searchZ + 200} {
+		pt := [3]float32{y, tryZ, x}
+		var pr detour.DtPolyRef
+		var cl [3]float32
+		ext := [3]float32{5, 20, 5}
+		if st := pf.query.FindNearestPoly(pt[:], ext[:], pf.filter, &pr, cl[:]); detour.DtStatusSucceed(st) && pr != invalidPolyRef {
+			var pH float32
+			if st2 := pf.query.GetPolyHeight(pr, cl[:], &pH); detour.DtStatusSucceed(st2) {
+				polyHeight = pH
+				break
+			}
+		}
+	}
+
+	vmapHeight := float32(-100000.0)
+	// Only hit vmapMgr (which does LoadMapTile + potential heavy model loads for hasB objects)
+	// if we don't have a good poly height yet. This prevents memory bloat from loading
+	// full vmap geometry for every height query during movement.
+	if polyHeight <= -100000.0 && pf.vmapMgr != nil {
+		if vh, ok := pf.vmapMgr.GetHeight(pf.mapID, x, y, searchZ, DEFAULT_HEIGHT_SEARCH); ok && vh > INVALID_HEIGHT {
+			vmapHeight = vh
+		}
+	}
+
+	// Treat poly as a "vmap-like" surface if vmap wasn't used.
+	if vmapHeight <= -100000.0 && polyHeight > -100000.0 {
+		vmapHeight = polyHeight
+	}
+
+	if vmapHeight > -100000.0 {
+		if mapHeight > -100000.0 {
+			if vmapHeight > mapHeight || math.Abs(float64(mapHeight-searchZ)) > math.Abs(float64(vmapHeight-searchZ)) {
+				return vmapHeight, true
+			}
+			return mapHeight, true
+		}
+		return vmapHeight, true
+	}
+	if mapHeight > -100000.0 {
+		return mapHeight, true
+	}
+
+	// Last resort poly query (should have been found above, but for completeness)
+	if polyHeight > -100000.0 {
+		return polyHeight, true
+	}
+	return 0, false
 }

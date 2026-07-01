@@ -3,6 +3,7 @@ module github.com/walkline/ToCloud9
 go 1.22
 
 require (
+	github.com/Shopify/go-lua v0.0.0-20250718183320-1e37f32ad7d0
 	github.com/go-mysql-org/go-mysql v1.10.1-0.20241221150101-2f4217957dd5
 	github.com/go-sql-driver/mysql v1.8.1
 	github.com/google/uuid v1.6.0

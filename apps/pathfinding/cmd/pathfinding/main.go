@@ -25,7 +25,7 @@ func main() {
 
 	log.Logger = cfg.Logger()
 
-	svc := service.NewPathFindingService(cfg.MmapsDir)
+	svc := service.NewPathFindingService(cfg.MmapsDir, cfg.MapsDir)
 
 	lis, err := net.Listen("tcp4", ":"+cfg.Port)
 	if err != nil {

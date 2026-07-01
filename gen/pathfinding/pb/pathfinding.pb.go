@@ -485,3 +485,76 @@ func file_api_proto_v1_pathfinding_pathfinding_proto_init() {
 	file_api_proto_v1_pathfinding_pathfinding_proto_goTypes = nil
 	file_api_proto_v1_pathfinding_pathfinding_proto_depIdxs = nil
 }
+
+// GetHeightRequest / GetHeightResponse added for height query exposure.
+type GetHeightRequest struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	MapId uint32   `protobuf:"varint,1,opt,name=map_id,json=mapId,proto3" json:"map_id,omitempty"`
+	Point *Vector3 `protobuf:"bytes,2,opt,name=point,proto3" json:"point,omitempty"`
+}
+
+func (x *GetHeightRequest) Reset() {
+	*x = GetHeightRequest{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_api_proto_v1_pathfinding_pathfinding_proto_msgTypes[4]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *GetHeightRequest) String() string { return "GetHeightRequest proto" }
+func (*GetHeightRequest) ProtoMessage()    {}
+
+func (x *GetHeightRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_v1_pathfinding_pathfinding_proto_msgTypes[4]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *GetHeightRequest) GetMapId() uint32   { if x != nil { return x.MapId }; return 0 }
+func (x *GetHeightRequest) GetPoint() *Vector3 { if x != nil { return x.Point }; return nil }
+
+type GetHeightResponse struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Height  float32 `protobuf:"fixed32,1,opt,name=height,proto3" json:"height,omitempty"`
+	Success bool    `protobuf:"varint,2,opt,name=success,proto3" json:"success,omitempty"`
+}
+
+func (x *GetHeightResponse) Reset() {
+	*x = GetHeightResponse{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_api_proto_v1_pathfinding_pathfinding_proto_msgTypes[5]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *GetHeightResponse) String() string { return "GetHeightResponse proto" }
+func (*GetHeightResponse) ProtoMessage()    {}
+
+func (x *GetHeightResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_v1_pathfinding_pathfinding_proto_msgTypes[5]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *GetHeightResponse) GetHeight() float32 { if x != nil { return x.Height }; return 0 }
+func (x *GetHeightResponse) GetSuccess() bool   { if x != nil { return x.Success }; return false }

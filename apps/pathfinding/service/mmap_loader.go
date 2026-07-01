@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 	"sync"
 	"unsafe"
 
@@ -63,6 +64,37 @@ func (m *MMapManager) EnsureTileLoaded(mapID uint32, x, y int32) error {
 		return err
 	}
 	return m.loadTile(md, mapID, x, y)
+}
+
+// EnsureAllTilesLoaded loads every .mmtile present for the map to ensure complete nav graph (matches runtime server behavior for pathing).
+func (m *MMapManager) EnsureAllTilesLoaded(mapID uint32) error {
+	md, err := m.getOrLoadMapData(mapID)
+	if err != nil {
+		return err
+	}
+	// Scan mmaps dir for this map's tiles: <mapID><xx><yy>.mmtile
+	dir, err := os.Open(m.mmapsDir)
+	if err != nil {
+		return nil // if can't read dir, skip
+	}
+	defer dir.Close()
+	names, err := dir.Readdirnames(-1)
+	if err != nil {
+		return nil
+	}
+	prefix := fmt.Sprintf("%03d", mapID)
+	for _, n := range names {
+		if len(n) >= 7 && n[:3] == prefix && strings.HasSuffix(n, ".mmtile") {
+			// parse tx ty from name[3:5] [5:7]
+			var tx, ty int32
+			if _, err := fmt.Sscanf(n[3:5], "%02d", &tx); err == nil {
+				if _, err := fmt.Sscanf(n[5:7], "%02d", &ty); err == nil {
+					_ = m.loadTile(md, mapID, tx, ty)
+				}
+			}
+		}
+	}
+	return nil
 }
 
 // CreateQuery creates a new DtNavMeshQuery for the given map.
@@ -157,7 +189,8 @@ func (m *MMapManager) loadTile(md *mapData, mapID uint32, x, y int32) error {
 	fileName := fmt.Sprintf("%s/%03d%02d%02d.mmtile", m.mmapsDir, mapID, x, y)
 	file, err := os.Open(fileName)
 	if err != nil {
-		// Tile file doesn't exist; this is not necessarily an error.
+		// Tile file doesn't exist; mark as loaded so we don't retry the expensive os.Open on every GetHeight/FindPath.
+		md.loadedTiles[packed] = true
 		return nil
 	}
 	defer file.Close()

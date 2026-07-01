@@ -6,6 +6,7 @@ option go_package = "gen/pathfinding/pb";
 service PathfindingService {
   rpc FindPath(FindPathRequest) returns (FindPathResponse);
   rpc FindRandomPath(FindRandomPathRequest) returns (FindPathResponse);
+  rpc GetHeight(GetHeightRequest) returns (GetHeightResponse);
 }
 
 message Vector3 {
@@ -36,4 +37,14 @@ message FindPathResponse {
   PathResultType result_type = 1;
   repeated Vector3 points = 2;
   float path_length = 3;
+}
+
+message GetHeightRequest {
+  uint32 map_id = 1;
+  Vector3 point = 2;
+}
+
+message GetHeightResponse {
+  float height = 1;
+  bool success = 2;
 }
