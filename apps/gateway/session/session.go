@@ -71,6 +71,10 @@ type GameSession struct {
 	accountID uint32
 	character *LoggedInCharacter
 
+	// groupMemberStats holds last known stats of the character's group members,
+	// fed by group members updated events. Used to answer party member stats requests.
+	groupMemberStats map[uint64]events.GroupMemberStatsUpdate
+
 	teleportingToNewMap *uint32
 
 	packetSendingControl PacketSendingControl

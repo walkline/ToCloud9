@@ -113,6 +113,10 @@ func (s *GameSession) HandleEventGroupInviteCreated(ctx context.Context, e *eBro
 func (s *GameSession) HandleEventGroupMemberOnlineStatusChanged(ctx context.Context, e *eBroadcaster.Event) error {
 	eventData := e.Payload.(*events.GroupEventGroupMemberOnlineStatusChangedPayload)
 
+	if !eventData.IsOnline {
+		delete(s.groupMemberStats, eventData.MemberGUID)
+	}
+
 	s.publishCharacterStatsSnapshot()
 
 	// TODO: we can handle this with less requests to the group service.
@@ -575,6 +579,8 @@ func (s *GameSession) HandleEventGroupMemberLeft(ctx context.Context, e *eBroadc
 	eventData := e.Payload.(*events.GroupEventGroupMemberLeftPayload)
 
 	if eventData.MemberGUID == s.character.GUID {
+		s.groupMemberStats = nil
+
 		resp := packet.NewWriterWithSize(packet.SMsgGroupUnInvite, 0)
 		s.gameSocket.Send(resp)
 
@@ -592,6 +598,8 @@ func (s *GameSession) HandleEventGroupMemberLeft(ctx context.Context, e *eBroadc
 
 func (s *GameSession) HandleEventGroupDisband(ctx context.Context, e *eBroadcaster.Event) error {
 	eventData := e.Payload.(*events.GroupEventGroupDisbandPayload)
+
+	s.groupMemberStats = nil
 
 	s.groupUpdateCounter++
 
@@ -653,16 +661,85 @@ func (s *GameSession) HandleEventGroupMembersUpdated(ctx context.Context, e *eBr
 			continue
 		}
 
+		s.storeGroupMemberStats(upd)
 		s.gameSocket.SendPacket(buildPartyMemberStatsPacket(upd))
 	}
 
 	return nil
 }
 
+// HandleRequestPartyMemberStats answers stats requests for group members that the
+// game server is not aware of (gateway-managed groups): without this interception the
+// game server responds with an "offline" stub that marks the member as disconnected.
+func (s *GameSession) HandleRequestPartyMemberStats(ctx context.Context, p *packet.Packet) error {
+	if s.character == nil || s.character.GroupMangedByGameServer {
+		s.worldSocket.SendPacket(p)
+		return nil
+	}
+
+	guid := p.Reader().Uint64()
+
+	stats, found := s.groupMemberStats[guid]
+	if !found {
+		// Not a tracked group member (e.g. pet) — let the game server answer.
+		s.worldSocket.SendPacket(p)
+		return nil
+	}
+
+	s.gameSocket.SendPacket(buildPartyMemberStatsFullPacket(guid, &stats))
+	return nil
+}
+
+func (s *GameSession) storeGroupMemberStats(upd *events.GroupMemberStatsUpdate) {
+	if s.groupMemberStats == nil {
+		s.groupMemberStats = map[uint64]events.GroupMemberStatsUpdate{}
+	}
+
+	merged := s.groupMemberStats[upd.MemberGUID]
+	merged.MemberGUID = upd.MemberGUID
+	if upd.Level != nil {
+		merged.Level = upd.Level
+	}
+	if upd.Zone != nil {
+		merged.Zone = upd.Zone
+	}
+	if upd.CurHP != nil {
+		merged.CurHP = upd.CurHP
+	}
+	if upd.MaxHP != nil {
+		merged.MaxHP = upd.MaxHP
+	}
+	if upd.PowerType != nil {
+		merged.PowerType = upd.PowerType
+	}
+	if upd.CurPower != nil {
+		merged.CurPower = upd.CurPower
+	}
+	if upd.MaxPower != nil {
+		merged.MaxPower = upd.MaxPower
+	}
+	s.groupMemberStats[upd.MemberGUID] = merged
+}
+
+// buildPartyMemberStatsFullPacket builds an SMSG_PARTY_MEMBER_STATS_FULL packet from
+// the last known stats of a group member, as an answer to CMSG_REQUEST_PARTY_MEMBER_STATS.
+func buildPartyMemberStatsFullPacket(guid uint64, stats *events.GroupMemberStatsUpdate) *packet.Packet {
+	w := packet.NewWriter(packet.SMsgPartyMemberStatsFull)
+	w.Uint8(0) // arena/bg related flag
+	writePartyMemberStats(w, guid, stats)
+	return w.ToPacket()
+}
+
 // buildPartyMemberStatsPacket builds an incremental SMSG_PARTY_MEMBER_STATS packet.
 // The status field is always included so that members reported as offline by the
 // game server (which is not aware of gateway-managed groups) get back online.
 func buildPartyMemberStatsPacket(upd *events.GroupMemberStatsUpdate) *packet.Packet {
+	w := packet.NewWriter(packet.SMsgPartyMemberStats)
+	writePartyMemberStats(w, upd.MemberGUID, upd)
+	return w.ToPacket()
+}
+
+func writePartyMemberStats(w *packet.Writer, guid uint64, upd *events.GroupMemberStatsUpdate) {
 	mask := uint32(groupUpdateFlagStatus)
 
 	if upd.CurHP != nil {
@@ -687,8 +764,7 @@ func buildPartyMemberStatsPacket(upd *events.GroupMemberStatsUpdate) *packet.Pac
 		mask |= groupUpdateFlagZone
 	}
 
-	w := packet.NewWriter(packet.SMsgPartyMemberStats)
-	w.GUID(upd.MemberGUID)
+	w.GUID(guid)
 	w.Uint32(mask)
 
 	w.Uint16(memberStatusOnline)
@@ -714,8 +790,6 @@ func buildPartyMemberStatsPacket(upd *events.GroupMemberStatsUpdate) *packet.Pac
 	if upd.Zone != nil {
 		w.Uint16(uint16(*upd.Zone))
 	}
-
-	return w.ToPacket()
 }
 
 func (s *GameSession) HandleEventGroupNewMessage(ctx context.Context, e *eBroadcaster.Event) error {
