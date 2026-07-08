@@ -224,9 +224,16 @@ func (s *GameSession) InterceptSMsgNameQueryResponse(ctx context.Context, p *pac
 
 	g := guid.New(charGUID)
 
+	// Non-crossrealm player guids carry no realm id, so fall back to the
+	// gateway's realm to look the character up.
+	realmID := g.GetRealmID()
+	if realmID == 0 {
+		realmID = uint16(root.RealmID)
+	}
+
 	res, err := s.charServiceClient.ShortOnlineCharactersDataByGUIDs(ctx, &pb.ShortCharactersDataByGUIDsRequest{
 		Api:     "",
-		RealmID: uint32(g.GetRealmID()),
+		RealmID: uint32(realmID),
 		GUIDs:   []uint64{uint64(g.GetCounter())},
 	})
 	if err != nil {
@@ -244,7 +251,7 @@ func (s *GameSession) InterceptSMsgNameQueryResponse(ctx context.Context, p *pac
 
 	newPckt.Uint8(0)
 	newPckt.String(playerData.CharName)
-	if g.GetRealmID() == uint16(root.RealmID) {
+	if realmID == uint16(root.RealmID) {
 		newPckt.Uint8(0)
 	} else {
 		var name string
