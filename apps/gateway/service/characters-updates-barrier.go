@@ -39,6 +39,26 @@ func (b *CharactersUpdatesBarrier) UpdateMap(charGUID uint64, mapID uint32) {
 	b.updsChan <- events.CharacterUpdate{ID: charGUID, Map: &mapID}
 }
 
+func (b *CharactersUpdatesBarrier) UpdateHealth(charGUID uint64, curHP uint32) {
+	b.updsChan <- events.CharacterUpdate{ID: charGUID, CurHP: &curHP}
+}
+
+func (b *CharactersUpdatesBarrier) UpdateMaxHealth(charGUID uint64, maxHP uint32) {
+	b.updsChan <- events.CharacterUpdate{ID: charGUID, MaxHP: &maxHP}
+}
+
+func (b *CharactersUpdatesBarrier) UpdatePowerType(charGUID uint64, powerType uint8) {
+	b.updsChan <- events.CharacterUpdate{ID: charGUID, PowerType: &powerType}
+}
+
+func (b *CharactersUpdatesBarrier) UpdatePower(charGUID uint64, curPower uint32) {
+	b.updsChan <- events.CharacterUpdate{ID: charGUID, CurPower: &curPower}
+}
+
+func (b *CharactersUpdatesBarrier) UpdateMaxPower(charGUID uint64, maxPower uint32) {
+	b.updsChan <- events.CharacterUpdate{ID: charGUID, MaxPower: &maxPower}
+}
+
 func (b *CharactersUpdatesBarrier) Run(ctx context.Context) {
 	t := time.NewTicker(b.barrierOpenTime)
 	buffer := map[uint64]*events.CharacterUpdate{}
@@ -114,6 +134,26 @@ func mergeCharUpdates(oldCharUpd, newCharUpd events.CharacterUpdate) events.Char
 
 	if newCharUpd.Zone != nil {
 		oldCharUpd.Zone = newCharUpd.Zone
+	}
+
+	if newCharUpd.CurHP != nil {
+		oldCharUpd.CurHP = newCharUpd.CurHP
+	}
+
+	if newCharUpd.MaxHP != nil {
+		oldCharUpd.MaxHP = newCharUpd.MaxHP
+	}
+
+	if newCharUpd.PowerType != nil {
+		oldCharUpd.PowerType = newCharUpd.PowerType
+	}
+
+	if newCharUpd.CurPower != nil {
+		oldCharUpd.CurPower = newCharUpd.CurPower
+	}
+
+	if newCharUpd.MaxPower != nil {
+		oldCharUpd.MaxPower = newCharUpd.MaxPower
 	}
 
 	return oldCharUpd

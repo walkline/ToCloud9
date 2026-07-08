@@ -45,6 +45,9 @@ type GroupServiceProducer interface {
 
 	// SendChatMessage publishes an event for a new chat message in a group or raid.
 	SendChatMessage(payload *GroupEventNewMessagePayload) error
+
+	// MembersUpdated publishes an event with batched stats updates of group members.
+	MembersUpdated(payload *GroupEventGroupMembersUpdatedPayload) error
 }
 
 // groupServiceProducerNatsJSON implements the GroupServiceProducer interface using NATS as the underlying message broker.
@@ -107,6 +110,10 @@ func (s *groupServiceProducerNatsJSON) TargetIconUpdated(payload *GroupEventNewT
 
 func (s *groupServiceProducerNatsJSON) GroupDifficultyChanged(payload *GroupEventGroupDifficultyChangedPayload) error {
 	return s.publish(GroupEventGroupDifficultyChanged, payload)
+}
+
+func (s *groupServiceProducerNatsJSON) MembersUpdated(payload *GroupEventGroupMembersUpdatedPayload) error {
+	return s.publish(GroupEventGroupMembersUpdated, payload)
 }
 
 func (s *groupServiceProducerNatsJSON) publish(e GroupServiceEvent, payload interface{}) error {

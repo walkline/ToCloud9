@@ -41,6 +41,9 @@ const (
 
 	// GroupEventGroupDifficultyChanged group event when dungeon or raid difficulty changed for the group
 	GroupEventGroupDifficultyChanged
+
+	// GroupEventGroupMembersUpdated group event with batched stats updates (health, power, level, zone) of group members
+	GroupEventGroupMembersUpdated
 )
 
 // SubjectName is key that nats uses
@@ -70,6 +73,8 @@ func (e GroupServiceEvent) SubjectName() string {
 		return "group.targeticons.new"
 	case GroupEventGroupDifficultyChanged:
 		return "group.difficulty.changed"
+	case GroupEventGroupMembersUpdated:
+		return "group.members.updated"
 	}
 	panic(fmt.Errorf("unk event %d", e))
 }
@@ -220,6 +225,31 @@ type GroupEventGroupDifficultyChangedPayload struct {
 	RaidDifficulty    *uint8 `json:"RaidDifficulty,omitempty"`
 
 	Receivers []uint64
+}
+
+type GroupEventGroupMembersUpdatedPayload struct {
+	ServiceID string
+	RealmID   uint32
+
+	GroupID uint
+
+	Updates []GroupMemberStatsUpdate
+
+	Receivers []uint64
+}
+
+// GroupMemberStatsUpdate represents new values of stats for a group member.
+type GroupMemberStatsUpdate struct {
+	MemberGUID uint64
+
+	IsOnline  *bool   `json:"IsOnline,omitempty"`
+	Level     *uint8  `json:"Level,omitempty"`
+	Zone      *uint32 `json:"Zone,omitempty"`
+	CurHP     *uint32 `json:"CurHP,omitempty"`
+	MaxHP     *uint32 `json:"MaxHP,omitempty"`
+	PowerType *uint8  `json:"PowerType,omitempty"`
+	CurPower  *uint32 `json:"CurPower,omitempty"`
+	MaxPower  *uint32 `json:"MaxPower,omitempty"`
 }
 
 type GroupMember struct {

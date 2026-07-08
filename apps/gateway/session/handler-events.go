@@ -38,6 +38,7 @@ var EventsHandleMap = map[eBroadcaster.EventType]EventsHandlersQueue{
 	eBroadcaster.EventTypeGroupNewMessage:                NewEventHandler("EventTypeGroupNewMessage", (*GameSession).HandleEventGroupNewMessage),
 	eBroadcaster.EventTypeGroupNewTargetIcon:             NewEventHandler("EventTypeGroupNewTargetIcon", (*GameSession).HandleEventGroupNewTargetIcon),
 	eBroadcaster.EventTypeGroupDifficultyChanged:         NewEventHandler("EventTypeGroupDifficultyChanged", (*GameSession).HandleEventGroupDifficultyChanged),
+	eBroadcaster.EventTypeGroupMembersUpdated:            NewEventHandler("EventTypeGroupMembersUpdated", (*GameSession).HandleEventGroupMembersUpdated),
 
 	// Matchmaking
 	eBroadcaster.EventTypeMMJoinedPVPQueue:           NewEventHandler("EventTypeMMJoinedPVPQueue", (*GameSession).HandleEventMMJoinedPVPQueue),

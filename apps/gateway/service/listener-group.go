@@ -30,6 +30,7 @@ func NewGroupNatsListener(nc *nats.Conn, broadcaster eBroadcaster.Broadcaster) L
 		events.WithGroupEventNewChatMessageHandler(listener),
 		events.WithGroupEventNewTargetIconHandler(listener),
 		events.WithGroupDifficultyChangedHandler(listener),
+		events.WithGroupEventConsumerMembersUpdatedHandler(listener),
 	)
 
 	return listener
@@ -100,5 +101,10 @@ func (l *groupNatsListener) GroupTargetItemSetEvent(payload *events.GroupEventNe
 
 func (l *groupNatsListener) GroupDifficultyChangedEvent(payload *events.GroupEventGroupDifficultyChangedPayload) error {
 	l.broadcaster.NewGroupDifficultyChangedEvent(payload)
+	return nil
+}
+
+func (l *groupNatsListener) GroupMembersUpdatedEvent(payload *events.GroupEventGroupMembersUpdatedPayload) error {
+	l.broadcaster.NewGroupMembersUpdatedEvent(payload)
 	return nil
 }

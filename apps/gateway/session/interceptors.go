@@ -49,6 +49,101 @@ func (s *GameSession) InterceptLevelUpInfo(ctx context.Context, p *packet.Packet
 	return nil
 }
 
+// powerTypeUnknown marks the character power type as not yet seen in update object packets.
+const powerTypeUnknown = 0xFF
+
+func (s *GameSession) InterceptUpdateObject(ctx context.Context, p *packet.Packet) error {
+	s.gameSocket.SendPacket(p)
+	s.trackCharacterStats(p.Data)
+	return nil
+}
+
+func (s *GameSession) InterceptCompressedUpdateObject(ctx context.Context, p *packet.Packet) error {
+	s.gameSocket.SendPacket(p)
+
+	data, err := packet.DecompressUpdateObject(p.Data)
+	if err != nil {
+		s.logger.Warn().Err(err).Msg("can't decompress update object for character stats tracking")
+		return nil
+	}
+
+	s.trackCharacterStats(data)
+	return nil
+}
+
+// publishCharacterStatsSnapshot feeds all currently known character stats into the
+// updates barrier, so that other group members get a full stats picture on group
+// changes even when values are not changing at that moment.
+func (s *GameSession) publishCharacterStatsSnapshot() {
+	char := s.character
+	if char == nil {
+		return
+	}
+
+	if char.CurHP != 0 {
+		s.charsUpdsBarrier.UpdateHealth(char.GUID, char.CurHP)
+	}
+
+	if char.MaxHP != 0 {
+		s.charsUpdsBarrier.UpdateMaxHealth(char.GUID, char.MaxHP)
+	}
+
+	if char.PowerType != powerTypeUnknown {
+		s.charsUpdsBarrier.UpdatePowerType(char.GUID, char.PowerType)
+		s.charsUpdsBarrier.UpdatePower(char.GUID, char.CurPower)
+		s.charsUpdsBarrier.UpdateMaxPower(char.GUID, char.MaxPower)
+	}
+
+	s.charsUpdsBarrier.UpdateLevel(char.GUID, char.Level)
+}
+
+// trackCharacterStats extracts stats of the character itself from an SMSG_UPDATE_OBJECT
+// payload and feeds changed values into the characters updates barrier.
+func (s *GameSession) trackCharacterStats(data []byte) {
+	char := s.character
+	if char == nil {
+		return
+	}
+
+	upd, err := packet.ParseUpdateObjectStatsForGUID(data, char.GUID)
+	if err != nil {
+		s.logger.Warn().Err(err).Msg("can't parse update object for character stats tracking")
+		return
+	}
+
+	if upd.CurHP != nil && *upd.CurHP != char.CurHP {
+		char.CurHP = *upd.CurHP
+		s.charsUpdsBarrier.UpdateHealth(char.GUID, char.CurHP)
+	}
+
+	if upd.MaxHP != nil && *upd.MaxHP != char.MaxHP {
+		char.MaxHP = *upd.MaxHP
+		s.charsUpdsBarrier.UpdateMaxHealth(char.GUID, char.MaxHP)
+	}
+
+	if upd.PowerType != nil && *upd.PowerType != char.PowerType {
+		char.PowerType = *upd.PowerType
+		s.charsUpdsBarrier.UpdatePowerType(char.GUID, char.PowerType)
+	}
+
+	if int(char.PowerType) < len(upd.Powers) {
+		if p := upd.Powers[char.PowerType]; p != nil && *p != char.CurPower {
+			char.CurPower = *p
+			s.charsUpdsBarrier.UpdatePower(char.GUID, char.CurPower)
+		}
+
+		if p := upd.MaxPowers[char.PowerType]; p != nil && *p != char.MaxPower {
+			char.MaxPower = *p
+			s.charsUpdsBarrier.UpdateMaxPower(char.GUID, char.MaxPower)
+		}
+	}
+
+	if upd.Level != nil && *upd.Level != 0 && uint8(*upd.Level) != char.Level {
+		char.Level = uint8(*upd.Level)
+		s.charsUpdsBarrier.UpdateLevel(char.GUID, char.Level)
+	}
+}
+
 func (s *GameSession) InterceptNewWorld(ctx context.Context, p *packet.Packet) error {
 	mapID := p.Reader().Uint32()
 	if s.character.ignoreNextInterceptToNewMap == nil || mapID != *s.character.ignoreNextInterceptToNewMap {

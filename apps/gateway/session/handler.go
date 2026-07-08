@@ -80,6 +80,8 @@ var HandleMap = map[packet.Opcode]HandlersQueue{
 	packet.MsgQueryNextMailTime:       NewHandler("MsgQueryNextMailTime", (*GameSession).HandleQueryNextMailTime),
 	packet.SMsgInitWorldStates:        NewHandler("SMsgInitWorldStates", (*GameSession).InterceptInitWorldStates),
 	packet.SMsgLevelUpInfo:            NewHandler("SMsgLevelUpInfo", (*GameSession).InterceptLevelUpInfo),
+	packet.SMsgUpdateObject:           NewHandler("SMsgUpdateObject", (*GameSession).InterceptUpdateObject),
+	packet.SMsgCompressedUpdateObject: NewHandler("SMsgCompressedUpdateObject", (*GameSession).InterceptCompressedUpdateObject),
 	packet.CMsgPing:                   NewHandler("CMsgPing", (*GameSession).HandlePing),
 	packet.SMsgPong:                   NewHandler("SMsgPong", (*GameSession).InterceptPong),
 	packet.SMsgNewWorld:               NewHandler("SMsgNewWorld", (*GameSession).InterceptNewWorld),

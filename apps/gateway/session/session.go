@@ -293,6 +293,7 @@ func (s *GameSession) Login(ctx context.Context, p *packet.Packet) error {
 		Banned:                  char.Banned,
 		AccountID:               char.AccountID,
 		GroupMangedByGameServer: false,
+		PowerType:               powerTypeUnknown,
 	}
 	s.worldSocket = socket
 
@@ -654,6 +655,13 @@ type LoggedInCharacter struct {
 	// GroupMangedByGameServer tracks cases when player joined e.g. battleground
 	// and the group is managed by game server but not group server.
 	GroupMangedByGameServer bool
+
+	// Last known stats parsed from update object packets, used to publish group member updates.
+	CurHP     uint32
+	MaxHP     uint32
+	PowerType uint8
+	CurPower  uint32
+	MaxPower  uint32
 
 	ignoreNextInterceptToNewMap *uint32
 
