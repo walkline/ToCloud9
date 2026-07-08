@@ -237,20 +237,47 @@ func (s *GameSession) InterceptSMsgNameQueryResponse(ctx context.Context, p *pac
 		GUIDs:   []uint64{uint64(g.GetCounter())},
 	})
 	if err != nil {
+		s.gameSocket.SendPacket(p)
 		return err
 	}
 
-	if len(res.Characters) == 0 {
-		s.gameSocket.SendPacket(p)
-		return nil
+	var charName string
+	var charRace, charGender, charClass uint8
+	if len(res.Characters) > 0 {
+		playerData := res.Characters[0]
+		charName = playerData.CharName
+		charRace = uint8(playerData.CharRace)
+		charGender = uint8(playerData.CharGender)
+		charClass = uint8(playerData.CharClass)
+	} else {
+		// The character is offline (or not registered as online yet),
+		// resolve it from the persistent storage instead.
+		loginData, err := s.charServiceClient.CharactersToLoginByGUID(ctx, &pb.CharactersToLoginByGUIDRequest{
+			Api:           root.SupportedCharServiceVer,
+			RealmID:       uint32(realmID),
+			CharacterGUID: uint64(g.GetCounter()),
+		})
+		if err != nil {
+			s.gameSocket.SendPacket(p)
+			return err
+		}
+
+		if loginData.Character == nil {
+			s.gameSocket.SendPacket(p)
+			return nil
+		}
+
+		charName = loginData.Character.Name
+		charRace = uint8(loginData.Character.Race)
+		charGender = uint8(loginData.Character.Gender)
+		charClass = uint8(loginData.Character.Class)
 	}
 
-	playerData := res.Characters[0]
 	newPckt := packet.NewWriterWithSize(packet.SMsgNameQueryResponse, 0)
 	newPckt.GUID(charGUID)
 
 	newPckt.Uint8(0)
-	newPckt.String(playerData.CharName)
+	newPckt.String(charName)
 	if realmID == uint16(root.RealmID) {
 		newPckt.Uint8(0)
 	} else {
@@ -261,9 +288,9 @@ func (s *GameSession) InterceptSMsgNameQueryResponse(ctx context.Context, p *pac
 		}
 		newPckt.String(name)
 	}
-	newPckt.Uint8(uint8(playerData.CharRace))
-	newPckt.Uint8(uint8(playerData.CharGender))
-	newPckt.Uint8(uint8(playerData.CharClass))
+	newPckt.Uint8(charRace)
+	newPckt.Uint8(charGender)
+	newPckt.Uint8(charClass)
 	newPckt.Uint8(0)
 
 	s.gameSocket.Send(newPckt)
