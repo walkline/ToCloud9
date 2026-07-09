@@ -614,6 +614,11 @@ func (s *GameSession) onLoggedOut() {
 	s.chatChannelsEventsBroadcaster.DisconnectPlayer(s.character.GUID)
 	s.channelMembership.events = nil
 
+	// The session survives going back to the character selection screen, but it is
+	// no longer registered for group events there, so cached group member stats can
+	// go stale (a member logging out would be missed and answered as still online).
+	s.groupMemberStats = nil
+
 	s.character = nil
 }
 

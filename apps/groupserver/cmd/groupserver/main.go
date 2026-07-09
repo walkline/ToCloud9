@@ -145,6 +145,7 @@ func createGroupService(cfg *config.Config, natsCon *nats.Conn) service.GroupsSe
 	err = events.NewGatewayConsumer(
 		natsCon,
 		events.WithGWConsumerCharsUpdatesHandler(statsCollector),
+		events.WithGWConsumerLoggedOutHandler(statsCollector),
 	).Listen()
 	if err != nil {
 		log.Fatal().Err(err).Msg("can't listen to gateway characters updates")

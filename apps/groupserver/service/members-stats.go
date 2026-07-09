@@ -63,6 +63,20 @@ func (c *MembersStatsCollector) HandleCharactersUpdates(payload events.GWEventCh
 	return nil
 }
 
+// HandleCharacterLoggedOut implements events.GWCharacterLoggedOutHandler: drops
+// pending updates of a character that logged out, so a late flush doesn't mark
+// the member as online again right after clients were told it went offline.
+func (c *MembersStatsCollector) HandleCharacterLoggedOut(payload events.GWEventCharacterLoggedOutPayload) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if realmPending := c.pending[payload.RealmID]; realmPending != nil {
+		delete(realmPending, payload.CharGUID)
+	}
+
+	return nil
+}
+
 // Run flushes collected updates every flushInterval until ctx is cancelled.
 func (c *MembersStatsCollector) Run(ctx context.Context) {
 	t := time.NewTicker(c.flushInterval)
