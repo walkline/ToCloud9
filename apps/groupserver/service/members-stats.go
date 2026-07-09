@@ -27,6 +27,11 @@ type MembersStatsCollector struct {
 }
 
 func NewMembersStatsCollector(logger *zerolog.Logger, r repo.GroupsRepo, producer events.GroupServiceProducer, flushInterval time.Duration) *MembersStatsCollector {
+	if logger == nil {
+		nop := zerolog.Nop()
+		logger = &nop
+	}
+
 	return &MembersStatsCollector{
 		logger:        logger,
 		repo:          r,
