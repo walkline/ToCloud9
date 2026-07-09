@@ -222,6 +222,28 @@ func (s *GameSession) InterceptSMsgNameQueryResponse(ctx context.Context, p *pac
 		return nil
 	}
 
+	data, err := s.lookupCharacterNameData(ctx, charGUID)
+	if err != nil || data == nil {
+		s.gameSocket.SendPacket(p)
+		return err
+	}
+
+	s.gameSocket.Send(s.buildNameQueryResponse(ctx, charGUID, data))
+
+	return nil
+}
+
+type characterNameData struct {
+	name   string
+	race   uint8
+	gender uint8
+	class  uint8
+}
+
+// lookupCharacterNameData resolves a player's name query data from the characters
+// service: the online registry first, then the persistent storage to cover offline
+// characters. Returns nil data when the character doesn't exist.
+func (s *GameSession) lookupCharacterNameData(ctx context.Context, charGUID uint64) (*characterNameData, error) {
 	g := guid.New(charGUID)
 
 	// Non-crossrealm player guids carry no realm id, so fall back to the
@@ -237,65 +259,63 @@ func (s *GameSession) InterceptSMsgNameQueryResponse(ctx context.Context, p *pac
 		GUIDs:   []uint64{uint64(g.GetCounter())},
 	})
 	if err != nil {
-		s.gameSocket.SendPacket(p)
-		return err
+		return nil, err
 	}
 
-	var charName string
-	var charRace, charGender, charClass uint8
 	if len(res.Characters) > 0 {
 		playerData := res.Characters[0]
-		charName = playerData.CharName
-		charRace = uint8(playerData.CharRace)
-		charGender = uint8(playerData.CharGender)
-		charClass = uint8(playerData.CharClass)
-	} else {
-		// The character is offline (or not registered as online yet),
-		// resolve it from the persistent storage instead.
-		loginData, err := s.charServiceClient.CharactersToLoginByGUID(ctx, &pb.CharactersToLoginByGUIDRequest{
-			Api:           root.SupportedCharServiceVer,
-			RealmID:       uint32(realmID),
-			CharacterGUID: uint64(g.GetCounter()),
-		})
-		if err != nil {
-			s.gameSocket.SendPacket(p)
-			return err
-		}
-
-		if loginData.Character == nil {
-			s.gameSocket.SendPacket(p)
-			return nil
-		}
-
-		charName = loginData.Character.Name
-		charRace = uint8(loginData.Character.Race)
-		charGender = uint8(loginData.Character.Gender)
-		charClass = uint8(loginData.Character.Class)
+		return &characterNameData{
+			name:   playerData.CharName,
+			race:   uint8(playerData.CharRace),
+			gender: uint8(playerData.CharGender),
+			class:  uint8(playerData.CharClass),
+		}, nil
 	}
 
+	// The character is offline (or not registered as online yet),
+	// resolve it from the persistent storage instead.
+	loginData, err := s.charServiceClient.CharactersToLoginByGUID(ctx, &pb.CharactersToLoginByGUIDRequest{
+		Api:           root.SupportedCharServiceVer,
+		RealmID:       uint32(realmID),
+		CharacterGUID: uint64(g.GetCounter()),
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	if loginData.Character == nil {
+		return nil, nil
+	}
+
+	return &characterNameData{
+		name:   loginData.Character.Name,
+		race:   uint8(loginData.Character.Race),
+		gender: uint8(loginData.Character.Gender),
+		class:  uint8(loginData.Character.Class),
+	}, nil
+}
+
+func (s *GameSession) buildNameQueryResponse(ctx context.Context, charGUID uint64, data *characterNameData) *packet.Writer {
 	newPckt := packet.NewWriterWithSize(packet.SMsgNameQueryResponse, 0)
 	newPckt.GUID(charGUID)
 
 	newPckt.Uint8(0)
-	newPckt.String(charName)
-	if realmID == uint16(root.RealmID) {
+	newPckt.String(data.name)
+	if realmID := guid.New(charGUID).GetRealmID(); realmID == 0 || realmID == uint16(root.RealmID) {
 		newPckt.Uint8(0)
 	} else {
-		var name string
-		name, err = s.realmNamesService.NameByID(ctx, uint32(g.GetRealmID()))
+		name, err := s.realmNamesService.NameByID(ctx, uint32(realmID))
 		if err != nil {
 			name = "unknown realm"
 		}
 		newPckt.String(name)
 	}
-	newPckt.Uint8(charRace)
-	newPckt.Uint8(charGender)
-	newPckt.Uint8(charClass)
+	newPckt.Uint8(data.race)
+	newPckt.Uint8(data.gender)
+	newPckt.Uint8(data.class)
 	newPckt.Uint8(0)
 
-	s.gameSocket.Send(newPckt)
-
-	return nil
+	return newPckt
 }
 
 func (s *GameSession) HandleReadyForRedirectRequest(ctx context.Context, p *packet.Packet) error {

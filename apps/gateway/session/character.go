@@ -233,3 +233,25 @@ func (s *GameSession) DeleteCharacter(ctx context.Context, p *packet.Packet) err
 
 	return nil
 }
+
+// HandleNameQuery answers player name queries at the gateway. The game server
+// drops STATUS_LOGGEDIN opcodes that arrive while the player is still logging
+// in, so name queries triggered by group packets sent during the login
+// sequence would get no response at all, leaving permanent "Unknown" frames.
+func (s *GameSession) HandleNameQuery(ctx context.Context, p *packet.Packet) error {
+	charGUID := p.Reader().Uint64()
+
+	data, err := s.lookupCharacterNameData(ctx, charGUID)
+	if err != nil || data == nil {
+		// Unknown character or characters service unavailable — let the game
+		// server answer.
+		if s.worldSocket != nil {
+			s.worldSocket.SendPacket(p)
+		}
+		return err
+	}
+
+	s.gameSocket.Send(s.buildNameQueryResponse(ctx, charGUID, data))
+
+	return nil
+}
