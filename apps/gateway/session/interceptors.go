@@ -80,11 +80,10 @@ func (s *GameSession) publishCharacterStatsSnapshot() {
 		return
 	}
 
-	if char.CurHP != 0 {
-		s.charsUpdsBarrier.UpdateHealth(char.GUID, char.CurHP)
-	}
-
+	// MaxHP is never zero once stats are known, while CurHP == 0 is a valid
+	// state (dead player), so gate both on MaxHP.
 	if char.MaxHP != 0 {
+		s.charsUpdsBarrier.UpdateHealth(char.GUID, char.CurHP)
 		s.charsUpdsBarrier.UpdateMaxHealth(char.GUID, char.MaxHP)
 	}
 
