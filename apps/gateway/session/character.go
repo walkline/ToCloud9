@@ -234,17 +234,26 @@ func (s *GameSession) DeleteCharacter(ctx context.Context, p *packet.Packet) err
 	return nil
 }
 
-// HandleNameQuery answers player name queries at the gateway. The game server
-// drops STATUS_LOGGEDIN opcodes that arrive while the player is still logging
-// in, so name queries triggered by group packets sent during the login
-// sequence would get no response at all, leaving permanent "Unknown" frames.
+// HandleNameQuery answers player name queries at the gateway, but only while
+// the player is entering the world (login or redirect). During that window
+// the game server drops STATUS_LOGGEDIN opcodes, so name queries triggered by
+// group packets sent during the login sequence would get no response at all,
+// leaving permanent "Unknown" frames. Outside of the window the query is
+// forwarded to the game server as usual.
 func (s *GameSession) HandleNameQuery(ctx context.Context, p *packet.Packet) error {
+	if !s.worldEntryPending {
+		if s.worldSocket != nil {
+			s.worldSocket.SendPacket(p)
+		}
+		return nil
+	}
+
 	charGUID := p.Reader().Uint64()
 
 	data, err := s.lookupCharacterNameData(ctx, charGUID)
 	if err != nil || data == nil {
-		// Unknown character or characters service unavailable — let the game
-		// server answer.
+		// Unknown character or characters service unavailable, let the game
+		// server answer once the player is in world.
 		if s.worldSocket != nil {
 			s.worldSocket.SendPacket(p)
 		}

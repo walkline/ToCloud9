@@ -93,6 +93,7 @@ var HandleMap = map[packet.Opcode]HandlersQueue{
 
 	packet.SMsgNameQueryResponse: NewHandler("SMsgNameQueryResponse", (*GameSession).InterceptSMsgNameQueryResponse),
 	packet.CMsgNameQuery:         NewHandler("CMsgNameQuery", (*GameSession).HandleNameQuery),
+	packet.SMsgTimeSyncReq:       NewHandler("SMsgTimeSyncReq", (*GameSession).InterceptSMsgTimeSyncReq),
 
 	// Groups
 	packet.CMsgGroupInvite:         NewHandler("CMsgGroupInvite", (*GameSession).HandleGroupInvite),

@@ -134,6 +134,9 @@ func (s *GameSession) InterceptMoveWorldPortAck(ctx context.Context, p *packet.P
 
 	s.worldSocket.Close()
 	s.worldSocket = nil
+	// The new world server drops STATUS_LOGGEDIN opcodes until the player is
+	// back in world; reopen the name query window until its SMsgTimeSyncReq.
+	s.worldEntryPending = true
 
 	go func(charGUID uint64) {
 		var err error
@@ -207,6 +210,15 @@ func (s *GameSession) InterceptAccountDataTimes(ctx context.Context, p *packet.P
 		s.packetSendingControl.accountDataTimesPerCharSent = true
 	default:
 	}
+	s.gameSocket.SendPacket(p)
+	return nil
+}
+
+// InterceptSMsgTimeSyncReq closes the name query window: the game server
+// sends its first SMSG_TIME_SYNC_REQ right after the player is added to the
+// map, so STATUS_LOGGEDIN opcodes are processed normally from that point on.
+func (s *GameSession) InterceptSMsgTimeSyncReq(ctx context.Context, p *packet.Packet) error {
+	s.worldEntryPending = false
 	s.gameSocket.SendPacket(p)
 	return nil
 }

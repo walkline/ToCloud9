@@ -73,6 +73,12 @@ type GameSession struct {
 
 	teleportingToNewMap *uint32
 
+	// worldEntryPending is true between the login (or redirect) request and
+	// the first SMsgTimeSyncReq from the world server. During that window the
+	// world server drops STATUS_LOGGEDIN opcodes, so the gateway answers name
+	// queries itself (see HandleNameQuery).
+	worldEntryPending bool
+
 	packetSendingControl PacketSendingControl
 
 	channelMembership          *ChannelMembership
@@ -295,6 +301,7 @@ func (s *GameSession) Login(ctx context.Context, p *packet.Packet) error {
 		GroupMangedByGameServer: false,
 	}
 	s.worldSocket = socket
+	s.worldEntryPending = true
 
 	err = s.eventsProducer.CharacterLoggedIn(&events.GWEventCharacterLoggedInPayload{
 		RealmID:     root.RealmID,

@@ -49,6 +49,7 @@ func TestHandleNameQueryAnswersAtGatewayForOnlineCharacter(t *testing.T) {
 		charServiceClient: charClient,
 		gameSocket:        gameSocket,
 		worldSocket:       worldSocket,
+		worldEntryPending: true,
 	}
 
 	err := session.HandleNameQuery(context.Background(), nameQueryPacket(40554))
@@ -95,6 +96,7 @@ func TestHandleNameQueryFallsBackToStorageForOfflineCharacter(t *testing.T) {
 		charServiceClient: charClient,
 		gameSocket:        gameSocket,
 		worldSocket:       worldSocket,
+		worldEntryPending: true,
 	}
 
 	err := session.HandleNameQuery(context.Background(), nameQueryPacket(40554))
@@ -125,12 +127,38 @@ func TestHandleNameQueryForwardsUnknownCharacterToGameServer(t *testing.T) {
 		charServiceClient: charClient,
 		gameSocket:        gameSocket,
 		worldSocket:       worldSocket,
+		worldEntryPending: true,
 	}
 
 	p := nameQueryPacket(99999)
 	err := session.HandleNameQuery(context.Background(), p)
 
 	assert.NoError(t, err)
+	gameSocket.AssertNotCalled(t, "Send", mock.Anything)
+	worldSocket.AssertCalled(t, "SendPacket", p)
+}
+
+// Outside of the world entry window the world server handles name queries
+// itself, the gateway must only forward them.
+func TestHandleNameQueryForwardsToGameServerOutsideLoginWindow(t *testing.T) {
+	charClient := &charMocks.CharactersServiceClient{}
+
+	gameSocket := &mocks.Socket{}
+
+	worldSocket := &mocks.Socket{}
+	worldSocket.On("SendPacket", mock.Anything).Return()
+
+	session := &GameSession{
+		charServiceClient: charClient,
+		gameSocket:        gameSocket,
+		worldSocket:       worldSocket,
+	}
+
+	p := nameQueryPacket(40554)
+	err := session.HandleNameQuery(context.Background(), p)
+
+	assert.NoError(t, err)
+	charClient.AssertNotCalled(t, "ShortOnlineCharactersDataByGUIDs", mock.Anything, mock.Anything)
 	gameSocket.AssertNotCalled(t, "Send", mock.Anything)
 	worldSocket.AssertCalled(t, "SendPacket", p)
 }
