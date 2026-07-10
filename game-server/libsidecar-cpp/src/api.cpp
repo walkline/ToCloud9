@@ -18,12 +18,14 @@
 #include "grpc/grpc_manager.h"
 #include "grpc/clients.h"
 #include "nats/consumer.h"
+#include "nats/publisher.h"
 #include "http/health_server.h"
 #include "metrics/prometheus.h"
 #include "guids/guid_manager.h"
 #include "events/event_hooks.h"
 
 #include <spdlog/spdlog.h>
+#include <nlohmann/json.hpp>
 #include <memory>
 #include <cstring>
 
@@ -38,6 +40,7 @@ struct TC9State {
     std::unique_ptr<tc9::GrpcManager> grpc_manager;
     std::unique_ptr<tc9::GrpcClients> grpc_clients;
     std::unique_ptr<tc9::NatsConsumer> nats_consumer;
+    std::unique_ptr<tc9::NatsPublisher> nats_publisher;
     std::unique_ptr<tc9::HealthServer> health_server;
 
     // Registered callbacks
@@ -45,9 +48,35 @@ struct TC9State {
 
     bool initialized = false;
     std::string assigned_server_id;
+    uint32_t realm_id = 0;
 };
 
 TC9State g_state;
+
+// Mirrors shared/events/events-gateway.go GatewayEvent values and the
+// EventToSendGenericPayload envelope so Go consumers decode transparently.
+constexpr int kEventCharacterLoggedIn = 1;
+constexpr int kEventCharacterLoggedOut = 2;
+constexpr char kSubjectCharLoggedIn[] = "gw.char.logged-in";
+constexpr char kSubjectCharLoggedOut[] = "gw.char.logged-out";
+constexpr char kEventsVersion[] = "libsidecar-cpp";
+
+void PublishCharacterEvent(int eventType, const char* subject, nlohmann::json payload) {
+    if (!g_state.nats_publisher) {
+        return;
+    }
+
+    payload["RealmID"] = g_state.realm_id;
+    payload["GatewayID"] = g_state.assigned_server_id;
+
+    nlohmann::json envelope = {
+        {"v", kEventsVersion},
+        {"t", eventType},
+        {"p", std::move(payload)},
+    };
+
+    g_state.nats_publisher->Publish(subject, envelope.dump());
+}
 
 }  // anonymous namespace
 
@@ -95,6 +124,7 @@ TC9_API void TC9InitLib(
         // Create other services
         g_state.grpc_clients = std::make_unique<tc9::GrpcClients>();
         g_state.nats_consumer = std::make_unique<tc9::NatsConsumer>(config.nats_url());
+        g_state.nats_publisher = std::make_unique<tc9::NatsPublisher>(config.nats_url());
         g_state.health_server = std::make_unique<tc9::HealthServer>(config.health_check_port());
 
         // Connect to external services
@@ -108,6 +138,8 @@ TC9_API void TC9InitLib(
         g_state.nats_consumer->SetEventQueue(g_state.event_queue.get());
         g_state.nats_consumer->SetRealmID(realmID);
         g_state.nats_consumer->Start();
+        g_state.nats_publisher->Start();
+        g_state.realm_id = realmID;
 
         // Start gRPC server
         g_state.grpc_manager->Start();
@@ -191,6 +223,10 @@ TC9_API void TC9GracefulShutdown() {
         // Shutdown services
         if (g_state.nats_consumer) {
             g_state.nats_consumer->Stop();
+        }
+
+        if (g_state.nats_publisher) {
+            g_state.nats_publisher->Stop();
         }
 
         if (g_state.grpc_clients) {
@@ -291,6 +327,68 @@ TC9_API void TC9ReadyToAcceptPlayersFromMaps(uint32_t* maps, int mapsLen) {
         g_state.grpc_clients->GameServerMapsLoaded(g_state.assigned_server_id, maps_vec);
     } catch (const std::exception& e) {
         spdlog::error("Error notifying maps loaded: {}", e.what());
+    }
+}
+
+TC9_API void TC9CharacterLoggedIn(
+    uint64_t charGUID,
+    const char* charName,
+    uint8_t charRace,
+    uint8_t charClass,
+    uint8_t charGender,
+    uint8_t charLevel,
+    uint32_t charZone,
+    uint32_t charMap,
+    float charPosX,
+    float charPosY,
+    float charPosZ,
+    uint32_t charGuildID,
+    uint32_t accountID) {
+
+    if (!g_state.initialized) {
+        return;
+    }
+
+    try {
+        PublishCharacterEvent(kEventCharacterLoggedIn, kSubjectCharLoggedIn, {
+            {"CharGUID", charGUID},
+            {"CharName", charName ? charName : ""},
+            {"CharRace", charRace},
+            {"CharClass", charClass},
+            {"CharGender", charGender},
+            {"CharLevel", charLevel},
+            {"CharZone", charZone},
+            {"CharMap", charMap},
+            {"CharPosX", charPosX},
+            {"CharPosY", charPosY},
+            {"CharPosZ", charPosZ},
+            {"CharGuildID", charGuildID},
+            {"AccountID", accountID},
+        });
+    } catch (const std::exception& e) {
+        spdlog::error("Error publishing character logged in: {}", e.what());
+    }
+}
+
+TC9_API void TC9CharacterLoggedOut(
+    uint64_t charGUID,
+    const char* charName,
+    uint32_t charGuildID,
+    uint32_t accountID) {
+
+    if (!g_state.initialized) {
+        return;
+    }
+
+    try {
+        PublishCharacterEvent(kEventCharacterLoggedOut, kSubjectCharLoggedOut, {
+            {"CharGUID", charGUID},
+            {"CharName", charName ? charName : ""},
+            {"CharGuildID", charGuildID},
+            {"AccountID", accountID},
+        });
+    } catch (const std::exception& e) {
+        spdlog::error("Error publishing character logged out: {}", e.what());
     }
 }
 

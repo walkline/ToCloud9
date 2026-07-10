@@ -350,6 +350,7 @@ set(LIBSIDECAR_SOURCES
     src/grpc/worldserver_service.cpp
     src/grpc/grpc_manager.cpp
     src/nats/consumer.cpp
+    src/nats/publisher.cpp
     src/nats/handlers.cpp
     src/http/health_server.cpp
     src/metrics/prometheus.cpp

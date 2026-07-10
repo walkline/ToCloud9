@@ -59,6 +59,43 @@ func (c *ServersRegistryListener) Listen() error {
 
 	c.subs = append(c.subs, sb)
 
+	// Game servers publish online status for their in-process sessions (e.g.
+	// server-side bots) with their servers-registry ID as GatewayID. When a
+	// game server is removed as unhealthy, purge those characters the same
+	// way gateway characters are purged, reusing the same downstream event
+	// so every consumer cleans its own cache.
+	sb, err = c.nc.QueueSubscribe(events.ServerRegistryEventGSRemoved.SubjectName(), charactersServiceGroup, func(msg *nats.Msg) {
+		payload := events.ServerRegistryEventGSRemovedPayload{}
+		_, err := events.Unmarshal(msg.Data, &payload)
+		if err != nil {
+			log.Error().Err(err).Msg("can't read ServerRegistryEventGSRemoved (payload part) event")
+			return
+		}
+
+		userIDs, err := c.charRepo.RemoveAllWithGatewayID(context.TODO(), payload.GameServer.RealmID, payload.GameServer.ID)
+		if err != nil {
+			log.Error().Err(err).Msg("can't delete characters in ServerRegistryEventGSRemoved event")
+			return
+		}
+
+		if len(userIDs) > 0 {
+			err = c.producer.CharsDisconnectedUnhealthyLB(&events.CharEventCharsDisconnectedUnhealthyGWPayload{
+				RealmID:        payload.GameServer.RealmID,
+				GatewayID:      payload.GameServer.ID,
+				CharactersGUID: userIDs,
+			})
+
+			if err != nil {
+				log.Error().Err(err).Msg("can't produce CharsDisconnectedUnhealthyLB event")
+			}
+		}
+	})
+	if err != nil {
+		return err
+	}
+
+	c.subs = append(c.subs, sb)
+
 	sb, err = c.nc.Subscribe(events.CharEventCharsDisconnectedUnhealthyGW.SubjectName(), func(msg *nats.Msg) {
 		payload := events.CharEventCharsDisconnectedUnhealthyGWPayload{}
 		_, err := events.Unmarshal(msg.Data, &payload)
