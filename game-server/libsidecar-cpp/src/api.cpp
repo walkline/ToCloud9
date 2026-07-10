@@ -23,6 +23,7 @@
 #include "metrics/prometheus.h"
 #include "guids/guid_manager.h"
 #include "events/event_hooks.h"
+#include "events/updates-barrier.h"
 
 #include <spdlog/spdlog.h>
 #include <nlohmann/json.hpp>
@@ -41,6 +42,7 @@ struct TC9State {
     std::unique_ptr<tc9::GrpcClients> grpc_clients;
     std::unique_ptr<tc9::NatsConsumer> nats_consumer;
     std::unique_ptr<tc9::NatsPublisher> nats_publisher;
+    std::unique_ptr<tc9::CharacterUpdatesBarrier> updates_barrier;
     std::unique_ptr<tc9::HealthServer> health_server;
 
     // Registered callbacks
@@ -57,9 +59,15 @@ TC9State g_state;
 // EventToSendGenericPayload envelope so Go consumers decode transparently.
 constexpr int kEventCharacterLoggedIn = 1;
 constexpr int kEventCharacterLoggedOut = 2;
+constexpr int kEventCharactersUpdates = 3;
 constexpr char kSubjectCharLoggedIn[] = "gw.char.logged-in";
 constexpr char kSubjectCharLoggedOut[] = "gw.char.logged-out";
+constexpr char kSubjectCharsUpdates[] = "gw.char.chars-updates";
 constexpr char kEventsVersion[] = "libsidecar-cpp";
+
+// Same order of magnitude as the gateway barrier window; zone/level
+// changes are infrequent so a wider window just merges more.
+constexpr std::chrono::milliseconds kUpdatesBarrierInterval{5000};
 
 void PublishCharacterEvent(int eventType, const char* subject, nlohmann::json payload) {
     if (!g_state.nats_publisher) {
@@ -172,6 +180,17 @@ TC9_API void TC9InitLib(
 
         g_state.assigned_server_id = server_id;
 
+        // Start the character updates barrier now that the identity used
+        // by PublishCharacterEvent (realm + server id) is known.
+        g_state.updates_barrier = std::make_unique<tc9::CharacterUpdatesBarrier>(
+            [](nlohmann::json updates) {
+                PublishCharacterEvent(kEventCharactersUpdates, kSubjectCharsUpdates, {
+                    {"Updates", std::move(updates)},
+                });
+            },
+            kUpdatesBarrierInterval);
+        g_state.updates_barrier->Start();
+
         // Initialize GUID manager
         auto& guid_mgr = tc9::GuidManager::Instance();
         guid_mgr.Initialize(g_state.grpc_clients.get(), realmID);
@@ -223,6 +242,12 @@ TC9_API void TC9GracefulShutdown() {
         // Shutdown services
         if (g_state.nats_consumer) {
             g_state.nats_consumer->Stop();
+        }
+
+        // Stop the barrier before the publisher so its final flush
+        // still goes out.
+        if (g_state.updates_barrier) {
+            g_state.updates_barrier->Stop();
         }
 
         if (g_state.nats_publisher) {
@@ -389,6 +414,35 @@ TC9_API void TC9CharacterLoggedOut(
         });
     } catch (const std::exception& e) {
         spdlog::error("Error publishing character logged out: {}", e.what());
+    }
+}
+
+TC9_API void TC9CharacterZoneChanged(
+    uint64_t charGUID,
+    uint32_t mapID,
+    uint32_t areaID,
+    uint32_t zoneID) {
+
+    if (!g_state.initialized || !g_state.updates_barrier) {
+        return;
+    }
+
+    try {
+        g_state.updates_barrier->UpdateZone(charGUID, mapID, areaID, zoneID);
+    } catch (const std::exception& e) {
+        spdlog::error("Error queueing character zone update: {}", e.what());
+    }
+}
+
+TC9_API void TC9CharacterLevelChanged(uint64_t charGUID, uint8_t level) {
+    if (!g_state.initialized || !g_state.updates_barrier) {
+        return;
+    }
+
+    try {
+        g_state.updates_barrier->UpdateLevel(charGUID, level);
+    } catch (const std::exception& e) {
+        spdlog::error("Error queueing character level update: {}", e.what());
     }
 }
 

@@ -356,6 +356,7 @@ set(LIBSIDECAR_SOURCES
     src/metrics/prometheus.cpp
     src/guids/guid_manager.cpp
     src/events/event_hooks.cpp
+    src/events/updates-barrier.cpp
     src/compat_api.cpp
     src/api.cpp
 )

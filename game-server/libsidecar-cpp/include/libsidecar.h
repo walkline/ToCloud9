@@ -56,6 +56,14 @@ TC9_API void TC9ReadyToAcceptPlayersFromMaps(uint32_t* maps, int mapsLen);
 TC9_API void TC9CharacterLoggedIn(uint64_t charGUID, const char* charName, uint8_t charRace, uint8_t charClass, uint8_t charGender, uint8_t charLevel, uint32_t charZone, uint32_t charMap, float charPosX, float charPosY, float charPosZ, uint32_t charGuildID, uint32_t accountID);
 TC9_API void TC9CharacterLoggedOut(uint64_t charGUID, const char* charName, uint32_t charGuildID, uint32_t accountID);
 
+/* Post-login field updates for in-process sessions. Batched and merged
+ * per character (same barrier semantics as the gateway) and published as
+ * gw.char.chars-updates so charserver (/who), guildserver and groupserver
+ * caches stay fresh. Same rule as above: only call for sessions WITHOUT
+ * a gateway connection. */
+TC9_API void TC9CharacterZoneChanged(uint64_t charGUID, uint32_t mapID, uint32_t areaID, uint32_t zoneID);
+TC9_API void TC9CharacterLevelChanged(uint64_t charGUID, uint8_t level);
+
 /* Matchmaking notifications */
 TC9_API void TC9PlayerLeftBattleground(uint64_t playerGUID, uint32_t realmID, uint32_t instanceID);
 TC9_API void TC9BattlegroundStatusChanged(uint32_t instanceID, uint8_t status);
