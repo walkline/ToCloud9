@@ -87,7 +87,7 @@ func NewGuidService(ctx context.Context, mysql repo.MaxGuidProvider, redisStorag
 				return nil, err
 			}
 
-			err = redisStorage.SetMaxGuidForItems(ctx, realmID, max)
+			err = redisStorage.SetMaxGuidForInstances(ctx, realmID, max)
 			if err != nil {
 				return nil, err
 			}
