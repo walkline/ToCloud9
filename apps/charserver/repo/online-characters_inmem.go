@@ -215,8 +215,8 @@ func (c *charactersOnlineInMem) WhoRequest(_ context.Context, requesterRealmID u
 		}
 
 		showZones := true
-		for zone := range query.Zones {
-			if char.CharZone == uint32(zone) {
+		for _, zone := range query.Zones {
+			if char.CharZone == zone {
 				showZones = true
 				break
 			}

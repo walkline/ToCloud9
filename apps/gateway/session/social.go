@@ -332,6 +332,7 @@ func (s *GameSession) HandleWho(ctx context.Context, p *packet.Packet) error {
 		GuildName:     guildName,
 		RaceMask:      raceMask,
 		ClassMask:     classMask,
+		Zones:         zones,
 		Strings:       strs,
 	})
 	if err != nil {
