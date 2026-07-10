@@ -111,8 +111,11 @@ func (g *groupsCacheInMem) AddMember(ctx context.Context, realmID uint32, groupM
 	}
 
 	g.cacheLock.Lock()
-	g.groupsCache[realmID][groupMember.GroupID].Members = append(g.groupsCache[realmID][groupMember.GroupID].Members, *groupMember)
-	g.groupMembersCache[realmID][groupMember.MemberGUID] = &g.groupsCache[realmID][groupMember.GroupID].Members[len(g.groupsCache[realmID][groupMember.GroupID].Members)-1]
+	group := g.groupsCache[realmID][groupMember.GroupID]
+	group.Members = append(group.Members, *groupMember)
+	// Append can reallocate the members backing array, invalidating pointers
+	// that groupMembersCache holds for the existing members.
+	g.refreshGroupMembersPointers(realmID, group)
 	g.cacheLock.Unlock()
 
 	return nil
@@ -161,6 +164,9 @@ func (g *groupsCacheInMem) RemoveMember(ctx context.Context, realmID uint32, mem
 		if member.MemberGUID == memberGUID {
 			group.Members = append(group.Members[:i], group.Members[i+1:]...)
 			delete(g.groupMembersCache[realmID], member.MemberGUID)
+			// Removal shifts the members that follow to new slots, invalidating
+			// pointers that groupMembersCache holds for them.
+			g.refreshGroupMembersPointers(realmID, group)
 			break
 		}
 	}
@@ -218,6 +224,14 @@ func (g *groupsCacheInMem) Warmup(ctx context.Context, realmID uint32) error {
 	}
 
 	return nil
+}
+
+// refreshGroupMembersPointers re-points groupMembersCache entries to the current
+// slots of the group members slice. Callers must hold cacheLock.
+func (g *groupsCacheInMem) refreshGroupMembersPointers(realmID uint32, group *repo.Group) {
+	for i := range group.Members {
+		g.groupMembersCache[realmID][group.Members[i].MemberGUID] = &group.Members[i]
+	}
 }
 
 func (g *groupsCacheInMem) groupMemberByGUID(realmID uint32, player uint64) (r *repo.GroupMember) {
