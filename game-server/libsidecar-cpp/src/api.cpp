@@ -18,6 +18,7 @@
 #include "grpc/grpc_manager.h"
 #include "grpc/clients.h"
 #include "nats/consumer.h"
+#include "nats/publisher.h"
 #include "http/health_server.h"
 #include "metrics/prometheus.h"
 #include "guids/guid_manager.h"
@@ -38,6 +39,7 @@ struct TC9State {
     std::unique_ptr<tc9::GrpcManager> grpc_manager;
     std::unique_ptr<tc9::GrpcClients> grpc_clients;
     std::unique_ptr<tc9::NatsConsumer> nats_consumer;
+    std::unique_ptr<tc9::NatsPublisher> nats_publisher;
     std::unique_ptr<tc9::HealthServer> health_server;
 
     // Registered callbacks
@@ -95,6 +97,7 @@ TC9_API void TC9InitLib(
         // Create other services
         g_state.grpc_clients = std::make_unique<tc9::GrpcClients>();
         g_state.nats_consumer = std::make_unique<tc9::NatsConsumer>(config.nats_url());
+        g_state.nats_publisher = std::make_unique<tc9::NatsPublisher>(config.nats_url());
         g_state.health_server = std::make_unique<tc9::HealthServer>(config.health_check_port());
 
         // Connect to external services
@@ -108,6 +111,7 @@ TC9_API void TC9InitLib(
         g_state.nats_consumer->SetEventQueue(g_state.event_queue.get());
         g_state.nats_consumer->SetRealmID(realmID);
         g_state.nats_consumer->Start();
+        g_state.nats_publisher->Start();
 
         // Start gRPC server
         g_state.grpc_manager->Start();
@@ -191,6 +195,10 @@ TC9_API void TC9GracefulShutdown() {
         // Shutdown services
         if (g_state.nats_consumer) {
             g_state.nats_consumer->Stop();
+        }
+
+        if (g_state.nats_publisher) {
+            g_state.nats_publisher->Stop();
         }
 
         if (g_state.grpc_clients) {
@@ -292,6 +300,32 @@ TC9_API void TC9ReadyToAcceptPlayersFromMaps(uint32_t* maps, int mapsLen) {
     } catch (const std::exception& e) {
         spdlog::error("Error notifying maps loaded: {}", e.what());
     }
+}
+
+TC9_API int TC9NatsPublish(const char* subject, const char* payload, int payloadLen) {
+    if (!subject || !payload || payloadLen <= 0) {
+        return -1;
+    }
+    if (!g_state.initialized || !g_state.nats_publisher) {
+        return -1;
+    }
+
+    return g_state.nats_publisher->Publish(subject, std::string(payload, payloadLen)) ? 0 : -1;
+}
+
+TC9_API int TC9NatsSubscribe(const char* subject, TC9NatsMessageHandler handler) {
+    if (!subject || !handler) {
+        return -1;
+    }
+    if (!g_state.nats_consumer) {
+        return -1;
+    }
+
+    return g_state.nats_consumer->SubscribeGeneric(
+        subject,
+        [handler](const std::string& subj, const std::string& payload) {
+            handler(subj.c_str(), payload.c_str(), static_cast<int>(payload.size()));
+        }) ? 0 : -1;
 }
 
 TC9_API void TC9PlayerLeftBattleground(

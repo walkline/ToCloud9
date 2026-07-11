@@ -47,6 +47,14 @@ TC9_API uint64_t TC9GetNextAvailableInstanceGuid(int realmID);
 /* Map loading notification */
 TC9_API void TC9ReadyToAcceptPlayersFromMaps(uint32_t* maps, int mapsLen);
 
+/* Generic NATS pub/sub. Payloads are opaque bytes, subjects are arbitrary.
+ * Subscription callbacks run on the thread draining TC9ProcessEventsHooks
+ * (the world update thread), not on the NATS delivery thread. Both return
+ * 0 on success, -1 on failure. */
+typedef void (*TC9NatsMessageHandler)(const char* subject, const char* payload, int payloadLen);
+TC9_API int TC9NatsPublish(const char* subject, const char* payload, int payloadLen);
+TC9_API int TC9NatsSubscribe(const char* subject, TC9NatsMessageHandler handler);
+
 /* Matchmaking notifications */
 TC9_API void TC9PlayerLeftBattleground(uint64_t playerGUID, uint32_t realmID, uint32_t instanceID);
 TC9_API void TC9BattlegroundStatusChanged(uint32_t instanceID, uint8_t status);
