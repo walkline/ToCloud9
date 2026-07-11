@@ -10,12 +10,27 @@ using json = nlohmann::json;
 
 namespace tc9 {
 
+namespace {
+
+// Every Go producer wraps events in the EventToSendGenericPayload envelope
+// {"v":version,"t":eventType,"p":payload}; handlers consume the payload.
+json ParseEventPayload(const std::string& data) {
+    auto j = json::parse(data);
+    auto it = j.find("p");
+    if (it != j.end() && it->is_object()) {
+        return *it;
+    }
+    return j;
+}
+
+}  // anonymous namespace
+
 // Group event handlers
 
 std::unique_ptr<Handler> CreateGroupCreatedHandler(const std::string& data, uint32_t realm_id) {
     // Parse and capture members in the closure
     try {
-        auto j = json::parse(data);
+        auto j = ParseEventPayload(data);
 
         // Check realm ID
         if (j.value("RealmID", 0u) != realm_id) {
@@ -54,7 +69,7 @@ std::unique_ptr<Handler> CreateGroupCreatedHandler(const std::string& data, uint
 std::unique_ptr<Handler> CreateGroupMemberAddedHandler(const std::string& data, uint32_t realm_id) {
     return std::make_unique<FunctionHandler>([data, realm_id]() {
         try {
-            auto j = json::parse(data);
+            auto j = ParseEventPayload(data);
 
             if (j.value("RealmID", 0u) != realm_id) {
                 return;
@@ -74,7 +89,7 @@ std::unique_ptr<Handler> CreateGroupMemberAddedHandler(const std::string& data, 
 std::unique_ptr<Handler> CreateGroupMemberRemovedHandler(const std::string& data, uint32_t realm_id) {
     return std::make_unique<FunctionHandler>([data, realm_id]() {
         try {
-            auto j = json::parse(data);
+            auto j = ParseEventPayload(data);
 
             if (j.value("RealmID", 0u) != realm_id) {
                 return;
@@ -94,7 +109,7 @@ std::unique_ptr<Handler> CreateGroupMemberRemovedHandler(const std::string& data
 std::unique_ptr<Handler> CreateGroupDisbandedHandler(const std::string& data, uint32_t realm_id) {
     return std::make_unique<FunctionHandler>([data, realm_id]() {
         try {
-            auto j = json::parse(data);
+            auto j = ParseEventPayload(data);
 
             if (j.value("RealmID", 0u) != realm_id) {
                 return;
@@ -113,7 +128,7 @@ std::unique_ptr<Handler> CreateGroupDisbandedHandler(const std::string& data, ui
 std::unique_ptr<Handler> CreateGroupLootTypeChangedHandler(const std::string& data, uint32_t realm_id) {
     return std::make_unique<FunctionHandler>([data, realm_id]() {
         try {
-            auto j = json::parse(data);
+            auto j = ParseEventPayload(data);
 
             if (j.value("RealmID", 0u) != realm_id) {
                 return;
@@ -134,7 +149,7 @@ std::unique_ptr<Handler> CreateGroupLootTypeChangedHandler(const std::string& da
 std::unique_ptr<Handler> CreateGroupDungeonDifficultyChangedHandler(const std::string& data, uint32_t realm_id) {
     return std::make_unique<FunctionHandler>([data, realm_id]() {
         try {
-            auto j = json::parse(data);
+            auto j = ParseEventPayload(data);
 
             if (j.value("RealmID", 0u) != realm_id) {
                 return;
@@ -159,7 +174,7 @@ std::unique_ptr<Handler> CreateGroupDungeonDifficultyChangedHandler(const std::s
 std::unique_ptr<Handler> CreateGroupRaidDifficultyChangedHandler(const std::string& data, uint32_t realm_id) {
     return std::make_unique<FunctionHandler>([data, realm_id]() {
         try {
-            auto j = json::parse(data);
+            auto j = ParseEventPayload(data);
 
             if (j.value("RealmID", 0u) != realm_id) {
                 return;
@@ -184,7 +199,7 @@ std::unique_ptr<Handler> CreateGroupRaidDifficultyChangedHandler(const std::stri
 std::unique_ptr<Handler> CreateGroupConvertedToRaidHandler(const std::string& data, uint32_t realm_id) {
     return std::make_unique<FunctionHandler>([data, realm_id]() {
         try {
-            auto j = json::parse(data);
+            auto j = ParseEventPayload(data);
 
             if (j.value("RealmID", 0u) != realm_id) {
                 return;
@@ -205,7 +220,7 @@ std::unique_ptr<Handler> CreateGroupConvertedToRaidHandler(const std::string& da
 std::unique_ptr<Handler> CreateGuildMemberAddedHandler(const std::string& data, uint32_t realm_id) {
     return std::make_unique<FunctionHandler>([data, realm_id]() {
         try {
-            auto j = json::parse(data);
+            auto j = ParseEventPayload(data);
 
             if (j.value("RealmID", 0u) != realm_id) {
                 return;
@@ -225,7 +240,7 @@ std::unique_ptr<Handler> CreateGuildMemberAddedHandler(const std::string& data, 
 std::unique_ptr<Handler> CreateGuildMemberLeftHandler(const std::string& data, uint32_t realm_id) {
     return std::make_unique<FunctionHandler>([data, realm_id]() {
         try {
-            auto j = json::parse(data);
+            auto j = ParseEventPayload(data);
 
             if (j.value("RealmID", 0u) != realm_id) {
                 return;
@@ -245,7 +260,7 @@ std::unique_ptr<Handler> CreateGuildMemberLeftHandler(const std::string& data, u
 std::unique_ptr<Handler> CreateGuildMemberRemovedHandler(const std::string& data, uint32_t realm_id) {
     return std::make_unique<FunctionHandler>([data, realm_id]() {
         try {
-            auto j = json::parse(data);
+            auto j = ParseEventPayload(data);
 
             if (j.value("RealmID", 0u) != realm_id) {
                 return;
@@ -266,7 +281,7 @@ std::unique_ptr<Handler> CreateGuildMemberRemovedHandler(const std::string& data
 
 std::unique_ptr<Handler> CreateMapsReassignedHandler(const std::string& data) {
     try {
-        auto j = json::parse(data);
+        auto j = ParseEventPayload(data);
 
         // Parse Servers array and find assigned maps
         auto assigned_maps = std::make_shared<std::vector<uint32_t>>();
