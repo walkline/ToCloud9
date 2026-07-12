@@ -155,9 +155,22 @@ func DecompressUpdateObject(data []byte) ([]byte, error) {
 	return out, nil
 }
 
+// maxStatsFieldsBlock is the last mask block that can contain tracked fields.
+const maxStatsFieldsBlock = unitFieldLevel / 32
+
 // parseValuesBlock reads a values part of a block, keeping fields of interest when isTarget is set.
 func parseValuesBlock(r *Reader, isTarget bool, upd *UnitStatsUpdate) {
 	maskBlocks := int(r.Uint8())
+
+	if !isTarget {
+		valuesCount := 0
+		for i := 0; i < maskBlocks && r.Error() == nil; i++ {
+			valuesCount += bits.OnesCount32(r.Uint32())
+		}
+		r.Skip(valuesCount * 4)
+		return
+	}
+
 	masks := make([]uint32, maskBlocks)
 	for i := 0; i < maskBlocks && r.Error() == nil; i++ {
 		masks[i] = r.Uint32()
@@ -165,37 +178,40 @@ func parseValuesBlock(r *Reader, isTarget bool, upd *UnitStatsUpdate) {
 
 	for block := 0; block < maskBlocks && r.Error() == nil; block++ {
 		m := masks[block]
-		for m != 0 {
+
+		if block > maxStatsFieldsBlock {
+			r.Skip(bits.OnesCount32(m) * 4)
+			continue
+		}
+
+		for m != 0 && r.Error() == nil {
 			bit := bits.TrailingZeros32(m)
 			m &= m - 1
 
 			idx := block*32 + bit
-			val := r.Uint32()
-
-			if !isTarget || r.Error() != nil {
-				continue
-			}
 
 			switch {
 			case idx == unitFieldBytes0:
 				// bytes: race, class, gender, power type
-				pt := uint8(val >> 24)
+				pt := uint8(r.Uint32() >> 24)
 				upd.PowerType = &pt
 			case idx == unitFieldHealth:
-				v := val
+				v := r.Uint32()
 				upd.CurHP = &v
 			case idx == unitFieldMaxHealth:
-				v := val
+				v := r.Uint32()
 				upd.MaxHP = &v
 			case idx == unitFieldLevel:
-				v := val
+				v := r.Uint32()
 				upd.Level = &v
 			case idx >= unitFieldPower1 && idx < unitFieldPower1+powersCount:
-				v := val
+				v := r.Uint32()
 				upd.Powers[idx-unitFieldPower1] = &v
 			case idx >= unitFieldMaxPower1 && idx < unitFieldMaxPower1+powersCount:
-				v := val
+				v := r.Uint32()
 				upd.MaxPowers[idx-unitFieldMaxPower1] = &v
+			default:
+				r.Skip(4)
 			}
 		}
 	}
@@ -209,34 +225,31 @@ func skipMovementBlock(r *Reader) {
 	if flags&updateFlagLiving != 0 {
 		moveFlags := r.Uint32()
 		moveFlags2 := uint32(r.Uint16())
-		_ = r.Uint32() // time
-		skipFloats(r, 4)
+		r.Skip(4 + 4*4) // time, x, y, z, orientation
 
 		if moveFlags&moveFlagOnTransport != 0 {
 			_ = r.ReadGUID()
-			skipFloats(r, 4)
-			_ = r.Uint32() // transport time
-			_ = r.Uint8()  // transport seat
+			r.Skip(4*4 + 4 + 1) // transport offsets, transport time, transport seat
 			if moveFlags2&moveFlag2InterpolatedMovement != 0 {
-				_ = r.Uint32() // transport time2
+				r.Skip(4) // transport time2
 			}
 		}
 
 		if moveFlags&(moveFlagSwimming|moveFlagFlying) != 0 || moveFlags2&moveFlag2AlwaysAllowPitching != 0 {
-			_ = r.Float32() // pitch
+			r.Skip(4) // pitch
 		}
 
-		_ = r.Uint32() // fall time
+		r.Skip(4) // fall time
 
 		if moveFlags&moveFlagFalling != 0 {
-			skipFloats(r, 4)
+			r.Skip(4 * 4) // fall velocity, sin, cos, xy speed
 		}
 
 		if moveFlags&moveFlagSplineElevation != 0 {
-			_ = r.Float32()
+			r.Skip(4) // spline elevation
 		}
 
-		skipFloats(r, 9) // speeds
+		r.Skip(9 * 4) // speeds
 
 		if moveFlags&moveFlagSplineEnabled != 0 {
 			skipSplineData(r)
@@ -244,17 +257,17 @@ func skipMovementBlock(r *Reader) {
 	} else if flags&updateFlagPosition != 0 {
 		_ = r.ReadGUID() // transport guid or 0
 		// x, y, z, transport offsets (or position again), orientation, corpse orientation
-		skipFloats(r, 8)
+		r.Skip(8 * 4)
 	} else if flags&updateFlagStationaryPosition != 0 {
-		skipFloats(r, 4)
+		r.Skip(4 * 4) // x, y, z, orientation
 	}
 
 	if flags&updateFlagUnknown != 0 {
-		_ = r.Uint32()
+		r.Skip(4)
 	}
 
 	if flags&updateFlagLowGUID != 0 {
-		_ = r.Uint32()
+		r.Skip(4)
 	}
 
 	if flags&updateFlagHasTarget != 0 {
@@ -262,16 +275,15 @@ func skipMovementBlock(r *Reader) {
 	}
 
 	if flags&updateFlagTransport != 0 {
-		_ = r.Uint32()
+		r.Skip(4) // transport time
 	}
 
 	if flags&updateFlagVehicle != 0 {
-		_ = r.Uint32()
-		_ = r.Float32()
+		r.Skip(4 + 4) // vehicle id, orientation
 	}
 
 	if flags&updateFlagRotation != 0 {
-		_ = r.Int64()
+		r.Skip(8) // packed rotation
 	}
 }
 
@@ -280,31 +292,19 @@ func skipSplineData(r *Reader) {
 	splineFlags := r.Uint32()
 
 	if splineFlags&splineFlagFinalAngle != 0 {
-		_ = r.Float32()
+		r.Skip(4) // final angle
 	} else if splineFlags&splineFlagFinalTarget != 0 {
-		_ = r.Uint64()
+		r.Skip(8) // final target guid
 	} else if splineFlags&splineFlagFinalPoint != 0 {
-		skipFloats(r, 3)
+		r.Skip(3 * 4) // final point
 	}
 
-	_ = r.Uint32() // time passed
-	_ = r.Uint32() // duration
-	_ = r.Uint32() // id
-	skipFloats(r, 2) // duration mod, duration mod next
-	_ = r.Float32()  // vertical acceleration
-	_ = r.Uint32()   // effect start time
+	// time passed, duration, id, duration mod, duration mod next,
+	// vertical acceleration, effect start time
+	r.Skip(7 * 4)
 
 	nodes := r.Uint32()
-	for i := uint32(0); i < nodes && r.Error() == nil; i++ {
-		skipFloats(r, 3)
-	}
+	r.Skip(int(nodes) * 3 * 4) // path points
 
-	_ = r.Uint8() // spline mode
-	skipFloats(r, 3) // final destination
-}
-
-func skipFloats(r *Reader, count int) {
-	for i := 0; i < count && r.Error() == nil; i++ {
-		_ = r.Float32()
-	}
+	r.Skip(1 + 3*4) // spline mode, final destination
 }
