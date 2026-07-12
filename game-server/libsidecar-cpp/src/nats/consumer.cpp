@@ -80,18 +80,55 @@ void NatsConsumer::Start() {
     };
 
     for (const auto& subject : subjects) {
-        natsSubscription* sub = nullptr;
-        status = natsConnection_Subscribe(&sub, conn_, subject.c_str(), OnMessage, this);
-        if (status != NATS_OK) {
-            spdlog::warn("Failed to subscribe to {}: {}", subject, natsStatus_GetText(status));
-        } else {
-            subscriptions_.push_back(sub);
-            spdlog::info("✅ Subscribed to: {}", subject);
+        SubscribeSubjectLocked(subject);
+    }
+
+    // Generic subscriptions requested before Start()
+    {
+        std::lock_guard<std::mutex> generic_lock(generic_mutex_);
+        for (const auto& entry : generic_callbacks_) {
+            if (subscribed_subjects_.find(entry.first) == subscribed_subjects_.end()) {
+                SubscribeSubjectLocked(entry.first);
+            }
         }
     }
 
     connected_ = true;
     spdlog::info("✅ NATS consumer connected and subscribed to {} subjects", subscriptions_.size());
+}
+
+bool NatsConsumer::SubscribeSubjectLocked(const std::string& subject) {
+    natsSubscription* sub = nullptr;
+    natsStatus status = natsConnection_Subscribe(&sub, conn_, subject.c_str(), OnMessage, this);
+    if (status != NATS_OK) {
+        spdlog::warn("Failed to subscribe to {}: {}", subject, natsStatus_GetText(status));
+        return false;
+    }
+    subscriptions_.push_back(sub);
+    subscribed_subjects_.insert(subject);
+    spdlog::info("✅ Subscribed to: {}", subject);
+    return true;
+}
+
+bool NatsConsumer::SubscribeGeneric(const std::string& subject, GenericMessageCallback callback) {
+    if (subject.empty() || !callback) {
+        return false;
+    }
+
+    {
+        std::lock_guard<std::mutex> generic_lock(generic_mutex_);
+        generic_callbacks_[subject].push_back(std::move(callback));
+    }
+
+    std::lock_guard<std::mutex> lock(mutex_);
+    if (!connected_) {
+        // Applied on Start() from the registry.
+        return true;
+    }
+    if (subscribed_subjects_.find(subject) != subscribed_subjects_.end()) {
+        return true;
+    }
+    return SubscribeSubjectLocked(subject);
 }
 
 void NatsConsumer::Stop() {
@@ -111,6 +148,7 @@ void NatsConsumer::Stop() {
         }
     }
     subscriptions_.clear();
+    subscribed_subjects_.clear();
 
     // Close connection
     if (conn_) {
@@ -183,6 +221,23 @@ void NatsConsumer::OnMessage(natsConnection* /*nc*/, natsSubscription* /*sub*/,
 
     if (handler && consumer->event_queue_) {
         consumer->event_queue_->Push(std::move(handler));
+    }
+
+    // Generic subscriptions (TC9NatsSubscribe) — also fired for built-in
+    // subjects, after their handler.
+    std::vector<GenericMessageCallback> generic;
+    {
+        std::lock_guard<std::mutex> generic_lock(consumer->generic_mutex_);
+        auto it = consumer->generic_callbacks_.find(subject_str);
+        if (it != consumer->generic_callbacks_.end()) {
+            generic = it->second;
+        }
+    }
+    if (!generic.empty() && consumer->event_queue_) {
+        for (auto& cb : generic) {
+            consumer->event_queue_->Push(MakeHandler(
+                [cb, subject_str, event_data]() { cb(subject_str, event_data); }));
+        }
     }
 
     natsMsg_Destroy(msg);
