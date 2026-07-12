@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/mock"
@@ -411,5 +412,25 @@ func Test_guildServiceImpl_Kick(t *testing.T) {
 				repoMock.AssertExpectations(t)
 			}
 		})
+	}
+}
+
+func Test_guildServiceImpl_GuildByRealmAndID_notFound(t *testing.T) {
+	repoMock := &mocks.GuildsRepo{}
+
+	cache := NewGuildsInMemCache(repoMock).(*guildsInMemCache)
+	cache.cache = map[uint32]map[uint64]*repo.Guild{1: {}}
+	cache.guildMembersCache = map[uint32]map[uint64]*repo.GuildMember{1: {}}
+
+	g := &guildServiceImpl{
+		guildsRepo: cache,
+	}
+
+	guild, err := g.GuildByRealmAndID(context.Background(), 1, 42)
+	if !errors.Is(err, ErrGuildNotFound) {
+		t.Errorf("GuildByRealmAndID() error = %v, want ErrGuildNotFound", err)
+	}
+	if guild != nil {
+		t.Errorf("GuildByRealmAndID() guild = %v, want nil", guild)
 	}
 }
