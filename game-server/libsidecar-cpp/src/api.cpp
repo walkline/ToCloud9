@@ -303,14 +303,15 @@ TC9_API void TC9ReadyToAcceptPlayersFromMaps(uint32_t* maps, int mapsLen) {
 }
 
 TC9_API int TC9NatsPublish(const char* subject, const char* payload, int payloadLen) {
-    if (!subject || !payload || payloadLen <= 0) {
+    if (!subject || payloadLen < 0 || (payloadLen > 0 && !payload)) {
         return -1;
     }
     if (!g_state.initialized || !g_state.nats_publisher) {
         return -1;
     }
 
-    return g_state.nats_publisher->Publish(subject, std::string(payload, payloadLen)) ? 0 : -1;
+    std::string data = payloadLen > 0 ? std::string(payload, payloadLen) : std::string();
+    return g_state.nats_publisher->Publish(subject, data) ? 0 : -1;
 }
 
 TC9_API int TC9NatsSubscribe(const char* subject, TC9NatsMessageHandler handler) {
@@ -324,7 +325,7 @@ TC9_API int TC9NatsSubscribe(const char* subject, TC9NatsMessageHandler handler)
     return g_state.nats_consumer->SubscribeGeneric(
         subject,
         [handler](const std::string& subj, const std::string& payload) {
-            handler(subj.c_str(), payload.c_str(), static_cast<int>(payload.size()));
+            handler(subj.c_str(), payload.data(), static_cast<int>(payload.size()));
         }) ? 0 : -1;
 }
 
