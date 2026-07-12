@@ -50,7 +50,23 @@ TC9_API void TC9ReadyToAcceptPlayersFromMaps(uint32_t* maps, int mapsLen);
 /* Generic NATS pub/sub. Payloads are opaque bytes, subjects are arbitrary.
  * Subscription callbacks run on the thread draining TC9ProcessEventsHooks
  * (the world update thread), not on the NATS delivery thread. Both return
- * 0 on success, -1 on failure. */
+ * 0 on success, -1 on failure.
+ *
+ * Example — a mod broadcasting and consuming its own events:
+ *
+ *   // Publish (any thread):
+ *   const char msg[] = "{\"zone\":1519,\"boss\":466}";
+ *   TC9NatsPublish("mymod.boss.spawned", msg, sizeof(msg) - 1);
+ *
+ *   // Subscribe once at startup; the handler runs on the world update
+ *   // thread, so it is safe to touch game state from it:
+ *   void OnBossSpawned(const char* subject, const char* payload, int payloadLen)
+ *   {
+ *       std::string data(payload, payloadLen);  // payload is not NUL-terminated
+ *       // ... react to the event ...
+ *   }
+ *   TC9NatsSubscribe("mymod.boss.spawned", &OnBossSpawned);
+ */
 typedef void (*TC9NatsMessageHandler)(const char* subject, const char* payload, int payloadLen);
 TC9_API int TC9NatsPublish(const char* subject, const char* payload, int payloadLen);
 TC9_API int TC9NatsSubscribe(const char* subject, TC9NatsMessageHandler handler);
