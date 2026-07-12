@@ -100,7 +100,16 @@ func NewGuildService(guildsRepo repo.GuildsRepo, eventsProducer events.GuildServ
 
 // GuildByRealmAndID returns guild by realmID and guildID.
 func (g *guildServiceImpl) GuildByRealmAndID(ctx context.Context, realmID uint32, guildID uint64) (*repo.Guild, error) {
-	return g.guildsRepo.GuildByRealmAndID(ctx, realmID, guildID)
+	guild, err := g.guildsRepo.GuildByRealmAndID(ctx, realmID, guildID)
+	if err != nil {
+		return nil, err
+	}
+
+	if guild == nil {
+		return nil, ErrGuildNotFound
+	}
+
+	return guild, nil
 }
 
 // InviteMember creates invite to the guild.
