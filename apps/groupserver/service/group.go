@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 
 	"github.com/rs/zerolog/log"
 
@@ -65,6 +66,7 @@ func NewGroupsService(r repo.GroupsRepo, charClient pb.CharactersServiceClient, 
 		r:          r,
 		ep:         ep,
 		charClient: charClient,
+		locks:      newRealmLocks(),
 	}
 }
 
@@ -73,6 +75,39 @@ type groupServiceImpl struct {
 	ep events.GroupServiceProducer
 
 	charClient pb.CharactersServiceClient
+
+	locks *realmLocks
+}
+
+// realmLocks serializes the mutating group operations within a realm.
+// Reading a cached group and mutating it afterwards (member removal,
+// disband) is not atomic, so concurrent Leave calls on the same group can
+// both take the disband path (the second Delete used to panic on a nil
+// dereference) or overwrite each other's member removal, leaving a group
+// without members that its players are still mapped to - they can never be
+// invited again. Group operations are human-scale, one lock per realm is
+// enough.
+type realmLocks struct {
+	mu    sync.Mutex
+	locks map[uint32]*sync.Mutex
+}
+
+func newRealmLocks() *realmLocks {
+	return &realmLocks{locks: map[uint32]*sync.Mutex{}}
+}
+
+// lock locks the given realm and returns the matching unlock.
+func (r *realmLocks) lock(realmID uint32) func() {
+	r.mu.Lock()
+	l, ok := r.locks[realmID]
+	if !ok {
+		l = &sync.Mutex{}
+		r.locks[realmID] = l
+	}
+	r.mu.Unlock()
+
+	l.Lock()
+	return l.Unlock
 }
 
 func (g groupServiceImpl) GroupIDByPlayer(ctx context.Context, realmID uint32, player uint64) (uint, error) {
@@ -93,6 +128,8 @@ func (g groupServiceImpl) GroupByMemberGUID(ctx context.Context, realmID uint32,
 }
 
 func (g groupServiceImpl) Invite(ctx context.Context, realmID uint32, inviter, invited uint64, inviterName, invitedName string) error {
+	defer g.locks.lock(realmID)()
+
 	groupID, err := g.r.GroupIDByPlayer(ctx, realmID, invited)
 	if err != nil {
 		return err
@@ -181,6 +218,8 @@ func (g groupServiceImpl) Invite(ctx context.Context, realmID uint32, inviter, i
 }
 
 func (g groupServiceImpl) AcceptInvite(ctx context.Context, realmID uint32, player uint64) error {
+	defer g.locks.lock(realmID)()
+
 	invite, err := g.r.GetInviteByInvitedPlayer(ctx, realmID, player)
 	if err != nil {
 		return err
@@ -203,6 +242,8 @@ func (g groupServiceImpl) AcceptInvite(ctx context.Context, realmID uint32, play
 }
 
 func (g groupServiceImpl) Uninvite(ctx context.Context, realmID uint32, initiator, target uint64, reason string) error {
+	defer g.locks.lock(realmID)()
+
 	groupID, err := g.r.GroupIDByPlayer(ctx, realmID, initiator)
 	if err != nil {
 		return fmt.Errorf("can't get groupID, err: %w", err)
@@ -259,6 +300,8 @@ func (g groupServiceImpl) Uninvite(ctx context.Context, realmID uint32, initiato
 }
 
 func (g groupServiceImpl) Leave(ctx context.Context, realmID uint32, player uint64) error {
+	defer g.locks.lock(realmID)()
+
 	groupID, err := g.r.GroupIDByPlayer(ctx, realmID, player)
 	if err != nil {
 		return fmt.Errorf("can't get groupID, err: %w", err)
@@ -320,6 +363,8 @@ func (g groupServiceImpl) Leave(ctx context.Context, realmID uint32, player uint
 }
 
 func (g groupServiceImpl) ChangeLeader(ctx context.Context, realmID uint32, player, newLeader uint64) error {
+	defer g.locks.lock(realmID)()
+
 	group, err := g.getGroupWithLeader(ctx, realmID, player)
 	if err != nil {
 		return err
@@ -334,6 +379,8 @@ func (g groupServiceImpl) ChangeLeader(ctx context.Context, realmID uint32, play
 }
 
 func (g groupServiceImpl) ConvertToRaid(ctx context.Context, realmID uint32, player uint64) error {
+	defer g.locks.lock(realmID)()
+
 	group, err := g.getGroupWithLeader(ctx, realmID, player)
 	if err != nil {
 		return err
