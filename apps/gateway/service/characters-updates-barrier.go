@@ -39,6 +39,11 @@ func (b *CharactersUpdatesBarrier) UpdateMap(charGUID uint64, mapID uint32) {
 	b.updsChan <- events.CharacterUpdate{ID: charGUID, Map: &mapID}
 }
 
+// Update queues one update that can carry several changed fields at once.
+func (b *CharactersUpdatesBarrier) Update(upd events.CharacterUpdate) {
+	b.updsChan <- upd
+}
+
 func (b *CharactersUpdatesBarrier) Run(ctx context.Context) {
 	t := time.NewTicker(b.barrierOpenTime)
 	buffer := map[uint64]*events.CharacterUpdate{}
@@ -114,6 +119,26 @@ func mergeCharUpdates(oldCharUpd, newCharUpd events.CharacterUpdate) events.Char
 
 	if newCharUpd.Zone != nil {
 		oldCharUpd.Zone = newCharUpd.Zone
+	}
+
+	if newCharUpd.CurHP != nil {
+		oldCharUpd.CurHP = newCharUpd.CurHP
+	}
+
+	if newCharUpd.MaxHP != nil {
+		oldCharUpd.MaxHP = newCharUpd.MaxHP
+	}
+
+	if newCharUpd.PowerType != nil {
+		oldCharUpd.PowerType = newCharUpd.PowerType
+	}
+
+	if newCharUpd.CurPower != nil {
+		oldCharUpd.CurPower = newCharUpd.CurPower
+	}
+
+	if newCharUpd.MaxPower != nil {
+		oldCharUpd.MaxPower = newCharUpd.MaxPower
 	}
 
 	return oldCharUpd

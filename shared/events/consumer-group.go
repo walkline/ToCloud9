@@ -65,6 +65,11 @@ type GroupEventGroupDifficultyChangedHandler interface {
 	GroupDifficultyChangedEvent(payload *GroupEventGroupDifficultyChangedPayload) error
 }
 
+type GroupEventMembersUpdatedHandler interface {
+	// GroupMembersUpdatedEvent handles batched stats updates of group members.
+	GroupMembersUpdatedEvent(payload *GroupEventGroupMembersUpdatedPayload) error
+}
+
 // GroupEventsConsumer listens to group events and handles events if there are handlers.
 type GroupEventsConsumer interface {
 	// Listen is non-blocking operation that listens to the group events.
@@ -95,6 +100,7 @@ func NewGroupEventsConsumer(nc *nats.Conn, options ...GroupEventsConsumerOption)
 		newMessageHandler:                     params.newMessageHandler,
 		newTargetIconHandler:                  params.newTargetIconHandler,
 		difficultyChangedHandler:              params.difficultyChangedHandler,
+		membersUpdatedHandler:                 params.membersUpdatedHandler,
 	}
 }
 
@@ -200,6 +206,14 @@ func WithGroupDifficultyChangedHandler(h GroupEventGroupDifficultyChangedHandler
 	})
 }
 
+// WithGroupEventConsumerMembersUpdatedHandler creates group events consumer option with members stats updates handler.
+// If not specified, listener will ignore this kind of events.
+func WithGroupEventConsumerMembersUpdatedHandler(h GroupEventMembersUpdatedHandler) GroupEventsConsumerOption {
+	return newFuncGroupEventsConsumerOption(func(params *groupEventsConsumerParams) {
+		params.membersUpdatedHandler = h
+	})
+}
+
 // funcGatewayConsumerOption wraps a function that modifies funcGatewayConsumerOption into an
 // implementation of the GatewayConsumerOption interface.
 type funcGroupEventsConsumerOption struct {
@@ -230,6 +244,7 @@ type groupEventsConsumerParams struct {
 	newMessageHandler                     GroupEventNewMessageHandler
 	newTargetIconHandler                  GroupEventNewTargetIconHandler
 	difficultyChangedHandler              GroupEventGroupDifficultyChangedHandler
+	membersUpdatedHandler                 GroupEventMembersUpdatedHandler
 }
 
 // groupEventsConsumerImpl implementation of GroupEventsConsumer.
@@ -250,6 +265,7 @@ type groupEventsConsumerImpl struct {
 	newMessageHandler                     GroupEventNewMessageHandler
 	newTargetIconHandler                  GroupEventNewTargetIconHandler
 	difficultyChangedHandler              GroupEventGroupDifficultyChangedHandler
+	membersUpdatedHandler                 GroupEventMembersUpdatedHandler
 }
 
 // Listen is non-blocking operation that listens to gateway events.
@@ -508,6 +524,28 @@ func (c *groupEventsConsumerImpl) Listen() error {
 			err = c.difficultyChangedHandler.GroupDifficultyChangedEvent(&payload)
 			if err != nil {
 				log.Error().Err(err).Msg("can't handle GroupEventGroupDifficultyChanged event")
+				return
+			}
+		})
+		if err != nil {
+			return err
+		}
+
+		c.subs = append(c.subs, sub)
+	}
+
+	if c.membersUpdatedHandler != nil {
+		sub, err := c.nc.Subscribe(GroupEventGroupMembersUpdated.SubjectName(), func(msg *nats.Msg) {
+			payload := GroupEventGroupMembersUpdatedPayload{}
+			_, err := Unmarshal(msg.Data, &payload)
+			if err != nil {
+				log.Error().Err(err).Msg("can't read GroupEventGroupMembersUpdatedPayload (payload part) event")
+				return
+			}
+
+			err = c.membersUpdatedHandler.GroupMembersUpdatedEvent(&payload)
+			if err != nil {
+				log.Error().Err(err).Msg("can't handle GroupEventGroupMembersUpdated event")
 				return
 			}
 		})

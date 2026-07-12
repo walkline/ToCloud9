@@ -11,6 +11,7 @@ import (
 	"github.com/walkline/ToCloud9/apps/gateway/sockets"
 	"github.com/walkline/ToCloud9/gen/characters/pb"
 	pbServ "github.com/walkline/ToCloud9/gen/servers-registry/pb"
+	"github.com/walkline/ToCloud9/shared/events"
 	"github.com/walkline/ToCloud9/shared/wow/guid"
 )
 
@@ -47,6 +48,120 @@ func (s *GameSession) InterceptLevelUpInfo(ctx context.Context, p *packet.Packet
 	}
 
 	return nil
+}
+
+// powerTypeUnknown marks the character power type as not yet seen in update object packets.
+const powerTypeUnknown = 0xFF
+
+func (s *GameSession) InterceptUpdateObject(ctx context.Context, p *packet.Packet) error {
+	s.gameSocket.SendPacket(p)
+	s.trackCharacterStats(p.Data)
+	return nil
+}
+
+func (s *GameSession) InterceptCompressedUpdateObject(ctx context.Context, p *packet.Packet) error {
+	s.gameSocket.SendPacket(p)
+
+	data, err := packet.DecompressUpdateObject(p.Data)
+	if err != nil {
+		s.logger.Warn().Err(err).Msg("can't decompress update object for character stats tracking")
+		return nil
+	}
+
+	s.trackCharacterStats(data)
+	return nil
+}
+
+// publishCharacterStatsSnapshot feeds all currently known character stats into the
+// updates barrier, so that other group members get a full stats picture on group
+// changes even when values are not changing at that moment.
+func (s *GameSession) publishCharacterStatsSnapshot() {
+	char := s.character
+	if char == nil {
+		return
+	}
+
+	curHP, maxHP := char.CurHP, char.MaxHP
+	powerType, curPower, maxPower := char.PowerType, char.CurPower, char.MaxPower
+	lvl := char.Level
+
+	barrierUpd := events.CharacterUpdate{ID: char.GUID, Lvl: &lvl}
+
+	// MaxHP is never zero once stats are known, while CurHP == 0 is a valid
+	// state (dead player), so gate both on MaxHP.
+	if maxHP != 0 {
+		barrierUpd.CurHP = &curHP
+		barrierUpd.MaxHP = &maxHP
+	}
+
+	if powerType != powerTypeUnknown {
+		barrierUpd.PowerType = &powerType
+		barrierUpd.CurPower = &curPower
+		barrierUpd.MaxPower = &maxPower
+	}
+
+	s.charsUpdsBarrier.Update(barrierUpd)
+}
+
+// trackCharacterStats extracts stats of the character itself from an SMSG_UPDATE_OBJECT
+// payload and feeds changed values into the characters updates barrier.
+func (s *GameSession) trackCharacterStats(data []byte) {
+	char := s.character
+	if char == nil {
+		return
+	}
+
+	upd, err := packet.ParseUpdateObjectStatsForGUID(data, char.GUID)
+	if err != nil {
+		s.logger.Warn().Err(err).Msg("can't parse update object for character stats tracking")
+		return
+	}
+
+	barrierUpd := events.CharacterUpdate{ID: char.GUID}
+	changed := false
+
+	if upd.CurHP != nil && *upd.CurHP != char.CurHP {
+		char.CurHP = *upd.CurHP
+		barrierUpd.CurHP = upd.CurHP
+		changed = true
+	}
+
+	if upd.MaxHP != nil && *upd.MaxHP != char.MaxHP {
+		char.MaxHP = *upd.MaxHP
+		barrierUpd.MaxHP = upd.MaxHP
+		changed = true
+	}
+
+	if upd.PowerType != nil && *upd.PowerType != char.PowerType {
+		char.PowerType = *upd.PowerType
+		barrierUpd.PowerType = upd.PowerType
+		changed = true
+	}
+
+	if int(char.PowerType) < len(upd.Powers) {
+		if p := upd.Powers[char.PowerType]; p != nil && *p != char.CurPower {
+			char.CurPower = *p
+			barrierUpd.CurPower = p
+			changed = true
+		}
+
+		if p := upd.MaxPowers[char.PowerType]; p != nil && *p != char.MaxPower {
+			char.MaxPower = *p
+			barrierUpd.MaxPower = p
+			changed = true
+		}
+	}
+
+	if upd.Level != nil && *upd.Level != 0 && uint8(*upd.Level) != char.Level {
+		char.Level = uint8(*upd.Level)
+		lvl := char.Level
+		barrierUpd.Lvl = &lvl
+		changed = true
+	}
+
+	if changed {
+		s.charsUpdsBarrier.Update(barrierUpd)
+	}
 }
 
 func (s *GameSession) InterceptNewWorld(ctx context.Context, p *packet.Packet) error {

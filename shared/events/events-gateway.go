@@ -66,9 +66,14 @@ type GWEventCharactersUpdatesPayload struct {
 
 // CharacterUpdate represents new values of fields for the character.
 type CharacterUpdate struct {
-	ID   uint64  `json:"i"`
-	Lvl  *uint8  `json:"l,omitempty"`
-	Map  *uint32 `json:"m,omitempty"`
-	Area *uint32 `json:"a,omitempty"`
-	Zone *uint32 `json:"z,omitempty"`
+	ID        uint64  `json:"i"`
+	Lvl       *uint8  `json:"l,omitempty"`
+	Map       *uint32 `json:"m,omitempty"`
+	Area      *uint32 `json:"a,omitempty"`
+	Zone      *uint32 `json:"z,omitempty"`
+	CurHP     *uint32 `json:"h,omitempty"`
+	MaxHP     *uint32 `json:"hm,omitempty"`
+	PowerType *uint8  `json:"pt,omitempty"`
+	CurPower  *uint32 `json:"p,omitempty"`
+	MaxPower  *uint32 `json:"pm,omitempty"`
 }

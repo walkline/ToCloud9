@@ -174,6 +174,19 @@ func (r *Reader) ReadGUID() uint64 {
 	return guid
 }
 
+func (r *Reader) Skip(n int) {
+	if r.err != nil {
+		return
+	}
+
+	if r.data.Len() < n {
+		r.err = io.ErrUnexpectedEOF
+		return
+	}
+
+	_, r.err = r.data.Seek(int64(n), io.SeekCurrent)
+}
+
 func (r *Reader) Left() int {
 	return r.data.Len()
 }

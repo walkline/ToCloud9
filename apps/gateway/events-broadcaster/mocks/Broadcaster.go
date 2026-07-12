@@ -68,6 +68,11 @@ func (_m *Broadcaster) NewGroupDifficultyChangedEvent(payload *events.GroupEvent
 	_m.Called(payload)
 }
 
+// NewGroupMembersUpdatedEvent provides a mock function with given fields: payload
+func (_m *Broadcaster) NewGroupMembersUpdatedEvent(payload *events.GroupEventGroupMembersUpdatedPayload) {
+	_m.Called(payload)
+}
+
 // NewGroupDisbandEvent provides a mock function with given fields: payload
 func (_m *Broadcaster) NewGroupDisbandEvent(payload *events.GroupEventGroupDisbandPayload) {
 	_m.Called(payload)

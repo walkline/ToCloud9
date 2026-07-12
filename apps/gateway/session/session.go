@@ -71,6 +71,10 @@ type GameSession struct {
 	accountID uint32
 	character *LoggedInCharacter
 
+	// groupMemberStats holds last known stats of the character's group members,
+	// fed by group members updated events. Used to answer party member stats requests.
+	groupMemberStats map[uint64]events.GroupMemberStatsUpdate
+
 	teleportingToNewMap *uint32
 
 	// worldEntryPending is true between the login (or redirect) request and
@@ -299,6 +303,7 @@ func (s *GameSession) Login(ctx context.Context, p *packet.Packet) error {
 		Banned:                  char.Banned,
 		AccountID:               char.AccountID,
 		GroupMangedByGameServer: false,
+		PowerType:               powerTypeUnknown,
 	}
 	s.worldSocket = socket
 	s.worldEntryPending = true
@@ -616,6 +621,11 @@ func (s *GameSession) onLoggedOut() {
 	s.chatChannelsEventsBroadcaster.DisconnectPlayer(s.character.GUID)
 	s.channelMembership.events = nil
 
+	// The session survives going back to the character selection screen, but it is
+	// no longer registered for group events there, so cached group member stats can
+	// go stale (a member logging out would be missed and answered as still online).
+	s.groupMemberStats = nil
+
 	s.character = nil
 }
 
@@ -661,6 +671,13 @@ type LoggedInCharacter struct {
 	// GroupMangedByGameServer tracks cases when player joined e.g. battleground
 	// and the group is managed by game server but not group server.
 	GroupMangedByGameServer bool
+
+	// Last known stats parsed from update object packets, used to publish group member updates.
+	CurHP     uint32
+	MaxHP     uint32
+	PowerType uint8
+	CurPower  uint32
+	MaxPower  uint32
 
 	ignoreNextInterceptToNewMap *uint32
 

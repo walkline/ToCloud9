@@ -113,6 +113,12 @@ func (s *GameSession) HandleEventGroupInviteCreated(ctx context.Context, e *eBro
 func (s *GameSession) HandleEventGroupMemberOnlineStatusChanged(ctx context.Context, e *eBroadcaster.Event) error {
 	eventData := e.Payload.(*events.GroupEventGroupMemberOnlineStatusChangedPayload)
 
+	if !eventData.IsOnline {
+		delete(s.groupMemberStats, eventData.MemberGUID)
+	}
+
+	s.publishCharacterStatsSnapshot()
+
 	// TODO: we can handle this with less requests to the group service.
 	return s.SendGroupUpdate(ctx, eventData.GroupID)
 }
@@ -131,6 +137,8 @@ func (s *GameSession) HandleEventGroupCreated(ctx context.Context, e *eBroadcast
 	if member == nil {
 		return fmt.Errorf("group member not found for player %d", s.character.GUID)
 	}
+
+	s.publishCharacterStatsSnapshot()
 
 	resp := packet.NewWriterWithSize(packet.SMsgGroupList, 0)
 	resp.Uint8(eventData.GroupType)
@@ -571,6 +579,8 @@ func (s *GameSession) HandleEventGroupMemberLeft(ctx context.Context, e *eBroadc
 	eventData := e.Payload.(*events.GroupEventGroupMemberLeftPayload)
 
 	if eventData.MemberGUID == s.character.GUID {
+		s.groupMemberStats = nil
+
 		resp := packet.NewWriterWithSize(packet.SMsgGroupUnInvite, 0)
 		s.gameSocket.Send(resp)
 
@@ -589,6 +599,8 @@ func (s *GameSession) HandleEventGroupMemberLeft(ctx context.Context, e *eBroadc
 func (s *GameSession) HandleEventGroupDisband(ctx context.Context, e *eBroadcaster.Event) error {
 	eventData := e.Payload.(*events.GroupEventGroupDisbandPayload)
 
+	s.groupMemberStats = nil
+
 	s.groupUpdateCounter++
 
 	resp := packet.NewWriterWithSize(packet.SMsgGroupList, 0)
@@ -604,6 +616,9 @@ func (s *GameSession) HandleEventGroupDisband(ctx context.Context, e *eBroadcast
 
 func (s *GameSession) HandleEventGroupMemberAdded(ctx context.Context, e *eBroadcaster.Event) error {
 	eventData := e.Payload.(*events.GroupEventGroupMemberAddedPayload)
+
+	s.publishCharacterStatsSnapshot()
+
 	return s.SendGroupUpdate(ctx, eventData.GroupID)
 }
 
@@ -620,6 +635,161 @@ func (s *GameSession) HandleEventGroupLootTypeChanged(ctx context.Context, e *eB
 func (s *GameSession) HandleEventGroupConvertedToRaid(ctx context.Context, e *eBroadcaster.Event) error {
 	eventData := e.Payload.(*events.GroupEventGroupConvertedToRaidPayload)
 	return s.SendGroupUpdate(ctx, eventData.GroupID)
+}
+
+// Group update flags of the SMSG_PARTY_MEMBER_STATS packet (see AC Group.h GroupUpdateFlags).
+const (
+	groupUpdateFlagStatus    = 0x00000001 // uint16
+	groupUpdateFlagCurHP     = 0x00000002 // uint32
+	groupUpdateFlagMaxHP     = 0x00000004 // uint32
+	groupUpdateFlagPowerType = 0x00000008 // uint8
+	groupUpdateFlagCurPower  = 0x00000010 // uint16
+	groupUpdateFlagMaxPower  = 0x00000020 // uint16
+	groupUpdateFlagLevel     = 0x00000040 // uint16
+	groupUpdateFlagZone      = 0x00000080 // uint16
+)
+
+// memberStatusOnline is the online bit of the member status flags (see AC Group.h GroupMemberOnlineStatus).
+const memberStatusOnline = 0x0001
+
+func (s *GameSession) HandleEventGroupMembersUpdated(ctx context.Context, e *eBroadcaster.Event) error {
+	eventData := e.Payload.(*events.GroupEventGroupMembersUpdatedPayload)
+
+	for i := range eventData.Updates {
+		upd := &eventData.Updates[i]
+		if upd.MemberGUID == s.character.GUID {
+			continue
+		}
+
+		s.storeGroupMemberStats(upd)
+		s.gameSocket.SendPacket(buildPartyMemberStatsPacket(upd))
+	}
+
+	return nil
+}
+
+// HandleRequestPartyMemberStats answers stats requests for group members that the
+// game server is not aware of (gateway-managed groups): without this interception the
+// game server responds with an "offline" stub that marks the member as disconnected.
+func (s *GameSession) HandleRequestPartyMemberStats(ctx context.Context, p *packet.Packet) error {
+	if s.character == nil || s.character.GroupMangedByGameServer {
+		s.worldSocket.SendPacket(p)
+		return nil
+	}
+
+	guid := p.Reader().Uint64()
+
+	stats, found := s.groupMemberStats[guid]
+	if !found {
+		// Not a tracked group member (e.g. pet) — let the game server answer.
+		s.worldSocket.SendPacket(p)
+		return nil
+	}
+
+	s.gameSocket.SendPacket(buildPartyMemberStatsFullPacket(guid, &stats))
+	return nil
+}
+
+func (s *GameSession) storeGroupMemberStats(upd *events.GroupMemberStatsUpdate) {
+	if s.groupMemberStats == nil {
+		s.groupMemberStats = map[uint64]events.GroupMemberStatsUpdate{}
+	}
+
+	merged := s.groupMemberStats[upd.MemberGUID]
+	merged.MemberGUID = upd.MemberGUID
+	if upd.Level != nil {
+		merged.Level = upd.Level
+	}
+	if upd.Zone != nil {
+		merged.Zone = upd.Zone
+	}
+	if upd.CurHP != nil {
+		merged.CurHP = upd.CurHP
+	}
+	if upd.MaxHP != nil {
+		merged.MaxHP = upd.MaxHP
+	}
+	if upd.PowerType != nil {
+		merged.PowerType = upd.PowerType
+	}
+	if upd.CurPower != nil {
+		merged.CurPower = upd.CurPower
+	}
+	if upd.MaxPower != nil {
+		merged.MaxPower = upd.MaxPower
+	}
+	s.groupMemberStats[upd.MemberGUID] = merged
+}
+
+// buildPartyMemberStatsFullPacket builds an SMSG_PARTY_MEMBER_STATS_FULL packet from
+// the last known stats of a group member, as an answer to CMSG_REQUEST_PARTY_MEMBER_STATS.
+func buildPartyMemberStatsFullPacket(guid uint64, stats *events.GroupMemberStatsUpdate) *packet.Packet {
+	w := packet.NewWriter(packet.SMsgPartyMemberStatsFull)
+	w.Uint8(0) // arena/bg related flag
+	writePartyMemberStats(w, guid, stats)
+	return w.ToPacket()
+}
+
+// buildPartyMemberStatsPacket builds an incremental SMSG_PARTY_MEMBER_STATS packet.
+// The status field is always included so that members reported as offline by the
+// game server (which is not aware of gateway-managed groups) get back online.
+func buildPartyMemberStatsPacket(upd *events.GroupMemberStatsUpdate) *packet.Packet {
+	w := packet.NewWriter(packet.SMsgPartyMemberStats)
+	writePartyMemberStats(w, upd.MemberGUID, upd)
+	return w.ToPacket()
+}
+
+func writePartyMemberStats(w *packet.Writer, guid uint64, upd *events.GroupMemberStatsUpdate) {
+	mask := uint32(groupUpdateFlagStatus)
+
+	if upd.CurHP != nil {
+		mask |= groupUpdateFlagCurHP
+	}
+	if upd.MaxHP != nil {
+		mask |= groupUpdateFlagMaxHP
+	}
+	if upd.PowerType != nil {
+		mask |= groupUpdateFlagPowerType
+	}
+	if upd.CurPower != nil {
+		mask |= groupUpdateFlagCurPower
+	}
+	if upd.MaxPower != nil {
+		mask |= groupUpdateFlagMaxPower
+	}
+	if upd.Level != nil {
+		mask |= groupUpdateFlagLevel
+	}
+	if upd.Zone != nil {
+		mask |= groupUpdateFlagZone
+	}
+
+	w.GUID(guid)
+	w.Uint32(mask)
+
+	w.Uint16(memberStatusOnline)
+
+	if upd.CurHP != nil {
+		w.Uint32(*upd.CurHP)
+	}
+	if upd.MaxHP != nil {
+		w.Uint32(*upd.MaxHP)
+	}
+	if upd.PowerType != nil {
+		w.Uint8(*upd.PowerType)
+	}
+	if upd.CurPower != nil {
+		w.Uint16(uint16(*upd.CurPower))
+	}
+	if upd.MaxPower != nil {
+		w.Uint16(uint16(*upd.MaxPower))
+	}
+	if upd.Level != nil {
+		w.Uint16(uint16(*upd.Level))
+	}
+	if upd.Zone != nil {
+		w.Uint16(uint16(*upd.Zone))
+	}
 }
 
 func (s *GameSession) HandleEventGroupNewMessage(ctx context.Context, e *eBroadcaster.Event) error {

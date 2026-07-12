@@ -37,6 +37,7 @@ const (
 	EventTypeGroupNewMessage
 	EventTypeGroupNewTargetIcon
 	EventTypeGroupDifficultyChanged
+	EventTypeGroupMembersUpdated
 	EventTypeMMJoinedPVPQueue
 	EventTypeMMInvitedToBGOrArena
 	EventTypeMMInviteToBGOrArenaExpired
@@ -149,6 +150,7 @@ type Broadcaster interface {
 	NewGroupMessageEvent(payload *events.GroupEventNewMessagePayload)
 	NewGroupTargetIconEvent(payload *events.GroupEventNewTargetIconPayload)
 	NewGroupDifficultyChangedEvent(payload *events.GroupEventGroupDifficultyChangedPayload)
+	NewGroupMembersUpdatedEvent(payload *events.GroupEventGroupMembersUpdatedPayload)
 
 	NewMatchmakingJoinedPVPQueueEvent(payload *events.MatchmakingEventPlayersQueuedPayload)
 	NewMatchmakingInvitedToBGOrArenaEvent(payload *events.MatchmakingEventPlayersInvitedPayload)
@@ -445,6 +447,15 @@ func (b *broadcasterImpl) NewGroupDifficultyChangedEvent(payload *events.GroupEv
 	for _, ch := range b.channelsForGUIDs(payload.Receivers) {
 		ch <- Event{
 			Type:    EventTypeGroupDifficultyChanged,
+			Payload: payload,
+		}
+	}
+}
+
+func (b *broadcasterImpl) NewGroupMembersUpdatedEvent(payload *events.GroupEventGroupMembersUpdatedPayload) {
+	for _, ch := range b.channelsForGUIDs(payload.Receivers) {
+		ch <- Event{
+			Type:    EventTypeGroupMembersUpdated,
 			Payload: payload,
 		}
 	}

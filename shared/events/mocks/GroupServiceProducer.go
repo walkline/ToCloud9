@@ -152,6 +152,20 @@ func (_m *GroupServiceProducer) MemberAdded(payload *events.GroupEventGroupMembe
 	return r0
 }
 
+// MembersUpdated provides a mock function with given fields: payload
+func (_m *GroupServiceProducer) MembersUpdated(payload *events.GroupEventGroupMembersUpdatedPayload) error {
+	ret := _m.Called(payload)
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(*events.GroupEventGroupMembersUpdatedPayload) error); ok {
+		r0 = rf(payload)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
 // SendChatMessage provides a mock function with given fields: payload
 func (_m *GroupServiceProducer) SendChatMessage(payload *events.GroupEventNewMessagePayload) error {
 	ret := _m.Called(payload)

@@ -472,3 +472,26 @@ func (m GameGRPCConnMgrMock) GRPCAddressForGameServer(gameServerAddress string) 
 func (m GameGRPCConnMgrMock) GRPCConnByGameServerAddress(address string) (pb.WorldServerServiceClient, error) {
 	return m.connToReturn, m.err
 }
+
+func TestOnLoggedOutClearsGroupMemberStats(t *testing.T) {
+	gwEventProducerMock := &gwProducerMock.GatewayProducer{}
+	gwEventProducerMock.On("CharacterLoggedOut", mock.Anything).Return(nil)
+
+	broadcasterMock := &ebroadMock.Broadcaster{}
+	broadcasterMock.On("UnregisterCharacter", mock.Anything).Return(nil)
+
+	chatChannels := eBroadcaster.NewChatChannelsService()
+
+	session := &GameSession{
+		eventsProducer:                gwEventProducerMock,
+		eventsBroadcaster:             broadcasterMock,
+		chatChannelsEventsBroadcaster: chatChannels,
+		channelMembership:             NewChannelMembership(40554, chatChannels),
+		character:                     &LoggedInCharacter{GUID: 40554},
+		groupMemberStats:              map[uint64]events.GroupMemberStatsUpdate{60554: {MemberGUID: 60554}},
+	}
+
+	session.onLoggedOut()
+
+	assert.Nil(t, session.groupMemberStats, "stale group member stats would be answered as online after relogin")
+}
