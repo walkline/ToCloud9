@@ -97,6 +97,7 @@ auctionhouse:
   port: 8993
   natsUrl: *defaultNatsUrl
   charactersDB: *defaultCharactersDB
+  worldDB: *defaultWorldDB
   mailServiceAddress: "localhost:8997"
   expiredAuctionsCheckSecsDelay: 60
   logging: *defaultLogging
