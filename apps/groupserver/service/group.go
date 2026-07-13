@@ -238,6 +238,12 @@ func (g groupServiceImpl) AcceptInvite(ctx context.Context, realmID uint32, play
 		return err
 	}
 
+	// Invites are never deleted, only replaced: a player can accept one that
+	// points to a group disbanded long ago.
+	if group == nil {
+		return ErrGroupNotFound
+	}
+
 	return g.addMember(ctx, realmID, group, invite)
 }
 

@@ -46,3 +46,21 @@ func TestGroupsServiceConcurrentLeaves(t *testing.T) {
 		}
 	}
 }
+
+// staleInviteRepo hands out an invite pointing to a group that no longer exists.
+type staleInviteRepo struct{ noopGroupsRepo }
+
+func (staleInviteRepo) GetInviteByInvitedPlayer(ctx context.Context, realmID uint32, invitedPlayer uint64) (*repo.GroupInvite, error) {
+	return &repo.GroupInvite{Inviter: 1, InviterName: "Leader", Invitee: invitedPlayer, InviteeName: "Late", GroupID: 999}, nil
+}
+
+// Invites are never deleted, only replaced, so accepting one that outlived its
+// group used to dereference a nil group and crash the service.
+func TestGroupsServiceAcceptStaleInvite(t *testing.T) {
+	cache := NewInMemGroupsCache(staleInviteRepo{})
+	assert.NoError(t, cache.Warmup(context.Background(), 1))
+
+	s := NewGroupsService(cache, nil, noopGroupProducer{})
+
+	assert.ErrorIs(t, s.AcceptInvite(context.Background(), 1, 2), ErrGroupNotFound)
+}
