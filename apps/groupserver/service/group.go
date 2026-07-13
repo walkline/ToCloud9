@@ -488,6 +488,26 @@ func (g groupServiceImpl) SetLootMethod(ctx context.Context, realmID uint32, upd
 		return err
 	}
 
+	// Same validation the core applies to CMSG_LOOT_METHOD (anti-exploit).
+	if method > uint8(repo.LootTypeNeedBeforeGreed) {
+		return ErrNoPermissions
+	}
+
+	if method == uint8(repo.LootTypeMasterLoot) && group.MemberByGUID(lootMaster) == nil {
+		return ErrGroupMemberNotFound
+	}
+
+	// The stock client sends threshold 0 when only the method changes; the
+	// core drops such packets, but it sees the real threshold cached by the
+	// client. Behind the gateway we keep the current one instead so the
+	// method change still applies.
+	if lootThreshold < uint8(repo.ItemQualityUncommon) || lootThreshold > uint8(repo.ItemQualityArtifact) {
+		lootThreshold = group.LootThreshold
+		if lootThreshold < uint8(repo.ItemQualityUncommon) || lootThreshold > uint8(repo.ItemQualityArtifact) {
+			lootThreshold = uint8(repo.ItemQualityUncommon)
+		}
+	}
+
 	group.LootMethod = method
 	group.LootThreshold = lootThreshold
 	group.LooterGUID = lootMaster

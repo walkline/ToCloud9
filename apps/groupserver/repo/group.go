@@ -22,7 +22,7 @@ const (
 type LootType uint8
 
 const (
-	LootTypeFreeForAll LootType = 0
+	LootTypeFreeForAll LootType = iota
 	LootTypeRoundRobin
 	LootTypeMasterLoot
 	LootTypeGroupLoot
@@ -32,7 +32,7 @@ const (
 type ItemQuality uint8
 
 const (
-	ItemQualityPoor ItemQuality = 0
+	ItemQualityPoor ItemQuality = iota
 	ItemQualityNormal
 	ItemQualityUncommon
 	ItemQualityRare
