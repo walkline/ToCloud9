@@ -230,6 +230,9 @@ func (g *guildsMySQLRepo) GuildIDByRealmAndMemberGUID(ctx context.Context, realm
 
 	var guildID uint64
 	err := row.Scan(&guildID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return 0, nil
+	}
 	if err != nil {
 		return 0, err
 	}
