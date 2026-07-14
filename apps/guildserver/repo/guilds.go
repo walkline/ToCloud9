@@ -1,6 +1,12 @@
 package repo
 
-import "context"
+import (
+	"context"
+	"errors"
+)
+
+// ErrGuildNameTaken returned when a guild with the same name already exists.
+var ErrGuildNameTaken = errors.New("guild name already taken")
 
 // Guild represents in game guild.
 type Guild struct {
@@ -158,4 +164,8 @@ type GuildsRepo interface {
 
 	// DeleteLowestGuildRank deletes lowes guild rank.
 	DeleteLowestGuildRank(ctx context.Context, realmID uint32, guildID uint64, rank uint8) error
+
+	// CreateGuild creates a guild with the given ranks and the leader as first member.
+	// Returns the id of the created guild or ErrGuildNameTaken.
+	CreateGuild(ctx context.Context, realmID uint32, name string, leaderGUID uint64, ranks []GuildRank) (uint64, error)
 }

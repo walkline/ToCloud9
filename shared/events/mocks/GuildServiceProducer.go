@@ -222,3 +222,17 @@ func NewGuildServiceProducer(t mockConstructorTestingTNewGuildServiceProducer) *
 
 	return mock
 }
+
+// GuildCreated provides a mock function with given fields: payload
+func (_m *GuildServiceProducer) GuildCreated(payload *events.GuildEventGuildCreatedPayload) error {
+	ret := _m.Called(payload)
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(*events.GuildEventGuildCreatedPayload) error); ok {
+		r0 = rf(payload)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}

@@ -47,6 +47,9 @@ const (
 
 	// GuildEventNewMessage guild event when guild member sent some message
 	GuildEventNewMessage
+
+	// GuildEventGuildCreated guild event when new guild created
+	GuildEventGuildCreated
 )
 
 // SubjectName is key that nats uses
@@ -80,6 +83,8 @@ func (e GuildServiceEvent) SubjectName() string {
 		return "guild.info.updated"
 	case GuildEventNewMessage:
 		return "guild.message.new"
+	case GuildEventGuildCreated:
+		return "guild.created"
 	}
 	panic(fmt.Errorf("unk event %d", e))
 }
@@ -240,4 +245,13 @@ type GuildEventNewMessagePayload struct {
 	ForOfficers bool
 
 	Receivers []uint64
+}
+
+// GuildEventGuildCreatedPayload represents payload of the guild created event
+type GuildEventGuildCreatedPayload struct {
+	RealmID uint32
+
+	GuildID    uint64
+	GuildName  string
+	LeaderGUID uint64
 }

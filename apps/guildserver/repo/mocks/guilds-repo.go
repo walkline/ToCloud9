@@ -296,3 +296,24 @@ func NewGuildsRepo(t mockConstructorTestingTNewGuildsRepo) *GuildsRepo {
 
 	return mock
 }
+
+// CreateGuild provides a mock function with given fields: ctx, realmID, name, leaderGUID, ranks
+func (_m *GuildsRepo) CreateGuild(ctx context.Context, realmID uint32, name string, leaderGUID uint64, ranks []repo.GuildRank) (uint64, error) {
+	ret := _m.Called(ctx, realmID, name, leaderGUID, ranks)
+
+	var r0 uint64
+	if rf, ok := ret.Get(0).(func(context.Context, uint32, string, uint64, []repo.GuildRank) uint64); ok {
+		r0 = rf(ctx, realmID, name, leaderGUID, ranks)
+	} else {
+		r0 = ret.Get(0).(uint64)
+	}
+
+	var r1 error
+	if rf, ok := ret.Get(1).(func(context.Context, uint32, string, uint64, []repo.GuildRank) error); ok {
+		r1 = rf(ctx, realmID, name, leaderGUID, ranks)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
