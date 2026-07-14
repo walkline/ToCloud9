@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/walkline/ToCloud9/apps/guildserver"
 	"github.com/walkline/ToCloud9/apps/guildserver/repo"
@@ -11,10 +12,11 @@ import (
 )
 
 var (
-	ErrNotEnoughRight  = errors.New("not enough rights")
-	ErrGuildNotFound   = errors.New("guild not found")
-	ErrLeaderCantLeave = errors.New("leader can't leave")
-	ErrAlreadyInGuild  = errors.New("already in guild")
+	ErrNotEnoughRight   = errors.New("not enough rights")
+	ErrGuildNotFound    = errors.New("guild not found")
+	ErrLeaderCantLeave  = errors.New("leader can't leave")
+	ErrAlreadyInGuild   = errors.New("already in guild")
+	ErrGuildNameInvalid = errors.New("invalid guild name")
 )
 
 // InviteAcceptedParams represents parameters for InviteAcceptedParams.InviteAccepted function.
@@ -45,6 +47,10 @@ type GuildService interface {
 	// GuildNamesByIDs returns the names of the given guilds keyed by guild id.
 	// Unknown guild ids are absent from the result.
 	GuildNamesByIDs(ctx context.Context, realmID uint32, guildIDs []uint64) (map[uint64]string, error)
+
+	// CreateGuild creates a guild with default ranks and the leader as guild master.
+	// Returns the id of the created guild.
+	CreateGuild(ctx context.Context, realmID uint32, leaderGUID uint64, name string) (uint64, error)
 
 	// InviteMember creates invite to the guild.
 	InviteMember(ctx context.Context, realmID uint32, inviterGUID uint64, inviteeGUID uint64, inviteeName string) error
@@ -864,4 +870,49 @@ func (g *guildServiceImpl) buildGenericEventPayload(guild *repo.Guild) *events.G
 		GuildName:     guild.Name,
 		MembersOnline: membersOnline,
 	}
+}
+
+// defaultGuildRanks is the 3.3.5 default rank layout every new guild starts with.
+func defaultGuildRanks() []repo.GuildRank {
+	chat := uint32(repo.RightChatListen | repo.RightChatSpeak)
+	return []repo.GuildRank{
+		{Rank: uint8(repo.GuildRankGuildMaster), Name: "Guild Master", Rights: repo.RightAll},
+		{Rank: uint8(repo.GuildRankOfficer), Name: "Officer", Rights: chat},
+		{Rank: uint8(repo.GuildRankVeteran), Name: "Veteran", Rights: chat},
+		{Rank: uint8(repo.GuildRankMember), Name: "Member", Rights: chat},
+		{Rank: uint8(repo.GuildRankInitiate), Name: "Initiate", Rights: chat},
+	}
+}
+
+// CreateGuild creates a guild with default ranks and the leader as guild master.
+func (g *guildServiceImpl) CreateGuild(ctx context.Context, realmID uint32, leaderGUID uint64, name string) (uint64, error) {
+	name = strings.TrimSpace(name)
+	if name == "" || len(name) > 24 {
+		return 0, ErrGuildNameInvalid
+	}
+
+	existingGuildID, err := g.guildsRepo.GuildIDByRealmAndMemberGUID(ctx, realmID, leaderGUID)
+	if err != nil {
+		return 0, fmt.Errorf("can't fetch guild id for member, err: %w", err)
+	}
+	if existingGuildID != 0 {
+		return 0, ErrAlreadyInGuild
+	}
+
+	guildID, err := g.guildsRepo.CreateGuild(ctx, realmID, name, leaderGUID, defaultGuildRanks())
+	if err != nil {
+		return 0, err
+	}
+
+	err = g.eventsProducer.GuildCreated(&events.GuildEventGuildCreatedPayload{
+		RealmID:    realmID,
+		GuildID:    guildID,
+		GuildName:  name,
+		LeaderGUID: leaderGUID,
+	})
+	if err != nil {
+		return guildID, fmt.Errorf("guild created, but can't send guild created event, err: %w", err)
+	}
+
+	return guildID, nil
 }

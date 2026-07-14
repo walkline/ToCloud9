@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"time"
 
@@ -367,4 +368,27 @@ func applyCharUpdate(member *repo.GuildMember, upd *events.CharacterUpdate) {
 	if upd.Lvl != nil {
 		member.Lvl = *upd.Lvl
 	}
+}
+
+// CreateGuild creates the guild in the underlying repo and caches it hydrated
+// (the reload joins member details from the characters table).
+func (g *guildsInMemCache) CreateGuild(ctx context.Context, realmID uint32, name string, leaderGUID uint64, ranks []repo.GuildRank) (uint64, error) {
+	id, err := g.r.CreateGuild(ctx, realmID, name, leaderGUID, ranks)
+	if err != nil {
+		return 0, err
+	}
+
+	guild, err := g.r.GuildByRealmAndID(ctx, realmID, id)
+	if err != nil {
+		return id, fmt.Errorf("guild %d created but not cached, err: %w", id, err)
+	}
+
+	g.cacheMutex.Lock()
+	g.cache[realmID][id] = guild
+	for _, member := range guild.GuildMembers {
+		g.guildMembersCache[realmID][member.PlayerGUID] = member
+	}
+	g.cacheMutex.Unlock()
+
+	return id, nil
 }
