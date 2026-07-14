@@ -66,7 +66,7 @@ func NewGroupsService(r repo.GroupsRepo, charClient pb.CharactersServiceClient, 
 		r:          r,
 		ep:         ep,
 		charClient: charClient,
-		locks:      newRealmLocks(),
+		locks:      newGroupLocks(),
 	}
 }
 
@@ -76,10 +76,10 @@ type groupServiceImpl struct {
 
 	charClient pb.CharactersServiceClient
 
-	locks *realmLocks
+	locks *groupLocks
 }
 
-// realmLocks serializes the mutating group operations within a realm.
+// groupLocks serializes the mutating operations on a single group.
 // Reading a cached group and mutating it afterwards (member removal,
 // disband) is not atomic, so concurrent Leave calls on the same group can
 // both take the disband path (the second Delete used to panic on a nil
@@ -87,29 +87,78 @@ type groupServiceImpl struct {
 // without members that its players are still mapped to - they can never be
 // invited again. Field setters (loot method, difficulties, target icons)
 // take it too: their read-modify-write Update racing a disband would put
-// the deleted group back into the cache. Group operations are human-scale,
-// one lock per realm is enough.
-type realmLocks struct {
+// the deleted group back into the cache. Locks are refcounted and dropped
+// on last release, so the map does not grow with group churn.
+type groupLocks struct {
 	mu    sync.Mutex
-	locks map[uint32]*sync.Mutex
+	locks map[groupLockKey]*groupLock
 }
 
-func newRealmLocks() *realmLocks {
-	return &realmLocks{locks: map[uint32]*sync.Mutex{}}
+type groupLockKey struct {
+	realmID uint32
+	groupID uint
 }
 
-// lock locks the given realm and returns the matching unlock.
-func (r *realmLocks) lock(realmID uint32) func() {
-	r.mu.Lock()
-	l, ok := r.locks[realmID]
+type groupLock struct {
+	mu   sync.Mutex
+	refs int
+}
+
+func newGroupLocks() *groupLocks {
+	return &groupLocks{locks: map[groupLockKey]*groupLock{}}
+}
+
+// lock locks the given group and returns the matching unlock.
+func (l *groupLocks) lock(realmID uint32, groupID uint) func() {
+	key := groupLockKey{realmID: realmID, groupID: groupID}
+
+	l.mu.Lock()
+	gl, ok := l.locks[key]
 	if !ok {
-		l = &sync.Mutex{}
-		r.locks[realmID] = l
+		gl = &groupLock{}
+		l.locks[key] = gl
 	}
-	r.mu.Unlock()
+	gl.refs++
+	l.mu.Unlock()
 
-	l.Lock()
-	return l.Unlock
+	gl.mu.Lock()
+	return func() {
+		gl.mu.Unlock()
+
+		l.mu.Lock()
+		gl.refs--
+		if gl.refs == 0 {
+			delete(l.locks, key)
+		}
+		l.mu.Unlock()
+	}
+}
+
+// lockGroupOfPlayer resolves the player's group and locks it. The player can
+// leave or switch groups between the resolution and the lock, so membership
+// is checked again under the lock and the resolution retried until stable.
+func (g groupServiceImpl) lockGroupOfPlayer(ctx context.Context, realmID uint32, player uint64) (uint, func(), error) {
+	for {
+		groupID, err := g.r.GroupIDByPlayer(ctx, realmID, player)
+		if err != nil {
+			return 0, nil, err
+		}
+		if groupID == 0 {
+			return 0, nil, ErrGroupNotFound
+		}
+
+		unlock := g.locks.lock(realmID, groupID)
+
+		current, err := g.r.GroupIDByPlayer(ctx, realmID, player)
+		if err != nil {
+			unlock()
+			return 0, nil, err
+		}
+		if current == groupID {
+			return groupID, unlock, nil
+		}
+		unlock()
+	}
 }
 
 func (g groupServiceImpl) GroupIDByPlayer(ctx context.Context, realmID uint32, player uint64) (uint, error) {
@@ -130,8 +179,6 @@ func (g groupServiceImpl) GroupByMemberGUID(ctx context.Context, realmID uint32,
 }
 
 func (g groupServiceImpl) Invite(ctx context.Context, realmID uint32, inviter, invited uint64, inviterName, invitedName string) error {
-	defer g.locks.lock(realmID)()
-
 	groupID, err := g.r.GroupIDByPlayer(ctx, realmID, invited)
 	if err != nil {
 		return err
@@ -141,9 +188,14 @@ func (g groupServiceImpl) Invite(ctx context.Context, realmID uint32, inviter, i
 		return ErrAlreadyInGroup
 	}
 
-	inviterGroupID, err := g.r.GroupIDByPlayer(ctx, realmID, inviter)
-	if err != nil {
+	// A groupless inviter is fine here: accepting the invite creates the
+	// group, so there is nothing to lock yet.
+	inviterGroupID, unlockInviter, err := g.lockGroupOfPlayer(ctx, realmID, inviter)
+	if err != nil && !errors.Is(err, ErrGroupNotFound) {
 		return err
+	}
+	if unlockInviter != nil {
+		defer unlockInviter()
 	}
 
 	if inviterGroupID == 0 {
@@ -220,8 +272,6 @@ func (g groupServiceImpl) Invite(ctx context.Context, realmID uint32, inviter, i
 }
 
 func (g groupServiceImpl) AcceptInvite(ctx context.Context, realmID uint32, player uint64) error {
-	defer g.locks.lock(realmID)()
-
 	invite, err := g.r.GetInviteByInvitedPlayer(ctx, realmID, player)
 	if err != nil {
 		return err
@@ -232,16 +282,19 @@ func (g groupServiceImpl) AcceptInvite(ctx context.Context, realmID uint32, play
 	}
 
 	if invite.GroupID == 0 {
+		// Brand-new group: nobody can hold its lock before Create returns.
 		return g.createGroup(ctx, realmID, invite)
 	}
 
+	defer g.locks.lock(realmID, invite.GroupID)()
+
+	// Re-read under the lock: invites are never deleted, only replaced, so
+	// this one can point to a group disbanded long ago or a moment ago.
 	group, err := g.r.GroupByID(ctx, realmID, invite.GroupID, true)
 	if err != nil {
 		return err
 	}
 
-	// Invites are never deleted, only replaced: a player can accept one that
-	// points to a group disbanded long ago.
 	if group == nil {
 		return ErrGroupNotFound
 	}
@@ -250,15 +303,11 @@ func (g groupServiceImpl) AcceptInvite(ctx context.Context, realmID uint32, play
 }
 
 func (g groupServiceImpl) Uninvite(ctx context.Context, realmID uint32, initiator, target uint64, reason string) error {
-	defer g.locks.lock(realmID)()
-
-	groupID, err := g.r.GroupIDByPlayer(ctx, realmID, initiator)
+	groupID, unlock, err := g.lockGroupOfPlayer(ctx, realmID, initiator)
 	if err != nil {
-		return fmt.Errorf("can't get groupID, err: %w", err)
+		return err
 	}
-	if groupID == 0 {
-		return ErrGroupNotFound
-	}
+	defer unlock()
 
 	group, err := g.r.GroupByID(ctx, realmID, groupID, true)
 	if err != nil {
@@ -308,15 +357,11 @@ func (g groupServiceImpl) Uninvite(ctx context.Context, realmID uint32, initiato
 }
 
 func (g groupServiceImpl) Leave(ctx context.Context, realmID uint32, player uint64) error {
-	defer g.locks.lock(realmID)()
-
-	groupID, err := g.r.GroupIDByPlayer(ctx, realmID, player)
+	groupID, unlock, err := g.lockGroupOfPlayer(ctx, realmID, player)
 	if err != nil {
-		return fmt.Errorf("can't get groupID, err: %w", err)
+		return err
 	}
-	if groupID == 0 {
-		return ErrGroupNotFound
-	}
+	defer unlock()
 
 	group, err := g.r.GroupByID(ctx, realmID, groupID, true)
 	if err != nil {
@@ -371,7 +416,11 @@ func (g groupServiceImpl) Leave(ctx context.Context, realmID uint32, player uint
 }
 
 func (g groupServiceImpl) ChangeLeader(ctx context.Context, realmID uint32, player, newLeader uint64) error {
-	defer g.locks.lock(realmID)()
+	_, unlock, err := g.lockGroupOfPlayer(ctx, realmID, player)
+	if err != nil {
+		return err
+	}
+	defer unlock()
 
 	group, err := g.getGroupWithLeader(ctx, realmID, player)
 	if err != nil {
@@ -387,7 +436,11 @@ func (g groupServiceImpl) ChangeLeader(ctx context.Context, realmID uint32, play
 }
 
 func (g groupServiceImpl) ConvertToRaid(ctx context.Context, realmID uint32, player uint64) error {
-	defer g.locks.lock(realmID)()
+	_, unlock, err := g.lockGroupOfPlayer(ctx, realmID, player)
+	if err != nil {
+		return err
+	}
+	defer unlock()
 
 	group, err := g.getGroupWithLeader(ctx, realmID, player)
 	if err != nil {
@@ -472,15 +525,11 @@ func (g groupServiceImpl) SetTargetIcon(ctx context.Context, realmID uint32, upd
 		return fmt.Errorf("iconID (%d) is invalid", iconID)
 	}
 
-	defer g.locks.lock(realmID)()
-
-	groupID, err := g.r.GroupIDByPlayer(ctx, realmID, updaterGUID)
+	groupID, unlock, err := g.lockGroupOfPlayer(ctx, realmID, updaterGUID)
 	if err != nil {
-		return fmt.Errorf("can't get groupID, err: %w", err)
+		return err
 	}
-	if groupID == 0 {
-		return ErrGroupNotFound
-	}
+	defer unlock()
 
 	group, err := g.r.GroupByID(ctx, realmID, groupID, true)
 	if err != nil {
@@ -540,7 +589,11 @@ func (g groupServiceImpl) SetTargetIcon(ctx context.Context, realmID uint32, upd
 }
 
 func (g groupServiceImpl) SetLootMethod(ctx context.Context, realmID uint32, updaterGUID uint64, method uint8, lootMaster uint64, lootThreshold uint8) error {
-	defer g.locks.lock(realmID)()
+	_, unlock, err := g.lockGroupOfPlayer(ctx, realmID, updaterGUID)
+	if err != nil {
+		return err
+	}
+	defer unlock()
 
 	group, err := g.getGroupWithLeader(ctx, realmID, updaterGUID)
 	if err != nil {
@@ -592,7 +645,11 @@ func (g groupServiceImpl) SetLootMethod(ctx context.Context, realmID uint32, upd
 }
 
 func (g groupServiceImpl) SetDungeonDifficulty(ctx context.Context, realmID uint32, updaterGUID uint64, difficulty uint8) error {
-	defer g.locks.lock(realmID)()
+	_, unlock, err := g.lockGroupOfPlayer(ctx, realmID, updaterGUID)
+	if err != nil {
+		return err
+	}
+	defer unlock()
 
 	group, err := g.getGroupWithLeader(ctx, realmID, updaterGUID)
 	if err != nil {
@@ -637,7 +694,11 @@ func (g groupServiceImpl) SetDungeonDifficulty(ctx context.Context, realmID uint
 }
 
 func (g groupServiceImpl) SetRaidDifficulty(ctx context.Context, realmID uint32, updaterGUID uint64, difficulty uint8) error {
-	defer g.locks.lock(realmID)()
+	_, unlock, err := g.lockGroupOfPlayer(ctx, realmID, updaterGUID)
+	if err != nil {
+		return err
+	}
+	defer unlock()
 
 	group, err := g.getGroupWithLeader(ctx, realmID, updaterGUID)
 	if err != nil {
