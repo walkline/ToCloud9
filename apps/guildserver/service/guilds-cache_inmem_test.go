@@ -154,3 +154,47 @@ func Test_guildsInMemCache_DeleteLowestGuildRank(t *testing.T) {
 	}
 
 }
+
+func Test_guildsInMemCache_GuildIDByRealmAndMemberGUIDFromSource(t *testing.T) {
+	const (
+		realmID    = uint32(1)
+		guildID    = uint64(65)
+		memberGUID = uint64(42)
+	)
+
+	newCacheWithMember := func(repoMock *mocks.GuildsRepo) *guildsInMemCache {
+		cache := NewGuildsInMemCache(repoMock).(*guildsInMemCache)
+		member := &repo.GuildMember{PlayerGUID: memberGUID, GuildID: guildID}
+		cache.cache = map[uint32]map[uint64]*repo.Guild{
+			realmID: {guildID: &repo.Guild{ID: guildID, GuildMembers: []*repo.GuildMember{member}}},
+		}
+		cache.guildMembersCache = map[uint32]map[uint64]*repo.GuildMember{
+			realmID: {memberGUID: member},
+		}
+		return cache
+	}
+
+	t.Run("evicts stale member when source has no membership", func(t *testing.T) {
+		repoMock := &mocks.GuildsRepo{}
+		repoMock.On("GuildIDByRealmAndMemberGUID", mock.Anything, realmID, memberGUID).Return(uint64(0), nil)
+
+		cache := newCacheWithMember(repoMock)
+		id, err := cache.GuildIDByRealmAndMemberGUIDFromSource(context.Background(), realmID, memberGUID)
+		assert.NoError(t, err)
+		assert.Equal(t, uint64(0), id)
+		assert.Nil(t, cache.guildMembersCache[realmID][memberGUID])
+		assert.Empty(t, cache.cache[realmID][guildID].GuildMembers)
+	})
+
+	t.Run("keeps member when source confirms membership", func(t *testing.T) {
+		repoMock := &mocks.GuildsRepo{}
+		repoMock.On("GuildIDByRealmAndMemberGUID", mock.Anything, realmID, memberGUID).Return(guildID, nil)
+
+		cache := newCacheWithMember(repoMock)
+		id, err := cache.GuildIDByRealmAndMemberGUIDFromSource(context.Background(), realmID, memberGUID)
+		assert.NoError(t, err)
+		assert.Equal(t, guildID, id)
+		assert.NotNil(t, cache.guildMembersCache[realmID][memberGUID])
+		assert.Len(t, cache.cache[realmID][guildID].GuildMembers, 1)
+	})
+}

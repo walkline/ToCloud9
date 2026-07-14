@@ -13,6 +13,17 @@ import (
 	eventsMocks "github.com/walkline/ToCloud9/shared/events/mocks"
 )
 
+// guildsRepoWithSourceMock makes the repo mock satisfy GuildMembershipSource.
+type guildsRepoWithSourceMock struct {
+	*mocks.GuildsRepo
+	sourceGuildID uint64
+	sourceErr     error
+}
+
+func (g *guildsRepoWithSourceMock) GuildIDByRealmAndMemberGUIDFromSource(context.Context, uint32, uint64) (uint64, error) {
+	return g.sourceGuildID, g.sourceErr
+}
+
 func TestGuildServiceCreateGuild(t *testing.T) {
 	const (
 		realmID    = uint32(1)
@@ -50,6 +61,30 @@ func TestGuildServiceCreateGuild(t *testing.T) {
 		repoMock.On("GuildIDByRealmAndMemberGUID", mock.Anything, realmID, leaderGUID).Return(uint64(3), nil)
 
 		_, err := newService(repoMock, &eventsMocks.GuildServiceProducer{}).CreateGuild(context.Background(), realmID, leaderGUID, "TestGuild")
+		assert.ErrorIs(t, err, ErrAlreadyInGuild)
+		repoMock.AssertNotCalled(t, "CreateGuild", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+	})
+
+	t.Run("creates guild when positive cached membership is stale in the source", func(t *testing.T) {
+		repoMock := &mocks.GuildsRepo{}
+		repoMock.On("GuildIDByRealmAndMemberGUID", mock.Anything, realmID, leaderGUID).Return(uint64(3), nil)
+		repoMock.On("CreateGuild", mock.Anything, realmID, "TestGuild", leaderGUID, mock.Anything).Return(uint64(7), nil)
+
+		producerMock := &eventsMocks.GuildServiceProducer{}
+		producerMock.On("GuildCreated", mock.Anything).Return(nil)
+
+		repoWithSource := &guildsRepoWithSourceMock{GuildsRepo: repoMock, sourceGuildID: 0}
+		id, err := NewGuildService(repoWithSource, producerMock).CreateGuild(context.Background(), realmID, leaderGUID, "TestGuild")
+		assert.NoError(t, err)
+		assert.Equal(t, uint64(7), id)
+	})
+
+	t.Run("rejects leader in a guild when the source confirms membership", func(t *testing.T) {
+		repoMock := &mocks.GuildsRepo{}
+		repoMock.On("GuildIDByRealmAndMemberGUID", mock.Anything, realmID, leaderGUID).Return(uint64(3), nil)
+
+		repoWithSource := &guildsRepoWithSourceMock{GuildsRepo: repoMock, sourceGuildID: 3}
+		_, err := NewGuildService(repoWithSource, &eventsMocks.GuildServiceProducer{}).CreateGuild(context.Background(), realmID, leaderGUID, "TestGuild")
 		assert.ErrorIs(t, err, ErrAlreadyInGuild)
 		repoMock.AssertNotCalled(t, "CreateGuild", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything)
 	})

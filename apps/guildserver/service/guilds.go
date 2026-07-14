@@ -896,6 +896,17 @@ func (g *guildServiceImpl) CreateGuild(ctx context.Context, realmID uint32, lead
 		return 0, fmt.Errorf("can't fetch guild id for member, err: %w", err)
 	}
 	if existingGuildID != 0 {
+		// The world can disband guilds without going through this service
+		// (e.g. GM commands handled in-process), so recheck a positive
+		// cached membership against the source of truth before rejecting.
+		if source, ok := g.guildsRepo.(GuildMembershipSource); ok {
+			existingGuildID, err = source.GuildIDByRealmAndMemberGUIDFromSource(ctx, realmID, leaderGUID)
+			if err != nil {
+				return 0, fmt.Errorf("can't fetch guild id for member, err: %w", err)
+			}
+		}
+	}
+	if existingGuildID != 0 {
 		return 0, ErrAlreadyInGuild
 	}
 
