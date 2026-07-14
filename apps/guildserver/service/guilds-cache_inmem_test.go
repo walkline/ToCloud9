@@ -198,3 +198,29 @@ func Test_guildsInMemCache_GuildIDByRealmAndMemberGUIDFromSource(t *testing.T) {
 		assert.Len(t, cache.cache[realmID][guildID].GuildMembers, 1)
 	})
 }
+
+func Test_guildsInMemCache_CreateGuildMarksLeaderOnline(t *testing.T) {
+	const (
+		realmID    = uint32(1)
+		guildID    = uint64(7)
+		leaderGUID = uint64(42)
+	)
+
+	repoMock := &mocks.GuildsRepo{}
+	repoMock.On("CreateGuild", mock.Anything, realmID, "TestGuild", leaderGUID, mock.Anything).Return(guildID, nil)
+	repoMock.On("GuildByRealmAndID", mock.Anything, realmID, guildID).Return(&repo.Guild{
+		ID: guildID,
+		GuildMembers: []*repo.GuildMember{
+			{PlayerGUID: leaderGUID, GuildID: guildID, Status: repo.GuildMemberStatusOffline},
+		},
+	}, nil)
+
+	cache := NewGuildsInMemCache(repoMock).(*guildsInMemCache)
+	cache.cache = map[uint32]map[uint64]*repo.Guild{realmID: {}}
+	cache.guildMembersCache = map[uint32]map[uint64]*repo.GuildMember{realmID: {}}
+
+	id, err := cache.CreateGuild(context.Background(), realmID, "TestGuild", leaderGUID, nil)
+	assert.NoError(t, err)
+	assert.Equal(t, guildID, id)
+	assert.Equal(t, repo.GuildMemberStatusOnline, cache.guildMembersCache[realmID][leaderGUID].Status)
+}

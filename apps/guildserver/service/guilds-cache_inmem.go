@@ -410,6 +410,12 @@ func (g *guildsInMemCache) CreateGuild(ctx context.Context, realmID uint32, name
 	g.cacheMutex.Lock()
 	g.cache[realmID][id] = guild
 	for _, member := range guild.GuildMembers {
+		if member.PlayerGUID == leaderGUID {
+			// Guild creation is always driven by a live session of the leader,
+			// but the world may not have flushed the online flag to the
+			// characters table yet, so the hydration can miss it.
+			member.Status = repo.GuildMemberStatusOnline
+		}
 		g.guildMembersCache[realmID][member.PlayerGUID] = member
 	}
 	g.cacheMutex.Unlock()
