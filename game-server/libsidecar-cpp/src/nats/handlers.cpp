@@ -48,13 +48,25 @@ std::unique_ptr<Handler> CreateGroupCreatedHandler(const std::string& data, uint
         uint64_t leader_guid = j.value("LeaderGUID", 0ull);
         uint8_t loot_method = j.value("LootMethod", uint8_t(0));
         uint64_t looter_guid = j.value("LooterGUID", 0ull);
+        uint8_t loot_threshold = j.value("LootThreshold", uint8_t(0));
+        uint8_t group_type = j.value("GroupType", uint8_t(0));
+        uint8_t difficulty = j.value("Difficulty", uint8_t(0));
+        uint8_t raid_difficulty = j.value("RaidDifficulty", uint8_t(0));
+        uint64_t master_looter_guid = j.value("MasterLooterGuid", 0ull);
 
-        return std::make_unique<FunctionHandler>([members, group_guid, leader_guid, loot_method, looter_guid]() {
+        return std::make_unique<FunctionHandler>([members, group_guid, leader_guid, loot_method, looter_guid,
+                                                  loot_threshold, group_type, difficulty, raid_difficulty,
+                                                  master_looter_guid]() {
             TC9EventGroupCreated event{};
             event.groupGuid = group_guid;
             event.leaderGuid = leader_guid;
             event.lootMethod = loot_method;
             event.looterGuid = looter_guid;
+            event.lootThreshold = loot_threshold;
+            event.groupType = group_type;
+            event.difficulty = difficulty;
+            event.raidDifficulty = raid_difficulty;
+            event.masterLooterGuid = master_looter_guid;
             event.memberGuids = members->empty() ? nullptr : members->data();
             event.memberCount = static_cast<int>(members->size());
 
@@ -138,6 +150,7 @@ std::unique_ptr<Handler> CreateGroupLootTypeChangedHandler(const std::string& da
             event.groupGuid = j.value("GroupID", 0u);
             event.lootMethod = j.value("NewLootType", uint8_t(0));
             event.looterGuid = j.value("NewLooterGUID", 0ull);
+            event.lootThreshold = j.value("NewLooterThreshold", uint8_t(0));
 
             EventHooks::Instance().DispatchGroupLootTypeChanged(event);
         } catch (const std::exception& e) {
