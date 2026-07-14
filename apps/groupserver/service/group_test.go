@@ -25,13 +25,16 @@ func TestGroupsServiceConcurrentLeaves(t *testing.T) {
 		s := NewGroupsService(cache, nil, noopGroupProducer{})
 
 		var wg sync.WaitGroup
+		start := make(chan struct{})
 		leave := func(player uint64) {
 			defer wg.Done()
+			<-start
 			assert.NoError(t, s.Leave(ctx, 1, player))
 		}
 		wg.Add(2)
 		go leave(2)
 		go leave(3)
+		close(start)
 		wg.Wait()
 
 		// One leave shrinks the group to two members, the other one disbands it.
