@@ -102,3 +102,15 @@ func TestGroupsCacheInMemMemberStatusUpdatesAfterRemoveMember(t *testing.T) {
 	assert.False(t, group.MemberByGUID(2).IsOnline, "logged out member should be offline")
 	assert.True(t, group.MemberByGUID(3).IsOnline, "remaining member should stay online")
 }
+
+// Two concurrent leaves on the same group can both reach the disband path;
+// the second Delete then found no group in the cache and panicked on a nil
+// dereference. Delete must be idempotent.
+func TestGroupsCacheInMemDeleteIsIdempotent(t *testing.T) {
+	cache := newWarmedUpCache(t)
+	ctx := context.Background()
+
+	assert.NoError(t, cache.Create(ctx, 1, newTwoMembersGroup()))
+	assert.NoError(t, cache.Delete(ctx, 1, 1))
+	assert.NoError(t, cache.Delete(ctx, 1, 1))
+}

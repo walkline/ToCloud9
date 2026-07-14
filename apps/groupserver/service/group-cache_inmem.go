@@ -80,6 +80,11 @@ func (g *groupsCacheInMem) Delete(ctx context.Context, realmID uint32, groupID u
 		return err
 	}
 
+	if group == nil {
+		// Already deleted; deleting is idempotent.
+		return nil
+	}
+
 	g.cacheLock.Lock()
 
 	for _, member := range group.Members {
