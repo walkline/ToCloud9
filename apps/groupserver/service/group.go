@@ -85,8 +85,10 @@ type groupServiceImpl struct {
 // both take the disband path (the second Delete used to panic on a nil
 // dereference) or overwrite each other's member removal, leaving a group
 // without members that its players are still mapped to - they can never be
-// invited again. Group operations are human-scale, one lock per realm is
-// enough.
+// invited again. Field setters (loot method, difficulties, target icons)
+// take it too: their read-modify-write Update racing a disband would put
+// the deleted group back into the cache. Group operations are human-scale,
+// one lock per realm is enough.
 type realmLocks struct {
 	mu    sync.Mutex
 	locks map[uint32]*sync.Mutex
@@ -470,6 +472,8 @@ func (g groupServiceImpl) SetTargetIcon(ctx context.Context, realmID uint32, upd
 		return fmt.Errorf("iconID (%d) is invalid", iconID)
 	}
 
+	defer g.locks.lock(realmID)()
+
 	groupID, err := g.r.GroupIDByPlayer(ctx, realmID, updaterGUID)
 	if err != nil {
 		return fmt.Errorf("can't get groupID, err: %w", err)
@@ -536,6 +540,8 @@ func (g groupServiceImpl) SetTargetIcon(ctx context.Context, realmID uint32, upd
 }
 
 func (g groupServiceImpl) SetLootMethod(ctx context.Context, realmID uint32, updaterGUID uint64, method uint8, lootMaster uint64, lootThreshold uint8) error {
+	defer g.locks.lock(realmID)()
+
 	group, err := g.getGroupWithLeader(ctx, realmID, updaterGUID)
 	if err != nil {
 		return err
@@ -586,6 +592,8 @@ func (g groupServiceImpl) SetLootMethod(ctx context.Context, realmID uint32, upd
 }
 
 func (g groupServiceImpl) SetDungeonDifficulty(ctx context.Context, realmID uint32, updaterGUID uint64, difficulty uint8) error {
+	defer g.locks.lock(realmID)()
+
 	group, err := g.getGroupWithLeader(ctx, realmID, updaterGUID)
 	if err != nil {
 		return err
@@ -629,6 +637,8 @@ func (g groupServiceImpl) SetDungeonDifficulty(ctx context.Context, realmID uint
 }
 
 func (g groupServiceImpl) SetRaidDifficulty(ctx context.Context, realmID uint32, updaterGUID uint64, difficulty uint8) error {
+	defer g.locks.lock(realmID)()
+
 	group, err := g.getGroupWithLeader(ctx, realmID, updaterGUID)
 	if err != nil {
 		return err
