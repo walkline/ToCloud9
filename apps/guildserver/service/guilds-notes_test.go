@@ -71,3 +71,28 @@ func Test_guildServiceImpl_SetMemberPublicNote(t *testing.T) {
 	assert.NoError(t, service.SetMemberPublicNote(context.Background(), realmID, updaterGUID, targetGUID, "note"))
 	repoMock.AssertCalled(t, "SetMemberPublicNote", mock.Anything, realmID, targetGUID, "note")
 }
+
+// The cached roster can miss a member (mutated outside this service): the
+// setters must fail cleanly instead of panicking on the event payload names.
+func Test_guildServiceImpl_SetNotes_TargetMissingFromRoster(t *testing.T) {
+	const (
+		realmID     = uint32(1)
+		guildID     = uint64(1)
+		updaterGUID = uint64(2)
+		targetGUID  = uint64(3)
+	)
+
+	guild := notesTestGuild(guildID, updaterGUID, targetGUID)
+	guild.GuildMembers = guild.GuildMembers[:1] // target missing from cached roster
+
+	repoMock := &mocks.GuildsRepo{}
+	repoMock.On("GuildIDByRealmAndMemberGUID", mock.Anything, realmID, updaterGUID).Return(guildID, nil)
+	repoMock.On("GuildIDByRealmAndMemberGUID", mock.Anything, realmID, targetGUID).Return(guildID, nil)
+	repoMock.On("GuildByRealmAndID", mock.Anything, realmID, guildID).Return(guild, nil)
+
+	service := NewGuildService(repoMock, &eventsMocks.GuildServiceProducer{})
+	assert.Error(t, service.SetMemberPublicNote(context.Background(), realmID, updaterGUID, targetGUID, "note"))
+	assert.Error(t, service.SetMemberOfficerNote(context.Background(), realmID, updaterGUID, targetGUID, "note"))
+	repoMock.AssertNotCalled(t, "SetMemberPublicNote", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+	repoMock.AssertNotCalled(t, "SetMemberOfficerNote", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+}
