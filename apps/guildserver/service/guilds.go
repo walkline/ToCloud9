@@ -877,7 +877,7 @@ func defaultGuildRanks() []repo.GuildRank {
 	chat := uint32(repo.RightChatListen | repo.RightChatSpeak)
 	return []repo.GuildRank{
 		{Rank: uint8(repo.GuildRankGuildMaster), Name: "Guild Master", Rights: repo.RightAll},
-		{Rank: uint8(repo.GuildRankOfficer), Name: "Officer", Rights: chat},
+		{Rank: uint8(repo.GuildRankOfficer), Name: "Officer", Rights: repo.RightAll},
 		{Rank: uint8(repo.GuildRankVeteran), Name: "Veteran", Rights: chat},
 		{Rank: uint8(repo.GuildRankMember), Name: "Member", Rights: chat},
 		{Rank: uint8(repo.GuildRankInitiate), Name: "Initiate", Rights: chat},
