@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/mock"
 
@@ -281,10 +282,13 @@ func Test_guildServiceImpl_updateRank(t *testing.T) {
 			cache := NewGuildsInMemCache(repoMock).(*guildsInMemCache)
 			cache.cache = map[uint32]map[uint64]*repo.Guild{1: {}}
 			cache.guildMembersCache = map[uint32]map[uint64]*repo.GuildMember{1: {}}
+			cache.lastRefresh = map[uint32]map[uint64]time.Time{1: {}}
 
 			for _, guild := range tt.guilds {
 				guildCpy := guild
 				cache.cache[1][guild.ID] = &guildCpy
+				// mark as freshly hydrated so reads don't hit the repo mock
+				cache.lastRefresh[1][guild.ID] = time.Now()
 				for _, member := range guild.GuildMembers {
 					cache.guildMembersCache[1][member.PlayerGUID] = member
 				}
@@ -392,10 +396,13 @@ func Test_guildServiceImpl_Kick(t *testing.T) {
 			cache := NewGuildsInMemCache(repoMock).(*guildsInMemCache)
 			cache.cache = map[uint32]map[uint64]*repo.Guild{1: {}}
 			cache.guildMembersCache = map[uint32]map[uint64]*repo.GuildMember{1: {}}
+			cache.lastRefresh = map[uint32]map[uint64]time.Time{1: {}}
 
 			for _, guild := range tt.guilds {
 				guildCpy := guild
 				cache.cache[1][guild.ID] = &guildCpy
+				// mark as freshly hydrated so reads don't hit the repo mock
+				cache.lastRefresh[1][guild.ID] = time.Now()
 				for _, member := range guild.GuildMembers {
 					cache.guildMembersCache[1][member.PlayerGUID] = member
 				}
@@ -417,6 +424,7 @@ func Test_guildServiceImpl_Kick(t *testing.T) {
 
 func Test_guildServiceImpl_GuildByRealmAndID_notFound(t *testing.T) {
 	repoMock := &mocks.GuildsRepo{}
+	repoMock.On("GuildByRealmAndID", mock.Anything, uint32(1), uint64(42)).Return(nil, nil)
 
 	cache := NewGuildsInMemCache(repoMock).(*guildsInMemCache)
 	cache.cache = map[uint32]map[uint64]*repo.Guild{1: {}}
