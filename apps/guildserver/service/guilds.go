@@ -416,7 +416,7 @@ func (g *guildServiceImpl) SetMemberPublicNote(ctx context.Context, realmID uint
 	}
 
 	rank := g.rankForMember(guild, updaterGUID)
-	if !rank.HasRight(repo.RightEditPublicNote) {
+	if rank == nil || !rank.HasRight(repo.RightEditPublicNote) {
 		return ErrNotEnoughRight
 	}
 
@@ -472,8 +472,8 @@ func (g *guildServiceImpl) SetMemberOfficerNote(ctx context.Context, realmID uin
 		return err
 	}
 
-	rank := g.rankForMember(guild, updaterGuildID)
-	if !rank.HasRight(repo.RightEditOfficersNote) {
+	rank := g.rankForMember(guild, updaterGUID)
+	if rank == nil || !rank.HasRight(repo.RightEditOfficersNote) {
 		return ErrNotEnoughRight
 	}
 
