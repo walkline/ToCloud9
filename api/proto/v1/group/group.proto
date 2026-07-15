@@ -42,6 +42,9 @@ message InviteResponse {
   enum Status {
     Ok = 0;
     Error = 1;
+    AlreadyInGroup = 2;
+    GroupFull = 3;
+    NoPermissions = 4;
   }
 
   string api = 1;
