@@ -43,6 +43,8 @@ func TestGuildServiceCreateGuild(t *testing.T) {
 				return len(ranks) == 5 &&
 					ranks[0].Rank == uint8(repo.GuildRankGuildMaster) &&
 					ranks[0].Rights == uint32(repo.RightAll) &&
+					ranks[1].Rank == uint8(repo.GuildRankOfficer) &&
+					ranks[1].Rights == uint32(repo.RightAll) &&
 					ranks[4].Rank == uint8(repo.GuildRankInitiate)
 			}),
 		).Return(uint64(7), nil)
