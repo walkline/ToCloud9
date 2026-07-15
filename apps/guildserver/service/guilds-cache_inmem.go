@@ -10,11 +10,14 @@ import (
 	"github.com/walkline/ToCloud9/shared/events"
 )
 
+// guildRefreshThrottle limits how often a cached guild is re-hydrated from the repo.
+const guildRefreshThrottle = 3 * time.Second
+
 // guildsInMemCache is in memory implementation of GuildsCache.
 type guildsInMemCache struct {
 	r repo.GuildsRepo
 
-	// cacheMutex guards cache and guildMembersCache maps.
+	// cacheMutex guards cache, guildMembersCache, onlineChars and lastRefresh maps.
 	cacheMutex sync.RWMutex
 
 	// cache usage example:
@@ -24,6 +27,15 @@ type guildsInMemCache struct {
 	// guildMembersCache usage example:
 	//		member := guildMembersCache[realmID][characterID]
 	guildMembersCache map[uint32]map[uint64]*repo.GuildMember
+
+	// onlineChars tracks logged-in characters independently of guild membership.
+	// The world doesn't flush characters.online in cluster mode and characters can
+	// join a guild without going through this service, so the roster status has to
+	// come from the gateway login/logout events, including for future members.
+	onlineChars map[uint32]map[uint64]struct{}
+
+	// lastRefresh tracks the last re-hydration time per guild.
+	lastRefresh map[uint32]map[uint64]time.Time
 }
 
 // NewGuildsInMemCache returns in memory guilds cache.
@@ -32,6 +44,8 @@ func NewGuildsInMemCache(r repo.GuildsRepo) GuildsCache {
 		r:                 r,
 		cache:             map[uint32]map[uint64]*repo.Guild{},
 		guildMembersCache: map[uint32]map[uint64]*repo.GuildMember{},
+		onlineChars:       map[uint32]map[uint64]struct{}{},
+		lastRefresh:       map[uint32]map[uint64]time.Time{},
 	}
 }
 
@@ -42,11 +56,69 @@ func (g *guildsInMemCache) LoadAllForRealm(ctx context.Context, realmID uint32) 
 }
 
 // GuildByRealmAndID loads guild by realm and id.
-func (g *guildsInMemCache) GuildByRealmAndID(_ context.Context, realmID uint32, guildID uint64) (*repo.Guild, error) {
+func (g *guildsInMemCache) GuildByRealmAndID(ctx context.Context, realmID uint32, guildID uint64) (*repo.Guild, error) {
+	g.refreshGuildFromSource(ctx, realmID, guildID)
+
 	g.cacheMutex.RLock()
 	guild := g.cache[realmID][guildID]
 	g.cacheMutex.RUnlock()
 	return guild, nil
+}
+
+// refreshGuildFromSource re-hydrates the cached guild from the repo, throttled per guild.
+// The world can mutate guild_member without going through this service (petition turn-in,
+// in-process invites, GM commands), so the cached roster can be stale or miss members.
+// Online statuses are overlaid from onlineChars since the hydrated characters.online flag
+// isn't maintained for cluster sessions. On repo error the stale cache keeps being served.
+func (g *guildsInMemCache) refreshGuildFromSource(ctx context.Context, realmID uint32, guildID uint64) {
+	g.cacheMutex.Lock()
+	if time.Since(g.lastRefresh[realmID][guildID]) < guildRefreshThrottle {
+		g.cacheMutex.Unlock()
+		return
+	}
+	if g.lastRefresh[realmID] == nil {
+		g.lastRefresh[realmID] = map[uint64]time.Time{}
+	}
+	g.lastRefresh[realmID][guildID] = time.Now()
+	g.cacheMutex.Unlock()
+
+	guild, err := g.r.GuildByRealmAndID(ctx, realmID, guildID)
+	if err != nil {
+		return
+	}
+
+	g.cacheMutex.Lock()
+	defer g.cacheMutex.Unlock()
+
+	if old := g.cache[realmID][guildID]; old != nil {
+		for _, member := range old.GuildMembers {
+			cached := g.guildMembersCache[realmID][member.PlayerGUID]
+			if cached != nil && cached.GuildID == guildID {
+				delete(g.guildMembersCache[realmID], member.PlayerGUID)
+			}
+		}
+	}
+
+	if guild == nil {
+		delete(g.cache[realmID], guildID)
+		return
+	}
+
+	if g.cache[realmID] == nil {
+		g.cache[realmID] = map[uint64]*repo.Guild{}
+	}
+	if g.guildMembersCache[realmID] == nil {
+		g.guildMembersCache[realmID] = map[uint64]*repo.GuildMember{}
+	}
+
+	for _, member := range guild.GuildMembers {
+		if _, online := g.onlineChars[realmID][member.PlayerGUID]; online {
+			member.Status = repo.GuildMemberStatusOnline
+			member.LogoutTime = 0
+		}
+		g.guildMembersCache[realmID][member.PlayerGUID] = member
+	}
+	g.cache[realmID][guildID] = guild
 }
 
 // AddGuildInvite links user invite to a specific guild. Uncached.
@@ -349,8 +421,14 @@ func (g *guildsInMemCache) Warmup(ctx context.Context, realmID uint32) error {
 }
 
 // HandleCharacterLoggedIn updates cache with player logged in.
+// The character is tracked even when it isn't a guild member yet, so a later
+// roster refresh can mark it online if it joined a guild in-process.
 func (g *guildsInMemCache) HandleCharacterLoggedIn(payload events.GWEventCharacterLoggedInPayload) error {
 	g.cacheMutex.Lock()
+	if g.onlineChars[payload.RealmID] == nil {
+		g.onlineChars[payload.RealmID] = map[uint64]struct{}{}
+	}
+	g.onlineChars[payload.RealmID][payload.CharGUID] = struct{}{}
 	member := g.guildMembersCache[payload.RealmID][payload.CharGUID]
 	if member != nil {
 		member.Status = repo.GuildMemberStatusOnline
@@ -362,6 +440,7 @@ func (g *guildsInMemCache) HandleCharacterLoggedIn(payload events.GWEventCharact
 // HandleCharacterLoggedOut updates cache with player logged out.
 func (g *guildsInMemCache) HandleCharacterLoggedOut(payload events.GWEventCharacterLoggedOutPayload) error {
 	g.cacheMutex.Lock()
+	delete(g.onlineChars[payload.RealmID], payload.CharGUID)
 	member := g.guildMembersCache[payload.RealmID][payload.CharGUID]
 	if member != nil {
 		member.Status = repo.GuildMemberStatusOffline
