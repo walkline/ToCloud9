@@ -420,6 +420,25 @@ func (g *guildsInMemCache) Warmup(ctx context.Context, realmID uint32) error {
 	return nil
 }
 
+// SeedOnlineChars marks the given characters as online, overlaying the already
+// cached rosters. Meant for startup: login events observed before this process
+// started are gone, so the online state is recovered from the characters service.
+func (g *guildsInMemCache) SeedOnlineChars(realmID uint32, charGUIDs []uint64) {
+	g.cacheMutex.Lock()
+	defer g.cacheMutex.Unlock()
+
+	if g.onlineChars[realmID] == nil {
+		g.onlineChars[realmID] = map[uint64]struct{}{}
+	}
+	for _, guid := range charGUIDs {
+		g.onlineChars[realmID][guid] = struct{}{}
+		if member := g.guildMembersCache[realmID][guid]; member != nil {
+			member.Status = repo.GuildMemberStatusOnline
+			member.LogoutTime = 0
+		}
+	}
+}
+
 // HandleCharacterLoggedIn updates cache with player logged in.
 // The character is tracked even when it isn't a guild member yet, so a later
 // roster refresh can mark it online if it joined a guild in-process.
@@ -498,8 +517,13 @@ func (g *guildsInMemCache) CreateGuild(ctx context.Context, realmID uint32, name
 		if member.PlayerGUID == leaderGUID {
 			// Guild creation is always driven by a live session of the leader,
 			// but the world may not have flushed the online flag to the
-			// characters table yet, so the hydration can miss it.
+			// characters table yet, so the hydration can miss it. Track it in
+			// onlineChars too so later roster refreshes keep the status.
 			member.Status = repo.GuildMemberStatusOnline
+			if g.onlineChars[realmID] == nil {
+				g.onlineChars[realmID] = map[uint64]struct{}{}
+			}
+			g.onlineChars[realmID][leaderGUID] = struct{}{}
 		}
 		g.guildMembersCache[realmID][member.PlayerGUID] = member
 	}
