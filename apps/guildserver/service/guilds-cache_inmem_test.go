@@ -335,3 +335,60 @@ func Test_guildsInMemCache_CreateGuildMarksLeaderOnline(t *testing.T) {
 	assert.Equal(t, guildID, id)
 	assert.Equal(t, repo.GuildMemberStatusOnline, cache.guildMembersCache[realmID][leaderGUID].Status)
 }
+
+func Test_guildsInMemCache_CreateGuildLeaderStaysOnlineAcrossRefresh(t *testing.T) {
+	const (
+		realmID    = uint32(1)
+		guildID    = uint64(7)
+		leaderGUID = uint64(42)
+	)
+
+	repoMock := &mocks.GuildsRepo{}
+	repoMock.On("CreateGuild", mock.Anything, realmID, "TestGuild", leaderGUID, mock.Anything, mock.Anything).Return(guildID, nil)
+	// Both the create hydration and the later refresh read the leader as
+	// offline: in cluster mode the world doesn't flush characters.online.
+	repoMock.On("GuildByRealmAndID", mock.Anything, realmID, guildID).Return(&repo.Guild{
+		ID: guildID,
+		GuildMembers: []*repo.GuildMember{
+			{PlayerGUID: leaderGUID, GuildID: guildID, Status: repo.GuildMemberStatusOffline, LogoutTime: 10},
+		},
+	}, nil)
+
+	cache := NewGuildsInMemCache(repoMock).(*guildsInMemCache)
+	cache.cache = map[uint32]map[uint64]*repo.Guild{realmID: {}}
+	cache.guildMembersCache = map[uint32]map[uint64]*repo.GuildMember{realmID: {}}
+
+	_, err := cache.CreateGuild(context.Background(), realmID, "TestGuild", leaderGUID, nil, nil)
+	assert.NoError(t, err)
+
+	guild, err := cache.GuildByRealmAndID(context.Background(), realmID, guildID)
+	assert.NoError(t, err)
+	assert.Equal(t, repo.GuildMemberStatusOnline, guild.GuildMembers[0].Status)
+	repoMock.AssertNumberOfCalls(t, "GuildByRealmAndID", 2)
+}
+
+func Test_guildsInMemCache_SeedOnlineChars(t *testing.T) {
+	const (
+		realmID    = uint32(1)
+		guildID    = uint64(64)
+		memberGUID = uint64(42)
+		otherGUID  = uint64(43)
+	)
+
+	repoMock := &mocks.GuildsRepo{}
+	cache := NewGuildsInMemCache(repoMock).(*guildsInMemCache)
+	member := &repo.GuildMember{PlayerGUID: memberGUID, GuildID: guildID, Status: repo.GuildMemberStatusOffline, LogoutTime: 10}
+	cache.cache = map[uint32]map[uint64]*repo.Guild{
+		realmID: {guildID: &repo.Guild{ID: guildID, GuildMembers: []*repo.GuildMember{member}}},
+	}
+	cache.guildMembersCache = map[uint32]map[uint64]*repo.GuildMember{
+		realmID: {memberGUID: member},
+	}
+
+	cache.SeedOnlineChars(realmID, []uint64{memberGUID, otherGUID})
+
+	assert.Equal(t, repo.GuildMemberStatusOnline, member.Status)
+	assert.Equal(t, int64(0), member.LogoutTime)
+	_, tracked := cache.onlineChars[realmID][otherGUID]
+	assert.True(t, tracked)
+}
