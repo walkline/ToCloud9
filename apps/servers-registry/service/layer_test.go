@@ -190,6 +190,23 @@ func TestLayerLifecycleOnlyMovesOverflowPlayerAtSafeTransition(t *testing.T) {
 	require.Equal(t, uint32(2), layers.assignments[1][201].layerID)
 }
 
+func TestLayerPollReconstructsAssignmentAfterRegistryRestart(t *testing.T) {
+	layers := newLayerServiceForTest(10, 10, 0)
+
+	action, err := layers.Poll(context.Background(), 1, 0, 12, 77, "layer-2:8085")
+	require.NoError(t, err)
+	require.Nil(t, action.Server)
+
+	assignment := layers.assignments[1][77]
+	require.NotNil(t, assignment)
+	require.True(t, assignment.online)
+	require.Equal(t, uint32(2), assignment.layerID)
+	require.Equal(t, "layer-2:8085", assignment.serverAddress)
+	require.Equal(t, uint32(12), assignment.zoneID)
+
+	require.Equal(t, LayerForceOK, layers.Force(context.Background(), 1, 77, 1, 0))
+}
+
 func TestLayerGroupJoinMayUseMarginButNotExceedHardCap(t *testing.T) {
 	servers := &layerGameServersStub{servers: []repo.GameServer{
 		{ID: "l1", Address: "l1", RealmID: 1, LayerID: 1},

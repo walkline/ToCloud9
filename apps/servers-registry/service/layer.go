@@ -404,8 +404,31 @@ func (l *layerService) Poll(ctx context.Context, realmID, mapID, zoneID uint32, 
 	}
 	l.mu.Lock()
 	defer l.mu.Unlock()
+	if l.assignments[realmID] == nil {
+		l.assignments[realmID] = make(map[uint64]*playerLayerAssignment)
+	}
 	assignment := l.assignments[realmID][playerGUID]
 	if assignment == nil || !assignment.online {
+		// Registry state is intentionally in-memory, while gateways and cores can
+		// outlive a registry rollout. Reconstruct an online assignment from the
+		// heartbeat's current core address so GM force-switches and population
+		// accounting recover without requiring players to reconnect.
+		for i := range servers {
+			if servers[i].Address != currentAddress {
+				continue
+			}
+			if assignment == nil {
+				assignment = &playerLayerAssignment{}
+			}
+			assignment.layerID = servers[i].LayerID
+			assignment.serverAddress = currentAddress
+			assignment.online = true
+			assignment.offlineSince = time.Time{}
+			assignment.mapID, assignment.zoneID = mapID, zoneID
+			assignment.lastSeen = l.now()
+			l.assignments[realmID][playerGUID] = assignment
+			break
+		}
 		return LayerSelection{Status: LayerSelectOK}, nil
 	}
 	assignment.mapID, assignment.zoneID = mapID, zoneID
