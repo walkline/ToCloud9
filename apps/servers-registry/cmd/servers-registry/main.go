@@ -98,12 +98,36 @@ func main() {
 		log.Fatal().Err(err).Msg("can't create gateway service")
 	}
 
+	var layerProvisioner service.LayerProvisioner = service.NoopLayerProvisioner{}
+	if conf.Layering.Enabled && conf.Layering.Provisioner.Type == "kubernetes" {
+		layerProvisioner, err = service.NewKubernetesLayerProvisioner(service.KubernetesLayerProvisionerConfig{
+			Namespace: conf.Layering.Provisioner.Namespace, BaseDeployments: conf.Layering.Provisioner.BaseDeployments,
+			NamePrefix: conf.Layering.Provisioner.NamePrefix,
+		})
+		if err != nil {
+			log.Fatal().Err(err).Msg("can't create layer provisioner")
+		}
+	}
+	scopes := make([]service.LayerScope, len(conf.Layering.Scopes))
+	for i, scope := range conf.Layering.Scopes {
+		scopes[i] = service.LayerScope{Name: scope.Name, MapIDs: scope.MapIDs, ZoneIDs: scope.ZoneIDs, MaxPopulation: scope.MaxPopulation}
+	}
+	if len(scopes) == 0 && (len(conf.Layering.ScopeMapIDs) > 0 || len(conf.Layering.ScopeZoneIDs) > 0) {
+		scopes = append(scopes, service.LayerScope{Name: "environment-scope", MapIDs: conf.Layering.ScopeMapIDs, ZoneIDs: conf.Layering.ScopeZoneIDs, MaxPopulation: conf.Layering.ScopeMaxPopulation})
+	}
 	layerService := service.NewLayer(gameServersService, service.LayerConfig{
 		Enabled:            conf.Layering.Enabled,
 		MaxPopulation:      conf.Layering.MaxPopulation,
 		SwitchCooldown:     time.Duration(conf.Layering.SwitchCooldownSeconds) * time.Second,
 		MaxSwitchesPerHour: conf.Layering.MaxSwitchesPerHour,
+		MinLayers:          conf.Layering.MinLayers, MaxLayers: conf.Layering.MaxLayers,
+		ReconcileInterval: time.Duration(conf.Layering.ReconcileIntervalSecs) * time.Second,
+		ScaleDownDelay:    time.Duration(conf.Layering.ScaleDownDelaySecs) * time.Second,
+		RealmIDs:          supportedRealms, Scopes: scopes, Provisioner: layerProvisioner,
 	})
+	if conf.Layering.Enabled {
+		go layerService.Run(mainContext)
+	}
 	registryService := server.NewServersRegistry(gameServersService, gatewayService, layerService)
 	if conf.LogLevel == zerolog.DebugLevel {
 		registryService = server.NewServersRegistryDebugLoggerMiddleware(registryService, log.Logger)

@@ -11,6 +11,8 @@ service ServersRegistryService {
   rpc ListAllGameServers(ListAllGameServersRequest) returns (ListGameServersResponse);
   rpc GameServerMapsLoaded(GameServerMapsLoadedRequest) returns (GameServerMapsLoadedResponse);
   rpc SelectGameServerForPlayer(SelectGameServerForPlayerRequest) returns (SelectGameServerForPlayerResponse);
+  rpc PollPlayerLayerAction(PollPlayerLayerActionRequest) returns (SelectGameServerForPlayerResponse);
+  rpc CompletePlayerLayerSwitch(CompletePlayerLayerSwitchRequest) returns (CompletePlayerLayerSwitchResponse);
   rpc ReleasePlayerLayer(ReleasePlayerLayerRequest) returns (ReleasePlayerLayerResponse);
 
   rpc RegisterGateway(RegisterGatewayRequest) returns (RegisterGatewayResponse);
@@ -149,6 +151,7 @@ message SelectGameServerForPlayerRequest {
   uint64 preferredPlayerGUID = 5;
   Reason reason = 6;
   string currentGameServerAddress = 7;
+  uint32 zoneID = 8;
 }
 
 message SelectGameServerForPlayerResponse {
@@ -173,6 +176,26 @@ message ReleasePlayerLayerRequest {
 }
 
 message ReleasePlayerLayerResponse {
+  string api = 1;
+}
+
+message PollPlayerLayerActionRequest {
+  string api = 1;
+  uint32 realmID = 2;
+  uint32 mapID = 3;
+  uint32 zoneID = 4;
+  uint64 playerGUID = 5;
+  string currentGameServerAddress = 6;
+}
+
+message CompletePlayerLayerSwitchRequest {
+  string api = 1;
+  uint32 realmID = 2;
+  uint64 playerGUID = 3;
+  bool success = 4;
+}
+
+message CompletePlayerLayerSwitchResponse {
   string api = 1;
 }
 

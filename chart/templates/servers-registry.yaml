@@ -14,6 +14,9 @@ spec:
       labels:
         app: {{ $fullname }}-servers-registry
     spec:
+      {{- if eq .Values.servers_registry.layering.provisioner.type "kubernetes" }}
+      serviceAccountName: {{ $fullname }}-layer-controller
+      {{- end }}
       containers:
       - name: {{ .Release.Name }}-servers-registry
         image: "{{ .Values.servers_registry.image.repository }}:{{ .Values.servers_registry.image.tag }}"
@@ -33,6 +36,28 @@ spec:
           value: "{{ .Values.servers_registry.layering.switchCooldownSeconds }}"
         - name: LAYER_MAX_SWITCHES_PER_HOUR
           value: "{{ .Values.servers_registry.layering.maxSwitchesPerHour }}"
+        - name: LAYER_MIN_LAYERS
+          value: "{{ .Values.servers_registry.layering.minLayers }}"
+        - name: LAYER_MAX_LAYERS
+          value: "{{ .Values.servers_registry.layering.maxLayers }}"
+        - name: LAYER_RECONCILE_INTERVAL_SECONDS
+          value: "{{ .Values.servers_registry.layering.reconcileIntervalSeconds }}"
+        - name: LAYER_SCALE_DOWN_DELAY_SECONDS
+          value: "{{ .Values.servers_registry.layering.scaleDownDelaySeconds }}"
+        - name: LAYER_SCOPE_MAP_IDS
+          value: "{{ join "," .Values.servers_registry.layering.scopeMapIDs }}"
+        - name: LAYER_SCOPE_ZONE_IDS
+          value: "{{ join "," .Values.servers_registry.layering.scopeZoneIDs }}"
+        - name: LAYER_SCOPE_MAX_POPULATION
+          value: "{{ .Values.servers_registry.layering.scopeMaxPopulation }}"
+        - name: LAYER_PROVISIONER_TYPE
+          value: "{{ .Values.servers_registry.layering.provisioner.type }}"
+        - name: LAYER_KUBERNETES_NAMESPACE
+          value: "{{ default .Release.Namespace .Values.servers_registry.layering.provisioner.namespace }}"
+        - name: LAYER_DEPLOYMENT_PREFIX
+          value: "{{ .Values.servers_registry.layering.provisioner.namePrefix }}"
+        - name: LAYER_BASE_DEPLOYMENTS
+          value: "{{ if .Values.servers_registry.layering.provisioner.baseDeployments }}{{ join "," .Values.servers_registry.layering.provisioner.baseDeployments }}{{ else }}{{ $fullname }}-gameserver-ac{{ end }}"
         ports:
         - containerPort: {{ .Values.servers_registry.service.internalPort | int  }}
         # livenessProbe:
@@ -68,3 +93,32 @@ spec:
     protocol: TCP
   selector:
     app: {{ $fullname }}-servers-registry
+
+{{- if eq .Values.servers_registry.layering.provisioner.type "kubernetes" }}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ $fullname }}-layer-controller
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ $fullname }}-layer-controller
+rules:
+- apiGroups: ["apps"]
+  resources: ["deployments"]
+  verbs: ["get", "list", "create", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ $fullname }}-layer-controller
+subjects:
+- kind: ServiceAccount
+  name: {{ $fullname }}-layer-controller
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ $fullname }}-layer-controller
+{{- end }}

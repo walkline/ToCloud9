@@ -94,14 +94,15 @@ type GameSession struct {
 	// to the player with information about connection change.
 	showGameserverConnChangeToClient bool
 
-	layeringEnabled       bool
-	currentLayerID        uint32
-	currentServerAddress  string
-	layerSwitchQueue      chan layerSwitchRequest
-	layerSwitchInterval   time.Duration
-	layerSwitchInProgress bool
-	layerSwitchTarget     *pbServ.Server
-	pendingGroupInviter   uint64
+	layeringEnabled        bool
+	currentLayerID         uint32
+	currentServerAddress   string
+	layerSwitchQueue       chan layerSwitchRequest
+	layerSwitchInterval    time.Duration
+	layerSwitchInProgress  bool
+	layerSwitchTarget      *pbServ.Server
+	pendingGroupInviter    uint64
+	lastLayerLifecyclePoll time.Time
 }
 
 type GameSessionParams struct {
@@ -490,6 +491,7 @@ func (s *GameSession) connectToGameServer(ctx context.Context, characterGUID uin
 			RealmID:    root.RealmID,
 			MapID:      mapIDToLogin,
 			PlayerGUID: characterGUID,
+			ZoneID:     r.Character.Zone,
 			Reason:     pbServ.SelectGameServerForPlayerRequest_LOGIN,
 		})
 		if selectErr != nil {

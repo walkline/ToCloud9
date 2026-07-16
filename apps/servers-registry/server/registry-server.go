@@ -34,7 +34,7 @@ func NewServersRegistry(gService service.GameServer, lbService service.Gateway, 
 
 func (s *serversRegistry) SelectGameServerForPlayer(ctx context.Context, request *pb.SelectGameServerForPlayerRequest) (*pb.SelectGameServerForPlayerResponse, error) {
 	selection, err := s.layerService.Select(
-		ctx, request.RealmID, request.MapID, request.PlayerGUID, request.PreferredPlayerGUID,
+		ctx, request.RealmID, request.MapID, request.ZoneID, request.PlayerGUID, request.PreferredPlayerGUID,
 		service.LayerSelectReason(request.Reason), request.CurrentGameServerAddress,
 	)
 	if err != nil {
@@ -57,6 +57,27 @@ func (s *serversRegistry) SelectGameServerForPlayer(ctx context.Context, request
 		}
 	}
 	return response, nil
+}
+
+func (s *serversRegistry) PollPlayerLayerAction(ctx context.Context, request *pb.PollPlayerLayerActionRequest) (*pb.SelectGameServerForPlayerResponse, error) {
+	selection, err := s.layerService.Poll(ctx, request.RealmID, request.MapID, request.ZoneID, request.PlayerGUID, request.CurrentGameServerAddress)
+	if err != nil {
+		return nil, err
+	}
+	return layerSelectionResponse(selection), nil
+}
+
+func (s *serversRegistry) CompletePlayerLayerSwitch(_ context.Context, request *pb.CompletePlayerLayerSwitchRequest) (*pb.CompletePlayerLayerSwitchResponse, error) {
+	s.layerService.CompleteSwitch(request.RealmID, request.PlayerGUID, request.Success)
+	return &pb.CompletePlayerLayerSwitchResponse{Api: ver}, nil
+}
+
+func layerSelectionResponse(selection service.LayerSelection) *pb.SelectGameServerForPlayerResponse {
+	response := &pb.SelectGameServerForPlayerResponse{Api: ver, Status: pb.SelectGameServerForPlayerResponse_Status(selection.Status), LayerID: selection.LayerID, RetryAfterSeconds: uint32(selection.RetryAfter.Round(time.Second) / time.Second)}
+	if selection.Server != nil {
+		response.GameServer = &pb.Server{ID: selection.Server.ID, Address: selection.Server.Address, GrpcAddress: selection.Server.GRPCAddress, RealmID: selection.Server.RealmID, IsCrossRealm: selection.Server.IsCrossRealm, LayerID: selection.Server.LayerID}
+	}
+	return response
 }
 
 func (s *serversRegistry) ReleasePlayerLayer(_ context.Context, request *pb.ReleasePlayerLayerRequest) (*pb.ReleasePlayerLayerResponse, error) {

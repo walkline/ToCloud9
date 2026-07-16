@@ -178,6 +178,7 @@ func (s *GameSession) InterceptMoveWorldPortAck(ctx context.Context, p *packet.P
 	redirectStarted := false
 	defer func() {
 		if isQueuedLayerSwitch && !redirectStarted {
+			s.completeLayerSwitch(false)
 			s.layerSwitchInProgress = false
 			s.layerSwitchTarget = nil
 		}
@@ -285,6 +286,7 @@ func (s *GameSession) InterceptMoveWorldPortAck(ctx context.Context, p *packet.P
 			resp.Uint8(uint8(packet.LoginErrorCodeWorldServerIsDown))
 			s.gameSocket.Send(resp)
 			s.sessionSafeFuChan <- func(session *GameSession) {
+				session.completeLayerSwitch(false)
 				session.layerSwitchInProgress = false
 				session.layerSwitchTarget = nil
 			}
@@ -300,6 +302,7 @@ func (s *GameSession) InterceptMoveWorldPortAck(ctx context.Context, p *packet.P
 			}
 			session.currentServerAddress = desiredServerAddress
 			session.currentLayerID = desiredServer.LayerID
+			session.completeLayerSwitch(true)
 			session.layerSwitchInProgress = false
 			session.layerSwitchTarget = nil
 

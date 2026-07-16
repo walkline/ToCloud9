@@ -99,6 +99,14 @@ func (s *serversRegistryDebugLoggerMiddleware) ReleasePlayerLayer(ctx context.Co
 	return s.realService.ReleasePlayerLayer(ctx, request)
 }
 
+func (s *serversRegistryDebugLoggerMiddleware) PollPlayerLayerAction(ctx context.Context, request *pb.PollPlayerLayerActionRequest) (*pb.SelectGameServerForPlayerResponse, error) {
+	return s.realService.PollPlayerLayerAction(ctx, request)
+}
+
+func (s *serversRegistryDebugLoggerMiddleware) CompletePlayerLayerSwitch(ctx context.Context, request *pb.CompletePlayerLayerSwitchRequest) (*pb.CompletePlayerLayerSwitchResponse, error) {
+	return s.realService.CompletePlayerLayerSwitch(ctx, request)
+}
+
 func (s *serversRegistryDebugLoggerMiddleware) RegisterGateway(ctx context.Context, request *pb.RegisterGatewayRequest) (*pb.RegisterGatewayResponse, error) {
 	// Logs already inside.
 	return s.realService.RegisterGateway(ctx, request)

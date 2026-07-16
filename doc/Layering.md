@@ -1,15 +1,16 @@
 # Layering
 
-ToCloud9 layering creates logical copies of the open world from already-running
-game cores. The servers registry activates layers in ascending `layerId` order:
-new players stay on the first layer until `maxPopulation` is reached, then they
-are assigned to the next registered layer. If every layer is full, the least
-populated layer is used so logins are not rejected while an external autoscaler
-starts more cores.
+ToCloud9 layering creates and removes logical copies of the open world in
+response to player population. The servers registry computes desired capacity
+from configured map/zone scopes, provisions missing layers, drains excess
+layers, and deletes their workloads after every player has acknowledged a safe
+redirect.
 
-The registry does not create Kubernetes pods or processes. Configure an HPA,
-operator, or another deployment controller to start the cores; once a core
-registers with a new `layerId`, it becomes available to the placement logic.
+A logical layer consists of one or more worldserver processes with the same
+`LAYER_ID`. A single process may host every map, or several map-specific cores
+may collectively host the layer. Kubernetes can schedule those processes on the
+same physical node or on different nodes. A single AzerothCore/TrinityCore
+process cannot host multiple isolated open-world layers.
 
 ## Configuration
 
@@ -23,6 +24,21 @@ servers-registry:
     maxPopulation: 1000
     switchCooldownSeconds: 60
     maxSwitchesPerHour: 6
+    minLayers: 1
+    maxLayers: 10
+    reconcileIntervalSeconds: 5
+    scaleDownDelaySeconds: 300
+    scopes:
+      - name: human-starting-area
+        zoneIDs: [12]
+        maxPopulation: 200
+    provisioner:
+      type: kubernetes
+      namespace: tocloud9
+      namePrefix: tc9
+      baseDeployments:
+        - tocloud9-gameserver-ek
+        - tocloud9-gameserver-kalimdor
 
 gateway:
   layering:
@@ -38,6 +54,15 @@ LAYERING_ENABLED=true
 LAYER_MAX_POPULATION=1000
 LAYER_SWITCH_COOLDOWN_SECONDS=60
 LAYER_MAX_SWITCHES_PER_HOUR=6
+LAYER_MIN_LAYERS=1
+LAYER_MAX_LAYERS=10
+LAYER_RECONCILE_INTERVAL_SECONDS=5
+LAYER_SCALE_DOWN_DELAY_SECONDS=300
+LAYER_SCOPE_ZONE_IDS=12
+LAYER_SCOPE_MAX_POPULATION=200
+LAYER_PROVISIONER_TYPE=kubernetes
+LAYER_KUBERNETES_NAMESPACE=tocloud9
+LAYER_BASE_DEPLOYMENTS=tocloud9-gameserver-ek,tocloud9-gameserver-kalimdor
 LAYER_SWITCH_QUEUE_SIZE=32
 LAYER_QUEUE_PROCESS_INTERVAL_MS=250
 ```
@@ -49,7 +74,7 @@ copy of the world; different IDs host separate copies:
 # First core deployment
 LAYER_ID=1
 
-# Standby/second-layer deployment
+# Dynamically cloned deployments receive this automatically
 LAYER_ID=2
 ```
 
@@ -82,6 +107,41 @@ handshake: the old core saves and detaches the character, then the gateway logs
 the character into the destination core and completes the world-port
 acknowledgement. No client patch or additional core redirect API is required.
 
-Layer population and switch history currently live in the single servers-registry
-process. Keep `servers_registry.replicaCount: 1`; restarting that process resets
-those counters. Registered core discovery itself remains stored in Redis.
+Gateways poll lifecycle actions while the player is online. A layer marked as
+draining no longer receives logins. Its players are queued onto lower layers,
+and the registry keeps the old deployment alive until each redirect reports
+success. Failed redirects are cleared and retried. Gateway sessions that vanish
+without logging out expire from lifecycle accounting after 30 seconds.
+
+## Lifecycle example
+
+With the human starting area configured for 200 players per layer:
+
+1. Layer 1 accepts the first 200 players.
+2. The arrival of player 201 raises desired capacity to two layers. The
+   provisioner clones every configured base deployment with `LAYER_ID=2`.
+3. The arrival of player 401 raises desired capacity to three layers and creates
+   the `LAYER_ID=3` deployment set.
+4. When population falls to 300, desired capacity becomes two. After
+   `scaleDownDelaySeconds`, layer 3 stops receiving players and enters draining.
+5. Its remaining players are redirected to layers 1 and 2. Only after all moves
+   complete does the provisioner delete every layer-3 deployment.
+
+Provisioning is asynchronous because a worldserver must start and load its maps
+before accepting sessions. Players arriving during that startup window remain
+on an available layer; subsequent placement uses the new layer as soon as all
+required map cores register.
+
+## Kubernetes provisioner
+
+The provisioner clones the pod specification of every `baseDeployment`, while
+replacing selectors, managed labels, and `LAYER_ID`. This preserves the base
+deployment's images, database secrets, PVC mounts, world configuration, and map
+ownership. Configure one base deployment when a core hosts all maps, or several
+when maps are split across cores. The Helm chart creates the required
+ServiceAccount, Role, and RoleBinding when `provisioner.type` is `kubernetes`.
+
+Layer population, drain state, and switch history currently live in the single
+servers-registry process. Keep `servers_registry.replicaCount: 1`; restarting
+that process reconstructs core availability from Redis but resets population
+and lifecycle timers.

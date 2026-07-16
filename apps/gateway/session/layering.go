@@ -30,6 +30,19 @@ func (s *GameSession) processNextLayerSwitch(ctx context.Context) error {
 	if !s.layeringEnabled || s.character == nil || s.layerSwitchInProgress || s.teleportingToNewMap != nil {
 		return nil
 	}
+	if time.Since(s.lastLayerLifecyclePoll) >= 2*time.Second {
+		s.lastLayerLifecyclePoll = time.Now()
+		action, err := s.serversRegistryClient.PollPlayerLayerAction(ctx, &pbServ.PollPlayerLayerActionRequest{
+			Api: root.SupportedServerRegistryVer, RealmID: root.RealmID, MapID: s.character.Map,
+			ZoneID: s.character.Zone, PlayerGUID: s.character.GUID, CurrentGameServerAddress: s.currentServerAddress,
+		})
+		if err != nil {
+			return err
+		}
+		if action.GameServer != nil && action.GameServer.Address != s.currentServerAddress {
+			return s.beginLayerSwitch(action.GameServer, action.LayerID)
+		}
+	}
 	var request layerSwitchRequest
 	select {
 	case request = <-s.layerSwitchQueue:
@@ -48,6 +61,7 @@ func (s *GameSession) processNextLayerSwitch(ctx context.Context) error {
 		Api:                      root.SupportedServerRegistryVer,
 		RealmID:                  root.RealmID,
 		MapID:                    s.character.Map,
+		ZoneID:                   s.character.Zone,
 		PlayerGUID:               s.character.GUID,
 		PreferredPlayerGUID:      request.preferredPlayerGUID,
 		Reason:                   pbServ.SelectGameServerForPlayerRequest_GROUP_JOIN,
@@ -79,8 +93,16 @@ func (s *GameSession) processNextLayerSwitch(ctx context.Context) error {
 	// Trigger the normal client world-port acknowledgement. The existing
 	// redirect handshake then saves the character and reconnects it to the
 	// selected core, even though the map itself does not change.
+	return s.beginLayerSwitch(selection.GameServer, selection.LayerID)
+}
+
+func (s *GameSession) beginLayerSwitch(target *pbServ.Server, layerID uint32) error {
+	if target == nil || s.character == nil {
+		return nil
+	}
+	target.LayerID = layerID
 	s.layerSwitchInProgress = true
-	s.layerSwitchTarget = selection.GameServer
+	s.layerSwitchTarget = target
 	mapID := s.character.Map
 	s.teleportingToNewMap = &mapID
 
@@ -96,4 +118,18 @@ func (s *GameSession) processNextLayerSwitch(ctx context.Context) error {
 	newWorld.Float32(s.character.PositionO)
 	s.gameSocket.Send(newWorld)
 	return nil
+}
+
+func (s *GameSession) completeLayerSwitch(success bool) {
+	if !s.layeringEnabled || s.character == nil {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	_, err := s.serversRegistryClient.CompletePlayerLayerSwitch(ctx, &pbServ.CompletePlayerLayerSwitchRequest{
+		Api: root.SupportedServerRegistryVer, RealmID: root.RealmID, PlayerGUID: s.character.GUID, Success: success,
+	})
+	if err != nil {
+		s.logger.Warn().Err(err).Msg("can't complete player layer switch")
+	}
 }

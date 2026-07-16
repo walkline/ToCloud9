@@ -17,6 +17,32 @@ type ServersRegistryServiceClient struct {
 	mock.Mock
 }
 
+func (_m *ServersRegistryServiceClient) PollPlayerLayerAction(ctx context.Context, in *pb.PollPlayerLayerActionRequest, opts ...grpc.CallOption) (*pb.SelectGameServerForPlayerResponse, error) {
+	args := []interface{}{ctx, in}
+	for _, opt := range opts {
+		args = append(args, opt)
+	}
+	ret := _m.Called(args...)
+	var response *pb.SelectGameServerForPlayerResponse
+	if value := ret.Get(0); value != nil {
+		response = value.(*pb.SelectGameServerForPlayerResponse)
+	}
+	return response, ret.Error(1)
+}
+
+func (_m *ServersRegistryServiceClient) CompletePlayerLayerSwitch(ctx context.Context, in *pb.CompletePlayerLayerSwitchRequest, opts ...grpc.CallOption) (*pb.CompletePlayerLayerSwitchResponse, error) {
+	args := []interface{}{ctx, in}
+	for _, opt := range opts {
+		args = append(args, opt)
+	}
+	ret := _m.Called(args...)
+	var response *pb.CompletePlayerLayerSwitchResponse
+	if value := ret.Get(0); value != nil {
+		response = value.(*pb.CompletePlayerLayerSwitchResponse)
+	}
+	return response, ret.Error(1)
+}
+
 func (_m *ServersRegistryServiceClient) SelectGameServerForPlayer(ctx context.Context, in *pb.SelectGameServerForPlayerRequest, opts ...grpc.CallOption) (*pb.SelectGameServerForPlayerResponse, error) {
 	args := []interface{}{ctx, in}
 	for _, opt := range opts {
