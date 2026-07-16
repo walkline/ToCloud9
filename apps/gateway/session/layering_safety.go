@@ -11,6 +11,7 @@ import (
 // the gateway disconnects a character from one layer and attaches it to another.
 type layerSafetyState struct {
 	inCombat, falling, looting, trading, casting, releasing bool
+	movingForward                                           bool
 	lastDamagedAt                                           time.Time
 }
 
