@@ -41,7 +41,55 @@ type Layer interface {
 	Poll(ctx context.Context, realmID, mapID, zoneID uint32, playerGUID uint64, currentAddress string) (LayerSelection, error)
 	CompleteSwitch(realmID uint32, playerGUID uint64, success bool)
 	Release(realmID uint32, playerGUID uint64)
+	Stats(ctx context.Context, realmID uint32) (LayerStats, error)
+	Force(ctx context.Context, realmID uint32, playerGUID uint64, layerID, mapID uint32) LayerForceStatus
+	RegistrationLayer(ctx context.Context, realmID uint32) uint32
 	Run(ctx context.Context)
+}
+
+// RegistrationLayer assigns legacy sidecars, which omit layerID, across the
+// operator-owned minimum layers. Explicit non-zero sidecar IDs never use this
+// compatibility path.
+func (l *layerService) RegistrationLayer(ctx context.Context, realmID uint32) uint32 {
+	if !l.config.Enabled {
+		return 0
+	}
+	servers, err := l.servers.ListForRealm(ctx, realmID)
+	if err != nil {
+		return 1
+	}
+	counts := make(map[uint32]uint32)
+	for _, server := range servers {
+		if server.LayerID > 0 && server.LayerID <= l.config.MinLayers {
+			counts[server.LayerID]++
+		}
+	}
+	selected := uint32(1)
+	for id := uint32(2); id <= l.config.MinLayers; id++ {
+		if counts[id] < counts[selected] {
+			selected = id
+		}
+	}
+	return selected
+}
+
+type LayerForceStatus uint8
+
+const (
+	LayerForceOK LayerForceStatus = iota
+	LayerForcePlayerOffline
+	LayerForceNotFound
+	LayerForceNoCompatibleCore
+)
+
+type LayerStat struct {
+	LayerID, CurrentPlayers, ReadyCores uint32
+	Draining                            bool
+}
+type LayerStats struct {
+	Enabled                                                                                                                        bool
+	MaxPopulation, TargetPopulationPercent, OverflowMarginPercent, MinLayers, MaxLayers, SwitchCooldownSeconds, MaxSwitchesPerHour uint32
+	Layers                                                                                                                         []LayerStat
 }
 
 type LayerConfig struct {
@@ -59,6 +107,76 @@ type LayerConfig struct {
 	RealmIDs                []uint32
 	Scopes                  []LayerScope
 	Provisioner             LayerProvisioner
+}
+
+func (l *layerService) Stats(ctx context.Context, realmID uint32) (LayerStats, error) {
+	servers, err := l.servers.ListForRealm(ctx, realmID)
+	if err != nil {
+		return LayerStats{}, err
+	}
+	cores := make(map[uint32]uint32)
+	for _, server := range servers {
+		if server.LayerID > 0 {
+			cores[server.LayerID]++
+		}
+	}
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	ids := make(map[uint32]bool)
+	for id := range cores {
+		ids[id] = true
+	}
+	for id := range l.draining[realmID] {
+		ids[id] = true
+	}
+	result := LayerStats{Enabled: l.config.Enabled, MaxPopulation: l.config.MaxPopulation, TargetPopulationPercent: l.config.TargetPopulationPercent, OverflowMarginPercent: l.config.OverflowMarginPercent, MinLayers: l.config.MinLayers, MaxLayers: l.config.MaxLayers, SwitchCooldownSeconds: uint32(l.config.SwitchCooldown / time.Second), MaxSwitchesPerHour: l.config.MaxSwitchesPerHour}
+	for id := range ids {
+		result.Layers = append(result.Layers, LayerStat{LayerID: id, CurrentPlayers: l.layerPopulationLocked(realmID, id), ReadyCores: cores[id], Draining: !l.draining[realmID][id].IsZero()})
+	}
+	sort.Slice(result.Layers, func(i, j int) bool { return result.Layers[i].LayerID < result.Layers[j].LayerID })
+	return result, nil
+}
+
+func (l *layerService) Force(ctx context.Context, realmID uint32, playerGUID uint64, layerID, mapID uint32) LayerForceStatus {
+	servers, err := l.servers.AvailableForMapAndRealm(ctx, mapID, realmID, false)
+	if err != nil {
+		return LayerForceNoCompatibleCore
+	}
+	var target *repo.GameServer
+	layerExists := false
+	all, err := l.servers.ListForRealm(ctx, realmID)
+	if err == nil {
+		for _, server := range all {
+			if server.LayerID == layerID {
+				layerExists = true
+				break
+			}
+		}
+	}
+	for i := range servers {
+		if servers[i].LayerID == layerID {
+			cp := servers[i].Copy()
+			target = &cp
+			break
+		}
+	}
+	if !layerExists {
+		return LayerForceNotFound
+	}
+	if target == nil {
+		return LayerForceNoCompatibleCore
+	}
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	assignment := l.assignments[realmID][playerGUID]
+	if assignment == nil || !assignment.online {
+		return LayerForcePlayerOffline
+	}
+	if assignment.layerID == layerID {
+		return LayerForceOK
+	}
+	assignment.pendingLayerID, assignment.pendingServerAddress, assignment.pendingSince = layerID, target.Address, l.now()
+	return LayerForceOK
 }
 
 type LayerScope struct {

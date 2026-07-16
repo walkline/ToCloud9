@@ -3,11 +3,13 @@ package session
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"strings"
 
 	root "github.com/walkline/ToCloud9/apps/gateway"
 	eBroadcaster "github.com/walkline/ToCloud9/apps/gateway/events-broadcaster"
 	"github.com/walkline/ToCloud9/apps/gateway/packet"
+	pbChar "github.com/walkline/ToCloud9/gen/characters/pb"
 	pbChat "github.com/walkline/ToCloud9/gen/chat/pb"
 	pbGroup "github.com/walkline/ToCloud9/gen/group/pb"
 	pbGuild "github.com/walkline/ToCloud9/gen/guilds/pb"
@@ -175,7 +177,7 @@ func (s *GameSession) HandleChatMessage(ctx context.Context, p *packet.Packet) e
 		// Send channel message through chat service
 		return s.SendChannelMessageToChat(ctx, channelName, msg, lang)
 
-	case ChatTypeSay:
+	case ChatTypeSay, ChatTypeYell:
 		msg = r.String()
 
 		handled, err := s.handleCommandMsgIfNeeded(ctx, msg)
@@ -222,9 +224,21 @@ func (s *GameSession) HandleEventIncomingWhisperMessage(ctx context.Context, e *
 
 // TODO: rewrite commands handler with some better and more manageable constructions.
 func (s *GameSession) handleCommandMsgIfNeeded(ctx context.Context, msg string) ( /* isHandled */ bool, error) {
+	if msg == ".layer" || strings.HasPrefix(msg, ".layer ") {
+		s.logger.Info().Uint32("accountID", s.accountID).Str("command", msg).Msg("Intercepted layer command")
+		return true, s.handleLayerCommand(ctx, strings.Fields(msg))
+	}
 	const TC9CommandPrefix = ".tc9 "
 	if !strings.HasPrefix(msg, TC9CommandPrefix) {
 		return false, nil
+	}
+	gmLevel, err := s.accountGMLevel(ctx)
+	if err != nil {
+		return true, err
+	}
+	if gmLevel == 0 {
+		s.SendSysMessage("You do not have permission to view server diagnostics.")
+		return true, nil
 	}
 
 	args := strings.Split(msg[len(TC9CommandPrefix):], " ")
@@ -262,6 +276,82 @@ func (s *GameSession) handleCommandMsgIfNeeded(ctx context.Context, msg string) 
 		s.SendSysMessage("unk command")
 	}
 	return true, nil
+}
+
+func (s *GameSession) handleLayerCommand(ctx context.Context, args []string) error {
+	if s.authDB == nil {
+		s.SendSysMessage("Layer commands are unavailable: no authentication database.")
+		return nil
+	}
+	gmLevel, err := s.accountGMLevel(ctx)
+	if err != nil {
+		return err
+	}
+	if gmLevel == 0 {
+		s.SendSysMessage("You do not have permission to use .layer.")
+		return nil
+	}
+	if len(args) == 1 {
+		resp, err := s.serversRegistryClient.GetLayerStats(ctx, &pbServ.GetLayerStatsRequest{Api: root.SupportedServerRegistryVer, RealmID: root.RealmID})
+		if err != nil {
+			return err
+		}
+		s.SendSysMessage(fmt.Sprintf("Layering: enabled=%t maxPlayers=%d target=%d%% overflow=%d%% layers=%d-%d cooldown=%ds hourlyLimit=%d", resp.Enabled, resp.MaxPopulation, resp.TargetPopulationPercent, resp.OverflowMarginPercent, resp.MinLayers, resp.MaxLayers, resp.SwitchCooldownSeconds, resp.MaxSwitchesPerHour))
+		if len(resp.Layers) == 0 {
+			s.SendSysMessage("No layers have registered ready cores.")
+		}
+		for _, layer := range resp.Layers {
+			state := "active"
+			if layer.Draining {
+				state = "draining"
+			}
+			marker := ""
+			if layer.LayerID == s.currentLayerID {
+				marker = " (you)"
+			}
+			s.SendSysMessage(fmt.Sprintf("Layer %d: players=%d/%d readyCores=%d state=%s%s", layer.LayerID, layer.CurrentPlayers, resp.MaxPopulation, layer.ReadyCores, state, marker))
+		}
+		return nil
+	}
+	if len(args) < 3 || strings.ToLower(args[1]) != "switch" {
+		s.SendSysMessage("Usage: .layer | .layer switch <number> [playername]")
+		return nil
+	}
+	layer64, err := strconv.ParseUint(args[2], 10, 32)
+	if err != nil || layer64 == 0 {
+		s.SendSysMessage("Layer number must be a positive integer.")
+		return nil
+	}
+	if s.character == nil {
+		return nil
+	}
+	guid, mapID, targetName := s.character.GUID, s.character.Map, s.character.Name
+	if len(args) >= 4 {
+		character, err := s.charServiceClient.CharacterOnlineByName(ctx, &pbChar.CharacterOnlineByNameRequest{Api: root.Ver, RealmID: root.RealmID, CharacterName: args[3]})
+		if err != nil {
+			return err
+		}
+		if character.Character == nil {
+			s.SendSysMessage("Player not found or offline.")
+			return nil
+		}
+		guid, mapID, targetName = character.Character.CharGUID, character.Character.CharMap, character.Character.CharName
+	}
+	resp, err := s.serversRegistryClient.ForcePlayerLayer(ctx, &pbServ.ForcePlayerLayerRequest{Api: root.SupportedServerRegistryVer, RealmID: root.RealmID, PlayerGUID: guid, LayerID: uint32(layer64), MapID: mapID})
+	if err != nil {
+		return err
+	}
+	switch resp.Status {
+	case pbServ.ForcePlayerLayerResponse_OK:
+		s.SendSysMessage(fmt.Sprintf("Forced %s to layer %d; the redirect will begin shortly.", targetName, layer64))
+	case pbServ.ForcePlayerLayerResponse_PLAYER_OFFLINE:
+		s.SendSysMessage("Player is not tracked as online by the layering service.")
+	case pbServ.ForcePlayerLayerResponse_LAYER_NOT_FOUND:
+		s.SendSysMessage("That layer does not exist.")
+	case pbServ.ForcePlayerLayerResponse_NO_COMPATIBLE_CORE:
+		s.SendSysMessage("That layer has no ready core for the player's current map.")
+	}
+	return nil
 }
 
 func (s *GameSession) handleCommandMsgListGameServers(ctx context.Context) error {

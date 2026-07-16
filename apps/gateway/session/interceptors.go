@@ -121,9 +121,19 @@ func (s *GameSession) trackCharacterStats(data []byte) {
 	changed := false
 
 	if upd.CurHP != nil && *upd.CurHP != char.CurHP {
+		if *upd.CurHP < char.CurHP {
+			s.layerSafety.lastDamagedAt = time.Now()
+		}
 		char.CurHP = *upd.CurHP
+		if char.CurHP > 0 {
+			s.layerSafety.releasing = false
+		}
 		barrierUpd.CurHP = upd.CurHP
 		changed = true
+	}
+	if upd.UnitFlags != nil {
+		const unitFlagInCombat = uint32(0x00080000)
+		s.layerSafety.inCombat = *upd.UnitFlags&unitFlagInCombat != 0
 	}
 
 	if upd.MaxHP != nil && *upd.MaxHP != char.MaxHP {
@@ -329,7 +339,12 @@ func (s *GameSession) InterceptMoveWorldPortAck(ctx context.Context, p *packet.P
 			session.layerSwitchTarget = nil
 
 			if session.showGameserverConnChangeToClient {
-				session.SendSysMessage(fmt.Sprintf("You have been redirected from %s to %s gameserver.", oldServerAddress, desiredServerAddress))
+				gmLevel, _ := session.accountGMLevel(context.Background())
+				if gmLevel > 0 {
+					session.SendSysMessage(fmt.Sprintf("Layer switch complete: %s -> %s (%s).", oldServerAddress, desiredServerAddress, friendlyGameServer(desiredServer)))
+				} else {
+					session.SendSysMessage(fmt.Sprintf("Layer switch complete: %s.", friendlyGameServer(desiredServer)))
+				}
 			}
 
 			go func() {
@@ -521,7 +536,12 @@ func (s *GameSession) HandleReadyForRedirectRequest(ctx context.Context, p *pack
 	}
 
 	if s.showGameserverConnChangeToClient {
-		s.SendSysMessage(fmt.Sprintf("You have been redirected from %s to %s gameserver.", oldConnection, s.worldSocket.Address()))
+		gmLevel, _ := s.accountGMLevel(ctx)
+		if gmLevel > 0 {
+			s.SendSysMessage(fmt.Sprintf("You have been redirected from %s to %s gameserver.", oldConnection, s.worldSocket.Address()))
+		} else {
+			s.SendSysMessage("You have been moved to another game server.")
+		}
 	}
 
 	return nil

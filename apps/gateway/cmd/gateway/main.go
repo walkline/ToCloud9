@@ -163,6 +163,7 @@ func main() {
 		//pprof.Lookup("goroutine").WriteTo(os.Stdout, 1)
 
 		s := gamesocket.NewGameSocket(conn, accountRepo, session.GameSessionParams{
+			AuthDB:                           authDB,
 			CharServiceClient:                charClient,
 			ServersRegistryClient:            servRegistryClient,
 			ChatServiceClient:                chatClient,

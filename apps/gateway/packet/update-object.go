@@ -19,6 +19,7 @@ const (
 	unitFieldMaxHealth = objectEnd + 0x1A
 	unitFieldMaxPower1 = objectEnd + 0x1B
 	unitFieldLevel     = objectEnd + 0x30
+	unitFieldFlags     = objectEnd + 0x35
 
 	powersCount = 7
 )
@@ -69,6 +70,7 @@ const (
 // UnitStatsUpdate holds stats-related unit fields extracted from an update object packet.
 type UnitStatsUpdate struct {
 	Level     *uint32
+	UnitFlags *uint32
 	CurHP     *uint32
 	MaxHP     *uint32
 	PowerType *uint8
@@ -78,7 +80,7 @@ type UnitStatsUpdate struct {
 
 // IsEmpty returns true if no tracked field was present in the packet.
 func (u *UnitStatsUpdate) IsEmpty() bool {
-	if u.Level != nil || u.CurHP != nil || u.MaxHP != nil || u.PowerType != nil {
+	if u.Level != nil || u.UnitFlags != nil || u.CurHP != nil || u.MaxHP != nil || u.PowerType != nil {
 		return false
 	}
 	for i := 0; i < powersCount; i++ {
@@ -156,7 +158,7 @@ func DecompressUpdateObject(data []byte) ([]byte, error) {
 }
 
 // maxStatsFieldsBlock is the last mask block that can contain tracked fields.
-const maxStatsFieldsBlock = unitFieldLevel / 32
+const maxStatsFieldsBlock = unitFieldFlags / 32
 
 // parseValuesBlock reads a values part of a block, keeping fields of interest when isTarget is set.
 func parseValuesBlock(r *Reader, isTarget bool, upd *UnitStatsUpdate) {
@@ -204,6 +206,9 @@ func parseValuesBlock(r *Reader, isTarget bool, upd *UnitStatsUpdate) {
 			case idx == unitFieldLevel:
 				v := r.Uint32()
 				upd.Level = &v
+			case idx == unitFieldFlags:
+				v := r.Uint32()
+				upd.UnitFlags = &v
 			case idx >= unitFieldPower1 && idx < unitFieldPower1+powersCount:
 				v := r.Uint32()
 				upd.Powers[idx-unitFieldPower1] = &v

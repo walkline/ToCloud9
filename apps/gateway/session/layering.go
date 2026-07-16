@@ -43,6 +43,9 @@ func (s *GameSession) processNextLayerSwitch(ctx context.Context) error {
 	if !s.layeringEnabled || s.character == nil || s.layerSwitchInProgress || s.teleportingToNewMap != nil {
 		return nil
 	}
+	if !s.layerSwitchSafe(time.Now()) {
+		return nil
+	}
 	if time.Since(s.lastLayerLifecyclePoll) >= 2*time.Second {
 		s.lastLayerLifecyclePoll = time.Now()
 		action, err := s.serversRegistryClient.PollPlayerLayerAction(ctx, &pbServ.PollPlayerLayerActionRequest{

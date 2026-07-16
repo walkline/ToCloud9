@@ -84,6 +84,12 @@ LAYER_ID=1
 LAYER_ID=2
 ```
 
+When layering is enabled, the registry also supports older C++ sidecars that
+omit the registration field: it assigns them to the least-represented
+operator-owned layer from `1..minLayers`. Explicit non-zero IDs always take
+precedence. This fallback is intended for static compatibility deployments;
+dynamically provisioned layers must use a sidecar that sends `LAYER_ID`.
+
 Map ownership remains configured with the core's existing
 `Cluster.AvailableMaps` option. For example, within each layer:
 
@@ -103,13 +109,15 @@ finished loading the player's map.
 ## Player movement
 
 The system never rebalances a character merely because a population poll finds
-an overfull or draining layer. Login, map changes (including instance entry and
-exit), and completion of a taxi/controlled spline are safe placement points.
-At those points the gateway may select another non-draining layer before it
-reconnects the character. When a player accepts a party invitation, the gateway
-queues an explicit request to join the inviter's layer. The queue is processed
-at `queueProcessIntervalMs`; the registry centrally authorizes that move against
-the cooldown and rolling hourly limit.
+an overfull or draining layer. Login, open-world map changes, and completion of
+a taxi/controlled spline are placement points. Before processing any queued
+move, the gateway waits until the character is alive, out of combat, has taken
+no damage for 30 seconds, is not falling, looting, trading, casting, or
+releasing, and is on an open-world continent map. Dungeon, raid, battleground,
+and arena maps are never layered. When a player accepts a party invitation, the
+gateway queues an explicit request to join the inviter's layer and leaves it
+queued until all of those conditions are safe. The registry then authorizes the
+move against the cooldown and rolling hourly limit.
 
 An authorized same-map move uses the existing `TC9CMsgPrepareForRedirect`
 handshake: the old core saves and detaches the character, then the gateway logs
@@ -158,3 +166,20 @@ Layer population, drain state, and switch history currently live in the single
 servers-registry process. Keep `servers_registry.replicaCount: 1`; restarting
 that process reconstructs core availability from Redis but resets population
 and lifecycle timers.
+
+## GM commands
+
+The gateway handles the following commands for accounts with a non-zero
+`account_access.gmlevel` in the current realm (or realm `-1`):
+
+```text
+.layer
+.layer switch <number>
+.layer switch <number> <playername>
+```
+
+`.layer` shows the configured limits and, for each registered layer, its
+current player count, ready core count, drain state, and the GM's current
+layer. The switch variants force the GM or named online player to a layer.
+Forced GM moves bypass population, cooldown, and hourly switch limits, but are
+rejected if the layer does not exist or has no ready core for the player's map.

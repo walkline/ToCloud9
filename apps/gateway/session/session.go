@@ -2,6 +2,7 @@ package session
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"sync"
@@ -69,6 +70,7 @@ type GameSession struct {
 	pingToWorldServerStarted time.Time
 
 	accountID uint32
+	authDB    *sql.DB
 	character *LoggedInCharacter
 
 	// groupMemberStats holds last known stats of the character's group members,
@@ -103,9 +105,11 @@ type GameSession struct {
 	layerSwitchTarget      *pbServ.Server
 	pendingGroupInviter    uint64
 	lastLayerLifecyclePoll time.Time
+	layerSafety            layerSafetyState
 }
 
 type GameSessionParams struct {
+	AuthDB                           *sql.DB
 	CharServiceClient                pbChar.CharactersServiceClient
 	ServersRegistryClient            pbServ.ServersRegistryServiceClient
 	ChatServiceClient                pbChat.ChatServiceClient
@@ -152,6 +156,7 @@ func NewGameSession(
 		gameSocket: gameSocket,
 		authPacket: authPacket,
 		accountID:  accountID,
+		authDB:     params.AuthDB,
 
 		charServiceClient:                params.CharServiceClient,
 		serversRegistryClient:            params.ServersRegistryClient,
@@ -656,7 +661,12 @@ func (s *GameSession) onWorldSocketClosed() {
 			}
 
 			if session.showGameserverConnChangeToClient {
-				session.SendSysMessage(fmt.Sprintf("Connection recovered! New gameserver: %s. Sorry for inconvenience.", s.worldSocket.Address()))
+				gmLevel, _ := session.accountGMLevel(context.Background())
+				if gmLevel > 0 {
+					session.SendSysMessage(fmt.Sprintf("Connection recovered! New gameserver: %s. Sorry for inconvenience.", s.worldSocket.Address()))
+				} else {
+					session.SendSysMessage("Connection recovered! Sorry for inconvenience.")
+				}
 			} else {
 				session.SendSysMessage("Connection recovered! Sorry for inconvenience.")
 			}

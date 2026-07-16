@@ -107,6 +107,13 @@ func (s *serversRegistryDebugLoggerMiddleware) CompletePlayerLayerSwitch(ctx con
 	return s.realService.CompletePlayerLayerSwitch(ctx, request)
 }
 
+func (s *serversRegistryDebugLoggerMiddleware) GetLayerStats(ctx context.Context, request *pb.GetLayerStatsRequest) (*pb.GetLayerStatsResponse, error) {
+	return s.realService.GetLayerStats(ctx, request)
+}
+func (s *serversRegistryDebugLoggerMiddleware) ForcePlayerLayer(ctx context.Context, request *pb.ForcePlayerLayerRequest) (*pb.ForcePlayerLayerResponse, error) {
+	return s.realService.ForcePlayerLayer(ctx, request)
+}
+
 func (s *serversRegistryDebugLoggerMiddleware) RegisterGateway(ctx context.Context, request *pb.RegisterGatewayRequest) (*pb.RegisterGatewayResponse, error) {
 	// Logs already inside.
 	return s.realService.RegisterGateway(ctx, request)

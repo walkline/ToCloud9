@@ -14,6 +14,8 @@ service ServersRegistryService {
   rpc PollPlayerLayerAction(PollPlayerLayerActionRequest) returns (SelectGameServerForPlayerResponse);
   rpc CompletePlayerLayerSwitch(CompletePlayerLayerSwitchRequest) returns (CompletePlayerLayerSwitchResponse);
   rpc ReleasePlayerLayer(ReleasePlayerLayerRequest) returns (ReleasePlayerLayerResponse);
+  rpc GetLayerStats(GetLayerStatsRequest) returns (GetLayerStatsResponse);
+  rpc ForcePlayerLayer(ForcePlayerLayerRequest) returns (ForcePlayerLayerResponse);
 
   rpc RegisterGateway(RegisterGatewayRequest) returns (RegisterGatewayResponse);
   rpc GatewaysForRealms(GatewaysForRealmsRequest) returns (GatewaysForRealmsResponse);
@@ -198,6 +200,39 @@ message CompletePlayerLayerSwitchRequest {
 
 message CompletePlayerLayerSwitchResponse {
   string api = 1;
+}
+
+message GetLayerStatsRequest { string api = 1; uint32 realmID = 2; }
+message GetLayerStatsResponse {
+  message Layer {
+    uint32 layerID = 1;
+    uint32 currentPlayers = 2;
+    uint32 readyCores = 3;
+    bool draining = 4;
+  }
+  string api = 1;
+  bool enabled = 2;
+  uint32 maxPopulation = 3;
+  uint32 targetPopulationPercent = 4;
+  uint32 overflowMarginPercent = 5;
+  uint32 minLayers = 6;
+  uint32 maxLayers = 7;
+  uint32 switchCooldownSeconds = 8;
+  uint32 maxSwitchesPerHour = 9;
+  repeated Layer layers = 10;
+}
+
+message ForcePlayerLayerRequest {
+  string api = 1;
+  uint32 realmID = 2;
+  uint64 playerGUID = 3;
+  uint32 layerID = 4;
+  uint32 mapID = 5;
+}
+message ForcePlayerLayerResponse {
+  enum Status { OK = 0; PLAYER_OFFLINE = 1; LAYER_NOT_FOUND = 2; NO_COMPATIBLE_CORE = 3; }
+  string api = 1;
+  Status status = 2;
 }
 
 //

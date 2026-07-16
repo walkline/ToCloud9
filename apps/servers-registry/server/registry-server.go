@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/rs/zerolog/log"
@@ -19,9 +20,10 @@ const ver = "0.0.1"
 
 type serversRegistry struct {
 	pb.UnimplementedServersRegistryServiceServer
-	gService     service.GameServer
-	lbService    service.Gateway
-	layerService service.Layer
+	gService       service.GameServer
+	lbService      service.Gateway
+	layerService   service.Layer
+	registrationMu sync.Mutex
 }
 
 func NewServersRegistry(gService service.GameServer, lbService service.Gateway, layerService service.Layer) pb.ServersRegistryServiceServer {
@@ -85,7 +87,26 @@ func (s *serversRegistry) ReleasePlayerLayer(_ context.Context, request *pb.Rele
 	return &pb.ReleasePlayerLayerResponse{Api: ver}, nil
 }
 
+func (s *serversRegistry) GetLayerStats(ctx context.Context, request *pb.GetLayerStatsRequest) (*pb.GetLayerStatsResponse, error) {
+	stats, err := s.layerService.Stats(ctx, request.RealmID)
+	if err != nil {
+		return nil, err
+	}
+	resp := &pb.GetLayerStatsResponse{Api: ver, Enabled: stats.Enabled, MaxPopulation: stats.MaxPopulation, TargetPopulationPercent: stats.TargetPopulationPercent, OverflowMarginPercent: stats.OverflowMarginPercent, MinLayers: stats.MinLayers, MaxLayers: stats.MaxLayers, SwitchCooldownSeconds: stats.SwitchCooldownSeconds, MaxSwitchesPerHour: stats.MaxSwitchesPerHour}
+	for _, layer := range stats.Layers {
+		resp.Layers = append(resp.Layers, &pb.GetLayerStatsResponse_Layer{LayerID: layer.LayerID, CurrentPlayers: layer.CurrentPlayers, ReadyCores: layer.ReadyCores, Draining: layer.Draining})
+	}
+	return resp, nil
+}
+
+func (s *serversRegistry) ForcePlayerLayer(ctx context.Context, request *pb.ForcePlayerLayerRequest) (*pb.ForcePlayerLayerResponse, error) {
+	status := s.layerService.Force(ctx, request.RealmID, request.PlayerGUID, request.LayerID, request.MapID)
+	return &pb.ForcePlayerLayerResponse{Api: ver, Status: pb.ForcePlayerLayerResponse_Status(status)}, nil
+}
+
 func (s *serversRegistry) RegisterGameServer(ctx context.Context, request *pb.RegisterGameServerRequest) (*pb.RegisterGameServerResponse, error) {
+	s.registrationMu.Lock()
+	defer s.registrationMu.Unlock()
 	p, _ := peer.FromContext(ctx)
 
 	log.Info().Interface("request", request).Msg("New request to add game server")
@@ -95,6 +116,10 @@ func (s *serversRegistry) RegisterGameServer(ctx context.Context, request *pb.Re
 		host = request.PreferredHostName
 	}
 
+	layerID := request.LayerID
+	if layerID == 0 {
+		layerID = s.layerService.RegistrationLayer(ctx, request.RealmID)
+	}
 	gameServer := &repo.GameServer{
 		Address:         fmt.Sprintf("%s:%d", host, request.GamePort),
 		HealthCheckAddr: fmt.Sprintf("%s:%d", host, request.HealthPort),
@@ -102,7 +127,7 @@ func (s *serversRegistry) RegisterGameServer(ctx context.Context, request *pb.Re
 		RealmID:         request.RealmID,
 		IsCrossRealm:    request.IsCrossRealm,
 		AvailableMaps:   stringToAvailableMaps(request.AvailableMaps),
-		LayerID:         request.LayerID,
+		LayerID:         layerID,
 	}
 
 	err := s.gService.Register(ctx, gameServer)
