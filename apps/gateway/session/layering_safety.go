@@ -52,7 +52,9 @@ func (s *GameSession) HandleLayerSafetyPacket(_ context.Context, p *packet.Packe
 	case packet.CMsgCastSpell:
 		s.layerSafety.casting = true
 	case packet.CMsgCancelCast, packet.CMsgCancelChannelling, packet.SMsgCastFailed,
-		packet.SMsgSpellFailure, packet.SMsgSpellFailedOther, packet.SMsgSpellGo, packet.MsgChannelUpdate:
+		packet.SMsgSpellFailure, packet.SMsgSpellFailedOther, packet.MsgChannelUpdate:
+		s.layerSafety.casting = false
+	case packet.SMsgSpellGo:
 		s.layerSafety.casting = false
 	case packet.CMsgRePopRequest:
 		s.layerSafety.releasing = true
@@ -64,6 +66,12 @@ func (s *GameSession) HandleLayerSafetyPacket(_ context.Context, p *packet.Packe
 		}
 	case packet.SMsgAttackStop, packet.SMsgCancelCombat:
 		s.layerSafety.inCombat = false
+	}
+	// AzerothCore emits login/re-entry spell casts immediately after attaching
+	// the character to the destination core. During a seamless handoff these
+	// manifest as a portal effect even though the player did not cast anything.
+	if s.seamlessLayerSwitch && p.Opcode == packet.SMsgSpellGo {
+		return nil
 	}
 	if client {
 		if s.worldSocket != nil {
