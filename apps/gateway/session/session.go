@@ -109,8 +109,6 @@ type GameSession struct {
 	seamlessLayerSwitch    bool
 	seamlessLayerTarget    *pbServ.Server
 	layerLoginVisualUntil  time.Time
-	layerMovementCounter   uint32
-	layerMovementRooted    bool
 	visibleWorldObjects    map[uint64]struct{}
 }
 

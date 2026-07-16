@@ -30,11 +30,9 @@ func (s *GameSession) HandleMovement(ctx context.Context, p *packet.Packet) erro
 
 	flags := r.Uint32()
 	const (
-		movementFlagForward    = uint32(0x00000001)
 		movementFlagFalling    = uint32(0x00001000)
 		movementFlagFallingFar = uint32(0x00002000)
 	)
-	s.layerSafety.movingForward = flags&movementFlagForward != 0
 	s.layerSafety.falling = flags&(movementFlagFalling|movementFlagFallingFar) != 0
 	_ = r.Uint16() // flags2
 	_ = r.Uint32() // time

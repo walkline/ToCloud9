@@ -127,7 +127,6 @@ func (s *GameSession) beginLayerSwitch(target *pbServ.Server, layerID uint32) er
 	s.seamlessLayerSwitch = true
 	s.seamlessLayerTarget = target
 	s.sendLayerSwitchStarted(target)
-	s.setLayerMovementRooted(true)
 
 	// A same-map layer move does not need a client world-port. Acknowledge the
 	// synthetic transfer to the source core internally; InterceptNewWorld will
@@ -135,31 +134,6 @@ func (s *GameSession) beginLayerSwitch(target *pbServ.Server, layerID uint32) er
 	// the client (and therefore without opening a loading screen).
 	ack := &packet.Packet{Opcode: packet.MsgMoveWorldPortAck, Source: packet.SourceGameClient}
 	return s.InterceptMoveWorldPortAck(s.ctx, ack)
-}
-
-func (s *GameSession) setLayerMovementRooted(rooted bool) {
-	if s.character == nil {
-		return
-	}
-	// Rooting cancels the 3.3.5a client's autorun toggle and an unroot packet
-	// cannot restore it. A moving client can safely continue locally while the
-	// world socket is swapped; its next heartbeat reconciles the destination
-	// core after attachment.
-	if rooted && s.layerSafety.movingForward {
-		return
-	}
-	if !rooted && !s.layerMovementRooted {
-		return
-	}
-	s.layerMovementCounter++
-	opcode := packet.SMsgForceMoveRoot
-	if !rooted {
-		opcode = packet.SMsgForceMoveUnRoot
-	}
-	w := packet.NewWriter(opcode)
-	w.GUID(s.character.GUID).Uint32(s.layerMovementCounter)
-	s.gameSocket.Send(w)
-	s.layerMovementRooted = rooted
 }
 
 func (s *GameSession) completeLayerSwitch(success bool) {

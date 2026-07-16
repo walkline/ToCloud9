@@ -238,7 +238,6 @@ func (s *GameSession) InterceptMoveWorldPortAck(ctx context.Context, p *packet.P
 			s.layerSwitchInProgress = false
 			s.layerSwitchTarget = nil
 			if s.seamlessLayerSwitch {
-				s.setLayerMovementRooted(false)
 				s.seamlessLayerSwitch = false
 				s.seamlessLayerTarget = nil
 			}
@@ -376,7 +375,6 @@ func (s *GameSession) InterceptMoveWorldPortAck(ctx context.Context, p *packet.P
 				session.layerSwitchInProgress = false
 				session.layerSwitchTarget = nil
 				if session.seamlessLayerSwitch {
-					session.setLayerMovementRooted(false)
 					session.seamlessLayerSwitch = false
 					session.seamlessLayerTarget = nil
 				}
@@ -471,7 +469,6 @@ func (s *GameSession) InterceptSMsgTimeSyncReq(ctx context.Context, p *packet.Pa
 		if target == nil {
 			target = &pbServ.Server{LayerID: s.currentLayerID, Address: s.currentServerAddress}
 		}
-		s.setLayerMovementRooted(false)
 		s.sendLayerSwitchCompleted(target)
 		// AzerothCore may emit its login spell immediately after this time-sync
 		// packet. Keep the visual filter alive briefly after the handoff flag is

@@ -55,13 +55,3 @@ func TestSuppressLayerLoginVisualAcrossHandoffCompletion(t *testing.T) {
 	require.False(t, s.shouldSuppressLayerLoginVisual(packet.SMsgSpellGo, now.Add(time.Second)))
 	require.False(t, s.shouldSuppressLayerLoginVisual(packet.SMsgSpellStart, now))
 }
-
-func TestLayerHandoffPreservesForwardMovement(t *testing.T) {
-	s := &GameSession{
-		character:   &LoggedInCharacter{},
-		layerSafety: layerSafetyState{movingForward: true},
-	}
-	require.NotPanics(t, func() { s.setLayerMovementRooted(true) })
-	require.False(t, s.layerMovementRooted)
-	require.Equal(t, uint32(0), s.layerMovementCounter)
-}
