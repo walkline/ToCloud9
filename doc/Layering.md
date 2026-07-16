@@ -2,9 +2,9 @@
 
 ToCloud9 layering creates and removes logical copies of the open world in
 response to player population. The servers registry computes desired capacity
-from configured map/zone scopes, provisions missing layers, drains excess
-layers, and deletes their workloads after every player has acknowledged a safe
-redirect.
+from configured map/zone scopes, provisions missing layers, passively drains
+underused layers, and deletes their workloads after their last player naturally
+leaves.
 
 A logical layer consists of one or more worldserver processes with the same
 `LAYER_ID`. A single process may host every map, or several map-specific cores
@@ -22,12 +22,15 @@ servers-registry:
   layering:
     enabled: true
     maxPopulation: 1000
+    targetPopulationPercent: 90
+    overflowMarginPercent: 10
+    minCapacityPercent: 10
+    minCapacityDurationSeconds: 300
     switchCooldownSeconds: 60
     maxSwitchesPerHour: 6
     minLayers: 1
     maxLayers: 10
     reconcileIntervalSeconds: 5
-    scaleDownDelaySeconds: 300
     scopes:
       - name: human-starting-area
         zoneIDs: [12]
@@ -52,12 +55,15 @@ The equivalent environment variables are:
 ```text
 LAYERING_ENABLED=true
 LAYER_MAX_POPULATION=1000
+LAYER_TARGET_POPULATION_PERCENT=90
+LAYER_OVERFLOW_MARGIN_PERCENT=10
+LAYER_MIN_CAPACITY_PERCENT=10
+LAYER_MIN_CAPACITY_DURATION_SECONDS=300
 LAYER_SWITCH_COOLDOWN_SECONDS=60
 LAYER_MAX_SWITCHES_PER_HOUR=6
 LAYER_MIN_LAYERS=1
 LAYER_MAX_LAYERS=10
 LAYER_RECONCILE_INTERVAL_SECONDS=5
-LAYER_SCALE_DOWN_DELAY_SECONDS=300
 LAYER_SCOPE_ZONE_IDS=12
 LAYER_SCOPE_MAX_POPULATION=200
 LAYER_PROVISIONER_TYPE=kubernetes
@@ -96,10 +102,13 @@ finished loading the player's map.
 
 ## Player movement
 
-Initial login and map changes retain the player's assigned layer whenever that
-layer can host the destination map. When a player accepts a party invitation,
-the gateway queues a request to join the inviter's layer. The queue is processed
-at `queueProcessIntervalMs`; the registry centrally authorizes the move against
+The system never rebalances a character merely because a population poll finds
+an overfull or draining layer. Login, map changes (including instance entry and
+exit), and completion of a taxi/controlled spline are safe placement points.
+At those points the gateway may select another non-draining layer before it
+reconnects the character. When a player accepts a party invitation, the gateway
+queues an explicit request to join the inviter's layer. The queue is processed
+at `queueProcessIntervalMs`; the registry centrally authorizes that move against
 the cooldown and rolling hourly limit.
 
 An authorized same-map move uses the existing `TC9CMsgPrepareForRedirect`
@@ -107,30 +116,34 @@ handshake: the old core saves and detaches the character, then the gateway logs
 the character into the destination core and completes the world-port
 acknowledgement. No client patch or additional core redirect API is required.
 
-Gateways poll lifecycle actions while the player is online. A layer marked as
-draining no longer receives logins. Its players are queued onto lower layers,
-and the registry keeps the old deployment alive until each redirect reports
-success. Failed redirects are cleared and retried. Gateway sessions that vanish
-without logging out expire from lifecycle accounting after 30 seconds.
+Gateway polling only refreshes online accounting and retries an already queued
+explicit switch; it cannot initiate population balancing. A layer marked as
+draining receives no new placement. Its workload stays alive while existing
+players continue normally, and is deleted only after they log out or leave at a
+safe transition. Gateway sessions that vanish without logging out expire from
+lifecycle accounting after 30 seconds.
 
 ## Lifecycle example
 
-With the human starting area configured for 200 players per layer:
+With a maximum of 200, a 90% target, a 10% overflow margin, a 10% minimum
+capacity, and a five-minute minimum-capacity duration:
 
-1. Layer 1 accepts the first 200 players.
-2. The arrival of player 201 raises desired capacity to two layers. The
+1. Layer 1 accepts 180 players and reaching that target requests layer 2. The
    provisioner clones every configured base deployment with `LAYER_ID=2`.
-3. The arrival of player 401 raises desired capacity to three layers and creates
-   the `LAYER_ID=3` deployment set.
-4. When population falls to 300, desired capacity becomes two. After
-   `scaleDownDelaySeconds`, layer 3 stops receiving players and enters draining.
-5. Its remaining players are redirected to layers 1 and 2. Only after all moves
-   complete does the provisioner delete every layer-3 deployment.
+2. While layer 2 starts, layer 1 may temporarily accept up to 220 players. Once
+   the new core is ready, new/safely transitioning players are placed there;
+   the existing layer-1 players are not moved in the background.
+3. Reaching 360 players requests layer 3 using the same rule.
+4. If the highest layer falls to 20 players or fewer for five continuous
+   minutes while the remaining layers provide the target capacity, it is marked
+   draining and stops receiving placements.
+5. Those players are not force-moved. After they log out, change maps, finish a
+   flight path, or otherwise leave safely, the empty layer workload is deleted.
 
 Provisioning is asynchronous because a worldserver must start and load its maps
-before accepting sessions. Players arriving during that startup window remain
-on an available layer; subsequent placement uses the new layer as soon as all
-required map cores register.
+before accepting sessions. Players arriving during that startup window may use
+only the configured overflow margin. At the hard cap, placement waits for a new
+layer rather than silently overloading an existing one.
 
 ## Kubernetes provisioner
 

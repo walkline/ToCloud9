@@ -50,12 +50,20 @@ servers_registry:
   layering:
     enabled: false
     maxPopulation: 1000
+    # Normal placement stops at this percentage and starts another layer.
+    targetPopulationPercent: 90
+    # Temporary hard-cap headroom, primarily for party reunification and while
+    # a newly requested layer is still starting.
+    overflowMarginPercent: 10
+    # A non-base layer at or below this percentage for this long is drained.
+    # Draining never force-moves players; deletion waits for natural exits.
+    minCapacityPercent: 10
+    minCapacityDurationSeconds: 300
     switchCooldownSeconds: 60
     maxSwitchesPerHour: 6
     minLayers: 1
     maxLayers: 10
     reconcileIntervalSeconds: 5
-    scaleDownDelaySeconds: 300
     # Empty lists apply the threshold realm-wide. Put starting-area zone IDs
     # here to scale from the busiest configured area instead.
     scopeMapIDs: []

@@ -12,6 +12,7 @@ import (
 
 type layerSwitchRequest struct {
 	preferredPlayerGUID uint64
+	reason              pbServ.SelectGameServerForPlayerRequest_Reason
 	notBefore           time.Time
 }
 
@@ -20,9 +21,21 @@ func (s *GameSession) queueLayerSwitchToPlayer(preferredPlayerGUID uint64) {
 		return
 	}
 	select {
-	case s.layerSwitchQueue <- layerSwitchRequest{preferredPlayerGUID: preferredPlayerGUID}:
+	case s.layerSwitchQueue <- layerSwitchRequest{preferredPlayerGUID: preferredPlayerGUID, reason: pbServ.SelectGameServerForPlayerRequest_GROUP_JOIN}:
 	default:
 		s.SendSysMessage("Your layer switch queue is full. Please try again shortly.")
+	}
+}
+
+func (s *GameSession) queueSafeLayerPlacement() {
+	if !s.layeringEnabled || s.character == nil {
+		return
+	}
+	select {
+	case s.layerSwitchQueue <- layerSwitchRequest{reason: pbServ.SelectGameServerForPlayerRequest_MAP_CHANGE}:
+	default:
+		// Lifecycle placement is opportunistic; never displace an explicit party
+		// request or disturb the player merely because the queue is busy.
 	}
 }
 
@@ -64,13 +77,16 @@ func (s *GameSession) processNextLayerSwitch(ctx context.Context) error {
 		ZoneID:                   s.character.Zone,
 		PlayerGUID:               s.character.GUID,
 		PreferredPlayerGUID:      request.preferredPlayerGUID,
-		Reason:                   pbServ.SelectGameServerForPlayerRequest_GROUP_JOIN,
+		Reason:                   request.reason,
 		CurrentGameServerAddress: s.currentServerAddress,
 	})
 	if err != nil {
 		return err
 	}
 	if selection.Status != pbServ.SelectGameServerForPlayerResponse_OK {
+		if request.reason != pbServ.SelectGameServerForPlayerRequest_GROUP_JOIN {
+			return nil
+		}
 		switch selection.Status {
 		case pbServ.SelectGameServerForPlayerResponse_THROTTLED:
 			s.SendSysMessage(fmt.Sprintf("Layer switch is cooling down and remains queued for %d seconds.", selection.RetryAfterSeconds))

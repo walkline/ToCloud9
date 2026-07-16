@@ -32,6 +32,14 @@ spec:
           value: "{{ .Values.servers_registry.layering.enabled }}"
         - name: LAYER_MAX_POPULATION
           value: "{{ .Values.servers_registry.layering.maxPopulation }}"
+        - name: LAYER_TARGET_POPULATION_PERCENT
+          value: "{{ .Values.servers_registry.layering.targetPopulationPercent }}"
+        - name: LAYER_OVERFLOW_MARGIN_PERCENT
+          value: "{{ .Values.servers_registry.layering.overflowMarginPercent }}"
+        - name: LAYER_MIN_CAPACITY_PERCENT
+          value: "{{ .Values.servers_registry.layering.minCapacityPercent }}"
+        - name: LAYER_MIN_CAPACITY_DURATION_SECONDS
+          value: "{{ .Values.servers_registry.layering.minCapacityDurationSeconds }}"
         - name: LAYER_SWITCH_COOLDOWN_SECONDS
           value: "{{ .Values.servers_registry.layering.switchCooldownSeconds }}"
         - name: LAYER_MAX_SWITCHES_PER_HOUR
@@ -42,8 +50,6 @@ spec:
           value: "{{ .Values.servers_registry.layering.maxLayers }}"
         - name: LAYER_RECONCILE_INTERVAL_SECONDS
           value: "{{ .Values.servers_registry.layering.reconcileIntervalSeconds }}"
-        - name: LAYER_SCALE_DOWN_DELAY_SECONDS
-          value: "{{ .Values.servers_registry.layering.scaleDownDelaySeconds }}"
         - name: LAYER_SCOPE_MAP_IDS
           value: "{{ join "," .Values.servers_registry.layering.scopeMapIDs }}"
         - name: LAYER_SCOPE_ZONE_IDS

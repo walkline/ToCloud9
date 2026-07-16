@@ -229,6 +229,12 @@ func (s *GameSession) HandlePackets(ctx context.Context) {
 				if s.worldSocket != nil {
 					s.worldSocket.WriteChannel() <- p
 				}
+				// The 3.3.5 client sends this after completing a taxi/controlled
+				// spline. The core receives it first; the queued placement then uses
+				// the settled position as an unobtrusive layer-switch opportunity.
+				if p.Opcode == packet.CMsgMoveSplineDone {
+					s.queueSafeLayerPlacement()
+				}
 				break
 			}
 
@@ -486,13 +492,18 @@ func (s *GameSession) connectToGameServer(ctx context.Context, characterGUID uin
 	}
 	selectedServer := serversResult.GameServers[0]
 	if s.layeringEnabled {
+		reason := pbServ.SelectGameServerForPlayerRequest_LOGIN
+		if mapID != nil {
+			reason = pbServ.SelectGameServerForPlayerRequest_MAP_CHANGE
+		}
 		selection, selectErr := s.serversRegistryClient.SelectGameServerForPlayer(ctx, &pbServ.SelectGameServerForPlayerRequest{
-			Api:        root.SupportedServerRegistryVer,
-			RealmID:    root.RealmID,
-			MapID:      mapIDToLogin,
-			PlayerGUID: characterGUID,
-			ZoneID:     r.Character.Zone,
-			Reason:     pbServ.SelectGameServerForPlayerRequest_LOGIN,
+			Api:                      root.SupportedServerRegistryVer,
+			RealmID:                  root.RealmID,
+			MapID:                    mapIDToLogin,
+			PlayerGUID:               characterGUID,
+			ZoneID:                   r.Character.Zone,
+			Reason:                   reason,
+			CurrentGameServerAddress: s.currentServerAddress,
 		})
 		if selectErr != nil {
 			return nil, nil, fmt.Errorf("can't select player layer: %w", selectErr)

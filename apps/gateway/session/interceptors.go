@@ -174,10 +174,10 @@ func (s *GameSession) InterceptNewWorld(ctx context.Context, p *packet.Packet) e
 }
 
 func (s *GameSession) InterceptMoveWorldPortAck(ctx context.Context, p *packet.Packet) error {
-	isQueuedLayerSwitch := s.layerSwitchTarget != nil
+	layerSwitchNeedsCompletion := s.layerSwitchTarget != nil
 	redirectStarted := false
 	defer func() {
-		if isQueuedLayerSwitch && !redirectStarted {
+		if layerSwitchNeedsCompletion && !redirectStarted {
 			s.completeLayerSwitch(false)
 			s.layerSwitchInProgress = false
 			s.layerSwitchTarget = nil
@@ -218,12 +218,34 @@ func (s *GameSession) InterceptMoveWorldPortAck(ctx context.Context, p *packet.P
 
 	oldServerAddress := s.worldSocket.Address()
 	desiredServer := serversResult.GameServers[0]
+	connectToSelectedAddress := false
 	if s.layerSwitchTarget != nil {
 		desiredServer = s.layerSwitchTarget
+		connectToSelectedAddress = true
+	} else if s.layeringEnabled {
+		selection, selectErr := s.serversRegistryClient.SelectGameServerForPlayer(ctx, &pbServ.SelectGameServerForPlayerRequest{
+			Api:                      root.SupportedServerRegistryVer,
+			RealmID:                  root.RealmID,
+			MapID:                    mapID,
+			ZoneID:                   s.character.Zone,
+			PlayerGUID:               s.character.GUID,
+			Reason:                   pbServ.SelectGameServerForPlayerRequest_MAP_CHANGE,
+			CurrentGameServerAddress: oldServerAddress,
+		})
+		if selectErr != nil {
+			return fmt.Errorf("can't select layer for map transition: %w", selectErr)
+		}
+		if selection.Status != pbServ.SelectGameServerForPlayerResponse_OK || selection.GameServer == nil {
+			return fmt.Errorf("%w, mapID %v", worldConnectErrInstanceNotFound, mapID)
+		}
+		desiredServer = selection.GameServer
+		connectToSelectedAddress = true
+		layerSwitchNeedsCompletion = desiredServer.Address != oldServerAddress
 	}
 	desiredServerAddress := desiredServer.Address
 
 	if desiredServerAddress == oldServerAddress {
+		s.currentLayerID = desiredServer.LayerID
 		return nil
 	}
 	s.gameServerGRPCConnMgr.AddAddressMapping(desiredServer.Address, desiredServer.GrpcAddress)
@@ -272,10 +294,10 @@ func (s *GameSession) InterceptMoveWorldPortAck(ctx context.Context, p *packet.P
 	s.worldEntryPending = true
 
 	redirectStarted = true
-	go func(charGUID uint64, queuedLayerSwitch bool) {
+	go func(charGUID uint64, useSelectedAddress bool) {
 		var err error
 		var socket sockets.Socket
-		if queuedLayerSwitch {
+		if useSelectedAddress {
 			socket, err = s.connectToGameServerWithAddress(context.Background(), charGUID, desiredServerAddress, nil)
 		} else {
 			_, socket, err = s.connectToGameServer(context.Background(), charGUID, &mapID, nil)
@@ -318,7 +340,7 @@ func (s *GameSession) InterceptMoveWorldPortAck(ctx context.Context, p *packet.P
 				}
 			}()
 		}
-	}(s.character.GUID, isQueuedLayerSwitch)
+	}(s.character.GUID, connectToSelectedAddress)
 
 	return nil
 }

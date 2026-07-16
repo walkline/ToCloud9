@@ -116,13 +116,16 @@ func main() {
 		scopes = append(scopes, service.LayerScope{Name: "environment-scope", MapIDs: conf.Layering.ScopeMapIDs, ZoneIDs: conf.Layering.ScopeZoneIDs, MaxPopulation: conf.Layering.ScopeMaxPopulation})
 	}
 	layerService := service.NewLayer(gameServersService, service.LayerConfig{
-		Enabled:            conf.Layering.Enabled,
-		MaxPopulation:      conf.Layering.MaxPopulation,
-		SwitchCooldown:     time.Duration(conf.Layering.SwitchCooldownSeconds) * time.Second,
-		MaxSwitchesPerHour: conf.Layering.MaxSwitchesPerHour,
-		MinLayers:          conf.Layering.MinLayers, MaxLayers: conf.Layering.MaxLayers,
+		Enabled:                 conf.Layering.Enabled,
+		MaxPopulation:           conf.Layering.MaxPopulation,
+		TargetPopulationPercent: conf.Layering.TargetPopulationPct,
+		OverflowMarginPercent:   conf.Layering.OverflowMarginPct,
+		MinCapacityPercent:      conf.Layering.MinCapacityPct,
+		MinCapacityDuration:     time.Duration(conf.Layering.MinCapacityDuration) * time.Second,
+		SwitchCooldown:          time.Duration(conf.Layering.SwitchCooldownSeconds) * time.Second,
+		MaxSwitchesPerHour:      conf.Layering.MaxSwitchesPerHour,
+		MinLayers:               conf.Layering.MinLayers, MaxLayers: conf.Layering.MaxLayers,
 		ReconcileInterval: time.Duration(conf.Layering.ReconcileIntervalSecs) * time.Second,
-		ScaleDownDelay:    time.Duration(conf.Layering.ScaleDownDelaySecs) * time.Second,
 		RealmIDs:          supportedRealms, Scopes: scopes, Provisioner: layerProvisioner,
 	})
 	if conf.Layering.Enabled {

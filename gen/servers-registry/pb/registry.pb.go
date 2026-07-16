@@ -943,7 +943,8 @@ func (x *GameServerMapsLoadedResponse) GetApi() string {
 }
 
 // Selects a core and records the player's logical layer assignment. Gateways use
-// reason=LOGIN for initial placement and reason=GROUP_JOIN for queued switches.
+// reason=LOGIN for initial placement, reason=MAP_CHANGE for safe transitions,
+// and reason=GROUP_JOIN for queued party reunification switches.
 type SelectGameServerForPlayerRequest struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
