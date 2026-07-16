@@ -109,6 +109,7 @@ type GameSession struct {
 	seamlessLayerSwitch    bool
 	seamlessLayerTarget    *pbServ.Server
 	layerLoginVisualUntil  time.Time
+	pendingLayerMovement   *packet.Packet
 	visibleWorldObjects    map[uint64]struct{}
 }
 

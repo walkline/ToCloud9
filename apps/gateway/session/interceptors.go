@@ -238,6 +238,7 @@ func (s *GameSession) InterceptMoveWorldPortAck(ctx context.Context, p *packet.P
 			s.layerSwitchInProgress = false
 			s.layerSwitchTarget = nil
 			if s.seamlessLayerSwitch {
+				s.pendingLayerMovement = nil
 				s.seamlessLayerSwitch = false
 				s.seamlessLayerTarget = nil
 			}
@@ -375,6 +376,7 @@ func (s *GameSession) InterceptMoveWorldPortAck(ctx context.Context, p *packet.P
 				session.layerSwitchInProgress = false
 				session.layerSwitchTarget = nil
 				if session.seamlessLayerSwitch {
+					session.pendingLayerMovement = nil
 					session.seamlessLayerSwitch = false
 					session.seamlessLayerTarget = nil
 				}
@@ -465,6 +467,7 @@ func (s *GameSession) InterceptSMsgTimeSyncReq(ctx context.Context, p *packet.Pa
 	s.worldEntryPending = false
 	s.gameSocket.SendPacket(p)
 	if s.seamlessLayerSwitch {
+		s.flushPendingLayerMovement()
 		target := s.seamlessLayerTarget
 		if target == nil {
 			target = &pbServ.Server{LayerID: s.currentLayerID, Address: s.currentServerAddress}

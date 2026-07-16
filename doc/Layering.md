@@ -122,10 +122,13 @@ move against the cooldown and rolling hourly limit.
 An authorized same-map move uses the existing `TC9CMsgPrepareForRedirect`
 handshake: the old core saves and detaches the character, then the gateway logs
 the character into the destination core. For a layer-only move the gateway
-roots the character briefly, consumes the transfer/loading opcodes, and sends
-both world-port acknowledgements internally. The client remains on the same map
-and therefore does not open a loading screen. It receives friendly start and
-movement-resumed messages; core addresses are included only for GM accounts.
+consumes the transfer/loading opcodes and sends both world-port acknowledgements
+internally. The client remains mobile on the same map and therefore does not
+open a loading screen. The gateway buffers the latest movement update during
+the socket swap and delivers it once the destination character is in-world, so
+the authoritative position follows the client across layers. It receives
+friendly start and completion messages; core addresses are included only for GM
+accounts.
 
 Gateway polling only refreshes online accounting and retries an already queued
 explicit switch; it cannot initiate population balancing. A layer marked as

@@ -126,6 +126,7 @@ func (s *GameSession) beginLayerSwitch(target *pbServ.Server, layerID uint32) er
 	s.teleportingToNewMap = &mapID
 	s.seamlessLayerSwitch = true
 	s.seamlessLayerTarget = target
+	s.pendingLayerMovement = nil
 	s.sendLayerSwitchStarted(target)
 
 	// A same-map layer move does not need a client world-port. Acknowledge the
