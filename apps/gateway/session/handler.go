@@ -85,6 +85,8 @@ var HandleMap = map[packet.Opcode]HandlersQueue{
 	packet.CMsgPing:                   NewHandler("CMsgPing", (*GameSession).HandlePing),
 	packet.SMsgPong:                   NewHandler("SMsgPong", (*GameSession).InterceptPong),
 	packet.SMsgNewWorld:               NewHandler("SMsgNewWorld", (*GameSession).InterceptNewWorld),
+	packet.SMsgTransferPending:        NewHandler("SMsgTransferPending", (*GameSession).InterceptSeamlessWorldPacket),
+	packet.SMsgLoginVerifyWorld:       NewHandler("SMsgLoginVerifyWorld", (*GameSession).InterceptSeamlessWorldPacket),
 	packet.MsgGuildPermissions:        NewHandler("MsgGuildPermissions", (*GameSession).HandleGuildPermissions),
 	packet.MsgGuildBankMoneyWithdrawn: NewHandler("MsgGuildBankMoneyWithdrawn", (*GameSession).HandleGuildBankMoneyWithdrawn),
 	packet.MsgMoveWorldPortAck:        NewHandler("MsgMoveWorldPortAck", (*GameSession).InterceptMoveWorldPortAck),

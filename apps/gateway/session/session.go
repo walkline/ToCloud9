@@ -106,6 +106,9 @@ type GameSession struct {
 	pendingGroupInviter    uint64
 	lastLayerLifecyclePoll time.Time
 	layerSafety            layerSafetyState
+	seamlessLayerSwitch    bool
+	seamlessLayerTarget    *pbServ.Server
+	layerMovementCounter   uint32
 }
 
 type GameSessionParams struct {

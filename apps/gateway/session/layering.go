@@ -124,19 +124,31 @@ func (s *GameSession) beginLayerSwitch(target *pbServ.Server, layerID uint32) er
 	s.layerSwitchTarget = target
 	mapID := s.character.Map
 	s.teleportingToNewMap = &mapID
+	s.seamlessLayerSwitch = true
+	s.seamlessLayerTarget = target
+	s.sendLayerSwitchStarted(target)
+	s.setLayerMovementRooted(true)
 
-	pending := packet.NewWriterWithSize(packet.SMsgTransferPending, 4)
-	pending.Uint32(mapID)
-	s.gameSocket.Send(pending)
+	// A same-map layer move does not need a client world-port. Acknowledge the
+	// synthetic transfer to the source core internally; InterceptNewWorld will
+	// likewise acknowledge the destination core without exposing NEW_WORLD to
+	// the client (and therefore without opening a loading screen).
+	ack := &packet.Packet{Opcode: packet.MsgMoveWorldPortAck, Source: packet.SourceGameClient}
+	return s.InterceptMoveWorldPortAck(s.ctx, ack)
+}
 
-	newWorld := packet.NewWriterWithSize(packet.SMsgNewWorld, 20)
-	newWorld.Uint32(mapID)
-	newWorld.Float32(s.character.PositionX)
-	newWorld.Float32(s.character.PositionY)
-	newWorld.Float32(s.character.PositionZ)
-	newWorld.Float32(s.character.PositionO)
-	s.gameSocket.Send(newWorld)
-	return nil
+func (s *GameSession) setLayerMovementRooted(rooted bool) {
+	if s.character == nil {
+		return
+	}
+	s.layerMovementCounter++
+	opcode := packet.SMsgForceMoveRoot
+	if !rooted {
+		opcode = packet.SMsgForceMoveUnRoot
+	}
+	w := packet.NewWriter(opcode)
+	w.GUID(s.character.GUID).Uint32(s.layerMovementCounter)
+	s.gameSocket.Send(w)
 }
 
 func (s *GameSession) completeLayerSwitch(success bool) {

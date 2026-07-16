@@ -176,6 +176,14 @@ func (s *GameSession) trackCharacterStats(data []byte) {
 
 func (s *GameSession) InterceptNewWorld(ctx context.Context, p *packet.Packet) error {
 	mapID := p.Reader().Uint32()
+	if s.seamlessLayerSwitch {
+		// The destination core still needs its world-port acknowledgement, but the
+		// client must never see NEW_WORLD or it will display a loading screen.
+		if s.worldSocket != nil {
+			s.worldSocket.SendPacket(&packet.Packet{Opcode: packet.MsgMoveWorldPortAck, Source: packet.SourceGameClient})
+		}
+		return nil
+	}
 	if s.character.ignoreNextInterceptToNewMap == nil || mapID != *s.character.ignoreNextInterceptToNewMap {
 		s.teleportingToNewMap = &mapID
 	}
@@ -191,6 +199,11 @@ func (s *GameSession) InterceptMoveWorldPortAck(ctx context.Context, p *packet.P
 			s.completeLayerSwitch(false)
 			s.layerSwitchInProgress = false
 			s.layerSwitchTarget = nil
+			if s.seamlessLayerSwitch {
+				s.setLayerMovementRooted(false)
+				s.seamlessLayerSwitch = false
+				s.seamlessLayerTarget = nil
+			}
 		}
 	}()
 	if s.worldSocket == nil {
@@ -321,11 +334,18 @@ func (s *GameSession) InterceptMoveWorldPortAck(ctx context.Context, p *packet.P
 				session.completeLayerSwitch(false)
 				session.layerSwitchInProgress = false
 				session.layerSwitchTarget = nil
+				if session.seamlessLayerSwitch {
+					session.setLayerMovementRooted(false)
+					session.seamlessLayerSwitch = false
+					session.seamlessLayerTarget = nil
+				}
 			}
 			return
 		}
 
-		s.gameSocket.SendPacket(p)
+		if !s.seamlessLayerSwitch {
+			s.gameSocket.SendPacket(p)
+		}
 
 		// we need to modify session in a safe thread (goroutine)
 		s.sessionSafeFuChan <- func(session *GameSession) {
@@ -338,7 +358,7 @@ func (s *GameSession) InterceptMoveWorldPortAck(ctx context.Context, p *packet.P
 			session.layerSwitchInProgress = false
 			session.layerSwitchTarget = nil
 
-			if session.showGameserverConnChangeToClient {
+			if session.showGameserverConnChangeToClient && !session.seamlessLayerSwitch {
 				gmLevel, _ := session.accountGMLevel(context.Background())
 				if gmLevel > 0 {
 					session.SendSysMessage(fmt.Sprintf("Layer switch complete: %s -> %s (%s).", oldServerAddress, desiredServerAddress, friendlyGameServer(desiredServer)))
@@ -404,6 +424,24 @@ func (s *GameSession) InterceptAccountDataTimes(ctx context.Context, p *packet.P
 // map, so STATUS_LOGGEDIN opcodes are processed normally from that point on.
 func (s *GameSession) InterceptSMsgTimeSyncReq(ctx context.Context, p *packet.Packet) error {
 	s.worldEntryPending = false
+	s.gameSocket.SendPacket(p)
+	if s.seamlessLayerSwitch {
+		target := s.seamlessLayerTarget
+		if target == nil {
+			target = &pbServ.Server{LayerID: s.currentLayerID, Address: s.currentServerAddress}
+		}
+		s.setLayerMovementRooted(false)
+		s.sendLayerSwitchCompleted(target)
+		s.seamlessLayerSwitch = false
+		s.seamlessLayerTarget = nil
+	}
+	return nil
+}
+
+func (s *GameSession) InterceptSeamlessWorldPacket(_ context.Context, p *packet.Packet) error {
+	if s.seamlessLayerSwitch {
+		return nil
+	}
 	s.gameSocket.SendPacket(p)
 	return nil
 }

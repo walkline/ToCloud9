@@ -36,3 +36,23 @@ func friendlyGameServer(server *panel.Server) string {
 	}
 	return fmt.Sprintf("server %s", number)
 }
+
+func (s *GameSession) sendLayerSwitchStarted(server *panel.Server) {
+	label := friendlyGameServer(server)
+	gmLevel, _ := s.accountGMLevel(context.Background())
+	if gmLevel > 0 {
+		s.SendSysMessage(fmt.Sprintf("Moving you to %s (%s). Your character may stop moving briefly.", label, server.Address))
+		return
+	}
+	s.SendSysMessage(fmt.Sprintf("Moving you to %s. Your character may stop moving briefly.", label))
+}
+
+func (s *GameSession) sendLayerSwitchCompleted(server *panel.Server) {
+	label := friendlyGameServer(server)
+	gmLevel, _ := s.accountGMLevel(context.Background())
+	if gmLevel > 0 {
+		s.SendSysMessage(fmt.Sprintf("Movement resumed on %s (%s).", label, server.Address))
+		return
+	}
+	s.SendSysMessage(fmt.Sprintf("Movement resumed on %s.", label))
+}
