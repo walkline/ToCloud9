@@ -91,6 +91,14 @@ func (s *serversRegistryDebugLoggerMiddleware) GameServerMapsLoaded(ctx context.
 	return
 }
 
+func (s *serversRegistryDebugLoggerMiddleware) SelectGameServerForPlayer(ctx context.Context, request *pb.SelectGameServerForPlayerRequest) (*pb.SelectGameServerForPlayerResponse, error) {
+	return s.realService.SelectGameServerForPlayer(ctx, request)
+}
+
+func (s *serversRegistryDebugLoggerMiddleware) ReleasePlayerLayer(ctx context.Context, request *pb.ReleasePlayerLayerRequest) (*pb.ReleasePlayerLayerResponse, error) {
+	return s.realService.ReleasePlayerLayer(ctx, request)
+}
+
 func (s *serversRegistryDebugLoggerMiddleware) RegisterGateway(ctx context.Context, request *pb.RegisterGatewayRequest) (*pb.RegisterGatewayResponse, error) {
 	// Logs already inside.
 	return s.realService.RegisterGateway(ctx, request)

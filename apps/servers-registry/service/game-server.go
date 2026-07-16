@@ -310,7 +310,22 @@ func (g *gameServerImpl) distributeMapsToServers(ctx context.Context, servers []
 		serversBefore[i] = server.Copy()
 	}
 
-	distributed := g.mapBalancer.Distribute(servers)
+	// Each logical layer must receive its own complete map distribution. Mixing
+	// layers here would assign a map to only one layer and make the duplicate
+	// worlds unusable.
+	byLayer := make(map[uint32][]repo.GameServer)
+	layerIDs := make([]uint32, 0)
+	for _, server := range servers {
+		if _, ok := byLayer[server.LayerID]; !ok {
+			layerIDs = append(layerIDs, server.LayerID)
+		}
+		byLayer[server.LayerID] = append(byLayer[server.LayerID], server)
+	}
+	sort.Slice(layerIDs, func(i, j int) bool { return layerIDs[i] < layerIDs[j] })
+	distributed := make([]repo.GameServer, 0, len(servers))
+	for _, layerID := range layerIDs {
+		distributed = append(distributed, g.mapBalancer.Distribute(byLayer[layerID])...)
+	}
 
 	res := make([]events.GameServer, len(distributed))
 	for i := range distributed {

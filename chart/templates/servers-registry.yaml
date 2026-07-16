@@ -25,6 +25,14 @@ spec:
           value: redis://{{ .Release.Name }}-redis-headless:6379/0
         - name: NATS_URL
           value: nats://{{ .Release.Name }}-nats:4222
+        - name: LAYERING_ENABLED
+          value: "{{ .Values.servers_registry.layering.enabled }}"
+        - name: LAYER_MAX_POPULATION
+          value: "{{ .Values.servers_registry.layering.maxPopulation }}"
+        - name: LAYER_SWITCH_COOLDOWN_SECONDS
+          value: "{{ .Values.servers_registry.layering.switchCooldownSeconds }}"
+        - name: LAYER_MAX_SWITCHES_PER_HOUR
+          value: "{{ .Values.servers_registry.layering.maxSwitchesPerHour }}"
         ports:
         - containerPort: {{ .Values.servers_registry.service.internalPort | int  }}
         # livenessProbe:

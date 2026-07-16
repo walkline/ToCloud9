@@ -37,6 +37,12 @@ spec:
           value: redis://{{ .Release.Name }}-redis-headless:6379/0
         - name: NATS_URL
           value: nats://{{ .Release.Name }}-nats:4222
+        - name: LAYERING_ENABLED
+          value: "{{ .Values.gateway.layering.enabled }}"
+        - name: LAYER_SWITCH_QUEUE_SIZE
+          value: "{{ .Values.gateway.layering.switchQueueSize }}"
+        - name: LAYER_QUEUE_PROCESS_INTERVAL_MS
+          value: "{{ .Values.gateway.layering.queueProcessIntervalMs }}"
         - name: SERVERS_REGISTRY_SERVICE_ADDRESS
           value: {{ .Release.Name }}-servers-registry:{{ .Values.servers_registry.service.externalPort}}
         - name: CHAR_SERVICE_ADDRESS

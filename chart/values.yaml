@@ -47,6 +47,11 @@ servers_registry:
     type: ClusterIP
     internalPort: 8999
     externalPort: 8999
+  layering:
+    enabled: false
+    maxPopulation: 1000
+    switchCooldownSeconds: 60
+    maxSwitchesPerHour: 6
 
 authserver:
   replicaCount: 1
@@ -160,6 +165,10 @@ gateway:
     tag: *defaultImagesTag
   service:
     type: NodePort
+  layering:
+    enabled: false
+    switchQueueSize: 32
+    queueProcessIntervalMs: 250
 
 gameserver_ac:
   initcontainer:
@@ -184,3 +193,6 @@ gameserver_ac:
     type: ClusterIP
     internalPort: 9509
     externalPort: 9509
+  # Replicas with the same ID split maps inside one logical layer. Deploy a
+  # separate gameserver workload with another ID for an additional layer.
+  layerId: 0

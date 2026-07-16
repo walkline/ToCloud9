@@ -98,7 +98,13 @@ func main() {
 		log.Fatal().Err(err).Msg("can't create gateway service")
 	}
 
-	registryService := server.NewServersRegistry(gameServersService, gatewayService)
+	layerService := service.NewLayer(gameServersService, service.LayerConfig{
+		Enabled:            conf.Layering.Enabled,
+		MaxPopulation:      conf.Layering.MaxPopulation,
+		SwitchCooldown:     time.Duration(conf.Layering.SwitchCooldownSeconds) * time.Second,
+		MaxSwitchesPerHour: conf.Layering.MaxSwitchesPerHour,
+	})
+	registryService := server.NewServersRegistry(gameServersService, gatewayService, layerService)
 	if conf.LogLevel == zerolog.DebugLevel {
 		registryService = server.NewServersRegistryDebugLoggerMiddleware(registryService, log.Logger)
 	}

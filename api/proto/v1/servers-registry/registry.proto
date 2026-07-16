@@ -10,6 +10,8 @@ service ServersRegistryService {
   rpc ListGameServersForRealm(ListGameServersForRealmRequest) returns (ListGameServersResponse);
   rpc ListAllGameServers(ListAllGameServersRequest) returns (ListGameServersResponse);
   rpc GameServerMapsLoaded(GameServerMapsLoadedRequest) returns (GameServerMapsLoadedResponse);
+  rpc SelectGameServerForPlayer(SelectGameServerForPlayerRequest) returns (SelectGameServerForPlayerResponse);
+  rpc ReleasePlayerLayer(ReleasePlayerLayerRequest) returns (ReleasePlayerLayerResponse);
 
   rpc RegisterGateway(RegisterGatewayRequest) returns (RegisterGatewayResponse);
   rpc GatewaysForRealms(GatewaysForRealmsRequest) returns (GatewaysForRealmsResponse);
@@ -29,6 +31,7 @@ message RegisterGameServerRequest{
   bool   isCrossRealm = 6; // If true realm id should be 0
   string availableMaps = 7;
   string preferredHostName = 8;
+  uint32 layerID = 9; // Logical open-world layer. Zero means the legacy, non-layered pool.
 }
 
 message RegisterGameServerResponse{
@@ -99,6 +102,7 @@ message GameServerDetailed {
   Diff diff = 8;
   repeated uint32 availableMaps = 9;
   repeated uint32 assignedMaps = 10;
+  uint32 layerID = 11;
 }
 
 message ListGameServersResponse {
@@ -125,6 +129,50 @@ message GameServerMapsLoadedRequest {
 }
 
 message GameServerMapsLoadedResponse {
+  string api = 1;
+}
+
+// Selects a core and records the player's logical layer assignment. Gateways use
+// reason=LOGIN for initial placement and reason=GROUP_JOIN for queued switches.
+message SelectGameServerForPlayerRequest {
+  enum Reason {
+    LOGIN = 0;
+    MAP_CHANGE = 1;
+    GROUP_JOIN = 2;
+    MANUAL = 3;
+  }
+
+  string api = 1;
+  uint32 realmID = 2;
+  uint32 mapID = 3;
+  uint64 playerGUID = 4;
+  uint64 preferredPlayerGUID = 5;
+  Reason reason = 6;
+  string currentGameServerAddress = 7;
+}
+
+message SelectGameServerForPlayerResponse {
+  enum Status {
+    OK = 0;
+    NO_SERVER = 1;
+    THROTTLED = 2;
+    HOURLY_LIMIT_REACHED = 3;
+  }
+
+  string api = 1;
+  Status status = 2;
+  Server gameServer = 3;
+  uint32 layerID = 4;
+  uint32 retryAfterSeconds = 5;
+}
+
+message ReleasePlayerLayerRequest {
+  string api = 1;
+  uint32 realmID = 2;
+  uint64 playerGUID = 3;
+}
+
+message ReleasePlayerLayerResponse {
   string api = 1;
 }
 
@@ -193,5 +241,6 @@ message Server {
   uint32 realmID = 2;
   bool   isCrossRealm = 3;
   string grpcAddress = 4;
+  string ID = 5;
+  uint32 layerID = 6;
 }
-

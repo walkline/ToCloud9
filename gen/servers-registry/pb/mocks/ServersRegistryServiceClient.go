@@ -17,6 +17,32 @@ type ServersRegistryServiceClient struct {
 	mock.Mock
 }
 
+func (_m *ServersRegistryServiceClient) SelectGameServerForPlayer(ctx context.Context, in *pb.SelectGameServerForPlayerRequest, opts ...grpc.CallOption) (*pb.SelectGameServerForPlayerResponse, error) {
+	args := []interface{}{ctx, in}
+	for _, opt := range opts {
+		args = append(args, opt)
+	}
+	ret := _m.Called(args...)
+	var response *pb.SelectGameServerForPlayerResponse
+	if value := ret.Get(0); value != nil {
+		response = value.(*pb.SelectGameServerForPlayerResponse)
+	}
+	return response, ret.Error(1)
+}
+
+func (_m *ServersRegistryServiceClient) ReleasePlayerLayer(ctx context.Context, in *pb.ReleasePlayerLayerRequest, opts ...grpc.CallOption) (*pb.ReleasePlayerLayerResponse, error) {
+	args := []interface{}{ctx, in}
+	for _, opt := range opts {
+		args = append(args, opt)
+	}
+	ret := _m.Called(args...)
+	var response *pb.ReleasePlayerLayerResponse
+	if value := ret.Get(0); value != nil {
+		response = value.(*pb.ReleasePlayerLayerResponse)
+	}
+	return response, ret.Error(1)
+}
+
 // AvailableGameServersForMapAndRealm provides a mock function with given fields: ctx, in, opts
 func (_m *ServersRegistryServiceClient) AvailableGameServersForMapAndRealm(ctx context.Context, in *pb.AvailableGameServersForMapAndRealmRequest, opts ...grpc.CallOption) (*pb.AvailableGameServersForMapAndRealmResponse, error) {
 	_va := make([]interface{}, len(opts))

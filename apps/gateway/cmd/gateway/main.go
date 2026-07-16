@@ -19,11 +19,11 @@ import (
 	"github.com/walkline/ToCloud9/apps/gateway/service"
 	"github.com/walkline/ToCloud9/apps/gateway/session"
 	"github.com/walkline/ToCloud9/apps/gateway/sockets/gamesocket"
+	pbAH "github.com/walkline/ToCloud9/gen/auctionhouse/pb"
 	pbChar "github.com/walkline/ToCloud9/gen/characters/pb"
 	pbChat "github.com/walkline/ToCloud9/gen/chat/pb"
 	pbGroup "github.com/walkline/ToCloud9/gen/group/pb"
 	pbGuild "github.com/walkline/ToCloud9/gen/guilds/pb"
-	pbAH "github.com/walkline/ToCloud9/gen/auctionhouse/pb"
 	pbMail "github.com/walkline/ToCloud9/gen/mail/pb"
 	pbMM "github.com/walkline/ToCloud9/gen/matchmaking/pb"
 	pbServ "github.com/walkline/ToCloud9/gen/servers-registry/pb"
@@ -179,6 +179,9 @@ func main() {
 			GameServerGRPCConnMgr:            gameserverconn.DefaultGameServerGRPCConnMgr,
 			PacketProcessTimeout:             time.Second * time.Duration(conf.PacketProcessTimeoutSecs),
 			ShowGameserverConnChangeToClient: conf.ShowGameserverConnChangeToClient,
+			LayeringEnabled:                  conf.Layering.Enabled,
+			LayerSwitchQueueSize:             conf.Layering.SwitchQueueSize,
+			LayerSwitchProcessInterval:       time.Duration(conf.Layering.QueueProcessIntervalMS) * time.Millisecond,
 		})
 		go func() {
 			healthandmetrics.ActiveConnectionsMetrics.Inc()

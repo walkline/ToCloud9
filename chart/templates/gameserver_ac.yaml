@@ -58,6 +58,8 @@ spec:
           value: {{ .Release.Name }}-servers-registry:{{ .Values.servers_registry.service.externalPort}}
         - name: NATS_URL
           value: nats://{{ .Release.Name }}-nats:4222
+        - name: LAYER_ID
+          value: "{{ .Values.gameserver_ac.layerId }}"
         - name: DB_SCHEMA_TYPE
           valueFrom:
             secretKeyRef:

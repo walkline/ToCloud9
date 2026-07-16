@@ -76,6 +76,9 @@ services:
       LOG_LEVEL: 0
       PORT: 8085
       NATS_URL: nats://nats:4222
+      LAYERING_ENABLED: ${LAYERING_ENABLED:-false}
+      LAYER_SWITCH_QUEUE_SIZE: ${LAYER_SWITCH_QUEUE_SIZE:-32}
+      LAYER_QUEUE_PROCESS_INTERVAL_MS: ${LAYER_QUEUE_PROCESS_INTERVAL_MS:-250}
     profiles:
       - ac
       - tc
@@ -106,6 +109,9 @@ services:
       LOG_LEVEL: 0
       PORT: 8045
       NATS_URL: nats://nats:4222
+      LAYERING_ENABLED: ${LAYERING_ENABLED:-false}
+      LAYER_SWITCH_QUEUE_SIZE: ${LAYER_SWITCH_QUEUE_SIZE:-32}
+      LAYER_QUEUE_PROCESS_INTERVAL_MS: ${LAYER_QUEUE_PROCESS_INTERVAL_MS:-250}
     profiles:
       - ac
       - tc
@@ -122,6 +128,10 @@ services:
     environment:
       PORT: 8999
       REDIS_URL: redis://:@redis:6379/0
+      LAYERING_ENABLED: ${LAYERING_ENABLED:-false}
+      LAYER_MAX_POPULATION: ${LAYER_MAX_POPULATION:-1000}
+      LAYER_SWITCH_COOLDOWN_SECONDS: ${LAYER_SWITCH_COOLDOWN_SECONDS:-60}
+      LAYER_MAX_SWITCHES_PER_HOUR: ${LAYER_MAX_SWITCHES_PER_HOUR:-6}
     profiles:
       - ac
       - tc
@@ -311,6 +321,7 @@ services:
       GRPC_PORT: 9509
       GUID_PROVIDER_SERVICE_ADDRESS: guidserver:8996
       SERVERS_REGISTRY_SERVICE_ADDRESS: servers-registry:8999
+      LAYER_ID: ${LAYER_ID:-0}
     profiles:
       - tc
 
@@ -341,6 +352,7 @@ services:
       GUID_PROVIDER_SERVICE_ADDRESS: guidserver:8996
       SERVERS_REGISTRY_SERVICE_ADDRESS: servers-registry:8999
       MATCHMAKING_SERVICE_ADDRESS: matchmakingserver:8994
+      LAYER_ID: ${LAYER_ID:-0}
     profiles:
       - ac
 

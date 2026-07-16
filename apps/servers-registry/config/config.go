@@ -19,6 +19,15 @@ type Config struct {
 
 	// RealmsIDs is id of realms that the system supports.
 	RealmsID []uint32 `yaml:"realmsID" env:"REALMs_ID" env-default:"1"`
+
+	Layering LayeringConfig `yaml:"layering"`
+}
+
+type LayeringConfig struct {
+	Enabled               bool   `yaml:"enabled" env:"LAYERING_ENABLED" env-default:"false"`
+	MaxPopulation         uint32 `yaml:"maxPopulation" env:"LAYER_MAX_POPULATION" env-default:"1000"`
+	SwitchCooldownSeconds uint32 `yaml:"switchCooldownSeconds" env:"LAYER_SWITCH_COOLDOWN_SECONDS" env-default:"60"`
+	MaxSwitchesPerHour    uint32 `yaml:"maxSwitchesPerHour" env:"LAYER_MAX_SWITCHES_PER_HOUR" env-default:"6"`
 }
 
 // LoadConfig loads config from env variables

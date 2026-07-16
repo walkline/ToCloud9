@@ -157,6 +157,7 @@ func TC9InitLib(port uint16, realmID uint32, isCrossRealm bool, availableMaps *C
 		IsCrossRealm:      isCrossRealm,
 		AvailableMaps:     C.GoString(availableMaps),
 		PreferredHostName: cfg.PreferredHostname,
+		LayerID:           cfg.LayerID,
 	})
 	if err != nil {
 		log.Fatal().Err(err).Msg("couldn't register game server")

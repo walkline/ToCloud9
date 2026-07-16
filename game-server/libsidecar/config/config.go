@@ -37,6 +37,10 @@ type Config struct {
 
 	// NatsURL is nats connection url
 	NatsURL string `yaml:"natsUrl" env:"NATS_URL" env-default:"nats://localhost:4222"`
+
+	// LayerID is the logical open-world layer hosted by this core. Cores in the
+	// same layer may split maps; cores in different layers host duplicate maps.
+	LayerID uint32 `yaml:"layerId" env:"LAYER_ID" env-default:"0"`
 }
 
 // LoadConfig loads config from env variables

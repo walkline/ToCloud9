@@ -40,6 +40,7 @@ Currently, it is possible to play the game, but some functionalities still do no
 | LFG in cluster support                                        | 0%	     |                                                                                                                	                                                                                                                 |
 | Sync transports between gameservers                           | ✅	      |                                                                                                                	                                                                                                                 |
 | Helm chart support                                            | ✅	      |                                                                                                                	                                                                                                                 |
+| Configurable open-world layering                              | ✅       | Population thresholds, queued group moves, cooldown and hourly limits. See [layering configuration](doc/Layering.md). |
 
 ## Deployment
 

@@ -174,6 +174,14 @@ func (s *GameSession) InterceptNewWorld(ctx context.Context, p *packet.Packet) e
 }
 
 func (s *GameSession) InterceptMoveWorldPortAck(ctx context.Context, p *packet.Packet) error {
+	isQueuedLayerSwitch := s.layerSwitchTarget != nil
+	redirectStarted := false
+	defer func() {
+		if isQueuedLayerSwitch && !redirectStarted {
+			s.layerSwitchInProgress = false
+			s.layerSwitchTarget = nil
+		}
+	}()
 	if s.worldSocket == nil {
 		return errors.New("can't handle InterceptMoveWorldPortAck, worldSocket is nil")
 	}
@@ -208,10 +216,19 @@ func (s *GameSession) InterceptMoveWorldPortAck(ctx context.Context, p *packet.P
 	}
 
 	oldServerAddress := s.worldSocket.Address()
-	desiredServerAddress := serversResult.GameServers[0].Address
+	desiredServer := serversResult.GameServers[0]
+	if s.layerSwitchTarget != nil {
+		desiredServer = s.layerSwitchTarget
+	}
+	desiredServerAddress := desiredServer.Address
 
 	if desiredServerAddress == oldServerAddress {
 		return nil
+	}
+	s.gameServerGRPCConnMgr.AddAddressMapping(desiredServer.Address, desiredServer.GrpcAddress)
+	s.gameServerGRPCClient, err = s.gameServerGRPCConnMgr.GRPCConnByGameServerAddress(desiredServer.Address)
+	if err != nil {
+		return fmt.Errorf("can't get target layer grpc client: %w", err)
 	}
 
 	saveAndClosePacket := packet.NewWriterWithSize(packet.TC9CMsgPrepareForRedirect, 0)
@@ -253,15 +270,24 @@ func (s *GameSession) InterceptMoveWorldPortAck(ctx context.Context, p *packet.P
 	// back in world; reopen the name query window until its SMsgTimeSyncReq.
 	s.worldEntryPending = true
 
-	go func(charGUID uint64) {
+	redirectStarted = true
+	go func(charGUID uint64, queuedLayerSwitch bool) {
 		var err error
 		var socket sockets.Socket
-		_, socket, err = s.connectToGameServer(context.Background(), charGUID, &mapID, nil)
+		if queuedLayerSwitch {
+			socket, err = s.connectToGameServerWithAddress(context.Background(), charGUID, desiredServerAddress, nil)
+		} else {
+			_, socket, err = s.connectToGameServer(context.Background(), charGUID, &mapID, nil)
+		}
 		if err != nil {
 			s.logger.Error().Err(err).Msg("failed to reconnect player to the world")
 			resp := packet.NewWriterWithSize(packet.SMsgCharacterLoginFailed, 1)
 			resp.Uint8(uint8(packet.LoginErrorCodeWorldServerIsDown))
 			s.gameSocket.Send(resp)
+			s.sessionSafeFuChan <- func(session *GameSession) {
+				session.layerSwitchInProgress = false
+				session.layerSwitchTarget = nil
+			}
 			return
 		}
 
@@ -272,6 +298,10 @@ func (s *GameSession) InterceptMoveWorldPortAck(ctx context.Context, p *packet.P
 			if session.character != nil {
 				session.worldSocket = socket
 			}
+			session.currentServerAddress = desiredServerAddress
+			session.currentLayerID = desiredServer.LayerID
+			session.layerSwitchInProgress = false
+			session.layerSwitchTarget = nil
 
 			if session.showGameserverConnChangeToClient {
 				session.SendSysMessage(fmt.Sprintf("You have been redirected from %s to %s gameserver.", oldServerAddress, desiredServerAddress))
@@ -285,7 +315,7 @@ func (s *GameSession) InterceptMoveWorldPortAck(ctx context.Context, p *packet.P
 				}
 			}()
 		}
-	}(s.character.GUID)
+	}(s.character.GUID, isQueuedLayerSwitch)
 
 	return nil
 }

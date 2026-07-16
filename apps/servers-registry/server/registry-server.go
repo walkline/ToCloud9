@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/rs/zerolog/log"
 	"google.golang.org/grpc/peer"
@@ -18,15 +19,49 @@ const ver = "0.0.1"
 
 type serversRegistry struct {
 	pb.UnimplementedServersRegistryServiceServer
-	gService  service.GameServer
-	lbService service.Gateway
+	gService     service.GameServer
+	lbService    service.Gateway
+	layerService service.Layer
 }
 
-func NewServersRegistry(gService service.GameServer, lbService service.Gateway) pb.ServersRegistryServiceServer {
+func NewServersRegistry(gService service.GameServer, lbService service.Gateway, layerService service.Layer) pb.ServersRegistryServiceServer {
 	return &serversRegistry{
-		gService:  gService,
-		lbService: lbService,
+		gService:     gService,
+		lbService:    lbService,
+		layerService: layerService,
 	}
+}
+
+func (s *serversRegistry) SelectGameServerForPlayer(ctx context.Context, request *pb.SelectGameServerForPlayerRequest) (*pb.SelectGameServerForPlayerResponse, error) {
+	selection, err := s.layerService.Select(
+		ctx, request.RealmID, request.MapID, request.PlayerGUID, request.PreferredPlayerGUID,
+		service.LayerSelectReason(request.Reason), request.CurrentGameServerAddress,
+	)
+	if err != nil {
+		return nil, err
+	}
+	response := &pb.SelectGameServerForPlayerResponse{
+		Api:               ver,
+		Status:            pb.SelectGameServerForPlayerResponse_Status(selection.Status),
+		LayerID:           selection.LayerID,
+		RetryAfterSeconds: uint32(selection.RetryAfter.Round(time.Second) / time.Second),
+	}
+	if selection.Server != nil {
+		response.GameServer = &pb.Server{
+			ID:           selection.Server.ID,
+			Address:      selection.Server.Address,
+			GrpcAddress:  selection.Server.GRPCAddress,
+			RealmID:      selection.Server.RealmID,
+			IsCrossRealm: selection.Server.IsCrossRealm,
+			LayerID:      selection.Server.LayerID,
+		}
+	}
+	return response, nil
+}
+
+func (s *serversRegistry) ReleasePlayerLayer(_ context.Context, request *pb.ReleasePlayerLayerRequest) (*pb.ReleasePlayerLayerResponse, error) {
+	s.layerService.Release(request.RealmID, request.PlayerGUID)
+	return &pb.ReleasePlayerLayerResponse{Api: ver}, nil
 }
 
 func (s *serversRegistry) RegisterGameServer(ctx context.Context, request *pb.RegisterGameServerRequest) (*pb.RegisterGameServerResponse, error) {
@@ -46,6 +81,7 @@ func (s *serversRegistry) RegisterGameServer(ctx context.Context, request *pb.Re
 		RealmID:         request.RealmID,
 		IsCrossRealm:    request.IsCrossRealm,
 		AvailableMaps:   stringToAvailableMaps(request.AvailableMaps),
+		LayerID:         request.LayerID,
 	}
 
 	err := s.gService.Register(ctx, gameServer)
@@ -73,6 +109,8 @@ func (s *serversRegistry) AvailableGameServersForMapAndRealm(ctx context.Context
 			RealmID:      servers[i].RealmID,
 			IsCrossRealm: servers[i].IsCrossRealm,
 			GrpcAddress:  servers[i].GRPCAddress,
+			ID:           servers[i].ID,
+			LayerID:      servers[i].LayerID,
 		})
 	}
 
@@ -109,6 +147,7 @@ func (s *serversRegistry) ListGameServersForRealm(ctx context.Context, request *
 			ActiveConnections: servers[i].ActiveConnections,
 			AvailableMaps:     servers[i].AvailableMaps,
 			AssignedMaps:      servers[i].AssignedMapsToHandle,
+			LayerID:           servers[i].LayerID,
 			Diff: &pb.GameServerDetailed_Diff{
 				Mean:         servers[i].Diff.Mean,
 				Median:       servers[i].Diff.Median,
@@ -142,6 +181,7 @@ func (s *serversRegistry) ListAllGameServers(ctx context.Context, request *pb.Li
 			ActiveConnections: servers[i].ActiveConnections,
 			AvailableMaps:     servers[i].AvailableMaps,
 			AssignedMaps:      servers[i].AssignedMapsToHandle,
+			LayerID:           servers[i].LayerID,
 			Diff: &pb.GameServerDetailed_Diff{
 				Mean:         servers[i].Diff.Mean,
 				Median:       servers[i].Diff.Median,

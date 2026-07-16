@@ -25,6 +25,8 @@ const (
 	ServersRegistryService_ListGameServersForRealm_FullMethodName            = "/v1.ServersRegistryService/ListGameServersForRealm"
 	ServersRegistryService_ListAllGameServers_FullMethodName                 = "/v1.ServersRegistryService/ListAllGameServers"
 	ServersRegistryService_GameServerMapsLoaded_FullMethodName               = "/v1.ServersRegistryService/GameServerMapsLoaded"
+	ServersRegistryService_SelectGameServerForPlayer_FullMethodName          = "/v1.ServersRegistryService/SelectGameServerForPlayer"
+	ServersRegistryService_ReleasePlayerLayer_FullMethodName                 = "/v1.ServersRegistryService/ReleasePlayerLayer"
 	ServersRegistryService_RegisterGateway_FullMethodName                    = "/v1.ServersRegistryService/RegisterGateway"
 	ServersRegistryService_GatewaysForRealms_FullMethodName                  = "/v1.ServersRegistryService/GatewaysForRealms"
 	ServersRegistryService_ListGatewaysForRealm_FullMethodName               = "/v1.ServersRegistryService/ListGatewaysForRealm"
@@ -40,6 +42,8 @@ type ServersRegistryServiceClient interface {
 	ListGameServersForRealm(ctx context.Context, in *ListGameServersForRealmRequest, opts ...grpc.CallOption) (*ListGameServersResponse, error)
 	ListAllGameServers(ctx context.Context, in *ListAllGameServersRequest, opts ...grpc.CallOption) (*ListGameServersResponse, error)
 	GameServerMapsLoaded(ctx context.Context, in *GameServerMapsLoadedRequest, opts ...grpc.CallOption) (*GameServerMapsLoadedResponse, error)
+	SelectGameServerForPlayer(ctx context.Context, in *SelectGameServerForPlayerRequest, opts ...grpc.CallOption) (*SelectGameServerForPlayerResponse, error)
+	ReleasePlayerLayer(ctx context.Context, in *ReleasePlayerLayerRequest, opts ...grpc.CallOption) (*ReleasePlayerLayerResponse, error)
 	RegisterGateway(ctx context.Context, in *RegisterGatewayRequest, opts ...grpc.CallOption) (*RegisterGatewayResponse, error)
 	GatewaysForRealms(ctx context.Context, in *GatewaysForRealmsRequest, opts ...grpc.CallOption) (*GatewaysForRealmsResponse, error)
 	ListGatewaysForRealm(ctx context.Context, in *ListGatewaysForRealmRequest, opts ...grpc.CallOption) (*ListGatewaysForRealmResponse, error)
@@ -107,6 +111,24 @@ func (c *serversRegistryServiceClient) GameServerMapsLoaded(ctx context.Context,
 	return out, nil
 }
 
+func (c *serversRegistryServiceClient) SelectGameServerForPlayer(ctx context.Context, in *SelectGameServerForPlayerRequest, opts ...grpc.CallOption) (*SelectGameServerForPlayerResponse, error) {
+	out := new(SelectGameServerForPlayerResponse)
+	err := c.cc.Invoke(ctx, ServersRegistryService_SelectGameServerForPlayer_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *serversRegistryServiceClient) ReleasePlayerLayer(ctx context.Context, in *ReleasePlayerLayerRequest, opts ...grpc.CallOption) (*ReleasePlayerLayerResponse, error) {
+	out := new(ReleasePlayerLayerResponse)
+	err := c.cc.Invoke(ctx, ServersRegistryService_ReleasePlayerLayer_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *serversRegistryServiceClient) RegisterGateway(ctx context.Context, in *RegisterGatewayRequest, opts ...grpc.CallOption) (*RegisterGatewayResponse, error) {
 	out := new(RegisterGatewayResponse)
 	err := c.cc.Invoke(ctx, ServersRegistryService_RegisterGateway_FullMethodName, in, out, opts...)
@@ -144,6 +166,8 @@ type ServersRegistryServiceServer interface {
 	ListGameServersForRealm(context.Context, *ListGameServersForRealmRequest) (*ListGameServersResponse, error)
 	ListAllGameServers(context.Context, *ListAllGameServersRequest) (*ListGameServersResponse, error)
 	GameServerMapsLoaded(context.Context, *GameServerMapsLoadedRequest) (*GameServerMapsLoadedResponse, error)
+	SelectGameServerForPlayer(context.Context, *SelectGameServerForPlayerRequest) (*SelectGameServerForPlayerResponse, error)
+	ReleasePlayerLayer(context.Context, *ReleasePlayerLayerRequest) (*ReleasePlayerLayerResponse, error)
 	RegisterGateway(context.Context, *RegisterGatewayRequest) (*RegisterGatewayResponse, error)
 	GatewaysForRealms(context.Context, *GatewaysForRealmsRequest) (*GatewaysForRealmsResponse, error)
 	ListGatewaysForRealm(context.Context, *ListGatewaysForRealmRequest) (*ListGatewaysForRealmResponse, error)
@@ -171,6 +195,12 @@ func (UnimplementedServersRegistryServiceServer) ListAllGameServers(context.Cont
 }
 func (UnimplementedServersRegistryServiceServer) GameServerMapsLoaded(context.Context, *GameServerMapsLoadedRequest) (*GameServerMapsLoadedResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GameServerMapsLoaded not implemented")
+}
+func (UnimplementedServersRegistryServiceServer) SelectGameServerForPlayer(context.Context, *SelectGameServerForPlayerRequest) (*SelectGameServerForPlayerResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method SelectGameServerForPlayer not implemented")
+}
+func (UnimplementedServersRegistryServiceServer) ReleasePlayerLayer(context.Context, *ReleasePlayerLayerRequest) (*ReleasePlayerLayerResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ReleasePlayerLayer not implemented")
 }
 func (UnimplementedServersRegistryServiceServer) RegisterGateway(context.Context, *RegisterGatewayRequest) (*RegisterGatewayResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method RegisterGateway not implemented")
@@ -303,6 +333,42 @@ func _ServersRegistryService_GameServerMapsLoaded_Handler(srv interface{}, ctx c
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ServersRegistryService_SelectGameServerForPlayer_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SelectGameServerForPlayerRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ServersRegistryServiceServer).SelectGameServerForPlayer(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ServersRegistryService_SelectGameServerForPlayer_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ServersRegistryServiceServer).SelectGameServerForPlayer(ctx, req.(*SelectGameServerForPlayerRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ServersRegistryService_ReleasePlayerLayer_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ReleasePlayerLayerRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ServersRegistryServiceServer).ReleasePlayerLayer(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ServersRegistryService_ReleasePlayerLayer_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ServersRegistryServiceServer).ReleasePlayerLayer(ctx, req.(*ReleasePlayerLayerRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _ServersRegistryService_RegisterGateway_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(RegisterGatewayRequest)
 	if err := dec(in); err != nil {
@@ -387,6 +453,14 @@ var ServersRegistryService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GameServerMapsLoaded",
 			Handler:    _ServersRegistryService_GameServerMapsLoaded_Handler,
+		},
+		{
+			MethodName: "SelectGameServerForPlayer",
+			Handler:    _ServersRegistryService_SelectGameServerForPlayer_Handler,
+		},
+		{
+			MethodName: "ReleasePlayerLayer",
+			Handler:    _ServersRegistryService_ReleasePlayerLayer_Handler,
 		},
 		{
 			MethodName: "RegisterGateway",

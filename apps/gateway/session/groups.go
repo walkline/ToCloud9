@@ -98,6 +98,7 @@ func (s *GameSession) HandleGroupInvite(ctx context.Context, p *packet.Packet) e
 
 func (s *GameSession) HandleEventGroupInviteCreated(ctx context.Context, e *eBroadcaster.Event) error {
 	eventData := e.Payload.(*events.GroupEventInviteCreatedPayload)
+	s.pendingGroupInviter = eventData.InviterGUID
 
 	resp := packet.NewWriterWithSize(packet.SMsgGroupInvite, 0)
 	resp.Uint8(1)
@@ -190,6 +191,8 @@ func (s *GameSession) HandleGroupInviteAccept(ctx context.Context, _ *packet.Pac
 	if err != nil {
 		return NewGroupServiceUnavailableErr(err)
 	}
+	s.queueLayerSwitchToPlayer(s.pendingGroupInviter)
+	s.pendingGroupInviter = 0
 
 	return nil
 }
