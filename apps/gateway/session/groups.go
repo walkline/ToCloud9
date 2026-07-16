@@ -676,7 +676,13 @@ func (s *GameSession) HandleEventGroupMembersUpdated(ctx context.Context, e *eBr
 // game server responds with an "offline" stub that marks the member as disconnected.
 func (s *GameSession) HandleRequestPartyMemberStats(ctx context.Context, p *packet.Packet) error {
 	if s.character == nil || s.character.GroupMangedByGameServer {
-		s.worldSocket.SendPacket(p)
+		// A seamless layer handoff deliberately leaves worldSocket nil between
+		// detaching the old core and attaching the destination core. The client
+		// can request party stats in that window; it will request them again once
+		// the destination world is ready.
+		if s.worldSocket != nil {
+			s.worldSocket.SendPacket(p)
+		}
 		return nil
 	}
 
@@ -685,7 +691,9 @@ func (s *GameSession) HandleRequestPartyMemberStats(ctx context.Context, p *pack
 	stats, found := s.groupMemberStats[guid]
 	if !found {
 		// Not a tracked group member (e.g. pet) — let the game server answer.
-		s.worldSocket.SendPacket(p)
+		if s.worldSocket != nil {
+			s.worldSocket.SendPacket(p)
+		}
 		return nil
 	}
 
