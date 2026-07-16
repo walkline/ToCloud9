@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+	"github.com/walkline/ToCloud9/apps/gateway/packet"
 )
 
 func TestLayerSwitchSafe(t *testing.T) {
@@ -41,4 +42,16 @@ func TestLayerSwitchSafeTransientInteractions(t *testing.T) {
 			require.False(t, s.layerSwitchSafe(time.Now()))
 		})
 	}
+}
+
+func TestSuppressLayerLoginVisualAcrossHandoffCompletion(t *testing.T) {
+	now := time.Now()
+	s := &GameSession{seamlessLayerSwitch: true}
+	require.True(t, s.shouldSuppressLayerLoginVisual(packet.SMsgSpellGo, now))
+
+	s.seamlessLayerSwitch = false
+	s.layerLoginVisualUntil = now.Add(time.Second)
+	require.True(t, s.shouldSuppressLayerLoginVisual(packet.SMsgSpellGo, now))
+	require.False(t, s.shouldSuppressLayerLoginVisual(packet.SMsgSpellGo, now.Add(time.Second)))
+	require.False(t, s.shouldSuppressLayerLoginVisual(packet.SMsgSpellStart, now))
 }

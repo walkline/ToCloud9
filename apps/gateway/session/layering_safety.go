@@ -70,7 +70,7 @@ func (s *GameSession) HandleLayerSafetyPacket(_ context.Context, p *packet.Packe
 	// AzerothCore emits login/re-entry spell casts immediately after attaching
 	// the character to the destination core. During a seamless handoff these
 	// manifest as a portal effect even though the player did not cast anything.
-	if s.seamlessLayerSwitch && p.Opcode == packet.SMsgSpellGo {
+	if s.shouldSuppressLayerLoginVisual(p.Opcode, time.Now()) {
 		return nil
 	}
 	if client {
@@ -81,4 +81,9 @@ func (s *GameSession) HandleLayerSafetyPacket(_ context.Context, p *packet.Packe
 		s.gameSocket.SendPacket(p)
 	}
 	return nil
+}
+
+func (s *GameSession) shouldSuppressLayerLoginVisual(opcode packet.Opcode, now time.Time) bool {
+	return opcode == packet.SMsgSpellGo &&
+		(s.seamlessLayerSwitch || now.Before(s.layerLoginVisualUntil))
 }

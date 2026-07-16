@@ -473,6 +473,10 @@ func (s *GameSession) InterceptSMsgTimeSyncReq(ctx context.Context, p *packet.Pa
 		}
 		s.setLayerMovementRooted(false)
 		s.sendLayerSwitchCompleted(target)
+		// AzerothCore may emit its login spell immediately after this time-sync
+		// packet. Keep the visual filter alive briefly after the handoff flag is
+		// cleared so that packet cannot leak through due to packet ordering.
+		s.layerLoginVisualUntil = time.Now().Add(time.Second)
 		s.seamlessLayerSwitch = false
 		s.seamlessLayerTarget = nil
 	}
