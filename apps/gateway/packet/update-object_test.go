@@ -198,6 +198,20 @@ func TestParseUpdateObjectStatsTruncatedPacket(t *testing.T) {
 	assert.Error(t, err)
 }
 
+func TestParseUpdateObjectGUIDChanges(t *testing.T) {
+	w := NewWriter(SMsgUpdateObject)
+	w.Uint32(3)
+	w.Uint8(updateTypeValues).GUID(111)
+	valuesPart(w, map[int]uint32{unitFieldHealth: 10})
+	w.Uint8(updateTypeNearObjects).Uint32(1).GUID(222)
+	w.Uint8(updateTypeOutOfRangeObjects).Uint32(2).GUID(333).GUID(444)
+
+	changes, err := ParseUpdateObjectGUIDChanges(w.ToPacket().Data)
+	require.NoError(t, err)
+	assert.Equal(t, []uint64{111, 222}, changes.Visible)
+	assert.Equal(t, []uint64{333, 444}, changes.OutOfRange)
+}
+
 func TestDecompressUpdateObject(t *testing.T) {
 	data := selfValuesBlockPacket(map[int]uint32{unitFieldHealth: 1234})
 

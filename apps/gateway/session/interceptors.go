@@ -56,6 +56,7 @@ const powerTypeUnknown = 0xFF
 func (s *GameSession) InterceptUpdateObject(ctx context.Context, p *packet.Packet) error {
 	s.gameSocket.SendPacket(p)
 	s.trackCharacterStats(p.Data)
+	s.trackVisibleWorldObjects(p.Data)
 	return nil
 }
 
@@ -69,6 +70,45 @@ func (s *GameSession) InterceptCompressedUpdateObject(ctx context.Context, p *pa
 	}
 
 	s.trackCharacterStats(data)
+	s.trackVisibleWorldObjects(data)
+	return nil
+}
+
+func (s *GameSession) trackVisibleWorldObjects(data []byte) {
+	changes, err := packet.ParseUpdateObjectGUIDChanges(data)
+	if err != nil {
+		s.logger.Warn().Err(err).Msg("can't parse update object for seamless layer visibility")
+		return
+	}
+	if s.visibleWorldObjects == nil {
+		s.visibleWorldObjects = map[uint64]struct{}{}
+	}
+	for _, objectGUID := range changes.Visible {
+		s.visibleWorldObjects[objectGUID] = struct{}{}
+	}
+	for _, objectGUID := range changes.OutOfRange {
+		delete(s.visibleWorldObjects, objectGUID)
+	}
+}
+
+func (s *GameSession) clearPreviousLayerObjects() {
+	for objectGUID := range s.visibleWorldObjects {
+		if s.character != nil && objectGUID == s.character.GUID {
+			continue
+		}
+		w := packet.NewWriter(packet.SMsgDestroyObject)
+		w.GUID(objectGUID).Uint8(0)
+		s.gameSocket.Send(w)
+	}
+	s.visibleWorldObjects = map[uint64]struct{}{}
+	if s.character != nil {
+		s.visibleWorldObjects[s.character.GUID] = struct{}{}
+	}
+}
+
+func (s *GameSession) InterceptDestroyObject(_ context.Context, p *packet.Packet) error {
+	delete(s.visibleWorldObjects, p.Reader().ReadGUID())
+	s.gameSocket.SendPacket(p)
 	return nil
 }
 
@@ -308,6 +348,9 @@ func (s *GameSession) InterceptMoveWorldPortAck(ctx context.Context, p *packet.P
 	isReadyForRedirect := <-confirmationIsSuccessfulChan
 	if !isReadyForRedirect {
 		return fmt.Errorf("failed to redirect player with account %d, world server failed to prepare", s.accountID)
+	}
+	if s.seamlessLayerSwitch {
+		s.clearPreviousLayerObjects()
 	}
 
 	s.worldSocket.Close()

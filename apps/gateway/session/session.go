@@ -109,6 +109,7 @@ type GameSession struct {
 	seamlessLayerSwitch    bool
 	seamlessLayerTarget    *pbServ.Server
 	layerMovementCounter   uint32
+	visibleWorldObjects    map[uint64]struct{}
 }
 
 type GameSessionParams struct {

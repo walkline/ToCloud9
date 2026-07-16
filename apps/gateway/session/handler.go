@@ -82,6 +82,7 @@ var HandleMap = map[packet.Opcode]HandlersQueue{
 	packet.SMsgLevelUpInfo:            NewHandler("SMsgLevelUpInfo", (*GameSession).InterceptLevelUpInfo),
 	packet.SMsgUpdateObject:           NewHandler("SMsgUpdateObject", (*GameSession).InterceptUpdateObject),
 	packet.SMsgCompressedUpdateObject: NewHandler("SMsgCompressedUpdateObject", (*GameSession).InterceptCompressedUpdateObject),
+	packet.SMsgDestroyObject:          NewHandler("SMsgDestroyObject", (*GameSession).InterceptDestroyObject),
 	packet.CMsgPing:                   NewHandler("CMsgPing", (*GameSession).HandlePing),
 	packet.SMsgPong:                   NewHandler("SMsgPong", (*GameSession).InterceptPong),
 	packet.SMsgNewWorld:               NewHandler("SMsgNewWorld", (*GameSession).InterceptNewWorld),
