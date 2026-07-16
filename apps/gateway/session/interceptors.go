@@ -96,9 +96,7 @@ func (s *GameSession) clearPreviousLayerObjects() {
 		if s.character != nil && objectGUID == s.character.GUID {
 			continue
 		}
-		w := packet.NewWriter(packet.SMsgDestroyObject)
-		w.GUID(objectGUID).Uint8(0)
-		s.gameSocket.Send(w)
+		s.gameSocket.SendPacket(packet.NewDestroyObjectPacket(objectGUID, false))
 	}
 	s.visibleWorldObjects = map[uint64]struct{}{}
 	if s.character != nil {
@@ -107,7 +105,7 @@ func (s *GameSession) clearPreviousLayerObjects() {
 }
 
 func (s *GameSession) InterceptDestroyObject(_ context.Context, p *packet.Packet) error {
-	delete(s.visibleWorldObjects, p.Reader().ReadGUID())
+	delete(s.visibleWorldObjects, p.Reader().Uint64())
 	s.gameSocket.SendPacket(p)
 	return nil
 }
