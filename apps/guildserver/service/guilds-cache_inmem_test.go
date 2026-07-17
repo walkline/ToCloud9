@@ -207,7 +207,7 @@ func Test_guildsInMemCache_CreateGuildMarksLeaderOnline(t *testing.T) {
 	)
 
 	repoMock := &mocks.GuildsRepo{}
-	repoMock.On("CreateGuild", mock.Anything, realmID, "TestGuild", leaderGUID, mock.Anything).Return(guildID, nil)
+	repoMock.On("CreateGuild", mock.Anything, realmID, "TestGuild", leaderGUID, mock.Anything, mock.Anything).Return(guildID, nil)
 	repoMock.On("GuildByRealmAndID", mock.Anything, realmID, guildID).Return(&repo.Guild{
 		ID: guildID,
 		GuildMembers: []*repo.GuildMember{
@@ -219,7 +219,7 @@ func Test_guildsInMemCache_CreateGuildMarksLeaderOnline(t *testing.T) {
 	cache.cache = map[uint32]map[uint64]*repo.Guild{realmID: {}}
 	cache.guildMembersCache = map[uint32]map[uint64]*repo.GuildMember{realmID: {}}
 
-	id, err := cache.CreateGuild(context.Background(), realmID, "TestGuild", leaderGUID, nil)
+	id, err := cache.CreateGuild(context.Background(), realmID, "TestGuild", leaderGUID, nil, nil)
 	assert.NoError(t, err)
 	assert.Equal(t, guildID, id)
 	assert.Equal(t, repo.GuildMemberStatusOnline, cache.guildMembersCache[realmID][leaderGUID].Status)

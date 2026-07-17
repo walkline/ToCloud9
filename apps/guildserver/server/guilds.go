@@ -292,7 +292,7 @@ func (g *GuildServer) SendGuildMessage(ctx context.Context, params *pb.SendGuild
 
 // CreateGuild handles guild creation request.
 func (g *GuildServer) CreateGuild(ctx context.Context, params *pb.CreateGuildParams) (*pb.CreateGuildResponse, error) {
-	guildID, err := g.guildsService.CreateGuild(ctx, params.RealmID, params.LeaderGUID, params.Name)
+	guildID, err := g.guildsService.CreateGuild(ctx, params.RealmID, params.LeaderGUID, params.Name, params.SignatoryGUIDs)
 	if err != nil {
 		return nil, err
 	}
