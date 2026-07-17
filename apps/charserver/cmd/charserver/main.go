@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"net"
 	"time"
@@ -16,6 +17,7 @@ import (
 	"github.com/walkline/ToCloud9/apps/charserver/server"
 	"github.com/walkline/ToCloud9/apps/charserver/service"
 	"github.com/walkline/ToCloud9/gen/characters/pb"
+	pbGuild "github.com/walkline/ToCloud9/gen/guilds/pb"
 	"github.com/walkline/ToCloud9/shared/events"
 	shrepo "github.com/walkline/ToCloud9/shared/repo"
 )
@@ -108,14 +110,28 @@ func main() {
 	}
 	defer srHandler.Stop()
 
+	guildNames := service.NewGuildNamesService(guildServiceClient(conf))
+
 	grpcServer := grpc.NewServer()
-	pb.RegisterCharactersServiceServer(grpcServer, server.NewCharServer(charRepo, onlineCharsRepo, onlineCharsRepo, itemsTemplate, friendsService))
+	pb.RegisterCharactersServiceServer(grpcServer, server.NewCharServer(charRepo, onlineCharsRepo, onlineCharsRepo, itemsTemplate, friendsService, guildNames))
 
 	log.Info().Str("address", lis.Addr().String()).Msg("🚀 Characters Server Started!")
 
 	if err := grpcServer.Serve(lis); err != nil {
 		panic(err)
 	}
+}
+
+func guildServiceClient(cnf *config.Config) pbGuild.GuildServiceClient {
+	conn, err := grpc.Dial(cnf.GuildsServiceAddress, grpc.WithInsecure(), grpc.WithContextDialer(func(ctx context.Context, s string) (net.Conn, error) {
+		dialer := net.Dialer{Timeout: time.Second * 5}
+		return dialer.DialContext(ctx, "tcp", s)
+	}))
+	if err != nil {
+		log.Fatal().Err(err).Msg("can't connect to guilds service")
+	}
+
+	return pbGuild.NewGuildServiceClient(conn)
 }
 
 func configureDBConn(db *sql.DB) {
