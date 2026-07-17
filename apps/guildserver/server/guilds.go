@@ -2,6 +2,10 @@ package server
 
 import (
 	"context"
+	"errors"
+
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	"github.com/walkline/ToCloud9/apps/guildserver"
 	"github.com/walkline/ToCloud9/apps/guildserver/service"
@@ -91,10 +95,20 @@ func (g *GuildServer) GetRosterInfo(ctx context.Context, params *pb.GetRosterInf
 	}, nil
 }
 
-// InviteMember handles members invite.
+// InviteMember handles invite of a new guild member. Business failures are
+// mapped to gRPC status codes so that callers can react without matching
+// error strings.
 func (g *GuildServer) InviteMember(ctx context.Context, params *pb.InviteMemberParams) (*pb.InviteMemberResponse, error) {
 	err := g.guildsService.InviteMember(ctx, params.RealmID, params.Inviter, params.Invitee, params.InviteeName)
 	if err != nil {
+		switch {
+		case errors.Is(err, service.ErrAlreadyInGuild):
+			return nil, status.Error(codes.FailedPrecondition, err.Error())
+		case errors.Is(err, service.ErrNotEnoughRight):
+			return nil, status.Error(codes.PermissionDenied, err.Error())
+		case errors.Is(err, service.ErrGuildNotFound):
+			return nil, status.Error(codes.NotFound, err.Error())
+		}
 		return nil, err
 	}
 
