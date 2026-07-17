@@ -6,6 +6,8 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"strconv"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -98,7 +100,46 @@ func main() {
 		log.Fatal().Err(err).Msg("can't create gateway service")
 	}
 
-	registryService := server.NewServersRegistry(gameServersService, gatewayService)
+	scopes := make([]service.LayerScope, len(conf.Layering.Scopes))
+	mapLayers := make(map[uint32]uint32, len(conf.Layering.Maps))
+	for _, item := range conf.Layering.Maps {
+		mapLayers[item.MapID] = item.Layers
+	}
+	for _, spec := range conf.Layering.MapSpecs {
+		parts := strings.SplitN(spec, ":", 2)
+		if len(parts) != 2 {
+			log.Fatal().Str("mapLayer", spec).Msg("invalid LAYER_MAPS entry, expected mapID:layers")
+		}
+		mapID, mapErr := strconv.ParseUint(parts[0], 10, 32)
+		layers, layerErr := strconv.ParseUint(parts[1], 10, 32)
+		if mapErr != nil || layerErr != nil || layers == 0 {
+			log.Fatal().Str("mapLayer", spec).Msg("invalid LAYER_MAPS entry")
+		}
+		mapLayers[uint32(mapID)] = uint32(layers)
+	}
+	for i, scope := range conf.Layering.Scopes {
+		scopes[i] = service.LayerScope{Name: scope.Name, MapIDs: scope.MapIDs, ZoneIDs: scope.ZoneIDs, MaxPopulation: scope.MaxPopulation}
+	}
+	if len(scopes) == 0 && (len(conf.Layering.ScopeMapIDs) > 0 || len(conf.Layering.ScopeZoneIDs) > 0) {
+		scopes = append(scopes, service.LayerScope{Name: "environment-scope", MapIDs: conf.Layering.ScopeMapIDs, ZoneIDs: conf.Layering.ScopeZoneIDs, MaxPopulation: conf.Layering.ScopeMaxPopulation})
+	}
+	layerService := service.NewLayer(gameServersService, service.LayerConfig{
+		Enabled:            conf.Layering.Enabled,
+		MaxPopulation:      conf.Layering.MaxPopulation,
+		SwitchCooldown:     time.Duration(conf.Layering.SwitchCooldownSeconds) * time.Second,
+		MaxSwitchesPerHour: conf.Layering.MaxSwitchesPerHour,
+		ReconcileInterval:  time.Duration(conf.Layering.ReconcileIntervalSecs) * time.Second,
+		RealmIDs:           supportedRealms, Scopes: scopes, MapLayers: mapLayers,
+	})
+	for _, realmID := range supportedRealms {
+		if err := gameServersService.UpdateMapLayerConfiguration(mainContext, realmID, mapLayers); err != nil {
+			log.Fatal().Err(err).Uint32("realmID", realmID).Msg("can't apply map layer configuration")
+		}
+	}
+	if conf.Layering.Enabled {
+		go layerService.Run(mainContext)
+	}
+	registryService := server.NewServersRegistry(gameServersService, gatewayService, layerService)
 	if conf.LogLevel == zerolog.DebugLevel {
 		registryService = server.NewServersRegistryDebugLoggerMiddleware(registryService, log.Logger)
 	}

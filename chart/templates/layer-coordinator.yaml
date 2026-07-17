@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-layer-coordinator
+spec:
+  replicas: {{ .Values.layer_coordinator.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ .Release.Name }}-layer-coordinator
+  template:
+    metadata:
+      labels:
+        app: {{ .Release.Name }}-layer-coordinator
+    spec:
+      containers:
+      - name: {{ .Release.Name }}-layer-coordinator
+        image: "{{ .Values.layer_coordinator.image.repository }}:{{ .Values.layer_coordinator.image.tag }}"
+        imagePullPolicy: {{ .Values.layer_coordinator.image.pullPolicy | toString }}
+        env:
+        - name: PORT
+          value: "{{ .Values.layer_coordinator.service.internalPort }}"
+        - name: SERVERS_REGISTRY_SERVICE_ADDRESS
+          value: {{ .Release.Name }}-servers-registry:{{ .Values.servers_registry.service.externalPort }}
+        - name: LAYER_MAX_POPULATION
+          value: "{{ .Values.servers_registry.layering.maxPopulation }}"
+        - name: LAYER_SWITCH_COOLDOWN_SECONDS
+          value: "{{ .Values.servers_registry.layering.switchCooldownSeconds }}"
+        - name: LAYER_MAX_SWITCHES_PER_HOUR
+          value: "{{ .Values.servers_registry.layering.maxSwitchesPerHour }}"
+        ports:
+        - containerPort: {{ .Values.layer_coordinator.service.internalPort }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-layer-coordinator
+spec:
+  type: {{ .Values.layer_coordinator.service.type }}
+  ports:
+  - port: {{ .Values.layer_coordinator.service.externalPort }}
+    targetPort: {{ .Values.layer_coordinator.service.internalPort }}
+  selector:
+    app: {{ .Release.Name }}-layer-coordinator

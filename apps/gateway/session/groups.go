@@ -9,6 +9,7 @@ import (
 	"github.com/walkline/ToCloud9/apps/gateway/packet"
 	pbChar "github.com/walkline/ToCloud9/gen/characters/pb"
 	"github.com/walkline/ToCloud9/gen/group/pb"
+	pbServ "github.com/walkline/ToCloud9/gen/servers-registry/pb"
 	"github.com/walkline/ToCloud9/shared/events"
 )
 
@@ -98,6 +99,7 @@ func (s *GameSession) HandleGroupInvite(ctx context.Context, p *packet.Packet) e
 
 func (s *GameSession) HandleEventGroupInviteCreated(ctx context.Context, e *eBroadcaster.Event) error {
 	eventData := e.Payload.(*events.GroupEventInviteCreatedPayload)
+	s.pendingGroupInviter = eventData.InviterGUID
 
 	resp := packet.NewWriterWithSize(packet.SMsgGroupInvite, 0)
 	resp.Uint8(1)
@@ -125,6 +127,17 @@ func (s *GameSession) HandleEventGroupMemberOnlineStatusChanged(ctx context.Cont
 
 func (s *GameSession) HandleEventGroupCreated(ctx context.Context, e *eBroadcaster.Event) error {
 	eventData := e.Payload.(*events.GroupEventGroupCreatedPayload)
+	s.currentGroupID = uint32(eventData.GroupID)
+	if eventData.LeaderGUID == s.character.GUID {
+		_, err := s.serversRegistryClient.BindGroupToGameServer(ctx, &pbServ.BindGroupToGameServerRequest{
+			Api: root.SupportedServerRegistryVer, RealmID: root.RealmID, GroupID: uint32(eventData.GroupID),
+			MapID: s.character.Map, GameServerAddress: s.currentServerAddress,
+		})
+		if err != nil {
+			return fmt.Errorf("bind group layer affinity: %w", err)
+		}
+	}
+	s.queueLayerSwitchForGroup(uint32(eventData.GroupID))
 
 	var member *events.GroupMember
 	for i, memberItr := range eventData.Members {
@@ -190,6 +203,7 @@ func (s *GameSession) HandleGroupInviteAccept(ctx context.Context, _ *packet.Pac
 	if err != nil {
 		return NewGroupServiceUnavailableErr(err)
 	}
+	s.pendingGroupInviter = 0
 
 	return nil
 }
@@ -502,13 +516,16 @@ func (s *GameSession) LoadGroupForPlayer(ctx context.Context) error {
 	}
 
 	if res.GroupID == 0 {
+		s.currentGroupID = 0
 		return nil
 	}
+	s.currentGroupID = res.GroupID
 
 	return s.SendGroupUpdate(ctx, uint(res.GroupID))
 }
 
 func (s *GameSession) SendGroupUpdate(ctx context.Context, groupID uint) error {
+	s.currentGroupID = uint32(groupID)
 	groupResp, err := s.groupServiceClient.GetGroup(ctx, &pb.GetGroupRequest{
 		Api:     root.SupportedGroupServiceVer,
 		RealmID: root.RealmID,
@@ -579,6 +596,7 @@ func (s *GameSession) HandleEventGroupMemberLeft(ctx context.Context, e *eBroadc
 	eventData := e.Payload.(*events.GroupEventGroupMemberLeftPayload)
 
 	if eventData.MemberGUID == s.character.GUID {
+		s.currentGroupID = 0
 		s.groupMemberStats = nil
 
 		resp := packet.NewWriterWithSize(packet.SMsgGroupUnInvite, 0)
@@ -600,6 +618,7 @@ func (s *GameSession) HandleEventGroupDisband(ctx context.Context, e *eBroadcast
 	eventData := e.Payload.(*events.GroupEventGroupDisbandPayload)
 
 	s.groupMemberStats = nil
+	s.currentGroupID = 0
 
 	s.groupUpdateCounter++
 
@@ -616,6 +635,10 @@ func (s *GameSession) HandleEventGroupDisband(ctx context.Context, e *eBroadcast
 
 func (s *GameSession) HandleEventGroupMemberAdded(ctx context.Context, e *eBroadcaster.Event) error {
 	eventData := e.Payload.(*events.GroupEventGroupMemberAddedPayload)
+	if eventData.MemberGUID == s.character.GUID {
+		s.currentGroupID = uint32(eventData.GroupID)
+		s.queueLayerSwitchForGroup(uint32(eventData.GroupID))
+	}
 
 	s.publishCharacterStatsSnapshot()
 
@@ -673,7 +696,13 @@ func (s *GameSession) HandleEventGroupMembersUpdated(ctx context.Context, e *eBr
 // game server responds with an "offline" stub that marks the member as disconnected.
 func (s *GameSession) HandleRequestPartyMemberStats(ctx context.Context, p *packet.Packet) error {
 	if s.character == nil || s.character.GroupMangedByGameServer {
-		s.worldSocket.SendPacket(p)
+		// A seamless layer handoff deliberately leaves worldSocket nil between
+		// detaching the old core and attaching the destination core. The client
+		// can request party stats in that window; it will request them again once
+		// the destination world is ready.
+		if s.worldSocket != nil {
+			s.worldSocket.SendPacket(p)
+		}
 		return nil
 	}
 
@@ -682,7 +711,9 @@ func (s *GameSession) HandleRequestPartyMemberStats(ctx context.Context, p *pack
 	stats, found := s.groupMemberStats[guid]
 	if !found {
 		// Not a tracked group member (e.g. pet) — let the game server answer.
-		s.worldSocket.SendPacket(p)
+		if s.worldSocket != nil {
+			s.worldSocket.SendPacket(p)
+		}
 		return nil
 	}
 

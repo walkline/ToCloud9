@@ -2,6 +2,7 @@ INSTALL_PATH?=bin
 
 generate:
 	go generate ./...
+	protoc -I api/proto/v1/layer-coordinator -I api/proto/v1/servers-registry --go_out=. --go_opt=Mregistry.proto=github.com/walkline/ToCloud9/gen/servers-registry/pb --go-grpc_out=. --go-grpc_opt=Mregistry.proto=github.com/walkline/ToCloud9/gen/servers-registry/pb api/proto/v1/layer-coordinator/coordinator.proto
 	mockery --dir=gen/servers-registry/pb --output=gen/servers-registry/pb/mocks --name=ServersRegistryServiceClient --structname=ServersRegistryServiceClient
 	mockery --dir=gen/characters/pb --output=gen/characters/pb/mocks --name=CharactersServiceClient --structname=CharactersServiceClient
 	mockery --dir=gen/worldserver/pb --output=gen/worldserver/pb/mocks --name=WorldServerServiceClient --structname=WorldServerServiceClient

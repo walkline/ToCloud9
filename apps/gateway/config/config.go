@@ -33,7 +33,8 @@ type Config struct {
 	CharServiceAddress string `yaml:"charactersServiceAddress" env:"CHAR_SERVICE_ADDRESS" env-default:"localhost:8991"`
 
 	// ServersRegistryServiceAddress is address of servers registry service
-	ServersRegistryServiceAddress string `yaml:"serversRegistryServiceAddress" env:"SERVERS_REGISTRY_SERVICE_ADDRESS" env-default:"localhost:8999"`
+	ServersRegistryServiceAddress  string `yaml:"serversRegistryServiceAddress" env:"SERVERS_REGISTRY_SERVICE_ADDRESS" env-default:"localhost:8999"`
+	LayerCoordinatorServiceAddress string `yaml:"layerCoordinatorServiceAddress" env:"LAYER_COORDINATOR_SERVICE_ADDRESS" env-default:"localhost:8996"`
 
 	// ChatServiceAddress is address of chat service
 	ChatServiceAddress string `yaml:"chatServiceAddress" env:"CHAT_SERVICE_ADDRESS" env-default:"localhost:8992"`
@@ -61,6 +62,15 @@ type Config struct {
 
 	// ShowGameserverConnChangeToClient when enabled sends chat system message to the player with information about connection change.
 	ShowGameserverConnChangeToClient bool `yaml:"showGameserverConnChangeToClient" env:"SHOW_GAMESERVER_CONN_CHANGE_TO_CLIENT" env-default:"true"`
+
+	Layering LayeringConfig `yaml:"layering"`
+}
+
+type LayeringConfig struct {
+	Enabled                bool   `yaml:"enabled" env:"LAYERING_ENABLED" env-default:"false"`
+	SwitchQueueSize        uint32 `yaml:"switchQueueSize" env:"LAYER_SWITCH_QUEUE_SIZE" env-default:"32"`
+	QueueProcessIntervalMS uint32 `yaml:"queueProcessIntervalMs" env:"LAYER_QUEUE_PROCESS_INTERVAL_MS" env-default:"250"`
+	PostCombatDelaySeconds uint32 `yaml:"postCombatDelaySeconds" env:"LAYER_POST_COMBAT_DELAY_SECONDS" env-default:"15"`
 }
 
 func (c Config) PortInt() (p int) {

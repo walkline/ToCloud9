@@ -82,9 +82,12 @@ var HandleMap = map[packet.Opcode]HandlersQueue{
 	packet.SMsgLevelUpInfo:            NewHandler("SMsgLevelUpInfo", (*GameSession).InterceptLevelUpInfo),
 	packet.SMsgUpdateObject:           NewHandler("SMsgUpdateObject", (*GameSession).InterceptUpdateObject),
 	packet.SMsgCompressedUpdateObject: NewHandler("SMsgCompressedUpdateObject", (*GameSession).InterceptCompressedUpdateObject),
+	packet.SMsgDestroyObject:          NewHandler("SMsgDestroyObject", (*GameSession).InterceptDestroyObject),
 	packet.CMsgPing:                   NewHandler("CMsgPing", (*GameSession).HandlePing),
 	packet.SMsgPong:                   NewHandler("SMsgPong", (*GameSession).InterceptPong),
 	packet.SMsgNewWorld:               NewHandler("SMsgNewWorld", (*GameSession).InterceptNewWorld),
+	packet.SMsgTransferPending:        NewHandler("SMsgTransferPending", (*GameSession).InterceptSeamlessWorldPacket),
+	packet.SMsgLoginVerifyWorld:       NewHandler("SMsgLoginVerifyWorld", (*GameSession).InterceptSeamlessWorldPacket),
 	packet.MsgGuildPermissions:        NewHandler("MsgGuildPermissions", (*GameSession).HandleGuildPermissions),
 	packet.MsgGuildBankMoneyWithdrawn: NewHandler("MsgGuildBankMoneyWithdrawn", (*GameSession).HandleGuildBankMoneyWithdrawn),
 	packet.MsgMoveWorldPortAck:        NewHandler("MsgMoveWorldPortAck", (*GameSession).InterceptMoveWorldPortAck),
@@ -112,6 +115,27 @@ var HandleMap = map[packet.Opcode]HandlersQueue{
 	packet.MsgSetRaidDifficulty:        NewHandler("MsgSetRaidDifficulty", (*GameSession).HandleSetRaidDifficulty),
 	packet.CMsgRequestPartyMemberStats: NewHandler("CMsgRequestPartyMemberStats", (*GameSession).HandleRequestPartyMemberStats),
 
+	// State that blocks a layer transition.
+	packet.CMsgLoot:                NewHandler("CMsgLoot", (*GameSession).HandleLayerSafetyPacket),
+	packet.CMsgLootRelease:         NewHandler("CMsgLootRelease", (*GameSession).HandleLayerSafetyPacket),
+	packet.SMsgLootReleaseResponse: NewHandler("SMsgLootReleaseResponse", (*GameSession).HandleLayerSafetyPacket),
+	packet.CMsgInitiateTrade:       NewHandler("CMsgInitiateTrade", (*GameSession).HandleLayerSafetyPacket),
+	packet.CMsgBeginTrade:          NewHandler("CMsgBeginTrade", (*GameSession).HandleLayerSafetyPacket),
+	packet.CMsgCancelTrade:         NewHandler("CMsgCancelTrade", (*GameSession).HandleLayerSafetyPacket),
+	packet.SMsgTradeStatus:         NewHandler("SMsgTradeStatus", (*GameSession).HandleLayerSafetyPacket),
+	packet.CMsgCastSpell:           NewHandler("CMsgCastSpell", (*GameSession).HandleLayerSafetyPacket),
+	packet.CMsgCancelCast:          NewHandler("CMsgCancelCast", (*GameSession).HandleLayerSafetyPacket),
+	packet.CMsgCancelChannelling:   NewHandler("CMsgCancelChannelling", (*GameSession).HandleLayerSafetyPacket),
+	packet.SMsgCastFailed:          NewHandler("SMsgCastFailed", (*GameSession).HandleLayerSafetyPacket),
+	packet.SMsgSpellFailure:        NewHandler("SMsgSpellFailure", (*GameSession).HandleLayerSafetyPacket),
+	packet.SMsgSpellFailedOther:    NewHandler("SMsgSpellFailedOther", (*GameSession).HandleLayerSafetyPacket),
+	packet.SMsgSpellGo:             NewHandler("SMsgSpellGo", (*GameSession).HandleLayerSafetyPacket),
+	packet.MsgChannelUpdate:        NewHandler("MsgChannelUpdate", (*GameSession).HandleLayerSafetyPacket),
+	packet.CMsgRePopRequest:        NewHandler("CMsgRePopRequest", (*GameSession).HandleLayerSafetyPacket),
+	packet.SMsgAttackStart:         NewHandler("SMsgAttackStart", (*GameSession).HandleLayerSafetyPacket),
+	packet.SMsgAttackStop:          NewHandler("SMsgAttackStop", (*GameSession).HandleLayerSafetyPacket),
+	packet.SMsgCancelCombat:        NewHandler("SMsgCancelCombat", (*GameSession).HandleLayerSafetyPacket),
+
 	// Auction House
 	packet.MsgAuctionHello:             NewHandler("MsgAuctionHello", (*GameSession).HandleAuctionHello),
 	packet.CMsgAuctionSellItem:         NewHandler("CMsgAuctionSellItem", (*GameSession).HandleAuctionSellItem),
@@ -127,8 +151,12 @@ var HandleMap = map[packet.Opcode]HandlersQueue{
 	packet.CMsgBattlefieldPort:  NewHandler("CMsgBattlefieldPort", (*GameSession).HandleBattlegroundPort),
 
 	// Movements
-	packet.MsgMoveStop:      NewHandler("MsgMoveStop", (*GameSession).HandleMovement),
-	packet.MsgMoveHeartbeat: NewHandler("MsgMoveHeartbeat", (*GameSession).HandleMovement),
+	packet.MsgMoveStartForward:  NewHandler("MsgMoveStartForward", (*GameSession).HandleMovement),
+	packet.MsgMoveStartBackward: NewHandler("MsgMoveStartBackward", (*GameSession).HandleMovement),
+	packet.MsgMoveStop:          NewHandler("MsgMoveStop", (*GameSession).HandleMovement),
+	packet.MsgMoveJump:          NewHandler("MsgMoveJump", (*GameSession).HandleMovement),
+	packet.MsgMoveFallLand:      NewHandler("MsgMoveFallLand", (*GameSession).HandleMovement),
+	packet.MsgMoveHeartbeat:     NewHandler("MsgMoveHeartbeat", (*GameSession).HandleMovement),
 }
 
 type Handler func(*GameSession, context.Context, *packet.Packet) error

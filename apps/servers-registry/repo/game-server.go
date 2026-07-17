@@ -22,6 +22,9 @@ type GameServer struct {
 	// If it's cross-realm then RealmID should be 0.
 	RealmID      uint32
 	IsCrossRealm bool
+	// LayerID identifies a logical copy of the open world. Layer 0 preserves
+	// the legacy map-balancing pool and is not population-gated.
+	LayerID uint32
 
 	AvailableMaps []uint32
 
@@ -66,9 +69,9 @@ func (g *GameServer) IsAllMapsAvailable() bool {
 
 func (g *GameServer) Copy() GameServer {
 	cp := *g
-	copy(cp.AvailableMaps, g.AvailableMaps)
-	copy(cp.AssignedMapsToHandle, g.AssignedMapsToHandle)
-	copy(cp.AssignedButPendingMaps, g.AssignedButPendingMaps)
+	cp.AvailableMaps = append([]uint32(nil), g.AvailableMaps...)
+	cp.AssignedMapsToHandle = append([]uint32(nil), g.AssignedMapsToHandle...)
+	cp.AssignedButPendingMaps = append([]uint32(nil), g.AssignedButPendingMaps...)
 	return cp
 }
 

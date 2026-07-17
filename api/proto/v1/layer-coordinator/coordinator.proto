@@ -1,0 +1,18 @@
+syntax = "proto3";
+package layercoordinator.v1;
+
+option go_package = "gen/layer-coordinator/pb";
+
+import "registry.proto";
+
+// LayerCoordinator is the optional player-facing layering boundary. The
+// servers registry remains responsible for map placement and group affinity;
+// gateways use this service to orchestrate seamless player transitions.
+service LayerCoordinatorService {
+  rpc SelectGameServerForPlayer(.v1.SelectGameServerForPlayerRequest) returns (.v1.SelectGameServerForPlayerResponse);
+  rpc PollPlayerLayerAction(.v1.PollPlayerLayerActionRequest) returns (.v1.SelectGameServerForPlayerResponse);
+  rpc CompletePlayerLayerSwitch(.v1.CompletePlayerLayerSwitchRequest) returns (.v1.CompletePlayerLayerSwitchResponse);
+  rpc ReleasePlayerLayer(.v1.ReleasePlayerLayerRequest) returns (.v1.ReleasePlayerLayerResponse);
+  rpc GetLayerStats(.v1.GetLayerStatsRequest) returns (.v1.GetLayerStatsResponse);
+  rpc ForcePlayerLayer(.v1.ForcePlayerLayerRequest) returns (.v1.ForcePlayerLayerResponse);
+}

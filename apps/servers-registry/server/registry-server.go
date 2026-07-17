@@ -3,8 +3,11 @@ package server
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/rs/zerolog/log"
 	"google.golang.org/grpc/peer"
@@ -18,18 +21,80 @@ const ver = "0.0.1"
 
 type serversRegistry struct {
 	pb.UnimplementedServersRegistryServiceServer
-	gService  service.GameServer
-	lbService service.Gateway
+	gService       service.GameServer
+	lbService      service.Gateway
+	layerService   service.Layer
+	registrationMu sync.Mutex
 }
 
-func NewServersRegistry(gService service.GameServer, lbService service.Gateway) pb.ServersRegistryServiceServer {
+func NewServersRegistry(gService service.GameServer, lbService service.Gateway, layerService service.Layer) pb.ServersRegistryServiceServer {
 	return &serversRegistry{
-		gService:  gService,
-		lbService: lbService,
+		gService:     gService,
+		lbService:    lbService,
+		layerService: layerService,
 	}
 }
 
+func (s *serversRegistry) SelectGameServerForPlayer(ctx context.Context, request *pb.SelectGameServerForPlayerRequest) (*pb.SelectGameServerForPlayerResponse, error) {
+	selection, err := s.layerService.Select(
+		ctx, request.RealmID, request.MapID, request.ZoneID, request.GroupID, request.PlayerGUID, request.PreferredPlayerGUID,
+		service.LayerSelectReason(request.Reason), request.CurrentGameServerAddress,
+	)
+	if err != nil {
+		return nil, err
+	}
+	response := &pb.SelectGameServerForPlayerResponse{
+		Api:               ver,
+		Status:            pb.SelectGameServerForPlayerResponse_Status(selection.Status),
+		LayerID:           selection.LayerID,
+		RetryAfterSeconds: uint32(selection.RetryAfter.Round(time.Second) / time.Second),
+	}
+	if selection.Server != nil {
+		response.GameServer = &pb.Server{
+			ID:           selection.Server.ID,
+			Address:      selection.Server.Address,
+			GrpcAddress:  selection.Server.GRPCAddress,
+			RealmID:      selection.Server.RealmID,
+			IsCrossRealm: selection.Server.IsCrossRealm,
+			LayerID:      selection.LayerID,
+		}
+	}
+	return response, nil
+}
+
+func (s *serversRegistry) GetMapLayerConfiguration(_ context.Context, request *pb.GetMapLayerConfigurationRequest) (*pb.GetMapLayerConfigurationResponse, error) {
+	config := s.layerService.MapConfiguration(request.RealmID)
+	resp := &pb.GetMapLayerConfigurationResponse{Api: ver}
+	for mapID, count := range config {
+		resp.Maps = append(resp.Maps, &pb.MapLayerConfiguration{MapID: mapID, LayerCount: count})
+	}
+	sort.Slice(resp.Maps, func(i, j int) bool { return resp.Maps[i].MapID < resp.Maps[j].MapID })
+	return resp, nil
+}
+
+func (s *serversRegistry) UpdateMapLayerConfiguration(ctx context.Context, request *pb.UpdateMapLayerConfigurationRequest) (*pb.UpdateMapLayerConfigurationResponse, error) {
+	config := make(map[uint32]uint32, len(request.Maps))
+	for _, item := range request.Maps {
+		if item != nil {
+			config[item.MapID] = item.LayerCount
+		}
+	}
+	if err := s.layerService.UpdateMapConfiguration(ctx, request.RealmID, config); err != nil {
+		return nil, err
+	}
+	return &pb.UpdateMapLayerConfigurationResponse{Api: ver}, nil
+}
+
+func (s *serversRegistry) BindGroupToGameServer(ctx context.Context, request *pb.BindGroupToGameServerRequest) (*pb.BindGroupToGameServerResponse, error) {
+	if err := s.layerService.BindGroup(ctx, request.RealmID, request.GroupID, request.MapID, request.GameServerAddress); err != nil {
+		return nil, err
+	}
+	return &pb.BindGroupToGameServerResponse{Api: ver}, nil
+}
+
 func (s *serversRegistry) RegisterGameServer(ctx context.Context, request *pb.RegisterGameServerRequest) (*pb.RegisterGameServerResponse, error) {
+	s.registrationMu.Lock()
+	defer s.registrationMu.Unlock()
 	p, _ := peer.FromContext(ctx)
 
 	log.Info().Interface("request", request).Msg("New request to add game server")
@@ -39,6 +104,10 @@ func (s *serversRegistry) RegisterGameServer(ctx context.Context, request *pb.Re
 		host = request.PreferredHostName
 	}
 
+	layerID := request.LayerID
+	if layerID == 0 {
+		layerID = s.layerService.RegistrationLayer(ctx, request.RealmID)
+	}
 	gameServer := &repo.GameServer{
 		Address:         fmt.Sprintf("%s:%d", host, request.GamePort),
 		HealthCheckAddr: fmt.Sprintf("%s:%d", host, request.HealthPort),
@@ -46,6 +115,7 @@ func (s *serversRegistry) RegisterGameServer(ctx context.Context, request *pb.Re
 		RealmID:         request.RealmID,
 		IsCrossRealm:    request.IsCrossRealm,
 		AvailableMaps:   stringToAvailableMaps(request.AvailableMaps),
+		LayerID:         layerID,
 	}
 
 	err := s.gService.Register(ctx, gameServer)
@@ -73,6 +143,8 @@ func (s *serversRegistry) AvailableGameServersForMapAndRealm(ctx context.Context
 			RealmID:      servers[i].RealmID,
 			IsCrossRealm: servers[i].IsCrossRealm,
 			GrpcAddress:  servers[i].GRPCAddress,
+			ID:           servers[i].ID,
+			LayerID:      servers[i].LayerID,
 		})
 	}
 
@@ -109,6 +181,7 @@ func (s *serversRegistry) ListGameServersForRealm(ctx context.Context, request *
 			ActiveConnections: servers[i].ActiveConnections,
 			AvailableMaps:     servers[i].AvailableMaps,
 			AssignedMaps:      servers[i].AssignedMapsToHandle,
+			LayerID:           servers[i].LayerID,
 			Diff: &pb.GameServerDetailed_Diff{
 				Mean:         servers[i].Diff.Mean,
 				Median:       servers[i].Diff.Median,
@@ -142,6 +215,7 @@ func (s *serversRegistry) ListAllGameServers(ctx context.Context, request *pb.Li
 			ActiveConnections: servers[i].ActiveConnections,
 			AvailableMaps:     servers[i].AvailableMaps,
 			AssignedMaps:      servers[i].AssignedMapsToHandle,
+			LayerID:           servers[i].LayerID,
 			Diff: &pb.GameServerDetailed_Diff{
 				Mean:         servers[i].Diff.Mean,
 				Median:       servers[i].Diff.Median,

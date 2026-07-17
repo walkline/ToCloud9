@@ -1,0 +1,171 @@
+package session
+
+import (
+	"context"
+	"fmt"
+	"time"
+
+	root "github.com/walkline/ToCloud9/apps/gateway"
+	"github.com/walkline/ToCloud9/apps/gateway/packet"
+	pbServ "github.com/walkline/ToCloud9/gen/servers-registry/pb"
+)
+
+type layerSwitchRequest struct {
+	preferredPlayerGUID uint64
+	groupID             uint32
+	reason              pbServ.SelectGameServerForPlayerRequest_Reason
+	notBefore           time.Time
+}
+
+// This file is deliberately a transport adapter, not a placement service.
+// Every destination and every balancing/cooldown decision comes from the
+// servers registry. The gateway only waits for a safe socket handoff and then
+// applies the registry response without interpreting layer population.
+
+func (s *GameSession) queueLayerSwitchForGroup(groupID uint32) {
+	if !s.layeringEnabled || groupID == 0 || s.character == nil {
+		return
+	}
+	select {
+	case s.layerSwitchQueue <- layerSwitchRequest{groupID: groupID, reason: pbServ.SelectGameServerForPlayerRequest_GROUP_JOIN, notBefore: time.Now().Add(100 * time.Millisecond)}:
+	default:
+		s.SendSysMessage("Your layer switch queue is full. Please try again shortly.")
+	}
+}
+
+func (s *GameSession) queueLayerSwitchToPlayer(preferredPlayerGUID uint64) {
+	if !s.layeringEnabled || preferredPlayerGUID == 0 || s.character == nil {
+		return
+	}
+	select {
+	case s.layerSwitchQueue <- layerSwitchRequest{preferredPlayerGUID: preferredPlayerGUID, reason: pbServ.SelectGameServerForPlayerRequest_GROUP_JOIN}:
+	default:
+		s.SendSysMessage("Your layer switch queue is full. Please try again shortly.")
+	}
+}
+
+func (s *GameSession) queueSafeLayerPlacement() {
+	if !s.layeringEnabled || s.character == nil {
+		return
+	}
+	select {
+	case s.layerSwitchQueue <- layerSwitchRequest{reason: pbServ.SelectGameServerForPlayerRequest_MAP_CHANGE}:
+	default:
+		// Lifecycle placement is opportunistic; never displace an explicit party
+		// request or disturb the player merely because the queue is busy.
+	}
+}
+
+func (s *GameSession) processNextLayerSwitch(ctx context.Context) error {
+	if !s.layeringEnabled || s.character == nil || s.layerSwitchInProgress || s.teleportingToNewMap != nil {
+		return nil
+	}
+	if time.Since(s.lastLayerLifecyclePoll) >= 2*time.Second {
+		s.lastLayerLifecyclePoll = time.Now()
+		action, err := s.layerCoordinatorClient.PollPlayerLayerAction(ctx, &pbServ.PollPlayerLayerActionRequest{
+			Api: root.SupportedServerRegistryVer, RealmID: root.RealmID, MapID: s.character.Map,
+			ZoneID: s.character.Zone, PlayerGUID: s.character.GUID, CurrentGameServerAddress: s.currentServerAddress,
+			GroupID: s.currentGroupID,
+		})
+		if err != nil {
+			return err
+		}
+		if action.GameServer != nil && action.GameServer.Address != s.currentServerAddress && s.layerSwitchSafe(time.Now()) {
+			return s.beginLayerSwitch(action.GameServer, action.LayerID)
+		}
+	}
+	if !s.layerSwitchSafe(time.Now()) {
+		return nil
+	}
+	var request layerSwitchRequest
+	select {
+	case request = <-s.layerSwitchQueue:
+	default:
+		return nil
+	}
+	if time.Now().Before(request.notBefore) {
+		select {
+		case s.layerSwitchQueue <- request:
+		default:
+		}
+		return nil
+	}
+
+	selection, err := s.layerCoordinatorClient.SelectGameServerForPlayer(ctx, &pbServ.SelectGameServerForPlayerRequest{
+		Api:                      root.SupportedServerRegistryVer,
+		RealmID:                  root.RealmID,
+		MapID:                    s.character.Map,
+		ZoneID:                   s.character.Zone,
+		PlayerGUID:               s.character.GUID,
+		PreferredPlayerGUID:      request.preferredPlayerGUID,
+		GroupID:                  request.groupID,
+		Reason:                   request.reason,
+		CurrentGameServerAddress: s.currentServerAddress,
+	})
+	if err != nil {
+		return err
+	}
+	if selection.Status != pbServ.SelectGameServerForPlayerResponse_OK {
+		if request.reason != pbServ.SelectGameServerForPlayerRequest_GROUP_JOIN {
+			return nil
+		}
+		switch selection.Status {
+		case pbServ.SelectGameServerForPlayerResponse_THROTTLED:
+			s.SendSysMessage(fmt.Sprintf("Layer switch is cooling down and remains queued for %d seconds.", selection.RetryAfterSeconds))
+			request.notBefore = time.Now().Add(time.Duration(selection.RetryAfterSeconds) * time.Second)
+			s.layerSwitchQueue <- request
+		case pbServ.SelectGameServerForPlayerResponse_HOURLY_LIMIT_REACHED:
+			s.SendSysMessage(fmt.Sprintf("Hourly layer switch limit reached; the move remains queued for %d seconds.", selection.RetryAfterSeconds))
+			request.notBefore = time.Now().Add(time.Duration(selection.RetryAfterSeconds) * time.Second)
+			s.layerSwitchQueue <- request
+		default:
+			s.SendSysMessage("No compatible layer is currently available.")
+		}
+		return nil
+	}
+	if selection.GameServer == nil || selection.GameServer.Address == s.currentServerAddress {
+		s.currentLayerID = selection.LayerID
+		return nil
+	}
+
+	// Trigger the normal client world-port acknowledgement. The existing
+	// redirect handshake then saves the character and reconnects it to the
+	// selected core, even though the map itself does not change.
+	return s.beginLayerSwitch(selection.GameServer, selection.LayerID)
+}
+
+func (s *GameSession) beginLayerSwitch(target *pbServ.Server, layerID uint32) error {
+	if target == nil || s.character == nil {
+		return nil
+	}
+	target.LayerID = layerID
+	s.layerSwitchInProgress = true
+	s.layerSwitchTarget = target
+	mapID := s.character.Map
+	s.teleportingToNewMap = &mapID
+	s.seamlessLayerSwitch = true
+	s.seamlessLayerTarget = target
+	s.pendingLayerMovement = nil
+	s.sendLayerSwitchStarted(target)
+
+	// A same-map layer move does not need a client world-port. Acknowledge the
+	// synthetic transfer to the source core internally; InterceptNewWorld will
+	// likewise acknowledge the destination core without exposing NEW_WORLD to
+	// the client (and therefore without opening a loading screen).
+	ack := &packet.Packet{Opcode: packet.MsgMoveWorldPortAck, Source: packet.SourceGameClient}
+	return s.InterceptMoveWorldPortAck(s.ctx, ack)
+}
+
+func (s *GameSession) completeLayerSwitch(success bool) {
+	if !s.layeringEnabled || s.character == nil {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	_, err := s.layerCoordinatorClient.CompletePlayerLayerSwitch(ctx, &pbServ.CompletePlayerLayerSwitchRequest{
+		Api: root.SupportedServerRegistryVer, RealmID: root.RealmID, PlayerGUID: s.character.GUID, Success: success,
+	})
+	if err != nil {
+		s.logger.Warn().Err(err).Msg("can't complete player layer switch")
+	}
+}

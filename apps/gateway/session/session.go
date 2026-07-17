@@ -2,6 +2,7 @@ package session
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"sync"
@@ -15,11 +16,12 @@ import (
 	"github.com/walkline/ToCloud9/apps/gateway/service"
 	"github.com/walkline/ToCloud9/apps/gateway/sockets"
 	"github.com/walkline/ToCloud9/apps/gateway/sockets/worldsocket"
+	pbAH "github.com/walkline/ToCloud9/gen/auctionhouse/pb"
 	pbChar "github.com/walkline/ToCloud9/gen/characters/pb"
 	pbChat "github.com/walkline/ToCloud9/gen/chat/pb"
 	pbGroup "github.com/walkline/ToCloud9/gen/group/pb"
 	pbGuild "github.com/walkline/ToCloud9/gen/guilds/pb"
-	pbAH "github.com/walkline/ToCloud9/gen/auctionhouse/pb"
+	pbCoordinator "github.com/walkline/ToCloud9/gen/layer-coordinator/pb"
 	pbMail "github.com/walkline/ToCloud9/gen/mail/pb"
 	pbMatchmaking "github.com/walkline/ToCloud9/gen/matchmaking/pb"
 	pbServ "github.com/walkline/ToCloud9/gen/servers-registry/pb"
@@ -46,6 +48,7 @@ type GameSession struct {
 
 	charServiceClient             pbChar.CharactersServiceClient
 	serversRegistryClient         pbServ.ServersRegistryServiceClient
+	layerCoordinatorClient        pbCoordinator.LayerCoordinatorServiceClient
 	chatServiceClient             pbChat.ChatServiceClient
 	guildServiceClient            pbGuild.GuildServiceClient
 	mailServiceClient             pbMail.MailServiceClient
@@ -69,6 +72,7 @@ type GameSession struct {
 	pingToWorldServerStarted time.Time
 
 	accountID uint32
+	authDB    *sql.DB
 	character *LoggedInCharacter
 
 	// groupMemberStats holds last known stats of the character's group members,
@@ -93,11 +97,31 @@ type GameSession struct {
 	// showGameserverConnChangeToClient when enabled sends chat system message
 	// to the player with information about connection change.
 	showGameserverConnChangeToClient bool
+
+	layeringEnabled        bool
+	currentLayerID         uint32
+	currentServerAddress   string
+	layerSwitchQueue       chan layerSwitchRequest
+	layerSwitchInterval    time.Duration
+	layerPostCombatDelay   time.Duration
+	layerSwitchInProgress  bool
+	layerSwitchTarget      *pbServ.Server
+	pendingGroupInviter    uint64
+	currentGroupID         uint32
+	lastLayerLifecyclePoll time.Time
+	layerSafety            layerSafetyState
+	seamlessLayerSwitch    bool
+	seamlessLayerTarget    *pbServ.Server
+	layerLoginVisualUntil  time.Time
+	pendingLayerMovement   *packet.Packet
+	visibleWorldObjects    map[uint64]struct{}
 }
 
 type GameSessionParams struct {
+	AuthDB                           *sql.DB
 	CharServiceClient                pbChar.CharactersServiceClient
 	ServersRegistryClient            pbServ.ServersRegistryServiceClient
+	LayerCoordinatorClient           pbCoordinator.LayerCoordinatorServiceClient
 	ChatServiceClient                pbChat.ChatServiceClient
 	GuildsServiceClient              pbGuild.GuildServiceClient
 	MailServiceClient                pbMail.MailServiceClient
@@ -112,6 +136,10 @@ type GameSessionParams struct {
 	GameServerGRPCConnMgr            conn.GameServerGRPCConnMgr
 	PacketProcessTimeout             time.Duration
 	ShowGameserverConnChangeToClient bool
+	LayeringEnabled                  bool
+	LayerSwitchQueueSize             uint32
+	LayerSwitchProcessInterval       time.Duration
+	LayerPostCombatDelay             time.Duration
 }
 
 func NewGameSession(
@@ -124,6 +152,24 @@ func NewGameSession(
 	if packetProcessTimeout == 0 {
 		packetProcessTimeout = defaultPacketProcessingTimeout
 	}
+	queueSize := params.LayerSwitchQueueSize
+	if queueSize == 0 {
+		queueSize = 32
+	}
+	queueInterval := params.LayerSwitchProcessInterval
+	if queueInterval == 0 {
+		queueInterval = 250 * time.Millisecond
+	}
+	postCombatDelay := params.LayerPostCombatDelay
+	if postCombatDelay == 0 {
+		postCombatDelay = 15 * time.Second
+	}
+	coordinatorClient := params.LayerCoordinatorClient
+	if coordinatorClient == nil {
+		// Backward-compatible for embedders and tests during the coordinator
+		// rollout. Production gateways always receive the dedicated client.
+		coordinatorClient, _ = any(params.ServersRegistryClient).(pbCoordinator.LayerCoordinatorServiceClient)
+	}
 
 	s := &GameSession{
 		ctx:        ctx,
@@ -131,9 +177,11 @@ func NewGameSession(
 		gameSocket: gameSocket,
 		authPacket: authPacket,
 		accountID:  accountID,
+		authDB:     params.AuthDB,
 
 		charServiceClient:                params.CharServiceClient,
 		serversRegistryClient:            params.ServersRegistryClient,
+		layerCoordinatorClient:           coordinatorClient,
 		chatServiceClient:                params.ChatServiceClient,
 		guildServiceClient:               params.GuildsServiceClient,
 		mailServiceClient:                params.MailServiceClient,
@@ -147,6 +195,10 @@ func NewGameSession(
 		realmNamesService:                params.RealmNamesService,
 		gameServerGRPCConnMgr:            params.GameServerGRPCConnMgr,
 		showGameserverConnChangeToClient: params.ShowGameserverConnChangeToClient,
+		layeringEnabled:                  params.LayeringEnabled,
+		layerSwitchQueue:                 make(chan layerSwitchRequest, queueSize),
+		layerSwitchInterval:              queueInterval,
+		layerPostCombatDelay:             postCombatDelay,
 
 		sessionSafeFuChan:        make(chan func(*GameSession), 100),
 		packetProcessTimeout:     packetProcessTimeout,
@@ -183,6 +235,8 @@ func (s *GameSession) HandlePackets(ctx context.Context) {
 		}
 	}
 
+	layerSwitchTicker := time.NewTicker(s.layerSwitchInterval)
+	defer layerSwitchTicker.Stop()
 	var worldReadChan <-chan *packet.Packet
 	var err error
 	for {
@@ -202,6 +256,12 @@ func (s *GameSession) HandlePackets(ctx context.Context) {
 			if !found {
 				if s.worldSocket != nil {
 					s.worldSocket.WriteChannel() <- p
+				}
+				// The 3.3.5 client sends this after completing a taxi/controlled
+				// spline. The core receives it first; the queued placement then uses
+				// the settled position as an unobtrusive layer-switch opportunity.
+				if p.Opcode == packet.CMsgMoveSplineDone {
+					s.queueSafeLayerPlacement()
 				}
 				break
 			}
@@ -251,6 +311,11 @@ func (s *GameSession) HandlePackets(ctx context.Context) {
 		case event := <-s.channelMembership.GetEventsStream():
 			handleEvent(event)
 
+		case <-layerSwitchTicker.C:
+			if err := s.processNextLayerSwitch(c); err != nil {
+				s.logger.Error().Err(err).Msg("can't process queued layer switch")
+			}
+
 		case <-c.Done():
 			return
 		}
@@ -261,7 +326,7 @@ func (s *GameSession) Login(ctx context.Context, p *packet.Packet) error {
 	// Reset sending control for new login.
 	s.packetSendingControl = PacketSendingControl{}
 
-	char, socket, err := s.connectToGameServer(ctx, p.Reader().Uint64(), nil, nil)
+	char, socket, err := s.connectToGameServer(ctx, p.Reader().Uint64(), nil, false, nil)
 	if err != nil {
 		code := packet.LoginErrorCodeLoginFailed
 		switch {
@@ -420,7 +485,7 @@ func (s *GameSession) InterceptPong(ctx context.Context, p *packet.Packet) error
 	return nil
 }
 
-func (s *GameSession) connectToGameServer(ctx context.Context, characterGUID uint64, mapID *uint32, preLoginHook func(sockets.Socket)) (*pbChar.LogInCharacter, sockets.Socket, error) {
+func (s *GameSession) connectToGameServer(ctx context.Context, characterGUID uint64, mapID *uint32, preserveCurrentLayer bool, preLoginHook func(sockets.Socket)) (*pbChar.LogInCharacter, sockets.Socket, error) {
 	r, err := s.charServiceClient.CharactersToLoginByGUID(ctx, &pbChar.CharactersToLoginByGUIDRequest{
 		Api:           root.SupportedCharServiceVer,
 		CharacterGUID: characterGUID,
@@ -453,15 +518,61 @@ func (s *GameSession) connectToGameServer(ctx context.Context, characterGUID uin
 	if len(serversResult.GameServers) == 0 {
 		return nil, nil, fmt.Errorf("%w, mapID %v", worldConnectErrInstanceNotFound, mapIDToLogin)
 	}
+	selectedServer := serversResult.GameServers[0]
+	if s.layeringEnabled && preserveCurrentLayer && s.currentLayerID != 0 {
+		selectedServer = nil
+		for _, server := range serversResult.GameServers {
+			if server.LayerID == s.currentLayerID {
+				selectedServer = server
+				break
+			}
+		}
+		if selectedServer == nil {
+			return nil, nil, fmt.Errorf("%w, layerID %v", worldConnectErrInstanceNotFound, s.currentLayerID)
+		}
+	} else if s.layeringEnabled {
+		groupID := s.currentGroupID
+		if groupID == 0 && s.groupServiceClient != nil {
+			if group, groupErr := s.groupServiceClient.GetGroupIDByPlayer(ctx, &pbGroup.GetGroupIDByPlayerRequest{Api: root.SupportedGroupServiceVer, RealmID: root.RealmID, Player: characterGUID}); groupErr == nil {
+				groupID = group.GroupID
+				s.currentGroupID = groupID
+			}
+		}
+		reason := pbServ.SelectGameServerForPlayerRequest_LOGIN
+		if mapID != nil {
+			reason = pbServ.SelectGameServerForPlayerRequest_MAP_CHANGE
+		}
+		selection, selectErr := s.layerCoordinatorClient.SelectGameServerForPlayer(ctx, &pbServ.SelectGameServerForPlayerRequest{
+			Api:                      root.SupportedServerRegistryVer,
+			RealmID:                  root.RealmID,
+			MapID:                    mapIDToLogin,
+			PlayerGUID:               characterGUID,
+			ZoneID:                   r.Character.Zone,
+			GroupID:                  groupID,
+			Reason:                   reason,
+			CurrentGameServerAddress: s.currentServerAddress,
+		})
+		if selectErr != nil {
+			return nil, nil, fmt.Errorf("can't select player layer: %w", selectErr)
+		}
+		if selection.Status != pbServ.SelectGameServerForPlayerResponse_OK || selection.GameServer == nil {
+			return nil, nil, fmt.Errorf("%w, mapID %v", worldConnectErrInstanceNotFound, mapIDToLogin)
+		}
+		selectedServer = selection.GameServer
+		s.currentLayerID = selection.LayerID
+	}
 
-	s.gameServerGRPCConnMgr.AddAddressMapping(serversResult.GameServers[0].Address, serversResult.GameServers[0].GrpcAddress)
+	s.gameServerGRPCConnMgr.AddAddressMapping(selectedServer.Address, selectedServer.GrpcAddress)
 
-	s.gameServerGRPCClient, err = s.gameServerGRPCConnMgr.GRPCConnByGameServerAddress(serversResult.GameServers[0].Address)
+	s.gameServerGRPCClient, err = s.gameServerGRPCConnMgr.GRPCConnByGameServerAddress(selectedServer.Address)
 	if err != nil {
 		return nil, nil, fmt.Errorf("can't get game server grpc client, err: %w", err)
 	}
 
-	socket, err := s.connectToGameServerWithAddress(ctx, characterGUID, serversResult.GameServers[0].Address, preLoginHook)
+	socket, err := s.connectToGameServerWithAddress(ctx, characterGUID, selectedServer.Address, preLoginHook)
+	if err == nil {
+		s.currentServerAddress = selectedServer.Address
+	}
 	return r.Character, socket, err
 }
 
@@ -531,7 +642,6 @@ func (s *GameSession) processWorldPacketsInPlace(ctx context.Context, f func(*pa
 }
 
 func (s *GameSession) onWorldSocketClosed() {
-
 	go func(charGUID uint64) {
 		s.SendSysMessage("Lost connection with world server...")
 		time.Sleep(time.Second * 2) // giving some time to recover
@@ -543,7 +653,7 @@ func (s *GameSession) onWorldSocketClosed() {
 		var char *pbChar.LogInCharacter
 		var socket sockets.Socket
 		for i := 0; i < 3; i++ {
-			char, socket, err = s.connectToGameServer(context.TODO(), charGUID, nil, func(_ sockets.Socket) {
+			char, socket, err = s.connectToGameServer(context.TODO(), charGUID, nil, true, func(_ sockets.Socket) {
 				_, err := s.charServiceClient.SavePlayerPosition(context.TODO(), &pbChar.SavePlayerPositionRequest{
 					Api:      root.SupportedCharServiceVer,
 					RealmID:  root.RealmID,
@@ -592,7 +702,12 @@ func (s *GameSession) onWorldSocketClosed() {
 			}
 
 			if session.showGameserverConnChangeToClient {
-				session.SendSysMessage(fmt.Sprintf("Connection recovered! New gameserver: %s. Sorry for inconvenience.", s.worldSocket.Address()))
+				gmLevel, _ := session.accountGMLevel(context.Background())
+				if gmLevel > 0 {
+					session.SendSysMessage(fmt.Sprintf("Connection recovered! New gameserver: %s. Sorry for inconvenience.", s.worldSocket.Address()))
+				} else {
+					session.SendSysMessage("Connection recovered! Sorry for inconvenience.")
+				}
 			} else {
 				session.SendSysMessage("Connection recovered! Sorry for inconvenience.")
 			}
@@ -603,6 +718,16 @@ func (s *GameSession) onWorldSocketClosed() {
 func (s *GameSession) onLoggedOut() {
 	if s.character == nil {
 		return
+	}
+	if s.layeringEnabled {
+		releaseCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		_, err := s.layerCoordinatorClient.ReleasePlayerLayer(releaseCtx, &pbServ.ReleasePlayerLayerRequest{
+			Api: root.SupportedServerRegistryVer, RealmID: root.RealmID, PlayerGUID: s.character.GUID,
+		})
+		if err != nil {
+			s.logger.Warn().Err(err).Msg("can't release player layer assignment")
+		}
 	}
 
 	err := s.eventsProducer.CharacterLoggedOut(&events.GWEventCharacterLoggedOutPayload{

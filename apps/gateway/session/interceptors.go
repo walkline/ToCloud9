@@ -56,6 +56,7 @@ const powerTypeUnknown = 0xFF
 func (s *GameSession) InterceptUpdateObject(ctx context.Context, p *packet.Packet) error {
 	s.gameSocket.SendPacket(p)
 	s.trackCharacterStats(p.Data)
+	s.trackVisibleWorldObjects(p.Data)
 	return nil
 }
 
@@ -69,6 +70,43 @@ func (s *GameSession) InterceptCompressedUpdateObject(ctx context.Context, p *pa
 	}
 
 	s.trackCharacterStats(data)
+	s.trackVisibleWorldObjects(data)
+	return nil
+}
+
+func (s *GameSession) trackVisibleWorldObjects(data []byte) {
+	changes, err := packet.ParseUpdateObjectGUIDChanges(data)
+	if err != nil {
+		s.logger.Warn().Err(err).Msg("can't parse update object for seamless layer visibility")
+		return
+	}
+	if s.visibleWorldObjects == nil {
+		s.visibleWorldObjects = map[uint64]struct{}{}
+	}
+	for _, objectGUID := range changes.Visible {
+		s.visibleWorldObjects[objectGUID] = struct{}{}
+	}
+	for _, objectGUID := range changes.OutOfRange {
+		delete(s.visibleWorldObjects, objectGUID)
+	}
+}
+
+func (s *GameSession) clearPreviousLayerObjects() {
+	for objectGUID := range s.visibleWorldObjects {
+		if s.character != nil && objectGUID == s.character.GUID {
+			continue
+		}
+		s.gameSocket.SendPacket(packet.NewDestroyObjectPacket(objectGUID, false))
+	}
+	s.visibleWorldObjects = map[uint64]struct{}{}
+	if s.character != nil {
+		s.visibleWorldObjects[s.character.GUID] = struct{}{}
+	}
+}
+
+func (s *GameSession) InterceptDestroyObject(_ context.Context, p *packet.Packet) error {
+	delete(s.visibleWorldObjects, p.Reader().Uint64())
+	s.gameSocket.SendPacket(p)
 	return nil
 }
 
@@ -122,8 +160,15 @@ func (s *GameSession) trackCharacterStats(data []byte) {
 
 	if upd.CurHP != nil && *upd.CurHP != char.CurHP {
 		char.CurHP = *upd.CurHP
+		if char.CurHP > 0 {
+			s.layerSafety.releasing = false
+		}
 		barrierUpd.CurHP = upd.CurHP
 		changed = true
+	}
+	if upd.UnitFlags != nil {
+		const unitFlagInCombat = uint32(0x00080000)
+		s.setLayerCombatState(*upd.UnitFlags&unitFlagInCombat != 0, time.Now())
 	}
 
 	if upd.MaxHP != nil && *upd.MaxHP != char.MaxHP {
@@ -166,6 +211,14 @@ func (s *GameSession) trackCharacterStats(data []byte) {
 
 func (s *GameSession) InterceptNewWorld(ctx context.Context, p *packet.Packet) error {
 	mapID := p.Reader().Uint32()
+	if s.seamlessLayerSwitch {
+		// The destination core still needs its world-port acknowledgement, but the
+		// client must never see NEW_WORLD or it will display a loading screen.
+		if s.worldSocket != nil {
+			s.worldSocket.SendPacket(&packet.Packet{Opcode: packet.MsgMoveWorldPortAck, Source: packet.SourceGameClient})
+		}
+		return nil
+	}
 	if s.character.ignoreNextInterceptToNewMap == nil || mapID != *s.character.ignoreNextInterceptToNewMap {
 		s.teleportingToNewMap = &mapID
 	}
@@ -174,6 +227,20 @@ func (s *GameSession) InterceptNewWorld(ctx context.Context, p *packet.Packet) e
 }
 
 func (s *GameSession) InterceptMoveWorldPortAck(ctx context.Context, p *packet.Packet) error {
+	layerSwitchNeedsCompletion := s.layerSwitchTarget != nil
+	redirectStarted := false
+	defer func() {
+		if layerSwitchNeedsCompletion && !redirectStarted {
+			s.completeLayerSwitch(false)
+			s.layerSwitchInProgress = false
+			s.layerSwitchTarget = nil
+			if s.seamlessLayerSwitch {
+				s.pendingLayerMovement = nil
+				s.seamlessLayerSwitch = false
+				s.seamlessLayerTarget = nil
+			}
+		}
+	}()
 	if s.worldSocket == nil {
 		return errors.New("can't handle InterceptMoveWorldPortAck, worldSocket is nil")
 	}
@@ -208,10 +275,42 @@ func (s *GameSession) InterceptMoveWorldPortAck(ctx context.Context, p *packet.P
 	}
 
 	oldServerAddress := s.worldSocket.Address()
-	desiredServerAddress := serversResult.GameServers[0].Address
+	desiredServer := serversResult.GameServers[0]
+	connectToSelectedAddress := false
+	if s.layerSwitchTarget != nil {
+		desiredServer = s.layerSwitchTarget
+		connectToSelectedAddress = true
+	} else if s.layeringEnabled {
+		selection, selectErr := s.layerCoordinatorClient.SelectGameServerForPlayer(ctx, &pbServ.SelectGameServerForPlayerRequest{
+			Api:                      root.SupportedServerRegistryVer,
+			RealmID:                  root.RealmID,
+			MapID:                    mapID,
+			ZoneID:                   s.character.Zone,
+			GroupID:                  s.currentGroupID,
+			PlayerGUID:               s.character.GUID,
+			Reason:                   pbServ.SelectGameServerForPlayerRequest_MAP_CHANGE,
+			CurrentGameServerAddress: oldServerAddress,
+		})
+		if selectErr != nil {
+			return fmt.Errorf("can't select layer for map transition: %w", selectErr)
+		}
+		if selection.Status != pbServ.SelectGameServerForPlayerResponse_OK || selection.GameServer == nil {
+			return fmt.Errorf("%w, mapID %v", worldConnectErrInstanceNotFound, mapID)
+		}
+		desiredServer = selection.GameServer
+		connectToSelectedAddress = true
+		layerSwitchNeedsCompletion = desiredServer.Address != oldServerAddress
+	}
+	desiredServerAddress := desiredServer.Address
 
 	if desiredServerAddress == oldServerAddress {
+		s.currentLayerID = desiredServer.LayerID
 		return nil
+	}
+	s.gameServerGRPCConnMgr.AddAddressMapping(desiredServer.Address, desiredServer.GrpcAddress)
+	s.gameServerGRPCClient, err = s.gameServerGRPCConnMgr.GRPCConnByGameServerAddress(desiredServer.Address)
+	if err != nil {
+		return fmt.Errorf("can't get target layer grpc client: %w", err)
 	}
 
 	saveAndClosePacket := packet.NewWriterWithSize(packet.TC9CMsgPrepareForRedirect, 0)
@@ -246,6 +345,9 @@ func (s *GameSession) InterceptMoveWorldPortAck(ctx context.Context, p *packet.P
 	if !isReadyForRedirect {
 		return fmt.Errorf("failed to redirect player with account %d, world server failed to prepare", s.accountID)
 	}
+	if s.seamlessLayerSwitch {
+		s.clearPreviousLayerObjects()
+	}
 
 	s.worldSocket.Close()
 	s.worldSocket = nil
@@ -253,28 +355,55 @@ func (s *GameSession) InterceptMoveWorldPortAck(ctx context.Context, p *packet.P
 	// back in world; reopen the name query window until its SMsgTimeSyncReq.
 	s.worldEntryPending = true
 
-	go func(charGUID uint64) {
+	redirectStarted = true
+	go func(charGUID uint64, useSelectedAddress bool) {
 		var err error
 		var socket sockets.Socket
-		_, socket, err = s.connectToGameServer(context.Background(), charGUID, &mapID, nil)
+		if useSelectedAddress {
+			socket, err = s.connectToGameServerWithAddress(context.Background(), charGUID, desiredServerAddress, nil)
+		} else {
+			_, socket, err = s.connectToGameServer(context.Background(), charGUID, &mapID, false, nil)
+		}
 		if err != nil {
 			s.logger.Error().Err(err).Msg("failed to reconnect player to the world")
 			resp := packet.NewWriterWithSize(packet.SMsgCharacterLoginFailed, 1)
 			resp.Uint8(uint8(packet.LoginErrorCodeWorldServerIsDown))
 			s.gameSocket.Send(resp)
+			s.sessionSafeFuChan <- func(session *GameSession) {
+				session.completeLayerSwitch(false)
+				session.layerSwitchInProgress = false
+				session.layerSwitchTarget = nil
+				if session.seamlessLayerSwitch {
+					session.pendingLayerMovement = nil
+					session.seamlessLayerSwitch = false
+					session.seamlessLayerTarget = nil
+				}
+			}
 			return
 		}
 
-		s.gameSocket.SendPacket(p)
+		if !s.seamlessLayerSwitch {
+			s.gameSocket.SendPacket(p)
+		}
 
 		// we need to modify session in a safe thread (goroutine)
 		s.sessionSafeFuChan <- func(session *GameSession) {
 			if session.character != nil {
 				session.worldSocket = socket
 			}
+			session.currentServerAddress = desiredServerAddress
+			session.currentLayerID = desiredServer.LayerID
+			session.completeLayerSwitch(true)
+			session.layerSwitchInProgress = false
+			session.layerSwitchTarget = nil
 
-			if session.showGameserverConnChangeToClient {
-				session.SendSysMessage(fmt.Sprintf("You have been redirected from %s to %s gameserver.", oldServerAddress, desiredServerAddress))
+			if session.showGameserverConnChangeToClient && !session.seamlessLayerSwitch {
+				gmLevel, _ := session.accountGMLevel(context.Background())
+				if gmLevel > 0 {
+					session.SendSysMessage(fmt.Sprintf("Layer switch complete: %s -> %s (%s).", oldServerAddress, desiredServerAddress, friendlyGameServer(desiredServer)))
+				} else {
+					session.SendSysMessage(fmt.Sprintf("Layer switch complete: %s.", friendlyGameServer(desiredServer)))
+				}
 			}
 
 			go func() {
@@ -285,7 +414,7 @@ func (s *GameSession) InterceptMoveWorldPortAck(ctx context.Context, p *packet.P
 				}
 			}()
 		}
-	}(s.character.GUID)
+	}(s.character.GUID, connectToSelectedAddress)
 
 	return nil
 }
@@ -334,6 +463,28 @@ func (s *GameSession) InterceptAccountDataTimes(ctx context.Context, p *packet.P
 // map, so STATUS_LOGGEDIN opcodes are processed normally from that point on.
 func (s *GameSession) InterceptSMsgTimeSyncReq(ctx context.Context, p *packet.Packet) error {
 	s.worldEntryPending = false
+	s.gameSocket.SendPacket(p)
+	if s.seamlessLayerSwitch {
+		s.flushPendingLayerMovement()
+		target := s.seamlessLayerTarget
+		if target == nil {
+			target = &pbServ.Server{LayerID: s.currentLayerID, Address: s.currentServerAddress}
+		}
+		s.sendLayerSwitchCompleted(target)
+		// AzerothCore may emit its login spell immediately after this time-sync
+		// packet. Keep the visual filter alive briefly after the handoff flag is
+		// cleared so that packet cannot leak through due to packet ordering.
+		s.layerLoginVisualUntil = time.Now().Add(time.Second)
+		s.seamlessLayerSwitch = false
+		s.seamlessLayerTarget = nil
+	}
+	return nil
+}
+
+func (s *GameSession) InterceptSeamlessWorldPacket(_ context.Context, p *packet.Packet) error {
+	if s.seamlessLayerSwitch {
+		return nil
+	}
 	s.gameSocket.SendPacket(p)
 	return nil
 }
@@ -448,7 +599,7 @@ func (s *GameSession) buildNameQueryResponse(ctx context.Context, charGUID uint6
 func (s *GameSession) HandleReadyForRedirectRequest(ctx context.Context, p *packet.Packet) error {
 	oldConnection := s.worldSocket.Address()
 
-	char, socket, err := s.connectToGameServer(ctx, s.character.GUID, nil, nil)
+	char, socket, err := s.connectToGameServer(ctx, s.character.GUID, nil, false, nil)
 	if err != nil {
 		return errors.New("failed to connect player to the new gameserver")
 	}
@@ -466,7 +617,12 @@ func (s *GameSession) HandleReadyForRedirectRequest(ctx context.Context, p *pack
 	}
 
 	if s.showGameserverConnChangeToClient {
-		s.SendSysMessage(fmt.Sprintf("You have been redirected from %s to %s gameserver.", oldConnection, s.worldSocket.Address()))
+		gmLevel, _ := s.accountGMLevel(ctx)
+		if gmLevel > 0 {
+			s.SendSysMessage(fmt.Sprintf("You have been redirected from %s to %s gameserver.", oldConnection, s.worldSocket.Address()))
+		} else {
+			s.SendSysMessage("You have been moved to another game server.")
+		}
 	}
 
 	return nil

@@ -25,6 +25,24 @@ spec:
           value: redis://{{ .Release.Name }}-redis-headless:6379/0
         - name: NATS_URL
           value: nats://{{ .Release.Name }}-nats:4222
+        - name: LAYERING_ENABLED
+          value: "{{ .Values.servers_registry.layering.enabled }}"
+        - name: LAYER_MAPS
+          value: "{{- range $i, $item := .Values.servers_registry.layering.maps }}{{ if $i }},{{ end }}{{ $item.mapID }}:{{ $item.layers }}{{- end }}"
+        - name: LAYER_MAX_POPULATION
+          value: "{{ .Values.servers_registry.layering.maxPopulation }}"
+        - name: LAYER_SWITCH_COOLDOWN_SECONDS
+          value: "{{ .Values.servers_registry.layering.switchCooldownSeconds }}"
+        - name: LAYER_MAX_SWITCHES_PER_HOUR
+          value: "{{ .Values.servers_registry.layering.maxSwitchesPerHour }}"
+        - name: LAYER_RECONCILE_INTERVAL_SECONDS
+          value: "{{ .Values.servers_registry.layering.reconcileIntervalSeconds }}"
+        - name: LAYER_SCOPE_MAP_IDS
+          value: "{{ join "," .Values.servers_registry.layering.scopeMapIDs }}"
+        - name: LAYER_SCOPE_ZONE_IDS
+          value: "{{ join "," .Values.servers_registry.layering.scopeZoneIDs }}"
+        - name: LAYER_SCOPE_MAX_POPULATION
+          value: "{{ .Values.servers_registry.layering.scopeMaxPopulation }}"
         ports:
         - containerPort: {{ .Values.servers_registry.service.internalPort | int  }}
         # livenessProbe:

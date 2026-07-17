@@ -10,6 +10,10 @@ service ServersRegistryService {
   rpc ListGameServersForRealm(ListGameServersForRealmRequest) returns (ListGameServersResponse);
   rpc ListAllGameServers(ListAllGameServersRequest) returns (ListGameServersResponse);
   rpc GameServerMapsLoaded(GameServerMapsLoadedRequest) returns (GameServerMapsLoadedResponse);
+  rpc SelectGameServerForPlayer(SelectGameServerForPlayerRequest) returns (SelectGameServerForPlayerResponse);
+  rpc GetMapLayerConfiguration(GetMapLayerConfigurationRequest) returns (GetMapLayerConfigurationResponse);
+  rpc UpdateMapLayerConfiguration(UpdateMapLayerConfigurationRequest) returns (UpdateMapLayerConfigurationResponse);
+  rpc BindGroupToGameServer(BindGroupToGameServerRequest) returns (BindGroupToGameServerResponse);
 
   rpc RegisterGateway(RegisterGatewayRequest) returns (RegisterGatewayResponse);
   rpc GatewaysForRealms(GatewaysForRealmsRequest) returns (GatewaysForRealmsResponse);
@@ -29,6 +33,7 @@ message RegisterGameServerRequest{
   bool   isCrossRealm = 6; // If true realm id should be 0
   string availableMaps = 7;
   string preferredHostName = 8;
+  uint32 layerID = 9; // Logical open-world layer. Zero means the legacy, non-layered pool.
 }
 
 message RegisterGameServerResponse{
@@ -99,6 +104,7 @@ message GameServerDetailed {
   Diff diff = 8;
   repeated uint32 availableMaps = 9;
   repeated uint32 assignedMaps = 10;
+  uint32 layerID = 11;
 }
 
 message ListGameServersResponse {
@@ -126,6 +132,138 @@ message GameServerMapsLoadedRequest {
 
 message GameServerMapsLoadedResponse {
   string api = 1;
+}
+
+// Selects a core and records the player's logical layer assignment. Gateways use
+// reason=LOGIN for initial placement, reason=MAP_CHANGE for safe transitions,
+// and reason=GROUP_JOIN for queued party reunification switches.
+message SelectGameServerForPlayerRequest {
+  enum Reason {
+    LOGIN = 0;
+    MAP_CHANGE = 1;
+    GROUP_JOIN = 2;
+    MANUAL = 3;
+  }
+
+  string api = 1;
+  uint32 realmID = 2;
+  uint32 mapID = 3;
+  uint64 playerGUID = 4;
+  uint64 preferredPlayerGUID = 5;
+  Reason reason = 6;
+  string currentGameServerAddress = 7;
+  uint32 zoneID = 8;
+  uint32 groupID = 9;
+}
+
+message MapLayerConfiguration {
+  uint32 mapID = 1;
+  uint32 layerCount = 2;
+}
+
+message GetMapLayerConfigurationRequest { string api = 1; uint32 realmID = 2; }
+message GetMapLayerConfigurationResponse {
+  string api = 1;
+  repeated MapLayerConfiguration maps = 2;
+}
+
+message UpdateMapLayerConfigurationRequest {
+  string api = 1;
+  uint32 realmID = 2;
+  repeated MapLayerConfiguration maps = 3;
+}
+message UpdateMapLayerConfigurationResponse { string api = 1; }
+
+message BindGroupToGameServerRequest {
+  string api = 1;
+  uint32 realmID = 2;
+  uint32 groupID = 3;
+  uint32 mapID = 4;
+  string gameServerAddress = 5;
+}
+message BindGroupToGameServerResponse { string api = 1; }
+
+message SelectGameServerForPlayerResponse {
+  enum Status {
+    OK = 0;
+    NO_SERVER = 1;
+    THROTTLED = 2;
+    HOURLY_LIMIT_REACHED = 3;
+  }
+
+  string api = 1;
+  Status status = 2;
+  Server gameServer = 3;
+  uint32 layerID = 4;
+  uint32 retryAfterSeconds = 5;
+}
+
+message ReleasePlayerLayerRequest {
+  string api = 1;
+  uint32 realmID = 2;
+  uint64 playerGUID = 3;
+}
+
+message ReleasePlayerLayerResponse {
+  string api = 1;
+}
+
+message PollPlayerLayerActionRequest {
+  string api = 1;
+  uint32 realmID = 2;
+  uint32 mapID = 3;
+  uint32 zoneID = 4;
+  uint64 playerGUID = 5;
+  string currentGameServerAddress = 6;
+  uint32 groupID = 7;
+}
+
+message CompletePlayerLayerSwitchRequest {
+  string api = 1;
+  uint32 realmID = 2;
+  uint64 playerGUID = 3;
+  bool success = 4;
+}
+
+message CompletePlayerLayerSwitchResponse {
+  string api = 1;
+}
+
+message GetLayerStatsRequest {
+  string api = 1;
+  uint32 realmID = 2;
+  uint32 mapID = 3;
+  uint64 playerGUID = 4;
+}
+message GetLayerStatsResponse {
+  message Layer {
+    uint32 layerID = 1;
+    uint32 currentPlayers = 2;
+    uint32 readyGameServers = 3;
+    bool draining = 4;
+  }
+  string api = 1;
+  bool enabled = 2;
+  uint32 maxPopulation = 3;
+  reserved 4, 5, 6, 7;
+  uint32 switchCooldownSeconds = 8;
+  uint32 maxSwitchesPerHour = 9;
+  repeated Layer layers = 10;
+  uint32 currentLayerID = 11;
+  uint32 switchCooldownRemainingSeconds = 12;
+}
+
+message ForcePlayerLayerRequest {
+  string api = 1;
+  uint32 realmID = 2;
+  uint64 playerGUID = 3;
+  uint32 layerID = 4;
+  uint32 mapID = 5;
+}
+message ForcePlayerLayerResponse {
+  enum Status { OK = 0; PLAYER_OFFLINE = 1; LAYER_NOT_FOUND = 2; NO_COMPATIBLE_CORE = 3; }
+  string api = 1;
+  Status status = 2;
 }
 
 //
@@ -193,5 +331,6 @@ message Server {
   uint32 realmID = 2;
   bool   isCrossRealm = 3;
   string grpcAddress = 4;
+  string ID = 5;
+  uint32 layerID = 6;
 }
-
