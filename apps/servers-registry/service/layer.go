@@ -235,6 +235,7 @@ type LayerScope struct {
 type playerLayerAssignment struct {
 	layerID              uint32
 	serverAddress        string
+	groupID              uint32
 	switches             []time.Time
 	lastSwitch           time.Time
 	online               bool
@@ -334,6 +335,23 @@ func (l *layerService) Select(ctx context.Context, realmID, mapID, zoneID, group
 	}
 	current := realmAssignments[playerGUID]
 	if l.mapLayers[realmID][mapID] > 1 {
+		// When the whole group has left this map (for example to enter an
+		// instance), its old outdoor binding must not pin it to the layer it
+		// departed. The first member returning chooses a fresh destination;
+		// subsequent members see that member on the map and follow the new
+		// binding. This is performed under the registry lock to avoid races.
+		if groupID != 0 && reason == LayerSelectMapChange && current != nil && current.mapID != mapID {
+			groupPresentOnMap := false
+			for guid, assignment := range realmAssignments {
+				if guid != playerGUID && assignment.online && assignment.groupID == groupID && assignment.mapID == mapID {
+					groupPresentOnMap = true
+					break
+				}
+			}
+			if !groupPresentOnMap {
+				delete(l.groupBindings, groupMapKey{realmID, groupID, mapID})
+			}
+		}
 		selection := l.selectMapLayerLocked(realmID, mapID, groupID, servers)
 		if selection.Server == nil {
 			return selection, nil
@@ -343,7 +361,7 @@ func (l *layerService) Select(ctx context.Context, realmID, mapID, zoneID, group
 		}
 		current.layerID, current.serverAddress = selection.LayerID, selection.Server.Address
 		current.online, current.lastSeen, current.offlineSince = true, now, time.Time{}
-		current.mapID, current.zoneID = mapID, zoneID
+		current.mapID, current.zoneID, current.groupID = mapID, zoneID, groupID
 		realmAssignments[playerGUID] = current
 		return selection, nil
 	}
@@ -401,6 +419,7 @@ func (l *layerService) Select(ctx context.Context, realmID, mapID, zoneID, group
 	current.offlineSince = time.Time{}
 	current.mapID = mapID
 	current.zoneID = zoneID
+	current.groupID = groupID
 	realmAssignments[playerGUID] = current
 	copy := target.Copy()
 	return LayerSelection{Status: LayerSelectOK, Server: &copy, LayerID: target.LayerID}, nil
@@ -424,9 +443,28 @@ func (l *layerService) selectMapLayerLocked(realmID, mapID, groupID uint32, serv
 		return LayerSelection{Status: LayerSelectNoServer}
 	}
 	selected := 0
+	populations := make([]uint32, len(servers))
+	trackedOnMap := false
+	for _, assignment := range l.assignments[realmID] {
+		if !assignment.online || assignment.mapID != mapID {
+			continue
+		}
+		if assignment.layerID > 0 && assignment.layerID <= uint32(len(populations)) {
+			populations[assignment.layerID-1]++
+			trackedOnMap = true
+		}
+	}
 	for i := 1; i < len(servers); i++ {
-		if servers[i].ActiveConnections < servers[selected].ActiveConnections ||
-			(servers[i].ActiveConnections == servers[selected].ActiveConnections && servers[i].ID < servers[selected].ID) {
+		lessLoaded := populations[i] < populations[selected]
+		if !trackedOnMap {
+			lessLoaded = servers[i].ActiveConnections < servers[selected].ActiveConnections
+		}
+		equalLoad := populations[i] == populations[selected]
+		if !trackedOnMap {
+			equalLoad = servers[i].ActiveConnections == servers[selected].ActiveConnections
+		}
+		if lessLoaded || (equalLoad && (servers[i].ActiveConnections < servers[selected].ActiveConnections ||
+			(servers[i].ActiveConnections == servers[selected].ActiveConnections && servers[i].ID < servers[selected].ID))) {
 			selected = i
 		}
 	}
@@ -620,7 +658,7 @@ func (l *layerService) Poll(ctx context.Context, realmID, mapID, zoneID, groupID
 			}
 			assignment.layerID, assignment.serverAddress = currentLayerID, currentAddress
 			assignment.online, assignment.offlineSince = true, time.Time{}
-			assignment.mapID, assignment.zoneID, assignment.lastSeen = mapID, zoneID, l.now()
+			assignment.mapID, assignment.zoneID, assignment.groupID, assignment.lastSeen = mapID, zoneID, groupID, l.now()
 			l.assignments[realmID][playerGUID] = assignment
 			return LayerSelection{Status: LayerSelectOK}, nil
 		}
@@ -642,14 +680,14 @@ func (l *layerService) Poll(ctx context.Context, realmID, mapID, zoneID, groupID
 			assignment.serverAddress = currentAddress
 			assignment.online = true
 			assignment.offlineSince = time.Time{}
-			assignment.mapID, assignment.zoneID = mapID, zoneID
+			assignment.mapID, assignment.zoneID, assignment.groupID = mapID, zoneID, groupID
 			assignment.lastSeen = l.now()
 			l.assignments[realmID][playerGUID] = assignment
 			break
 		}
 		return LayerSelection{Status: LayerSelectOK}, nil
 	}
-	assignment.mapID, assignment.zoneID = mapID, zoneID
+	assignment.mapID, assignment.zoneID, assignment.groupID = mapID, zoneID, groupID
 	assignment.lastSeen = l.now()
 	// Poll is deliberately heartbeat/retry-only. Population changes and drain
 	// state must never redirect a character while it is actively playing.

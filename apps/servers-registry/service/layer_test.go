@@ -294,6 +294,47 @@ func TestPerMapPollRevivesReleasedPlayerForForceSwitch(t *testing.T) {
 	require.Equal(t, LayerForceOK, layers.Force(context.Background(), 1, 10, 2, 1))
 }
 
+func TestWholeGroupReturningToMapGetsFreshLeastPopulatedLayer(t *testing.T) {
+	servers := &layerGameServersStub{servers: []repo.GameServer{
+		{ID: "a", Address: "layer-1", RealmID: 1, AssignedMapsToHandle: []uint32{1}},
+		{ID: "b", Address: "layer-2", RealmID: 1, AssignedMapsToHandle: []uint32{1}},
+	}}
+	layers := NewLayer(servers, LayerConfig{Enabled: true, RealmIDs: []uint32{1}, MapLayers: map[uint32]uint32{1: 2}}).(*layerService)
+	layers.assignments[1] = map[uint64]*playerLayerAssignment{
+		10: {layerID: 1, mapID: 33, groupID: 77, online: true},
+		11: {layerID: 1, mapID: 33, groupID: 77, online: true},
+		12: {layerID: 1, mapID: 1, online: true},
+	}
+	layers.groupBindings[groupMapKey{1, 77, 1}] = groupMapBinding{"layer-1", 1}
+
+	first, err := layers.Select(context.Background(), 1, 1, 0, 77, 10, 0, LayerSelectMapChange, "instance")
+	require.NoError(t, err)
+	require.Equal(t, uint32(2), first.LayerID)
+	require.Equal(t, "layer-2", first.Server.Address)
+
+	second, err := layers.Select(context.Background(), 1, 1, 0, 77, 11, 0, LayerSelectMapChange, "instance")
+	require.NoError(t, err)
+	require.Equal(t, uint32(2), second.LayerID)
+	require.Equal(t, "layer-2", second.Server.Address)
+}
+
+func TestReturningGroupKeepsBindingWhenMemberRemainedOnMap(t *testing.T) {
+	servers := &layerGameServersStub{servers: []repo.GameServer{
+		{ID: "a", Address: "layer-1", RealmID: 1, AssignedMapsToHandle: []uint32{1}},
+		{ID: "b", Address: "layer-2", RealmID: 1, AssignedMapsToHandle: []uint32{1}},
+	}}
+	layers := NewLayer(servers, LayerConfig{Enabled: true, RealmIDs: []uint32{1}, MapLayers: map[uint32]uint32{1: 2}}).(*layerService)
+	layers.assignments[1] = map[uint64]*playerLayerAssignment{
+		10: {layerID: 1, mapID: 33, groupID: 77, online: true},
+		11: {layerID: 1, mapID: 1, groupID: 77, online: true},
+	}
+	layers.groupBindings[groupMapKey{1, 77, 1}] = groupMapBinding{"layer-1", 1}
+
+	selection, err := layers.Select(context.Background(), 1, 1, 0, 77, 10, 0, LayerSelectMapChange, "instance")
+	require.NoError(t, err)
+	require.Equal(t, uint32(1), selection.LayerID)
+}
+
 func TestRuntimeMapLayerConfigurationRedistributesAndClearsBindings(t *testing.T) {
 	servers := &layerGameServersStub{servers: []repo.GameServer{{ID: "a", Address: "a", RealmID: 1, AssignedMapsToHandle: []uint32{1}}}}
 	layers := NewLayer(servers, LayerConfig{Enabled: true, RealmIDs: []uint32{1}, MapLayers: map[uint32]uint32{1: 2}}).(*layerService)
