@@ -223,3 +223,21 @@ func TestHandleTurnInPetitionCreateFailure(t *testing.T) {
 	assert.Empty(t, *sentToClient)
 	assert.Equal(t, uint32(0), session.character.GuildID)
 }
+
+func TestHandleTurnInPetitionFallsBackOnLegacyWorldserver(t *testing.T) {
+	worldClient := &worldServerClientCanTurnInMock{
+		err: status.Error(codes.Unimplemented, "unknown method CanTurnInGuildPetition"),
+	}
+	guildClient := &guildServiceClientCreateGuildMock{}
+	session, sentToClient, forwardedToWorld := turnInPetitionSession(t, worldClient, guildClient)
+
+	p := turnInPetitionPacket()
+	err := session.HandleTurnInPetition(context.Background(), p)
+	assert.Nil(t, err)
+
+	if assert.Len(t, *forwardedToWorld, 1) {
+		assert.Equal(t, p, (*forwardedToWorld)[0])
+	}
+	assert.Empty(t, *sentToClient)
+	assert.Nil(t, guildClient.params)
+}
