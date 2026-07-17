@@ -57,7 +57,7 @@ func (s *GameSession) queueSafeLayerPlacement() {
 }
 
 func (s *GameSession) processNextLayerSwitch(ctx context.Context) error {
-	if !s.layeringEnabled || s.character == nil || s.layerSwitchInProgress || s.teleportingToNewMap != nil {
+	if !s.layeringEnabled || s.character == nil || s.layerSwitchInProgress || s.worldRecoveryInProgress || s.teleportingToNewMap != nil {
 		return nil
 	}
 	if time.Since(s.lastLayerLifecyclePoll) >= 2*time.Second {

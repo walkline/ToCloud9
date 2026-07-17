@@ -98,23 +98,24 @@ type GameSession struct {
 	// to the player with information about connection change.
 	showGameserverConnChangeToClient bool
 
-	layeringEnabled        bool
-	currentLayerID         uint32
-	currentServerAddress   string
-	layerSwitchQueue       chan layerSwitchRequest
-	layerSwitchInterval    time.Duration
-	layerPostCombatDelay   time.Duration
-	layerSwitchInProgress  bool
-	layerSwitchTarget      *pbServ.Server
-	pendingGroupInviter    uint64
-	currentGroupID         uint32
-	lastLayerLifecyclePoll time.Time
-	layerSafety            layerSafetyState
-	seamlessLayerSwitch    bool
-	seamlessLayerTarget    *pbServ.Server
-	layerLoginVisualUntil  time.Time
-	pendingLayerMovement   *packet.Packet
-	visibleWorldObjects    map[uint64]struct{}
+	layeringEnabled         bool
+	currentLayerID          uint32
+	currentServerAddress    string
+	layerSwitchQueue        chan layerSwitchRequest
+	layerSwitchInterval     time.Duration
+	layerPostCombatDelay    time.Duration
+	layerSwitchInProgress   bool
+	worldRecoveryInProgress bool
+	layerSwitchTarget       *pbServ.Server
+	pendingGroupInviter     uint64
+	currentGroupID          uint32
+	lastLayerLifecyclePoll  time.Time
+	layerSafety             layerSafetyState
+	seamlessLayerSwitch     bool
+	seamlessLayerTarget     *pbServ.Server
+	layerLoginVisualUntil   time.Time
+	pendingLayerMovement    *packet.Packet
+	visibleWorldObjects     map[uint64]struct{}
 }
 
 type GameSessionParams struct {
@@ -631,6 +632,10 @@ func (s *GameSession) processWorldPacketsInPlace(ctx context.Context, f func(*pa
 }
 
 func (s *GameSession) onWorldSocketClosed() {
+	if s.worldRecoveryInProgress {
+		return
+	}
+	s.worldRecoveryInProgress = true
 
 	go func(charGUID uint64) {
 		s.SendSysMessage("Lost connection with world server...")
@@ -674,6 +679,7 @@ func (s *GameSession) onWorldSocketClosed() {
 			resp := packet.NewWriterWithSize(packet.SMsgCharacterLoginFailed, 1)
 			resp.Uint8(uint8(packet.LoginErrorCodeWorldServerIsDown))
 			s.gameSocket.Send(resp)
+			s.sessionSafeFuChan <- func(session *GameSession) { session.worldRecoveryInProgress = false }
 			return
 		}
 
@@ -687,6 +693,7 @@ func (s *GameSession) onWorldSocketClosed() {
 
 		// we need to modify session in a safe thread (goroutine)
 		s.sessionSafeFuChan <- func(session *GameSession) {
+			session.worldRecoveryInProgress = false
 			if session.character != nil {
 				session.worldSocket = socket
 			}
