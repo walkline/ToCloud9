@@ -89,11 +89,11 @@ func (s *serversRegistry) ReleasePlayerLayer(_ context.Context, request *pb.Rele
 }
 
 func (s *serversRegistry) GetLayerStats(ctx context.Context, request *pb.GetLayerStatsRequest) (*pb.GetLayerStatsResponse, error) {
-	stats, err := s.layerService.Stats(ctx, request.RealmID)
+	stats, err := s.layerService.Stats(ctx, request.RealmID, request.MapID, request.PlayerGUID)
 	if err != nil {
 		return nil, err
 	}
-	resp := &pb.GetLayerStatsResponse{Api: ver, Enabled: stats.Enabled, MaxPopulation: stats.MaxPopulation, TargetPopulationPercent: stats.TargetPopulationPercent, OverflowMarginPercent: stats.OverflowMarginPercent, MinLayers: stats.MinLayers, MaxLayers: stats.MaxLayers, SwitchCooldownSeconds: stats.SwitchCooldownSeconds, MaxSwitchesPerHour: stats.MaxSwitchesPerHour}
+	resp := &pb.GetLayerStatsResponse{Api: ver, Enabled: stats.Enabled, MaxPopulation: stats.MaxPopulation, TargetPopulationPercent: stats.TargetPopulationPercent, OverflowMarginPercent: stats.OverflowMarginPercent, MinLayers: stats.MinLayers, MaxLayers: stats.MaxLayers, SwitchCooldownSeconds: stats.SwitchCooldownSeconds, MaxSwitchesPerHour: stats.MaxSwitchesPerHour, CurrentLayerID: stats.CurrentLayerID, SwitchCooldownRemainingSeconds: stats.SwitchCooldownRemainingSeconds}
 	for _, layer := range stats.Layers {
 		resp.Layers = append(resp.Layers, &pb.GetLayerStatsResponse_Layer{LayerID: layer.LayerID, CurrentPlayers: layer.CurrentPlayers, ReadyCores: layer.ReadyCores, Draining: layer.Draining})
 	}

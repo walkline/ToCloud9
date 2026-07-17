@@ -279,24 +279,30 @@ func (s *GameSession) handleCommandMsgIfNeeded(ctx context.Context, msg string) 
 }
 
 func (s *GameSession) handleLayerCommand(ctx context.Context, args []string) error {
-	if s.authDB == nil {
-		s.SendSysMessage("Layer commands are unavailable: no authentication database.")
-		return nil
-	}
 	gmLevel, err := s.accountGMLevel(ctx)
 	if err != nil {
 		return err
 	}
-	if gmLevel == 0 {
-		s.SendSysMessage("You do not have permission to use .layer.")
-		return nil
-	}
 	if len(args) == 1 {
-		mapConfig, err := s.serversRegistryClient.GetMapLayerConfiguration(ctx, &pbServ.GetMapLayerConfigurationRequest{Api: root.SupportedServerRegistryVer, RealmID: root.RealmID})
+		if s.character == nil {
+			return nil
+		}
+		resp, err := s.serversRegistryClient.GetLayerStats(ctx, &pbServ.GetLayerStatsRequest{Api: root.SupportedServerRegistryVer, RealmID: root.RealmID, MapID: s.character.Map, PlayerGUID: s.character.GUID})
 		if err != nil {
 			return err
 		}
-		resp, err := s.serversRegistryClient.GetLayerStats(ctx, &pbServ.GetLayerStatsRequest{Api: root.SupportedServerRegistryVer, RealmID: root.RealmID})
+		currentLayerID := resp.CurrentLayerID
+		if currentLayerID == 0 {
+			currentLayerID = s.currentLayerID
+		}
+		if gmLevel == 0 {
+			s.SendSysMessage(fmt.Sprintf("You are currently on layer %d.", currentLayerID))
+			if resp.SwitchCooldownRemainingSeconds > 0 {
+				s.SendSysMessage(fmt.Sprintf("You can switch layers again in %d seconds.", resp.SwitchCooldownRemainingSeconds))
+			}
+			return nil
+		}
+		mapConfig, err := s.serversRegistryClient.GetMapLayerConfiguration(ctx, &pbServ.GetMapLayerConfigurationRequest{Api: root.SupportedServerRegistryVer, RealmID: root.RealmID})
 		if err != nil {
 			return err
 		}
@@ -323,6 +329,10 @@ func (s *GameSession) handleLayerCommand(ctx context.Context, args []string) err
 			}
 			s.SendSysMessage(fmt.Sprintf("Layer %d: players=%d/%d readyCores=%d state=%s%s", layer.LayerID, layer.CurrentPlayers, resp.MaxPopulation, layer.ReadyCores, state, marker))
 		}
+		return nil
+	}
+	if gmLevel == 0 {
+		s.SendSysMessage("You do not have permission to switch layers.")
 		return nil
 	}
 	if len(args) < 3 || strings.ToLower(args[1]) != "switch" {

@@ -42,7 +42,7 @@ type Layer interface {
 	Poll(ctx context.Context, realmID, mapID, zoneID, groupID uint32, playerGUID uint64, currentAddress string) (LayerSelection, error)
 	CompleteSwitch(realmID uint32, playerGUID uint64, success bool)
 	Release(realmID uint32, playerGUID uint64)
-	Stats(ctx context.Context, realmID uint32) (LayerStats, error)
+	Stats(ctx context.Context, realmID, mapID uint32, playerGUID uint64) (LayerStats, error)
 	Force(ctx context.Context, realmID uint32, playerGUID uint64, layerID, mapID uint32) LayerForceStatus
 	RegistrationLayer(ctx context.Context, realmID uint32) uint32
 	MapConfiguration(realmID uint32) map[uint32]uint32
@@ -94,6 +94,7 @@ type LayerStat struct {
 type LayerStats struct {
 	Enabled                                                                                                                        bool
 	MaxPopulation, TargetPopulationPercent, OverflowMarginPercent, MinLayers, MaxLayers, SwitchCooldownSeconds, MaxSwitchesPerHour uint32
+	CurrentLayerID, SwitchCooldownRemainingSeconds                                                                                 uint32
 	Layers                                                                                                                         []LayerStat
 }
 
@@ -116,10 +117,33 @@ type LayerConfig struct {
 	EnableKubernetesAutoscaling bool
 }
 
-func (l *layerService) Stats(ctx context.Context, realmID uint32) (LayerStats, error) {
-	servers, err := l.servers.ListForRealm(ctx, realmID)
+func (l *layerService) Stats(ctx context.Context, realmID, mapID uint32, playerGUID uint64) (LayerStats, error) {
+	servers, err := l.servers.AvailableForMapAndRealm(ctx, mapID, realmID, false)
 	if err != nil {
 		return LayerStats{}, err
+	}
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	result := LayerStats{Enabled: l.config.Enabled, MaxPopulation: l.config.MaxPopulation, TargetPopulationPercent: l.config.TargetPopulationPercent, OverflowMarginPercent: l.config.OverflowMarginPercent, MinLayers: l.config.MinLayers, MaxLayers: l.config.MaxLayers, SwitchCooldownSeconds: uint32(l.config.SwitchCooldown / time.Second), MaxSwitchesPerHour: l.config.MaxSwitchesPerHour}
+	if assignment := l.assignments[realmID][playerGUID]; assignment != nil && assignment.online {
+		result.CurrentLayerID = assignment.layerID
+		if remaining := l.config.SwitchCooldown - l.now().Sub(assignment.lastSwitch); !assignment.lastSwitch.IsZero() && remaining > 0 {
+			result.SwitchCooldownRemainingSeconds = uint32((remaining + time.Second - 1) / time.Second)
+		}
+	}
+	if l.mapLayers[realmID][mapID] > 1 {
+		sort.Slice(servers, func(i, j int) bool { return servers[i].ID < servers[j].ID })
+		for i := range servers {
+			layerID := uint32(i + 1)
+			var population uint32
+			for _, assignment := range l.assignments[realmID] {
+				if assignment.online && assignment.mapID == mapID && assignment.layerID == layerID {
+					population++
+				}
+			}
+			result.Layers = append(result.Layers, LayerStat{LayerID: layerID, CurrentPlayers: population, ReadyCores: 1})
+		}
+		return result, nil
 	}
 	cores := make(map[uint32]uint32)
 	for _, server := range servers {
@@ -127,8 +151,6 @@ func (l *layerService) Stats(ctx context.Context, realmID uint32) (LayerStats, e
 			cores[server.LayerID]++
 		}
 	}
-	l.mu.Lock()
-	defer l.mu.Unlock()
 	ids := make(map[uint32]bool)
 	for id := range cores {
 		ids[id] = true
@@ -136,7 +158,6 @@ func (l *layerService) Stats(ctx context.Context, realmID uint32) (LayerStats, e
 	for id := range l.draining[realmID] {
 		ids[id] = true
 	}
-	result := LayerStats{Enabled: l.config.Enabled, MaxPopulation: l.config.MaxPopulation, TargetPopulationPercent: l.config.TargetPopulationPercent, OverflowMarginPercent: l.config.OverflowMarginPercent, MinLayers: l.config.MinLayers, MaxLayers: l.config.MaxLayers, SwitchCooldownSeconds: uint32(l.config.SwitchCooldown / time.Second), MaxSwitchesPerHour: l.config.MaxSwitchesPerHour}
 	for id := range ids {
 		result.Layers = append(result.Layers, LayerStat{LayerID: id, CurrentPlayers: l.layerPopulationLocked(realmID, id), ReadyCores: cores[id], Draining: !l.draining[realmID][id].IsZero()})
 	}
@@ -565,18 +586,20 @@ func (l *layerService) Poll(ctx context.Context, realmID, mapID, zoneID, groupID
 		assignment.pendingLayerID, assignment.pendingServerAddress, assignment.pendingSince = 0, "", time.Time{}
 	}
 	if l.mapLayers[realmID][mapID] > 1 {
+		ordered := append([]repo.GameServer(nil), servers...)
+		sort.Slice(ordered, func(i, j int) bool { return ordered[i].ID < ordered[j].ID })
 		currentAvailable := false
-		for i := range servers {
-			if servers[i].Address == currentAddress {
+		currentLayerID := uint32(0)
+		for i := range ordered {
+			if ordered[i].Address == currentAddress {
 				currentAvailable = true
+				currentLayerID = uint32(i + 1)
 				break
 			}
 		}
 		key := groupMapKey{realmID, groupID, mapID}
 		if groupID != 0 {
 			if _, exists := l.groupBindings[key]; !exists && currentAvailable {
-				ordered := append([]repo.GameServer(nil), servers...)
-				sort.Slice(ordered, func(i, j int) bool { return ordered[i].ID < ordered[j].ID })
 				layerID := uint32(1)
 				for i := range ordered {
 					if ordered[i].Address == currentAddress {
@@ -591,11 +614,14 @@ func (l *layerService) Poll(ctx context.Context, realmID, mapID, zoneID, groupID
 				return selection, nil
 			}
 		}
-		if assignment == nil {
-			assignment = &playerLayerAssignment{online: true, serverAddress: currentAddress, mapID: mapID, zoneID: zoneID, lastSeen: l.now()}
-			l.assignments[realmID][playerGUID] = assignment
-		}
 		if currentAvailable {
+			if assignment == nil {
+				assignment = &playerLayerAssignment{}
+			}
+			assignment.layerID, assignment.serverAddress = currentLayerID, currentAddress
+			assignment.online, assignment.offlineSince = true, time.Time{}
+			assignment.mapID, assignment.zoneID, assignment.lastSeen = mapID, zoneID, l.now()
+			l.assignments[realmID][playerGUID] = assignment
 			return LayerSelection{Status: LayerSelectOK}, nil
 		}
 		return l.selectMapLayerLocked(realmID, mapID, groupID, servers), nil

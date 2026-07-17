@@ -235,7 +235,12 @@ message CompletePlayerLayerSwitchResponse {
   string api = 1;
 }
 
-message GetLayerStatsRequest { string api = 1; uint32 realmID = 2; }
+message GetLayerStatsRequest {
+  string api = 1;
+  uint32 realmID = 2;
+  uint32 mapID = 3;
+  uint64 playerGUID = 4;
+}
 message GetLayerStatsResponse {
   message Layer {
     uint32 layerID = 1;
@@ -253,6 +258,8 @@ message GetLayerStatsResponse {
   uint32 switchCooldownSeconds = 8;
   uint32 maxSwitchesPerHour = 9;
   repeated Layer layers = 10;
+  uint32 currentLayerID = 11;
+  uint32 switchCooldownRemainingSeconds = 12;
 }
 
 message ForcePlayerLayerRequest {

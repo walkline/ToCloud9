@@ -255,6 +255,45 @@ func TestPerMapLayersUseLeastLoadedCoreAndGroupAffinity(t *testing.T) {
 	require.Equal(t, "c", ungrouped.Server.Address)
 }
 
+func TestPerMapLayerStatsUseMapLayerIDsAndMapPopulation(t *testing.T) {
+	servers := &layerGameServersStub{servers: []repo.GameServer{
+		{ID: "a", Address: "a", RealmID: 1, LayerID: 2, AssignedMapsToHandle: []uint32{1}},
+		{ID: "b", Address: "b", RealmID: 1, LayerID: 1, AssignedMapsToHandle: []uint32{1}},
+	}}
+	layers := NewLayer(servers, LayerConfig{Enabled: true, MaxPopulation: 1, RealmIDs: []uint32{1}, MapLayers: map[uint32]uint32{1: 2}}).(*layerService)
+	layers.assignments[1] = map[uint64]*playerLayerAssignment{
+		10: {layerID: 1, mapID: 1, online: true},
+		11: {layerID: 1, mapID: 1, online: true},
+		12: {layerID: 2, mapID: 1, online: true},
+		13: {layerID: 1, mapID: 571, online: true},
+	}
+
+	stats, err := layers.Stats(context.Background(), 1, 1, 10)
+	require.NoError(t, err)
+	require.Equal(t, uint32(1), stats.CurrentLayerID)
+	require.Equal(t, []LayerStat{
+		{LayerID: 1, CurrentPlayers: 2, ReadyCores: 1},
+		{LayerID: 2, CurrentPlayers: 1, ReadyCores: 1},
+	}, stats.Layers)
+}
+
+func TestPerMapPollRevivesReleasedPlayerForForceSwitch(t *testing.T) {
+	servers := &layerGameServersStub{servers: []repo.GameServer{
+		{ID: "a", Address: "a", RealmID: 1, AssignedMapsToHandle: []uint32{1}},
+		{ID: "b", Address: "b", RealmID: 1, AssignedMapsToHandle: []uint32{1}},
+	}}
+	layers := NewLayer(servers, LayerConfig{Enabled: true, RealmIDs: []uint32{1}, MapLayers: map[uint32]uint32{1: 2}}).(*layerService)
+	layers.assignments[1] = map[uint64]*playerLayerAssignment{10: {layerID: 2, serverAddress: "b", online: true}}
+	layers.Release(1, 10)
+
+	selection, err := layers.Poll(context.Background(), 1, 1, 0, 0, 10, "a")
+	require.NoError(t, err)
+	require.Nil(t, selection.Server)
+	require.True(t, layers.assignments[1][10].online)
+	require.Equal(t, uint32(1), layers.assignments[1][10].layerID)
+	require.Equal(t, LayerForceOK, layers.Force(context.Background(), 1, 10, 2, 1))
+}
+
 func TestRuntimeMapLayerConfigurationRedistributesAndClearsBindings(t *testing.T) {
 	servers := &layerGameServersStub{servers: []repo.GameServer{{ID: "a", Address: "a", RealmID: 1, AssignedMapsToHandle: []uint32{1}}}}
 	layers := NewLayer(servers, LayerConfig{Enabled: true, RealmIDs: []uint32{1}, MapLayers: map[uint32]uint32{1: 2}}).(*layerService)
