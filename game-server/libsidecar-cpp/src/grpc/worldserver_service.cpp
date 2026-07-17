@@ -623,4 +623,79 @@ grpc::Status WorldServerServiceImpl::CanPlayerTeleportToBattleground(
     }
 }
 
+
+grpc::Status WorldServerServiceImpl::CanTurnInGuildPetition(
+    grpc::ServerContext* context,
+    const v1::CanTurnInGuildPetitionRequest* request,
+    v1::CanTurnInGuildPetitionResponse* response) {
+
+    response->set_api(lib_version_);
+
+    if (!bindings_.can_turn_in_guild_petition) {
+        return grpc::Status(grpc::StatusCode::UNIMPLEMENTED, "No handler registered");
+    }
+
+    auto promise = std::make_shared<std::promise<TC9GuildPetitionValidationResult>>();
+    auto future = promise->get_future();
+
+    read_queue_.Push(MakeHandler([=]() {
+        try {
+            TC9GuildPetitionValidationResult r = bindings_.can_turn_in_guild_petition(
+                request->playerguid(), request->petitionitemguid());
+            promise->set_value(r);
+        } catch (...) {
+            promise->set_exception(std::current_exception());
+        }
+    }));
+
+    if (future.wait_for(timeout_) == std::future_status::timeout) {
+        return grpc::Status(grpc::StatusCode::DEADLINE_EXCEEDED, "Request timeout");
+    }
+
+    try {
+        auto result = future.get();
+
+        switch (result.status) {
+            case TC9GuildPetitionCheckStatusOk:
+                response->set_status(v1::CanTurnInGuildPetitionResponse::Ok);
+                break;
+            case TC9GuildPetitionCheckStatusPlayerNotFound:
+                response->set_status(v1::CanTurnInGuildPetitionResponse::PlayerNotFound);
+                break;
+            case TC9GuildPetitionCheckStatusPetitionNotFound:
+                response->set_status(v1::CanTurnInGuildPetitionResponse::PetitionNotFound);
+                break;
+            case TC9GuildPetitionCheckStatusNotPetitionOwner:
+                response->set_status(v1::CanTurnInGuildPetitionResponse::NotPetitionOwner);
+                break;
+            case TC9GuildPetitionCheckStatusNotGuildPetition:
+                response->set_status(v1::CanTurnInGuildPetitionResponse::NotGuildPetition);
+                break;
+            case TC9GuildPetitionCheckStatusAlreadyInGuild:
+                response->set_status(v1::CanTurnInGuildPetitionResponse::AlreadyInGuild);
+                break;
+            case TC9GuildPetitionCheckStatusNeedMoreSignatures:
+                response->set_status(v1::CanTurnInGuildPetitionResponse::NeedMoreSignatures);
+                break;
+            default:
+                return grpc::Status(grpc::StatusCode::INTERNAL, "Handler returned error");
+        }
+
+        if (result.guildName) {
+            response->set_guildname(result.guildName);
+            free(result.guildName);
+        }
+        if (result.signatoryGUIDs) {
+            for (int i = 0; i < result.signatoryGUIDsSize; ++i) {
+                response->add_signatoryguids(result.signatoryGUIDs[i]);
+            }
+            free(result.signatoryGUIDs);
+        }
+
+        return grpc::Status::OK;
+    } catch (const std::exception& e) {
+        return grpc::Status(grpc::StatusCode::INTERNAL, e.what());
+    }
+}
+
 }  // namespace tc9

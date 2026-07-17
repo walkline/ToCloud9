@@ -628,6 +628,28 @@ TC9_API void TC9SetCanPlayerTeleportToBattlegroundHandler(CanPlayerTeleportToBat
     spdlog::debug("CanPlayerTeleportToBattleground handler registered");
 }
 
+TC9_API void TC9SetCanTurnInGuildPetitionHandler(CanTurnInGuildPetitionHandler handler) {
+    static CanTurnInGuildPetitionHandler stored_handler = nullptr;
+    stored_handler = handler;
+
+    g_state.bindings.can_turn_in_guild_petition = [](uint64_t playerGuid, uint64_t petitionItemGuid) -> TC9GuildPetitionValidationResult {
+        TC9GuildPetitionValidationResult out{};
+        if (stored_handler) {
+            GuildPetitionValidationResult r = stored_handler(playerGuid, petitionItemGuid);
+            out.status = r.status;
+            out.guildName = r.guildName;
+            out.signatoryGUIDs = r.signatoryGUIDs;
+            out.signatoryGUIDsSize = r.signatoryGUIDsSize;
+            return out;
+        }
+
+        out.status = TC9GuildPetitionCheckStatusNoHandler;
+        return out;
+    };
+
+    spdlog::debug("CanTurnInGuildPetition handler registered");
+}
+
 // GUID generation functions
 
 TC9_API uint64_t TC9GetNextAvailableCharacterGuid(int realmID) {
@@ -795,6 +817,18 @@ TC9_API void TC9SetOnGuildMemberLeftHook(OnGuildMemberLeftHook hook) {
     tc9::EventHooks::Instance().RegisterGuildMemberLeft([](TC9EventGuildMemberLeft event) {
         if (stored_hook) {
             stored_hook(event.guildGuid, event.memberGuid);
+        }
+    });
+}
+
+TC9_API void TC9SetOnGuildCreatedHook(OnGuildCreatedHook hook) {
+    static OnGuildCreatedHook stored_hook = nullptr;
+    stored_hook = hook;
+
+    tc9::EventHooks::Instance().RegisterGuildCreated([](TC9EventGuildCreated event) {
+        if (stored_hook) {
+            stored_hook(event.guildGuid, const_cast<char*>(event.guildName), event.leaderGuid,
+                        const_cast<uint64_t*>(event.memberGuids), event.memberGuidsCount);
         }
     });
 }

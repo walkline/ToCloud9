@@ -171,6 +171,33 @@ typedef TC9ErrorCode (*TC9CanPlayerTeleportToBattlegroundHandler)(
     uint64_t playerGuid
 );
 
+/* Guild petition validation statuses, mirrors GuildPetitionCheckStatus of petition-api.h */
+typedef enum TC9GuildPetitionCheckStatus {
+    TC9GuildPetitionCheckStatusOk                 = 0,
+    TC9GuildPetitionCheckStatusNoHandler          = 1,
+    TC9GuildPetitionCheckStatusPlayerNotFound     = 2,
+    TC9GuildPetitionCheckStatusPetitionNotFound   = 3,
+    TC9GuildPetitionCheckStatusNotPetitionOwner   = 4,
+    TC9GuildPetitionCheckStatusNotGuildPetition   = 5,
+    TC9GuildPetitionCheckStatusAlreadyInGuild     = 6,
+    TC9GuildPetitionCheckStatusNeedMoreSignatures = 7,
+} TC9GuildPetitionCheckStatus;
+
+typedef struct {
+    int status;
+    /* Allocated with malloc by the handler, freed by the caller. */
+    char* guildName;
+    /* Allocated with malloc by the handler, freed by the caller. */
+    uint64_t* signatoryGUIDs;
+    int signatoryGUIDsSize;
+} TC9GuildPetitionValidationResult;
+
+/* Validate a guild petition turn-in on the worldserver side */
+typedef TC9GuildPetitionValidationResult (*TC9CanTurnInGuildPetitionHandler)(
+    uint64_t playerGuid,
+    uint64_t petitionItemGuid
+);
+
 /* Monitoring error codes */
 typedef enum TC9MonitoringErrorCode {
     TC9_MONITORING_ERROR_NO_ERROR = 0,
