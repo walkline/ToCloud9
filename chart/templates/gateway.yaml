@@ -47,6 +47,8 @@ spec:
           value: "{{ .Values.gateway.layering.postCombatDelaySeconds }}"
         - name: SERVERS_REGISTRY_SERVICE_ADDRESS
           value: {{ .Release.Name }}-servers-registry:{{ .Values.servers_registry.service.externalPort}}
+        - name: LAYER_COORDINATOR_SERVICE_ADDRESS
+          value: {{ .Release.Name }}-layer-coordinator:{{ .Values.layer_coordinator.service.externalPort}}
         - name: CHAR_SERVICE_ADDRESS
           value: {{ .Release.Name }}-charserver:{{ .Values.charserver.service.externalPort}}
         - name: CHAT_SERVICE_ADDRESS

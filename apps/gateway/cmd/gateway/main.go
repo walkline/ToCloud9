@@ -24,6 +24,7 @@ import (
 	pbChat "github.com/walkline/ToCloud9/gen/chat/pb"
 	pbGroup "github.com/walkline/ToCloud9/gen/group/pb"
 	pbGuild "github.com/walkline/ToCloud9/gen/guilds/pb"
+	pbCoordinator "github.com/walkline/ToCloud9/gen/layer-coordinator/pb"
 	pbMail "github.com/walkline/ToCloud9/gen/mail/pb"
 	pbMM "github.com/walkline/ToCloud9/gen/matchmaking/pb"
 	pbServ "github.com/walkline/ToCloud9/gen/servers-registry/pb"
@@ -72,6 +73,7 @@ func main() {
 	charClient := charService(conf)
 	chatClient := chatService(conf)
 	servRegistryClient := servRegistryService(conf)
+	layerCoordinatorClient := layerCoordinatorService(conf)
 	guildClient := guildService(conf)
 	mailClient := mailService(conf)
 	groupClient := groupService(conf)
@@ -166,6 +168,7 @@ func main() {
 			AuthDB:                           authDB,
 			CharServiceClient:                charClient,
 			ServersRegistryClient:            servRegistryClient,
+			LayerCoordinatorClient:           layerCoordinatorClient,
 			ChatServiceClient:                chatClient,
 			GuildsServiceClient:              guildClient,
 			MailServiceClient:                mailClient,
@@ -220,6 +223,14 @@ func servRegistryService(cnf *config.Config) pbServ.ServersRegistryServiceClient
 	}
 
 	return pbServ.NewServersRegistryServiceClient(conn)
+}
+
+func layerCoordinatorService(cnf *config.Config) pbCoordinator.LayerCoordinatorServiceClient {
+	conn, err := grpc.Dial(cnf.LayerCoordinatorServiceAddress, grpc.WithInsecure())
+	if err != nil {
+		log.Fatal().Err(err).Msg("can't connect to layer coordinator service")
+	}
+	return pbCoordinator.NewLayerCoordinatorServiceClient(conn)
 }
 
 func chatService(cnf *config.Config) pbChat.ChatServiceClient {

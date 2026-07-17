@@ -287,7 +287,7 @@ func (s *GameSession) handleLayerCommand(ctx context.Context, args []string) err
 		if s.character == nil {
 			return nil
 		}
-		resp, err := s.serversRegistryClient.GetLayerStats(ctx, &pbServ.GetLayerStatsRequest{Api: root.SupportedServerRegistryVer, RealmID: root.RealmID, MapID: s.character.Map, PlayerGUID: s.character.GUID})
+		resp, err := s.layerCoordinatorClient.GetLayerStats(ctx, &pbServ.GetLayerStatsRequest{Api: root.SupportedServerRegistryVer, RealmID: root.RealmID, MapID: s.character.Map, PlayerGUID: s.character.GUID})
 		if err != nil {
 			return err
 		}
@@ -358,7 +358,7 @@ func (s *GameSession) handleLayerCommand(ctx context.Context, args []string) err
 		}
 		guid, mapID, targetName = character.Character.CharGUID, character.Character.CharMap, character.Character.CharName
 	}
-	resp, err := s.serversRegistryClient.ForcePlayerLayer(ctx, &pbServ.ForcePlayerLayerRequest{Api: root.SupportedServerRegistryVer, RealmID: root.RealmID, PlayerGUID: guid, LayerID: uint32(layer64), MapID: mapID})
+	resp, err := s.layerCoordinatorClient.ForcePlayerLayer(ctx, &pbServ.ForcePlayerLayerRequest{Api: root.SupportedServerRegistryVer, RealmID: root.RealmID, PlayerGUID: guid, LayerID: uint32(layer64), MapID: mapID})
 	if err != nil {
 		return err
 	}

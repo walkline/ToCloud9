@@ -281,7 +281,7 @@ func (s *GameSession) InterceptMoveWorldPortAck(ctx context.Context, p *packet.P
 		desiredServer = s.layerSwitchTarget
 		connectToSelectedAddress = true
 	} else if s.layeringEnabled {
-		selection, selectErr := s.serversRegistryClient.SelectGameServerForPlayer(ctx, &pbServ.SelectGameServerForPlayerRequest{
+		selection, selectErr := s.layerCoordinatorClient.SelectGameServerForPlayer(ctx, &pbServ.SelectGameServerForPlayerRequest{
 			Api:                      root.SupportedServerRegistryVer,
 			RealmID:                  root.RealmID,
 			MapID:                    mapID,

@@ -18,6 +18,10 @@ state. The gateway never chooses a layer or compares layer populations: it
 supplies the player's realm, map, group, and current worldserver to the registry
 and follows the returned placement.
 
+The optional layer coordinator owns player switch intent, pending/completed
+handoffs, online tracking, layer statistics, and GM force-switch requests. It
+delegates authoritative destination selection to the servers registry.
+
 The gateway contains only client-session transport required for a seamless
 cross-core handoff. It observes whether disconnecting the current world session
 is safe, carries out the registry's decision, filters the loading-screen/login

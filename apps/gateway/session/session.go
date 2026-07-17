@@ -21,6 +21,7 @@ import (
 	pbChat "github.com/walkline/ToCloud9/gen/chat/pb"
 	pbGroup "github.com/walkline/ToCloud9/gen/group/pb"
 	pbGuild "github.com/walkline/ToCloud9/gen/guilds/pb"
+	pbCoordinator "github.com/walkline/ToCloud9/gen/layer-coordinator/pb"
 	pbMail "github.com/walkline/ToCloud9/gen/mail/pb"
 	pbMatchmaking "github.com/walkline/ToCloud9/gen/matchmaking/pb"
 	pbServ "github.com/walkline/ToCloud9/gen/servers-registry/pb"
@@ -47,6 +48,7 @@ type GameSession struct {
 
 	charServiceClient             pbChar.CharactersServiceClient
 	serversRegistryClient         pbServ.ServersRegistryServiceClient
+	layerCoordinatorClient        pbCoordinator.LayerCoordinatorServiceClient
 	chatServiceClient             pbChat.ChatServiceClient
 	guildServiceClient            pbGuild.GuildServiceClient
 	mailServiceClient             pbMail.MailServiceClient
@@ -119,6 +121,7 @@ type GameSessionParams struct {
 	AuthDB                           *sql.DB
 	CharServiceClient                pbChar.CharactersServiceClient
 	ServersRegistryClient            pbServ.ServersRegistryServiceClient
+	LayerCoordinatorClient           pbCoordinator.LayerCoordinatorServiceClient
 	ChatServiceClient                pbChat.ChatServiceClient
 	GuildsServiceClient              pbGuild.GuildServiceClient
 	MailServiceClient                pbMail.MailServiceClient
@@ -161,6 +164,12 @@ func NewGameSession(
 	if postCombatDelay == 0 {
 		postCombatDelay = 15 * time.Second
 	}
+	coordinatorClient := params.LayerCoordinatorClient
+	if coordinatorClient == nil {
+		// Backward-compatible for embedders and tests during the coordinator
+		// rollout. Production gateways always receive the dedicated client.
+		coordinatorClient, _ = any(params.ServersRegistryClient).(pbCoordinator.LayerCoordinatorServiceClient)
+	}
 
 	s := &GameSession{
 		ctx:        ctx,
@@ -172,6 +181,7 @@ func NewGameSession(
 
 		charServiceClient:                params.CharServiceClient,
 		serversRegistryClient:            params.ServersRegistryClient,
+		layerCoordinatorClient:           coordinatorClient,
 		chatServiceClient:                params.ChatServiceClient,
 		guildServiceClient:               params.GuildsServiceClient,
 		mailServiceClient:                params.MailServiceClient,
@@ -521,7 +531,7 @@ func (s *GameSession) connectToGameServer(ctx context.Context, characterGUID uin
 		if mapID != nil {
 			reason = pbServ.SelectGameServerForPlayerRequest_MAP_CHANGE
 		}
-		selection, selectErr := s.serversRegistryClient.SelectGameServerForPlayer(ctx, &pbServ.SelectGameServerForPlayerRequest{
+		selection, selectErr := s.layerCoordinatorClient.SelectGameServerForPlayer(ctx, &pbServ.SelectGameServerForPlayerRequest{
 			Api:                      root.SupportedServerRegistryVer,
 			RealmID:                  root.RealmID,
 			MapID:                    mapIDToLogin,
@@ -702,7 +712,7 @@ func (s *GameSession) onLoggedOut() {
 	if s.layeringEnabled {
 		releaseCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 		defer cancel()
-		_, err := s.serversRegistryClient.ReleasePlayerLayer(releaseCtx, &pbServ.ReleasePlayerLayerRequest{
+		_, err := s.layerCoordinatorClient.ReleasePlayerLayer(releaseCtx, &pbServ.ReleasePlayerLayerRequest{
 			Api: root.SupportedServerRegistryVer, RealmID: root.RealmID, PlayerGUID: s.character.GUID,
 		})
 		if err != nil {

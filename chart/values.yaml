@@ -69,6 +69,17 @@ servers_registry:
     scopeZoneIDs: []
     scopeMaxPopulation: 0
 
+layer_coordinator:
+  replicaCount: 1
+  image:
+    repository: ghcr.io/walkline/layer-coordinator
+    pullPolicy: Always
+    tag: *defaultImagesTag
+  service:
+    type: ClusterIP
+    internalPort: 8996
+    externalPort: 8996
+
 authserver:
   replicaCount: 1
   image:

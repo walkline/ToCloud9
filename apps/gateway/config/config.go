@@ -33,7 +33,8 @@ type Config struct {
 	CharServiceAddress string `yaml:"charactersServiceAddress" env:"CHAR_SERVICE_ADDRESS" env-default:"localhost:8991"`
 
 	// ServersRegistryServiceAddress is address of servers registry service
-	ServersRegistryServiceAddress string `yaml:"serversRegistryServiceAddress" env:"SERVERS_REGISTRY_SERVICE_ADDRESS" env-default:"localhost:8999"`
+	ServersRegistryServiceAddress  string `yaml:"serversRegistryServiceAddress" env:"SERVERS_REGISTRY_SERVICE_ADDRESS" env-default:"localhost:8999"`
+	LayerCoordinatorServiceAddress string `yaml:"layerCoordinatorServiceAddress" env:"LAYER_COORDINATOR_SERVICE_ADDRESS" env-default:"localhost:8996"`
 
 	// ChatServiceAddress is address of chat service
 	ChatServiceAddress string `yaml:"chatServiceAddress" env:"CHAT_SERVICE_ADDRESS" env-default:"localhost:8992"`

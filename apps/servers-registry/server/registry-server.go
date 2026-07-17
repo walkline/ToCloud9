@@ -62,49 +62,6 @@ func (s *serversRegistry) SelectGameServerForPlayer(ctx context.Context, request
 	return response, nil
 }
 
-func (s *serversRegistry) PollPlayerLayerAction(ctx context.Context, request *pb.PollPlayerLayerActionRequest) (*pb.SelectGameServerForPlayerResponse, error) {
-	selection, err := s.layerService.Poll(ctx, request.RealmID, request.MapID, request.ZoneID, request.GroupID, request.PlayerGUID, request.CurrentGameServerAddress)
-	if err != nil {
-		return nil, err
-	}
-	return layerSelectionResponse(selection), nil
-}
-
-func (s *serversRegistry) CompletePlayerLayerSwitch(_ context.Context, request *pb.CompletePlayerLayerSwitchRequest) (*pb.CompletePlayerLayerSwitchResponse, error) {
-	s.layerService.CompleteSwitch(request.RealmID, request.PlayerGUID, request.Success)
-	return &pb.CompletePlayerLayerSwitchResponse{Api: ver}, nil
-}
-
-func layerSelectionResponse(selection service.LayerSelection) *pb.SelectGameServerForPlayerResponse {
-	response := &pb.SelectGameServerForPlayerResponse{Api: ver, Status: pb.SelectGameServerForPlayerResponse_Status(selection.Status), LayerID: selection.LayerID, RetryAfterSeconds: uint32(selection.RetryAfter.Round(time.Second) / time.Second)}
-	if selection.Server != nil {
-		response.GameServer = &pb.Server{ID: selection.Server.ID, Address: selection.Server.Address, GrpcAddress: selection.Server.GRPCAddress, RealmID: selection.Server.RealmID, IsCrossRealm: selection.Server.IsCrossRealm, LayerID: selection.LayerID}
-	}
-	return response
-}
-
-func (s *serversRegistry) ReleasePlayerLayer(_ context.Context, request *pb.ReleasePlayerLayerRequest) (*pb.ReleasePlayerLayerResponse, error) {
-	s.layerService.Release(request.RealmID, request.PlayerGUID)
-	return &pb.ReleasePlayerLayerResponse{Api: ver}, nil
-}
-
-func (s *serversRegistry) GetLayerStats(ctx context.Context, request *pb.GetLayerStatsRequest) (*pb.GetLayerStatsResponse, error) {
-	stats, err := s.layerService.Stats(ctx, request.RealmID, request.MapID, request.PlayerGUID)
-	if err != nil {
-		return nil, err
-	}
-	resp := &pb.GetLayerStatsResponse{Api: ver, Enabled: stats.Enabled, MaxPopulation: stats.MaxPopulation, TargetPopulationPercent: stats.TargetPopulationPercent, OverflowMarginPercent: stats.OverflowMarginPercent, MinLayers: stats.MinLayers, MaxLayers: stats.MaxLayers, SwitchCooldownSeconds: stats.SwitchCooldownSeconds, MaxSwitchesPerHour: stats.MaxSwitchesPerHour, CurrentLayerID: stats.CurrentLayerID, SwitchCooldownRemainingSeconds: stats.SwitchCooldownRemainingSeconds}
-	for _, layer := range stats.Layers {
-		resp.Layers = append(resp.Layers, &pb.GetLayerStatsResponse_Layer{LayerID: layer.LayerID, CurrentPlayers: layer.CurrentPlayers, ReadyCores: layer.ReadyCores, Draining: layer.Draining})
-	}
-	return resp, nil
-}
-
-func (s *serversRegistry) ForcePlayerLayer(ctx context.Context, request *pb.ForcePlayerLayerRequest) (*pb.ForcePlayerLayerResponse, error) {
-	status := s.layerService.Force(ctx, request.RealmID, request.PlayerGUID, request.LayerID, request.MapID)
-	return &pb.ForcePlayerLayerResponse{Api: ver, Status: pb.ForcePlayerLayerResponse_Status(status)}, nil
-}
-
 func (s *serversRegistry) GetMapLayerConfiguration(_ context.Context, request *pb.GetMapLayerConfigurationRequest) (*pb.GetMapLayerConfigurationResponse, error) {
 	config := s.layerService.MapConfiguration(request.RealmID)
 	resp := &pb.GetMapLayerConfigurationResponse{Api: ver}

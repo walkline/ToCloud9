@@ -57,12 +57,15 @@ services:
       - "8900:8900"
       - "4000:4000"
     depends_on:
+      layer-coordinator:
+        condition: service_started
       servers-registry:
         condition: service_started
       database-ac:
         condition: service_healthy
     environment:
       SERVERS_REGISTRY_SERVICE_ADDRESS: servers-registry:8999
+      LAYER_COORDINATOR_SERVICE_ADDRESS: layer-coordinator:8996
       CHAR_SERVICE_ADDRESS: charserver:8087
       CHAT_SERVICE_ADDRESS: chatserver:8992
       GUILDS_SERVICE_ADDRESS: guildserver:8995
@@ -84,6 +87,27 @@ services:
       - ac
       - tc
 
+  layer-coordinator:
+    build:
+      context: .
+      dockerfile: apps/layer-coordinator/Dockerfile
+    ports:
+      - "8996:8996"
+    depends_on:
+      servers-registry:
+        condition: service_started
+    environment:
+      PORT: 8996
+      SERVERS_REGISTRY_SERVICE_ADDRESS: servers-registry:8999
+      LAYER_MAX_POPULATION: ${LAYER_MAX_POPULATION:-1000}
+      LAYER_TARGET_POPULATION_PERCENT: ${LAYER_TARGET_POPULATION_PERCENT:-90}
+      LAYER_OVERFLOW_MARGIN_PERCENT: ${LAYER_OVERFLOW_MARGIN_PERCENT:-10}
+      LAYER_SWITCH_COOLDOWN_SECONDS: ${LAYER_SWITCH_COOLDOWN_SECONDS:-60}
+      LAYER_MAX_SWITCHES_PER_HOUR: ${LAYER_MAX_SWITCHES_PER_HOUR:-6}
+    profiles:
+      - ac
+      - tc
+
   gateway-second:
     build:
       context: .
@@ -91,12 +115,15 @@ services:
     ports:
       - "8045:8045"
     depends_on:
+      layer-coordinator:
+        condition: service_started
       servers-registry:
         condition: service_started
       database-ac:
         condition: service_healthy
     environment:
       SERVERS_REGISTRY_SERVICE_ADDRESS: servers-registry:8999
+      LAYER_COORDINATOR_SERVICE_ADDRESS: layer-coordinator:8996
       CHAR_SERVICE_ADDRESS: charserver:8087
       CHAT_SERVICE_ADDRESS: chatserver:8992
       GUILDS_SERVICE_ADDRESS: guildserver:8995

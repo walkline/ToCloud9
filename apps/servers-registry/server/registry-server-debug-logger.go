@@ -95,24 +95,6 @@ func (s *serversRegistryDebugLoggerMiddleware) SelectGameServerForPlayer(ctx con
 	return s.realService.SelectGameServerForPlayer(ctx, request)
 }
 
-func (s *serversRegistryDebugLoggerMiddleware) ReleasePlayerLayer(ctx context.Context, request *pb.ReleasePlayerLayerRequest) (*pb.ReleasePlayerLayerResponse, error) {
-	return s.realService.ReleasePlayerLayer(ctx, request)
-}
-
-func (s *serversRegistryDebugLoggerMiddleware) PollPlayerLayerAction(ctx context.Context, request *pb.PollPlayerLayerActionRequest) (*pb.SelectGameServerForPlayerResponse, error) {
-	return s.realService.PollPlayerLayerAction(ctx, request)
-}
-
-func (s *serversRegistryDebugLoggerMiddleware) CompletePlayerLayerSwitch(ctx context.Context, request *pb.CompletePlayerLayerSwitchRequest) (*pb.CompletePlayerLayerSwitchResponse, error) {
-	return s.realService.CompletePlayerLayerSwitch(ctx, request)
-}
-
-func (s *serversRegistryDebugLoggerMiddleware) GetLayerStats(ctx context.Context, request *pb.GetLayerStatsRequest) (*pb.GetLayerStatsResponse, error) {
-	return s.realService.GetLayerStats(ctx, request)
-}
-func (s *serversRegistryDebugLoggerMiddleware) ForcePlayerLayer(ctx context.Context, request *pb.ForcePlayerLayerRequest) (*pb.ForcePlayerLayerResponse, error) {
-	return s.realService.ForcePlayerLayer(ctx, request)
-}
 func (s *serversRegistryDebugLoggerMiddleware) GetMapLayerConfiguration(ctx context.Context, request *pb.GetMapLayerConfigurationRequest) (*pb.GetMapLayerConfigurationResponse, error) {
 	return s.realService.GetMapLayerConfiguration(ctx, request)
 }

@@ -11,11 +11,6 @@ service ServersRegistryService {
   rpc ListAllGameServers(ListAllGameServersRequest) returns (ListGameServersResponse);
   rpc GameServerMapsLoaded(GameServerMapsLoadedRequest) returns (GameServerMapsLoadedResponse);
   rpc SelectGameServerForPlayer(SelectGameServerForPlayerRequest) returns (SelectGameServerForPlayerResponse);
-  rpc PollPlayerLayerAction(PollPlayerLayerActionRequest) returns (SelectGameServerForPlayerResponse);
-  rpc CompletePlayerLayerSwitch(CompletePlayerLayerSwitchRequest) returns (CompletePlayerLayerSwitchResponse);
-  rpc ReleasePlayerLayer(ReleasePlayerLayerRequest) returns (ReleasePlayerLayerResponse);
-  rpc GetLayerStats(GetLayerStatsRequest) returns (GetLayerStatsResponse);
-  rpc ForcePlayerLayer(ForcePlayerLayerRequest) returns (ForcePlayerLayerResponse);
   rpc GetMapLayerConfiguration(GetMapLayerConfigurationRequest) returns (GetMapLayerConfigurationResponse);
   rpc UpdateMapLayerConfiguration(UpdateMapLayerConfigurationRequest) returns (UpdateMapLayerConfigurationResponse);
   rpc BindGroupToGameServer(BindGroupToGameServerRequest) returns (BindGroupToGameServerResponse);

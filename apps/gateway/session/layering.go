@@ -62,7 +62,7 @@ func (s *GameSession) processNextLayerSwitch(ctx context.Context) error {
 	}
 	if time.Since(s.lastLayerLifecyclePoll) >= 2*time.Second {
 		s.lastLayerLifecyclePoll = time.Now()
-		action, err := s.serversRegistryClient.PollPlayerLayerAction(ctx, &pbServ.PollPlayerLayerActionRequest{
+		action, err := s.layerCoordinatorClient.PollPlayerLayerAction(ctx, &pbServ.PollPlayerLayerActionRequest{
 			Api: root.SupportedServerRegistryVer, RealmID: root.RealmID, MapID: s.character.Map,
 			ZoneID: s.character.Zone, PlayerGUID: s.character.GUID, CurrentGameServerAddress: s.currentServerAddress,
 			GroupID: s.currentGroupID,
@@ -91,7 +91,7 @@ func (s *GameSession) processNextLayerSwitch(ctx context.Context) error {
 		return nil
 	}
 
-	selection, err := s.serversRegistryClient.SelectGameServerForPlayer(ctx, &pbServ.SelectGameServerForPlayerRequest{
+	selection, err := s.layerCoordinatorClient.SelectGameServerForPlayer(ctx, &pbServ.SelectGameServerForPlayerRequest{
 		Api:                      root.SupportedServerRegistryVer,
 		RealmID:                  root.RealmID,
 		MapID:                    s.character.Map,
@@ -162,7 +162,7 @@ func (s *GameSession) completeLayerSwitch(success bool) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-	_, err := s.serversRegistryClient.CompletePlayerLayerSwitch(ctx, &pbServ.CompletePlayerLayerSwitchRequest{
+	_, err := s.layerCoordinatorClient.CompletePlayerLayerSwitch(ctx, &pbServ.CompletePlayerLayerSwitchRequest{
 		Api: root.SupportedServerRegistryVer, RealmID: root.RealmID, PlayerGUID: s.character.GUID, Success: success,
 	})
 	if err != nil {
