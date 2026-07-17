@@ -101,6 +101,7 @@ type GameSession struct {
 	currentServerAddress   string
 	layerSwitchQueue       chan layerSwitchRequest
 	layerSwitchInterval    time.Duration
+	layerPostCombatDelay   time.Duration
 	layerSwitchInProgress  bool
 	layerSwitchTarget      *pbServ.Server
 	pendingGroupInviter    uint64
@@ -135,6 +136,7 @@ type GameSessionParams struct {
 	LayeringEnabled                  bool
 	LayerSwitchQueueSize             uint32
 	LayerSwitchProcessInterval       time.Duration
+	LayerPostCombatDelay             time.Duration
 }
 
 func NewGameSession(
@@ -154,6 +156,10 @@ func NewGameSession(
 	queueInterval := params.LayerSwitchProcessInterval
 	if queueInterval == 0 {
 		queueInterval = 250 * time.Millisecond
+	}
+	postCombatDelay := params.LayerPostCombatDelay
+	if postCombatDelay == 0 {
+		postCombatDelay = 15 * time.Second
 	}
 
 	s := &GameSession{
@@ -182,6 +188,7 @@ func NewGameSession(
 		layeringEnabled:                  params.LayeringEnabled,
 		layerSwitchQueue:                 make(chan layerSwitchRequest, queueSize),
 		layerSwitchInterval:              queueInterval,
+		layerPostCombatDelay:             postCombatDelay,
 
 		sessionSafeFuChan:        make(chan func(*GameSession), 100),
 		packetProcessTimeout:     packetProcessTimeout,

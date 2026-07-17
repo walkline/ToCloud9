@@ -11,7 +11,7 @@ import (
 // the gateway disconnects a character from one layer and attaches it to another.
 type layerSafetyState struct {
 	inCombat, falling, looting, trading, casting, releasing bool
-	lastDamagedAt                                           time.Time
+	lastCombatEndedAt                                       time.Time
 }
 
 func (s *GameSession) layerSwitchSafe(now time.Time) bool {
@@ -20,7 +20,7 @@ func (s *GameSession) layerSwitchSafe(now time.Time) bool {
 		s.layerSafety.casting || s.layerSafety.releasing {
 		return false
 	}
-	if !s.layerSafety.lastDamagedAt.IsZero() && now.Sub(s.layerSafety.lastDamagedAt) < 30*time.Second {
+	if !s.layerSafety.lastCombatEndedAt.IsZero() && now.Sub(s.layerSafety.lastCombatEndedAt) < s.layerPostCombatDelay {
 		return false
 	}
 	// Layering is only valid in the four open-world continent maps. Every
@@ -62,10 +62,10 @@ func (s *GameSession) HandleLayerSafetyPacket(_ context.Context, p *packet.Packe
 		r := p.Reader()
 		attacker, victim := r.Uint64(), r.Uint64()
 		if attacker == s.character.GUID || victim == s.character.GUID {
-			s.layerSafety.inCombat = true
+			s.setLayerCombatState(true, time.Now())
 		}
 	case packet.SMsgAttackStop, packet.SMsgCancelCombat:
-		s.layerSafety.inCombat = false
+		s.setLayerCombatState(false, time.Now())
 	}
 	// AzerothCore emits login/re-entry spell casts immediately after attaching
 	// the character to the destination core. During a seamless handoff these
@@ -81,6 +81,13 @@ func (s *GameSession) HandleLayerSafetyPacket(_ context.Context, p *packet.Packe
 		s.gameSocket.SendPacket(p)
 	}
 	return nil
+}
+
+func (s *GameSession) setLayerCombatState(inCombat bool, now time.Time) {
+	if s.layerSafety.inCombat && !inCombat {
+		s.layerSafety.lastCombatEndedAt = now
+	}
+	s.layerSafety.inCombat = inCombat
 }
 
 func (s *GameSession) shouldSuppressLayerLoginVisual(opcode packet.Opcode, now time.Time) bool {

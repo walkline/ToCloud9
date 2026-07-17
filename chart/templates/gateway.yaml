@@ -43,6 +43,8 @@ spec:
           value: "{{ .Values.gateway.layering.switchQueueSize }}"
         - name: LAYER_QUEUE_PROCESS_INTERVAL_MS
           value: "{{ .Values.gateway.layering.queueProcessIntervalMs }}"
+        - name: LAYER_POST_COMBAT_DELAY_SECONDS
+          value: "{{ .Values.gateway.layering.postCombatDelaySeconds }}"
         - name: SERVERS_REGISTRY_SERVICE_ADDRESS
           value: {{ .Release.Name }}-servers-registry:{{ .Values.servers_registry.service.externalPort}}
         - name: CHAR_SERVICE_ADDRESS

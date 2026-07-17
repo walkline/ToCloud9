@@ -183,6 +183,7 @@ func main() {
 			LayeringEnabled:                  conf.Layering.Enabled,
 			LayerSwitchQueueSize:             conf.Layering.SwitchQueueSize,
 			LayerSwitchProcessInterval:       time.Duration(conf.Layering.QueueProcessIntervalMS) * time.Millisecond,
+			LayerPostCombatDelay:             time.Duration(conf.Layering.PostCombatDelaySeconds) * time.Second,
 		})
 		go func() {
 			healthandmetrics.ActiveConnectionsMetrics.Inc()

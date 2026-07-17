@@ -10,17 +10,15 @@ import (
 
 func TestLayerSwitchSafe(t *testing.T) {
 	now := time.Now()
-	s := &GameSession{character: &LoggedInCharacter{Map: 0, CurHP: 100}}
+	s := &GameSession{character: &LoggedInCharacter{Map: 0, CurHP: 100}, layerPostCombatDelay: 15 * time.Second}
 	require.True(t, s.layerSwitchSafe(now))
 
 	s.layerSafety.inCombat = true
 	require.False(t, s.layerSwitchSafe(now))
-	s.layerSafety.inCombat = false
-
-	s.layerSafety.lastDamagedAt = now.Add(-29 * time.Second)
+	s.setLayerCombatState(false, now)
 	require.False(t, s.layerSwitchSafe(now))
-	s.layerSafety.lastDamagedAt = now.Add(-30 * time.Second)
-	require.True(t, s.layerSwitchSafe(now))
+	require.False(t, s.layerSwitchSafe(now.Add(14*time.Second)))
+	require.True(t, s.layerSwitchSafe(now.Add(15*time.Second)))
 
 	s.character.Map = 33 // Shadowfang Keep (instance map)
 	require.False(t, s.layerSwitchSafe(now))

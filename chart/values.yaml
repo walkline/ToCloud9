@@ -197,6 +197,7 @@ gateway:
     enabled: false
     switchQueueSize: 32
     queueProcessIntervalMs: 250
+    postCombatDelaySeconds: 15
 
 gameserver_ac:
   initcontainer:

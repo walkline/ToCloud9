@@ -100,9 +100,12 @@ the previous map copy, and attaches to the destination core without a loading
 screen. Movement remains unfrozen; the newest movement update is buffered during
 the socket gap and delivered after destination world entry.
 
-Layer switches wait until the player is alive, outside combat, undamaged for 30
-seconds, outside instances and battlegrounds, and not falling, looting, trading,
-casting, or releasing.
+Layer switches wait until the player is alive, outside combat for the configured
+`gateway.layering.postCombatDelaySeconds` (15 seconds by default), outside
+instances and battlegrounds, and not falling, looting, trading, casting, or
+releasing. Combat is read from AzerothCore's player combat flag, so healing that
+places the character in combat is handled even when the character takes no
+damage.
 
 ## Optional Kubernetes autoscaling
 

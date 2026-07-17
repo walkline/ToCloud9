@@ -159,9 +159,6 @@ func (s *GameSession) trackCharacterStats(data []byte) {
 	changed := false
 
 	if upd.CurHP != nil && *upd.CurHP != char.CurHP {
-		if *upd.CurHP < char.CurHP {
-			s.layerSafety.lastDamagedAt = time.Now()
-		}
 		char.CurHP = *upd.CurHP
 		if char.CurHP > 0 {
 			s.layerSafety.releasing = false
@@ -171,7 +168,7 @@ func (s *GameSession) trackCharacterStats(data []byte) {
 	}
 	if upd.UnitFlags != nil {
 		const unitFlagInCombat = uint32(0x00080000)
-		s.layerSafety.inCombat = *upd.UnitFlags&unitFlagInCombat != 0
+		s.setLayerCombatState(*upd.UnitFlags&unitFlagInCombat != 0, time.Now())
 	}
 
 	if upd.MaxHP != nil && *upd.MaxHP != char.MaxHP {

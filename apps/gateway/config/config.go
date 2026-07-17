@@ -69,6 +69,7 @@ type LayeringConfig struct {
 	Enabled                bool   `yaml:"enabled" env:"LAYERING_ENABLED" env-default:"false"`
 	SwitchQueueSize        uint32 `yaml:"switchQueueSize" env:"LAYER_SWITCH_QUEUE_SIZE" env-default:"32"`
 	QueueProcessIntervalMS uint32 `yaml:"queueProcessIntervalMs" env:"LAYER_QUEUE_PROCESS_INTERVAL_MS" env-default:"250"`
+	PostCombatDelaySeconds uint32 `yaml:"postCombatDelaySeconds" env:"LAYER_POST_COMBAT_DELAY_SECONDS" env-default:"15"`
 }
 
 func (c Config) PortInt() (p int) {
