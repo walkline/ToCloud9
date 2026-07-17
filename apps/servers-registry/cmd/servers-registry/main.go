@@ -100,16 +100,6 @@ func main() {
 		log.Fatal().Err(err).Msg("can't create gateway service")
 	}
 
-	var layerProvisioner service.LayerProvisioner = service.NoopLayerProvisioner{}
-	if conf.Layering.Enabled && conf.Layering.EnableKubernetesAutoscaling && conf.Layering.Provisioner.Type == "kubernetes" {
-		layerProvisioner, err = service.NewKubernetesLayerProvisioner(service.KubernetesLayerProvisionerConfig{
-			Namespace: conf.Layering.Provisioner.Namespace, BaseDeployments: conf.Layering.Provisioner.BaseDeployments,
-			NamePrefix: conf.Layering.Provisioner.NamePrefix,
-		})
-		if err != nil {
-			log.Fatal().Err(err).Msg("can't create layer provisioner")
-		}
-	}
 	scopes := make([]service.LayerScope, len(conf.Layering.Scopes))
 	mapLayers := make(map[uint32]uint32, len(conf.Layering.Maps))
 	for _, item := range conf.Layering.Maps {
@@ -138,14 +128,11 @@ func main() {
 		MaxPopulation:           conf.Layering.MaxPopulation,
 		TargetPopulationPercent: conf.Layering.TargetPopulationPct,
 		OverflowMarginPercent:   conf.Layering.OverflowMarginPct,
-		MinCapacityPercent:      conf.Layering.MinCapacityPct,
-		MinCapacityDuration:     time.Duration(conf.Layering.MinCapacityDuration) * time.Second,
 		SwitchCooldown:          time.Duration(conf.Layering.SwitchCooldownSeconds) * time.Second,
 		MaxSwitchesPerHour:      conf.Layering.MaxSwitchesPerHour,
 		MinLayers:               conf.Layering.MinLayers, MaxLayers: conf.Layering.MaxLayers,
 		ReconcileInterval: time.Duration(conf.Layering.ReconcileIntervalSecs) * time.Second,
-		RealmIDs:          supportedRealms, Scopes: scopes, Provisioner: layerProvisioner,
-		MapLayers: mapLayers, EnableKubernetesAutoscaling: conf.Layering.EnableKubernetesAutoscaling,
+		RealmIDs:          supportedRealms, Scopes: scopes, MapLayers: mapLayers,
 	})
 	for _, realmID := range supportedRealms {
 		if err := gameServersService.UpdateMapLayerConfiguration(mainContext, realmID, mapLayers); err != nil {

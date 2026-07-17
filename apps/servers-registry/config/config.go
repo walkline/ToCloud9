@@ -24,25 +24,21 @@ type Config struct {
 }
 
 type LayeringConfig struct {
-	Enabled                     bool                   `yaml:"enabled" env:"LAYERING_ENABLED" env-default:"false"`
-	MaxPopulation               uint32                 `yaml:"maxPopulation" env:"LAYER_MAX_POPULATION" env-default:"1000"`
-	TargetPopulationPct         uint32                 `yaml:"targetPopulationPercent" env:"LAYER_TARGET_POPULATION_PERCENT" env-default:"90"`
-	OverflowMarginPct           uint32                 `yaml:"overflowMarginPercent" env:"LAYER_OVERFLOW_MARGIN_PERCENT" env-default:"10"`
-	MinCapacityPct              uint32                 `yaml:"minCapacityPercent" env:"LAYER_MIN_CAPACITY_PERCENT" env-default:"10"`
-	MinCapacityDuration         uint32                 `yaml:"minCapacityDurationSeconds" env:"LAYER_MIN_CAPACITY_DURATION_SECONDS" env-default:"300"`
-	SwitchCooldownSeconds       uint32                 `yaml:"switchCooldownSeconds" env:"LAYER_SWITCH_COOLDOWN_SECONDS" env-default:"60"`
-	MaxSwitchesPerHour          uint32                 `yaml:"maxSwitchesPerHour" env:"LAYER_MAX_SWITCHES_PER_HOUR" env-default:"6"`
-	MinLayers                   uint32                 `yaml:"minLayers" env:"LAYER_MIN_LAYERS" env-default:"1"`
-	MaxLayers                   uint32                 `yaml:"maxLayers" env:"LAYER_MAX_LAYERS" env-default:"10"`
-	ReconcileIntervalSecs       uint32                 `yaml:"reconcileIntervalSeconds" env:"LAYER_RECONCILE_INTERVAL_SECONDS" env-default:"5"`
-	Scopes                      []LayerScopeConfig     `yaml:"scopes"`
-	ScopeMapIDs                 []uint32               `yaml:"-" env:"LAYER_SCOPE_MAP_IDS"`
-	ScopeZoneIDs                []uint32               `yaml:"-" env:"LAYER_SCOPE_ZONE_IDS"`
-	ScopeMaxPopulation          uint32                 `yaml:"-" env:"LAYER_SCOPE_MAX_POPULATION" env-default:"0"`
-	Provisioner                 LayerProvisionerConfig `yaml:"provisioner"`
-	Maps                        []MapLayerConfig       `yaml:"maps"`
-	MapSpecs                    []string               `yaml:"-" env:"LAYER_MAPS"`
-	EnableKubernetesAutoscaling bool                   `yaml:"enableKubernetesAutoscaling" env:"LAYER_ENABLE_KUBERNETES_AUTOSCALING" env-default:"false"`
+	Enabled               bool               `yaml:"enabled" env:"LAYERING_ENABLED" env-default:"false"`
+	MaxPopulation         uint32             `yaml:"maxPopulation" env:"LAYER_MAX_POPULATION" env-default:"1000"`
+	TargetPopulationPct   uint32             `yaml:"targetPopulationPercent" env:"LAYER_TARGET_POPULATION_PERCENT" env-default:"90"`
+	OverflowMarginPct     uint32             `yaml:"overflowMarginPercent" env:"LAYER_OVERFLOW_MARGIN_PERCENT" env-default:"10"`
+	SwitchCooldownSeconds uint32             `yaml:"switchCooldownSeconds" env:"LAYER_SWITCH_COOLDOWN_SECONDS" env-default:"60"`
+	MaxSwitchesPerHour    uint32             `yaml:"maxSwitchesPerHour" env:"LAYER_MAX_SWITCHES_PER_HOUR" env-default:"6"`
+	MinLayers             uint32             `yaml:"minLayers" env:"LAYER_MIN_LAYERS" env-default:"1"`
+	MaxLayers             uint32             `yaml:"maxLayers" env:"LAYER_MAX_LAYERS" env-default:"10"`
+	ReconcileIntervalSecs uint32             `yaml:"reconcileIntervalSeconds" env:"LAYER_RECONCILE_INTERVAL_SECONDS" env-default:"5"`
+	Scopes                []LayerScopeConfig `yaml:"scopes"`
+	ScopeMapIDs           []uint32           `yaml:"-" env:"LAYER_SCOPE_MAP_IDS"`
+	ScopeZoneIDs          []uint32           `yaml:"-" env:"LAYER_SCOPE_ZONE_IDS"`
+	ScopeMaxPopulation    uint32             `yaml:"-" env:"LAYER_SCOPE_MAX_POPULATION" env-default:"0"`
+	Maps                  []MapLayerConfig   `yaml:"maps"`
+	MapSpecs              []string           `yaml:"-" env:"LAYER_MAPS"`
 }
 
 type MapLayerConfig struct {
@@ -55,13 +51,6 @@ type LayerScopeConfig struct {
 	MapIDs        []uint32 `yaml:"mapIDs"`
 	ZoneIDs       []uint32 `yaml:"zoneIDs"`
 	MaxPopulation uint32   `yaml:"maxPopulation"`
-}
-
-type LayerProvisionerConfig struct {
-	Type            string   `yaml:"type" env:"LAYER_PROVISIONER_TYPE" env-default:"none"`
-	Namespace       string   `yaml:"namespace" env:"LAYER_KUBERNETES_NAMESPACE" env-default:"default"`
-	BaseDeployments []string `yaml:"baseDeployments" env:"LAYER_BASE_DEPLOYMENTS"`
-	NamePrefix      string   `yaml:"namePrefix" env:"LAYER_DEPLOYMENT_PREFIX" env-default:"tc9"`
 }
 
 // LoadConfig loads config from env variables

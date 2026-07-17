@@ -42,7 +42,6 @@ servers-registry:
         layers: 3
       - mapID: 571
         layers: 2
-    enableKubernetesAutoscaling: false
 ```
 
 The environment equivalent is:
@@ -50,7 +49,6 @@ The environment equivalent is:
 ```text
 LAYERING_ENABLED=true
 LAYER_MAPS=1:3,571:2
-LAYER_ENABLE_KUBERNETES_AUTOSCALING=false
 ```
 
 Maps omitted from the configuration have one copy and use normal map
@@ -107,25 +105,6 @@ releasing. Combat is read from AzerothCore's player combat flag, so healing that
 places the character in combat is handled even when the character takes no
 damage.
 
-## Optional Kubernetes autoscaling
-
-Kubernetes core provisioning is an optional extension and is disabled by
-default. It is active only when both settings are present:
-
-```yaml
-enableKubernetesAutoscaling: true
-provisioner:
-  type: kubernetes
-  namespace: tocloud9
-  baseDeployments: [cloud9-tocloud9-gameserver-ac]
-```
-
-When enabled, the controller ensures enough worldserver pods for the highest
-configured map layer count. Reducing the configuration drains excess cores and
-deletes controller-owned deployments only after their players leave. The Helm
-chart creates the controller ServiceAccount and RBAC rules only when this flag
-and the Kubernetes provisioner are both enabled.
-
 ## GM commands
 
 ```text
@@ -134,7 +113,7 @@ and the Kubernetes provisioner are both enabled.
 .layer switch <number> <playername>
 ```
 
-`.layer` reports per-map configured counts, the current map/layer, legacy
-capacity statistics, and whether Kubernetes autoscaling is enabled. Switching
-is relative to the target player's current map. Network addresses remain
-visible only to GMs; normal players receive friendly server/layer labels.
+`.layer` reports per-map configured counts, the current map/layer, and capacity
+statistics. Switching is relative to the target player's current map. Network
+addresses remain visible only to GMs; normal players receive friendly
+server/layer labels.

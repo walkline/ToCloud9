@@ -170,7 +170,6 @@ message GetMapLayerConfigurationRequest { string api = 1; uint32 realmID = 2; }
 message GetMapLayerConfigurationResponse {
   string api = 1;
   repeated MapLayerConfiguration maps = 2;
-  bool kubernetesAutoscalingEnabled = 3;
 }
 
 message UpdateMapLayerConfigurationRequest {

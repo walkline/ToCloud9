@@ -107,7 +107,7 @@ func (s *serversRegistry) ForcePlayerLayer(ctx context.Context, request *pb.Forc
 
 func (s *serversRegistry) GetMapLayerConfiguration(_ context.Context, request *pb.GetMapLayerConfigurationRequest) (*pb.GetMapLayerConfigurationResponse, error) {
 	config := s.layerService.MapConfiguration(request.RealmID)
-	resp := &pb.GetMapLayerConfigurationResponse{Api: ver, KubernetesAutoscalingEnabled: s.layerService.KubernetesAutoscalingEnabled()}
+	resp := &pb.GetMapLayerConfigurationResponse{Api: ver}
 	for mapID, count := range config {
 		resp.Maps = append(resp.Maps, &pb.MapLayerConfiguration{MapID: mapID, LayerCount: count})
 	}

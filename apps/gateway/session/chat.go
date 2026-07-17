@@ -314,7 +314,6 @@ func (s *GameSession) handleLayerCommand(ctx context.Context, args []string) err
 			}
 			s.SendSysMessage(fmt.Sprintf("Map %d: configured layers=%d%s", item.MapID, item.LayerCount, marker))
 		}
-		s.SendSysMessage(fmt.Sprintf("Kubernetes autoscaling: enabled=%t", mapConfig.KubernetesAutoscalingEnabled))
 		if len(resp.Layers) == 0 {
 			s.SendSysMessage("No layers have registered ready cores.")
 		}

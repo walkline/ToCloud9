@@ -14,9 +14,6 @@ spec:
       labels:
         app: {{ $fullname }}-servers-registry
     spec:
-      {{- if and .Values.servers_registry.layering.enableKubernetesAutoscaling (eq .Values.servers_registry.layering.provisioner.type "kubernetes") }}
-      serviceAccountName: {{ $fullname }}-layer-controller
-      {{- end }}
       containers:
       - name: {{ .Release.Name }}-servers-registry
         image: "{{ .Values.servers_registry.image.repository }}:{{ .Values.servers_registry.image.tag }}"
@@ -30,8 +27,6 @@ spec:
           value: nats://{{ .Release.Name }}-nats:4222
         - name: LAYERING_ENABLED
           value: "{{ .Values.servers_registry.layering.enabled }}"
-        - name: LAYER_ENABLE_KUBERNETES_AUTOSCALING
-          value: "{{ .Values.servers_registry.layering.enableKubernetesAutoscaling }}"
         - name: LAYER_MAPS
           value: "{{- range $i, $item := .Values.servers_registry.layering.maps }}{{ if $i }},{{ end }}{{ $item.mapID }}:{{ $item.layers }}{{- end }}"
         - name: LAYER_MAX_POPULATION
@@ -40,10 +35,6 @@ spec:
           value: "{{ .Values.servers_registry.layering.targetPopulationPercent }}"
         - name: LAYER_OVERFLOW_MARGIN_PERCENT
           value: "{{ .Values.servers_registry.layering.overflowMarginPercent }}"
-        - name: LAYER_MIN_CAPACITY_PERCENT
-          value: "{{ .Values.servers_registry.layering.minCapacityPercent }}"
-        - name: LAYER_MIN_CAPACITY_DURATION_SECONDS
-          value: "{{ .Values.servers_registry.layering.minCapacityDurationSeconds }}"
         - name: LAYER_SWITCH_COOLDOWN_SECONDS
           value: "{{ .Values.servers_registry.layering.switchCooldownSeconds }}"
         - name: LAYER_MAX_SWITCHES_PER_HOUR
@@ -60,14 +51,6 @@ spec:
           value: "{{ join "," .Values.servers_registry.layering.scopeZoneIDs }}"
         - name: LAYER_SCOPE_MAX_POPULATION
           value: "{{ .Values.servers_registry.layering.scopeMaxPopulation }}"
-        - name: LAYER_PROVISIONER_TYPE
-          value: "{{ .Values.servers_registry.layering.provisioner.type }}"
-        - name: LAYER_KUBERNETES_NAMESPACE
-          value: "{{ default .Release.Namespace .Values.servers_registry.layering.provisioner.namespace }}"
-        - name: LAYER_DEPLOYMENT_PREFIX
-          value: "{{ .Values.servers_registry.layering.provisioner.namePrefix }}"
-        - name: LAYER_BASE_DEPLOYMENTS
-          value: "{{ if .Values.servers_registry.layering.provisioner.baseDeployments }}{{ join "," .Values.servers_registry.layering.provisioner.baseDeployments }}{{ else }}{{ $fullname }}-gameserver-ac{{ end }}"
         ports:
         - containerPort: {{ .Values.servers_registry.service.internalPort | int  }}
         # livenessProbe:
@@ -103,32 +86,3 @@ spec:
     protocol: TCP
   selector:
     app: {{ $fullname }}-servers-registry
-
-{{- if and .Values.servers_registry.layering.enableKubernetesAutoscaling (eq .Values.servers_registry.layering.provisioner.type "kubernetes") }}
----
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: {{ $fullname }}-layer-controller
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: Role
-metadata:
-  name: {{ $fullname }}-layer-controller
-rules:
-- apiGroups: ["apps"]
-  resources: ["deployments"]
-  verbs: ["get", "list", "create", "delete"]
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: RoleBinding
-metadata:
-  name: {{ $fullname }}-layer-controller
-subjects:
-- kind: ServiceAccount
-  name: {{ $fullname }}-layer-controller
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: Role
-  name: {{ $fullname }}-layer-controller
-{{- end }}
