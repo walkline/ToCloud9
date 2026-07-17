@@ -49,6 +49,13 @@ func (s *GameSession) HandleTurnInPetition(ctx context.Context, p *packet.Packet
 		PetitionItemGUID: petitionGUID,
 	})
 	if err != nil {
+		if status.Code(err) == codes.Unimplemented {
+			// The worldserver predates the petition validation endpoint
+			// (mixed versions in the cluster): fall back to the in-process
+			// turn-in flow instead of silently dropping the packet.
+			s.worldSocket.SendPacket(p)
+			return nil
+		}
 		return fmt.Errorf("can't validate guild petition, err: %w", err)
 	}
 
