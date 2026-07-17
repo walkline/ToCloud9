@@ -86,10 +86,17 @@ func (s *GameSession) HandleGroupInvite(ctx context.Context, p *packet.Packet) e
 		return NewGroupServiceUnavailableErr(err)
 	}
 
-	if inviteRes.Status != pb.InviteResponse_Ok {
-		res.Result = 16
-	} else {
+	switch inviteRes.Status {
+	case pb.InviteResponse_Ok:
 		res.Result = GroupResultOk
+	case pb.InviteResponse_AlreadyInGroup:
+		res.Result = GroupResultAlreadyInGroup
+	case pb.InviteResponse_GroupFull:
+		res.Result = GroupResultGroupFull
+	case pb.InviteResponse_NoPermissions:
+		res.Result = GroupResultNotLeader
+	default:
+		return NewGroupServiceUnavailableErr(fmt.Errorf("unexpected invite status: %v", inviteRes.Status))
 	}
 
 	s.gameSocket.SendPacket(res.BuildPacket())

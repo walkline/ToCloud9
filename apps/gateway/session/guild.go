@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	root "github.com/walkline/ToCloud9/apps/gateway"
@@ -128,6 +129,33 @@ func (s *GameSession) GuildLoginCommand(ctx context.Context) error {
 		s.character.Name,
 	))
 	return nil
+}
+
+// guildMemberGUIDByName resolves a member of the current character's guild by
+// name from the guild roster. Unlike the online characters lookup, it also
+// resolves offline members: guild management commands (promote, demote, kick,
+// notes) work on offline members too.
+func (s *GameSession) guildMemberGUIDByName(ctx context.Context, name string) (uint64, error) {
+	if s.character.GuildID == 0 {
+		return 0, nil
+	}
+
+	guildResp, err := s.guildServiceClient.GetRosterInfo(ctx, &pbGuild.GetRosterInfoParams{
+		Api:     root.Ver,
+		RealmID: root.RealmID,
+		GuildID: uint64(s.character.GuildID),
+	})
+	if err != nil {
+		return 0, err
+	}
+
+	for _, member := range guildResp.Guild.Members {
+		if strings.EqualFold(member.Name, name) {
+			return member.Guid, nil
+		}
+	}
+
+	return 0, nil
 }
 
 func (s *GameSession) HandleGuildInvite(ctx context.Context, p *packet.Packet) error {
@@ -340,16 +368,12 @@ func (s *GameSession) HandleGuildLeave(ctx context.Context, p *packet.Packet) er
 }
 
 func (s *GameSession) HandleGuildKick(ctx context.Context, p *packet.Packet) error {
-	resp, err := s.charServiceClient.CharacterOnlineByName(ctx, &pbChar.CharacterOnlineByNameRequest{
-		Api:           root.Ver,
-		RealmID:       root.RealmID,
-		CharacterName: p.Reader().String(),
-	})
+	targetGUID, err := s.guildMemberGUIDByName(ctx, p.Reader().String())
 	if err != nil {
 		return err
 	}
 
-	if resp.Character == nil {
+	if targetGUID == 0 {
 		s.SendSysMessage("Player not found")
 		return nil
 	}
@@ -358,7 +382,7 @@ func (s *GameSession) HandleGuildKick(ctx context.Context, p *packet.Packet) err
 		Api:     root.Ver,
 		RealmID: root.RealmID,
 		Kicker:  s.character.GUID,
-		Target:  resp.Character.CharGUID,
+		Target:  targetGUID,
 	})
 	if err != nil {
 		return fmt.Errorf("can't kick player from the guild, err: %w", err)
@@ -386,16 +410,12 @@ func (s *GameSession) HandleGuildSetPublicNote(ctx context.Context, p *packet.Pa
 	targetName := reader.String()
 	note := reader.String()
 
-	resp, err := s.charServiceClient.CharacterOnlineByName(ctx, &pbChar.CharacterOnlineByNameRequest{
-		Api:           root.Ver,
-		RealmID:       root.RealmID,
-		CharacterName: targetName,
-	})
+	targetGUID, err := s.guildMemberGUIDByName(ctx, targetName)
 	if err != nil {
 		return err
 	}
 
-	if resp.Character == nil {
+	if targetGUID == 0 {
 		s.SendSysMessage("Player not found")
 		return nil
 	}
@@ -404,7 +424,7 @@ func (s *GameSession) HandleGuildSetPublicNote(ctx context.Context, p *packet.Pa
 		Api:         root.Ver,
 		RealmID:     root.RealmID,
 		ChangerGUID: s.character.GUID,
-		TargetGUID:  resp.Character.CharGUID,
+		TargetGUID:  targetGUID,
 		Note:        note,
 	})
 	if err != nil {
@@ -419,16 +439,12 @@ func (s *GameSession) HandleGuildSetOfficerNote(ctx context.Context, p *packet.P
 	targetName := reader.String()
 	note := reader.String()
 
-	resp, err := s.charServiceClient.CharacterOnlineByName(ctx, &pbChar.CharacterOnlineByNameRequest{
-		Api:           root.Ver,
-		RealmID:       root.RealmID,
-		CharacterName: targetName,
-	})
+	targetGUID, err := s.guildMemberGUIDByName(ctx, targetName)
 	if err != nil {
 		return err
 	}
 
-	if resp.Character == nil {
+	if targetGUID == 0 {
 		s.SendSysMessage("Player not found")
 		return nil
 	}
@@ -437,7 +453,7 @@ func (s *GameSession) HandleGuildSetOfficerNote(ctx context.Context, p *packet.P
 		Api:         root.Ver,
 		RealmID:     root.RealmID,
 		ChangerGUID: s.character.GUID,
-		TargetGUID:  resp.Character.CharGUID,
+		TargetGUID:  targetGUID,
 		Note:        note,
 	})
 	if err != nil {
@@ -515,16 +531,12 @@ func (s *GameSession) HandleGuildRankDelete(ctx context.Context, p *packet.Packe
 }
 
 func (s *GameSession) HandleGuildPromote(ctx context.Context, p *packet.Packet) error {
-	resp, err := s.charServiceClient.CharacterOnlineByName(ctx, &pbChar.CharacterOnlineByNameRequest{
-		Api:           root.Ver,
-		RealmID:       root.RealmID,
-		CharacterName: p.Reader().String(),
-	})
+	targetGUID, err := s.guildMemberGUIDByName(ctx, p.Reader().String())
 	if err != nil {
 		return err
 	}
 
-	if resp.Character == nil {
+	if targetGUID == 0 {
 		s.SendSysMessage("Player not found")
 		return nil
 	}
@@ -533,7 +545,7 @@ func (s *GameSession) HandleGuildPromote(ctx context.Context, p *packet.Packet) 
 		Api:         root.Ver,
 		RealmID:     root.RealmID,
 		ChangerGUID: s.character.GUID,
-		TargetGUID:  resp.Character.CharGUID,
+		TargetGUID:  targetGUID,
 	})
 	if err != nil {
 		return err
@@ -543,16 +555,12 @@ func (s *GameSession) HandleGuildPromote(ctx context.Context, p *packet.Packet) 
 }
 
 func (s *GameSession) HandleGuildDemote(ctx context.Context, p *packet.Packet) error {
-	resp, err := s.charServiceClient.CharacterOnlineByName(ctx, &pbChar.CharacterOnlineByNameRequest{
-		Api:           root.Ver,
-		RealmID:       root.RealmID,
-		CharacterName: p.Reader().String(),
-	})
+	targetGUID, err := s.guildMemberGUIDByName(ctx, p.Reader().String())
 	if err != nil {
 		return err
 	}
 
-	if resp.Character == nil {
+	if targetGUID == 0 {
 		s.SendSysMessage("Player not found")
 		return nil
 	}
@@ -561,7 +569,7 @@ func (s *GameSession) HandleGuildDemote(ctx context.Context, p *packet.Packet) e
 		Api:         root.Ver,
 		RealmID:     root.RealmID,
 		ChangerGUID: s.character.GUID,
-		TargetGUID:  resp.Character.CharGUID,
+		TargetGUID:  targetGUID,
 	})
 	if err != nil {
 		return err

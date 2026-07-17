@@ -18,6 +18,11 @@ typedef struct {
     uint64_t leaderGuid;
     uint8_t lootMethod;
     uint64_t looterGuid;
+    uint8_t lootThreshold;
+    uint8_t groupType;
+    uint8_t difficulty;
+    uint8_t raidDifficulty;
+    uint64_t masterLooterGuid;
     uint64_t* memberGuids;
     int memberCount;
 } TC9EventGroupCreated;
@@ -40,6 +45,7 @@ typedef struct {
     uint32_t groupGuid;
     uint8_t lootMethod;
     uint64_t looterGuid;
+    uint8_t lootThreshold;
 } TC9EventGroupLootTypeChanged;
 
 typedef struct {

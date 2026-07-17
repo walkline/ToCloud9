@@ -687,11 +687,11 @@ TC9_API void TC9SetOnGroupCreatedHook(OnGroupCreatedHook hook) {
             group.leader = event.leaderGuid;
             group.lootMethod = event.lootMethod;
             group.looterGuid = event.looterGuid;
-            group.lootThreshold = 0;
-            group.groupType = 0;
-            group.difficulty = 0;
-            group.raidDifficulty = 0;
-            group.masterLooterGuid = 0;
+            group.lootThreshold = event.lootThreshold;
+            group.groupType = event.groupType;
+            group.difficulty = event.difficulty;
+            group.raidDifficulty = event.raidDifficulty;
+            group.masterLooterGuid = event.masterLooterGuid;
             group.members = event.memberGuids;
             group.membersSize = static_cast<uint8_t>(event.memberCount);
             stored_hook(&group);
@@ -738,7 +738,7 @@ TC9_API void TC9SetOnGroupLootTypeChangedHook(OnGroupLootTypeChangedHook hook) {
 
     tc9::EventHooks::Instance().RegisterGroupLootTypeChanged([](TC9EventGroupLootTypeChanged event) {
         if (stored_hook) {
-            stored_hook(event.groupGuid, event.lootMethod, event.looterGuid, 0);
+            stored_hook(event.groupGuid, event.lootMethod, event.looterGuid, event.lootThreshold);
         }
     });
 }

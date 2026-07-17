@@ -66,12 +66,20 @@ func (g GroupServer) GetGroupIDByPlayer(ctx context.Context, request *pb.GetGrou
 }
 
 func (g GroupServer) Invite(ctx context.Context, params *pb.InviteParams) (*pb.InviteResponse, error) {
+	status := pb.InviteResponse_Ok
 	err := g.groupService.Invite(ctx, params.RealmID, params.Inviter, params.Invited, params.InviterName, params.InvitedName)
 	if err != nil {
-		return nil, err
+		switch {
+		case errors.Is(err, service.ErrAlreadyInGroup):
+			status = pb.InviteResponse_AlreadyInGroup
+		case errors.Is(err, service.ErrGroupFull):
+			status = pb.InviteResponse_GroupFull
+		case errors.Is(err, service.ErrNoPermissions):
+			status = pb.InviteResponse_NoPermissions
+		default:
+			return nil, err
+		}
 	}
-
-	status := pb.InviteResponse_Ok
 
 	return &pb.InviteResponse{
 		Api:    groupserver.Ver,
