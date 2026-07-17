@@ -17,6 +17,11 @@ type layerSwitchRequest struct {
 	notBefore           time.Time
 }
 
+// This file is deliberately a transport adapter, not a placement service.
+// Every destination and every balancing/cooldown decision comes from the
+// servers registry. The gateway only waits for a safe socket handoff and then
+// applies the registry response without interpreting layer population.
+
 func (s *GameSession) queueLayerSwitchForGroup(groupID uint32) {
 	if !s.layeringEnabled || groupID == 0 || s.character == nil {
 		return

@@ -9,6 +9,26 @@ The servers registry owns the authoritative `(realm, map, layer) -> worldserver`
 assignment. AzerothCore still receives a simple list of maps to load because a
 single process never hosts two copies of the same map.
 
+## Service ownership
+
+Layering policy belongs exclusively to the servers registry. It owns map-layer
+configuration, map redistribution, population accounting, switch limits,
+least-loaded placement, group bindings, forced placement, and pending switch
+state. The gateway never chooses a layer or compares layer populations: it
+supplies the player's realm, map, group, and current worldserver to the registry
+and follows the returned placement.
+
+The gateway contains only client-session transport required for a seamless
+cross-core handoff. It observes whether disconnecting the current world session
+is safe, carries out the registry's decision, filters the loading-screen/login
+visual packets, removes objects belonging to the old core, and forwards the
+latest movement state to the new core. These mechanics do not assign layers and
+can be replaced without changing registry placement policy.
+
+Worldservers and the AzerothCore sidecar remain layer-unaware. They register
+their map capabilities and load the maps assigned by the existing registry
+workflow; they do not implement population balancing or group affinity.
+
 ## Configuration
 
 Configure fixed layer counts at registry startup:
