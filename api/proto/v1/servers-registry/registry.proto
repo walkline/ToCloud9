@@ -239,7 +239,7 @@ message GetLayerStatsResponse {
   message Layer {
     uint32 layerID = 1;
     uint32 currentPlayers = 2;
-    uint32 readyCores = 3;
+    uint32 readyGameServers = 3;
     bool draining = 4;
   }
   string api = 1;
@@ -247,8 +247,7 @@ message GetLayerStatsResponse {
   uint32 maxPopulation = 3;
   uint32 targetPopulationPercent = 4;
   uint32 overflowMarginPercent = 5;
-  uint32 minLayers = 6;
-  uint32 maxLayers = 7;
+  reserved 6, 7;
   uint32 switchCooldownSeconds = 8;
   uint32 maxSwitchesPerHour = 9;
   repeated Layer layers = 10;

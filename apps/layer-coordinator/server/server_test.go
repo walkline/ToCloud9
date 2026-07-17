@@ -12,14 +12,34 @@ import (
 
 type registryStub struct {
 	pbRegistry.ServersRegistryServiceClient
-	selected *pbRegistry.Server
+	selected    *pbRegistry.Server
+	gameServers []*pbRegistry.GameServerDetailed
 }
 
 func (s *registryStub) SelectGameServerForPlayer(context.Context, *pbRegistry.SelectGameServerForPlayerRequest, ...grpc.CallOption) (*pbRegistry.SelectGameServerForPlayerResponse, error) {
 	return &pbRegistry.SelectGameServerForPlayerResponse{Status: pbRegistry.SelectGameServerForPlayerResponse_OK, GameServer: s.selected, LayerID: s.selected.LayerID}, nil
 }
 func (s *registryStub) ListGameServersForRealm(context.Context, *pbRegistry.ListGameServersForRealmRequest, ...grpc.CallOption) (*pbRegistry.ListGameServersResponse, error) {
+	if s.gameServers != nil {
+		return &pbRegistry.ListGameServersResponse{GameServers: s.gameServers}, nil
+	}
 	return &pbRegistry.ListGameServersResponse{GameServers: []*pbRegistry.GameServerDetailed{{Address: s.selected.Address, LayerID: s.selected.LayerID, AssignedMaps: []uint32{1}}}}, nil
+}
+
+func TestLayerStatsCountOnlyGameServersHostingRequestedMap(t *testing.T) {
+	registry := &registryStub{
+		selected: &pbRegistry.Server{Address: "layer-1", LayerID: 1},
+		gameServers: []*pbRegistry.GameServerDetailed{
+			{Address: "layer-1", LayerID: 1, AssignedMaps: []uint32{1}},
+			{Address: "other-map", LayerID: 1, AssignedMaps: []uint32{571}},
+		},
+	}
+	coordinator := New(registry)
+
+	response, err := coordinator.GetLayerStats(context.Background(), &pbRegistry.GetLayerStatsRequest{RealmID: 1, MapID: 1})
+	require.NoError(t, err)
+	require.Len(t, response.Layers, 1)
+	require.Equal(t, uint32(1), response.Layers[0].ReadyGameServers)
 }
 func (s *registryStub) GetMapLayerConfiguration(context.Context, *pbRegistry.GetMapLayerConfigurationRequest, ...grpc.CallOption) (*pbRegistry.GetMapLayerConfigurationResponse, error) {
 	return &pbRegistry.GetMapLayerConfigurationResponse{Maps: []*pbRegistry.MapLayerConfiguration{{MapID: 1, LayerCount: 2}}}, nil

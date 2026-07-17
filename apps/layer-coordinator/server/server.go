@@ -136,8 +136,14 @@ func (s *Server) GetLayerStats(ctx context.Context, req *pbRegistry.GetLayerStat
 	result := &pbRegistry.GetLayerStatsResponse{Api: req.Api, Enabled: len(config.Maps) > 0, MaxPopulation: s.options.MaxPopulation, TargetPopulationPercent: s.options.TargetPopulationPercent, OverflowMarginPercent: s.options.OverflowMarginPercent, SwitchCooldownSeconds: s.options.SwitchCooldownSeconds, MaxSwitchesPerHour: s.options.MaxSwitchesPerHour}
 	cores := make(map[uint32]uint32)
 	for _, server := range servers.GameServers {
-		if server != nil {
-			cores[server.LayerID]++
+		if server == nil || server.LayerID == 0 {
+			continue
+		}
+		for _, mapID := range server.AssignedMaps {
+			if mapID == req.MapID {
+				cores[server.LayerID]++
+				break
+			}
 		}
 	}
 	s.mu.Lock()
@@ -152,7 +158,7 @@ func (s *Server) GetLayerStats(ctx context.Context, req *pbRegistry.GetLayerStat
 	}
 	s.mu.Unlock()
 	for id, ready := range cores {
-		result.Layers = append(result.Layers, &pbRegistry.GetLayerStatsResponse_Layer{LayerID: id, CurrentPlayers: populations[id], ReadyCores: ready})
+		result.Layers = append(result.Layers, &pbRegistry.GetLayerStatsResponse_Layer{LayerID: id, CurrentPlayers: populations[id], ReadyGameServers: ready})
 	}
 	sort.Slice(result.Layers, func(i, j int) bool { return result.Layers[i].LayerID < result.Layers[j].LayerID })
 	return result, nil

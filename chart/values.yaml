@@ -60,8 +60,6 @@ servers_registry:
     overflowMarginPercent: 10
     switchCooldownSeconds: 60
     maxSwitchesPerHour: 6
-    minLayers: 1
-    maxLayers: 10
     reconcileIntervalSeconds: 5
     # Empty lists apply the threshold realm-wide. Put starting-area zone IDs
     # here to scale from the busiest configured area instead.

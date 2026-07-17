@@ -130,9 +130,8 @@ func main() {
 		OverflowMarginPercent:   conf.Layering.OverflowMarginPct,
 		SwitchCooldown:          time.Duration(conf.Layering.SwitchCooldownSeconds) * time.Second,
 		MaxSwitchesPerHour:      conf.Layering.MaxSwitchesPerHour,
-		MinLayers:               conf.Layering.MinLayers, MaxLayers: conf.Layering.MaxLayers,
-		ReconcileInterval: time.Duration(conf.Layering.ReconcileIntervalSecs) * time.Second,
-		RealmIDs:          supportedRealms, Scopes: scopes, MapLayers: mapLayers,
+		ReconcileInterval:       time.Duration(conf.Layering.ReconcileIntervalSecs) * time.Second,
+		RealmIDs:                supportedRealms, Scopes: scopes, MapLayers: mapLayers,
 	})
 	for _, realmID := range supportedRealms {
 		if err := gameServersService.UpdateMapLayerConfiguration(mainContext, realmID, mapLayers); err != nil {

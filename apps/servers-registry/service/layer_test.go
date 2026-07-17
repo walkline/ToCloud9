@@ -110,7 +110,7 @@ func TestLayerLifecycleOnlyMovesOverflowPlayerAtSafeTransition(t *testing.T) {
 		{ID: "l1", Address: "l1", RealmID: 1, LayerID: 1},
 		{ID: "l2", Address: "l2", RealmID: 1, LayerID: 2},
 	}}
-	layers := NewLayer(serverRepo, LayerConfig{Enabled: true, MaxPopulation: 200, MinLayers: 1, MaxLayers: 10}).(*layerService)
+	layers := NewLayer(serverRepo, LayerConfig{Enabled: true, MaxPopulation: 200}).(*layerService)
 	now := time.Date(2026, 7, 16, 12, 0, 0, 0, time.UTC)
 	layers.now = func() time.Time { return now }
 	layers.assignments[1] = make(map[uint64]*playerLayerAssignment)
@@ -154,7 +154,6 @@ func TestLayerGroupJoinMayUseMarginButNotExceedHardCap(t *testing.T) {
 	}}
 	layers := NewLayer(servers, LayerConfig{
 		Enabled: true, MaxPopulation: 200, TargetPopulationPercent: 90, OverflowMarginPercent: 10,
-		MinLayers: 1, MaxLayers: 10,
 	}).(*layerService)
 	layers.assignments[1] = make(map[uint64]*playerLayerAssignment)
 	for i := uint64(1); i <= 220; i++ {
@@ -205,8 +204,8 @@ func TestPerMapLayerStatsUseMapLayerIDsAndMapPopulation(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, uint32(1), stats.CurrentLayerID)
 	require.Equal(t, []LayerStat{
-		{LayerID: 1, CurrentPlayers: 2, ReadyCores: 1},
-		{LayerID: 2, CurrentPlayers: 1, ReadyCores: 1},
+		{LayerID: 1, CurrentPlayers: 2, ReadyGameServers: 1},
+		{LayerID: 2, CurrentPlayers: 1, ReadyGameServers: 1},
 	}, stats.Layers)
 }
 

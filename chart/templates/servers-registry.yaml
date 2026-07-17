@@ -39,10 +39,6 @@ spec:
           value: "{{ .Values.servers_registry.layering.switchCooldownSeconds }}"
         - name: LAYER_MAX_SWITCHES_PER_HOUR
           value: "{{ .Values.servers_registry.layering.maxSwitchesPerHour }}"
-        - name: LAYER_MIN_LAYERS
-          value: "{{ .Values.servers_registry.layering.minLayers }}"
-        - name: LAYER_MAX_LAYERS
-          value: "{{ .Values.servers_registry.layering.maxLayers }}"
         - name: LAYER_RECONCILE_INTERVAL_SECONDS
           value: "{{ .Values.servers_registry.layering.reconcileIntervalSeconds }}"
         - name: LAYER_SCOPE_MAP_IDS

@@ -51,7 +51,7 @@ type Layer interface {
 }
 
 // RegistrationLayer assigns legacy sidecars, which omit layerID, across the
-// operator-owned minimum layers. Explicit non-zero sidecar IDs never use this
+// configured per-map layer count. Explicit non-zero sidecar IDs never use this
 // compatibility path.
 func (l *layerService) RegistrationLayer(ctx context.Context, realmID uint32) uint32 {
 	if !l.config.Enabled {
@@ -62,13 +62,19 @@ func (l *layerService) RegistrationLayer(ctx context.Context, realmID uint32) ui
 		return 1
 	}
 	counts := make(map[uint32]uint32)
+	layerCount := uint32(1)
+	for _, count := range l.config.MapLayers {
+		if count > layerCount {
+			layerCount = count
+		}
+	}
 	for _, server := range servers {
-		if server.LayerID > 0 && server.LayerID <= l.config.MinLayers {
+		if server.LayerID > 0 && server.LayerID <= layerCount {
 			counts[server.LayerID]++
 		}
 	}
 	selected := uint32(1)
-	for id := uint32(2); id <= l.config.MinLayers; id++ {
+	for id := uint32(2); id <= layerCount; id++ {
 		if counts[id] < counts[selected] {
 			selected = id
 		}
@@ -86,14 +92,14 @@ const (
 )
 
 type LayerStat struct {
-	LayerID, CurrentPlayers, ReadyCores uint32
-	Draining                            bool
+	LayerID, CurrentPlayers, ReadyGameServers uint32
+	Draining                                  bool
 }
 type LayerStats struct {
-	Enabled                                                                                                                        bool
-	MaxPopulation, TargetPopulationPercent, OverflowMarginPercent, MinLayers, MaxLayers, SwitchCooldownSeconds, MaxSwitchesPerHour uint32
-	CurrentLayerID, SwitchCooldownRemainingSeconds                                                                                 uint32
-	Layers                                                                                                                         []LayerStat
+	Enabled                                                                                                  bool
+	MaxPopulation, TargetPopulationPercent, OverflowMarginPercent, SwitchCooldownSeconds, MaxSwitchesPerHour uint32
+	CurrentLayerID, SwitchCooldownRemainingSeconds                                                           uint32
+	Layers                                                                                                   []LayerStat
 }
 
 type LayerConfig struct {
@@ -103,8 +109,6 @@ type LayerConfig struct {
 	OverflowMarginPercent   uint32
 	SwitchCooldown          time.Duration
 	MaxSwitchesPerHour      uint32
-	MinLayers               uint32
-	MaxLayers               uint32
 	ReconcileInterval       time.Duration
 	RealmIDs                []uint32
 	Scopes                  []LayerScope
@@ -118,7 +122,7 @@ func (l *layerService) Stats(ctx context.Context, realmID, mapID uint32, playerG
 	}
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	result := LayerStats{Enabled: l.config.Enabled, MaxPopulation: l.config.MaxPopulation, TargetPopulationPercent: l.config.TargetPopulationPercent, OverflowMarginPercent: l.config.OverflowMarginPercent, MinLayers: l.config.MinLayers, MaxLayers: l.config.MaxLayers, SwitchCooldownSeconds: uint32(l.config.SwitchCooldown / time.Second), MaxSwitchesPerHour: l.config.MaxSwitchesPerHour}
+	result := LayerStats{Enabled: l.config.Enabled, MaxPopulation: l.config.MaxPopulation, TargetPopulationPercent: l.config.TargetPopulationPercent, OverflowMarginPercent: l.config.OverflowMarginPercent, SwitchCooldownSeconds: uint32(l.config.SwitchCooldown / time.Second), MaxSwitchesPerHour: l.config.MaxSwitchesPerHour}
 	if assignment := l.assignments[realmID][playerGUID]; assignment != nil && assignment.online {
 		result.CurrentLayerID = assignment.layerID
 		if remaining := l.config.SwitchCooldown - l.now().Sub(assignment.lastSwitch); !assignment.lastSwitch.IsZero() && remaining > 0 {
@@ -126,16 +130,20 @@ func (l *layerService) Stats(ctx context.Context, realmID, mapID uint32, playerG
 		}
 	}
 	if l.mapLayers[realmID][mapID] > 1 {
-		sort.Slice(servers, func(i, j int) bool { return servers[i].ID < servers[j].ID })
+		cores := make(map[uint32]uint32)
 		for i := range servers {
-			layerID := servers[i].LayerID
-			var population uint32
+			if servers[i].LayerID > 0 {
+				cores[servers[i].LayerID]++
+			}
+		}
+		for layerID, ready := range cores {
+			population := uint32(0)
 			for _, assignment := range l.assignments[realmID] {
 				if assignment.online && assignment.mapID == mapID && assignment.layerID == layerID {
 					population++
 				}
 			}
-			result.Layers = append(result.Layers, LayerStat{LayerID: layerID, CurrentPlayers: population, ReadyCores: 1})
+			result.Layers = append(result.Layers, LayerStat{LayerID: layerID, CurrentPlayers: population, ReadyGameServers: ready})
 		}
 		sort.Slice(result.Layers, func(i, j int) bool { return result.Layers[i].LayerID < result.Layers[j].LayerID })
 		return result, nil
@@ -151,7 +159,7 @@ func (l *layerService) Stats(ctx context.Context, realmID, mapID uint32, playerG
 		ids[id] = true
 	}
 	for id := range ids {
-		result.Layers = append(result.Layers, LayerStat{LayerID: id, CurrentPlayers: l.layerPopulationLocked(realmID, id), ReadyCores: cores[id]})
+		result.Layers = append(result.Layers, LayerStat{LayerID: id, CurrentPlayers: l.layerPopulationLocked(realmID, id), ReadyGameServers: cores[id]})
 	}
 	sort.Slice(result.Layers, func(i, j int) bool { return result.Layers[i].LayerID < result.Layers[j].LayerID })
 	return result, nil
@@ -248,12 +256,6 @@ func NewLayer(servers GameServer, config LayerConfig) Layer {
 	}
 	if config.OverflowMarginPercent > 100 {
 		config.OverflowMarginPercent = 100
-	}
-	if config.MinLayers == 0 {
-		config.MinLayers = 1
-	}
-	if config.MaxLayers < config.MinLayers {
-		config.MaxLayers = config.MinLayers
 	}
 	if config.ReconcileInterval <= 0 {
 		config.ReconcileInterval = 5 * time.Second

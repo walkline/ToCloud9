@@ -306,7 +306,7 @@ func (s *GameSession) handleLayerCommand(ctx context.Context, args []string) err
 		if err != nil {
 			return err
 		}
-		s.SendSysMessage(fmt.Sprintf("Layering: enabled=%t maxPlayers=%d target=%d%% overflow=%d%% layers=%d-%d cooldown=%ds hourlyLimit=%d", resp.Enabled, resp.MaxPopulation, resp.TargetPopulationPercent, resp.OverflowMarginPercent, resp.MinLayers, resp.MaxLayers, resp.SwitchCooldownSeconds, resp.MaxSwitchesPerHour))
+		s.SendSysMessage(fmt.Sprintf("Layering: enabled=%t maxPlayers=%d target=%d%% overflow=%d%% cooldown=%ds hourlyLimit=%d", resp.Enabled, resp.MaxPopulation, resp.TargetPopulationPercent, resp.OverflowMarginPercent, resp.SwitchCooldownSeconds, resp.MaxSwitchesPerHour))
 		for _, item := range mapConfig.Maps {
 			marker := ""
 			if s.character != nil && item.MapID == s.character.Map {
@@ -315,7 +315,7 @@ func (s *GameSession) handleLayerCommand(ctx context.Context, args []string) err
 			s.SendSysMessage(fmt.Sprintf("Map %d: configured layers=%d%s", item.MapID, item.LayerCount, marker))
 		}
 		if len(resp.Layers) == 0 {
-			s.SendSysMessage("No layers have registered ready cores.")
+			s.SendSysMessage("No layers have an available gameserver for this map.")
 		}
 		for _, layer := range resp.Layers {
 			state := "active"
@@ -326,7 +326,13 @@ func (s *GameSession) handleLayerCommand(ctx context.Context, args []string) err
 			if layer.LayerID == s.currentLayerID {
 				marker = " (you)"
 			}
-			s.SendSysMessage(fmt.Sprintf("Layer %d: players=%d/%d readyCores=%d state=%s%s", layer.LayerID, layer.CurrentPlayers, resp.MaxPopulation, layer.ReadyCores, state, marker))
+			availability := "unavailable"
+			if layer.ReadyGameServers == 1 {
+				availability = "ready"
+			} else if layer.ReadyGameServers > 1 {
+				availability = fmt.Sprintf("invalid (%d gameservers)", layer.ReadyGameServers)
+			}
+			s.SendSysMessage(fmt.Sprintf("Layer %d: players=%d/%d gameserver=%s state=%s%s", layer.LayerID, layer.CurrentPlayers, resp.MaxPopulation, availability, state, marker))
 		}
 		return nil
 	}
