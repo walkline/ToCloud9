@@ -25,6 +25,7 @@
 #include "events-guild.h"
 #include "events-servers-registry.h"
 #include "monitoring.h"
+#include "petition-api.h"
 #include "player-interactions-api.h"
 #include "player-items-api.h"
 #include "player-money-api.h"
@@ -88,6 +89,7 @@ TC9_API void TC9SetOnGroupConvertedToRaidHook(OnGroupConvertedToRaidHook h);
 TC9_API void TC9SetOnGuildMemberAddedHook(OnGuildMemberAddedHook h);
 TC9_API void TC9SetOnGuildMemberRemovedHook(OnGuildMemberRemovedHook h);
 TC9_API void TC9SetOnGuildMemberLeftHook(OnGuildMemberLeftHook h);
+TC9_API void TC9SetOnGuildCreatedHook(OnGuildCreatedHook h);
 
 TC9_API void TC9SetOnMapsReassignedHook(OnMapsReassignedHook h);
 
@@ -96,6 +98,7 @@ TC9_API void TC9SetBattlegroundStartHandler(BattlegroundStartHandler h);
 TC9_API void TC9SetBattlegroundAddPlayersHandler(BattlegroundAddPlayersHandler h);
 TC9_API void TC9SetCanPlayerJoinBattlegroundQueueHandler(CanPlayerJoinBattlegroundQueueHandler h);
 TC9_API void TC9SetCanPlayerTeleportToBattlegroundHandler(CanPlayerTeleportToBattlegroundHandler h);
+TC9_API void TC9SetCanTurnInGuildPetitionHandler(CanTurnInGuildPetitionHandler h);
 
 TC9_API void TC9SetMonitoringDataCollectorHandler(MonitoringDataCollectorHandler h);
 

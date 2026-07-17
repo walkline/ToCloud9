@@ -43,6 +43,7 @@ func SetupGRPCService(conf *config.Config) (net.Listener, *grpc.Server) {
 				AddPlayersToBattleground:        BattlegroundAddPlayersHandler,
 				CanPlayerJoinBattlegroundQueue:  CanPlayerJoinBattlegroundQueueHandler,
 				CanPlayerTeleportToBattleground: CanPlayerTeleportToBattlegroundHandler,
+				CanTurnInGuildPetition:          CanTurnInGuildPetitionHandler,
 			},
 			time.Second*5,
 			readRequestsQueue,

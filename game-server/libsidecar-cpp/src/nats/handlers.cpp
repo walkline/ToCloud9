@@ -251,6 +251,36 @@ std::unique_ptr<Handler> CreateGuildMemberAddedHandler(const std::string& data, 
     });
 }
 
+std::unique_ptr<Handler> CreateGuildCreatedHandler(const std::string& data, uint32_t realm_id) {
+    return std::make_unique<FunctionHandler>([data, realm_id]() {
+        try {
+            auto j = ParseEventPayload(data);
+
+            if (j.value("RealmID", 0u) != realm_id) {
+                return;
+            }
+
+            std::string guildName = j.value("GuildName", std::string());
+            std::vector<uint64_t> memberGuids;
+            if (j.contains("MemberGUIDs") && j["MemberGUIDs"].is_array()) {
+                memberGuids = j["MemberGUIDs"].get<std::vector<uint64_t>>();
+            }
+
+            TC9EventGuildCreated event{};
+            event.guildGuid = j.value("GuildID", 0ull);
+            event.guildName = guildName.c_str();
+            event.leaderGuid = j.value("LeaderGUID", 0ull);
+            event.memberGuids = memberGuids.empty() ? nullptr : memberGuids.data();
+            event.memberGuidsCount = static_cast<int>(memberGuids.size());
+
+            // Dispatch is synchronous, the hook must copy name/members.
+            EventHooks::Instance().DispatchGuildCreated(event);
+        } catch (const std::exception& e) {
+            spdlog::error("Failed to parse GuildCreated event: {}", e.what());
+        }
+    });
+}
+
 std::unique_ptr<Handler> CreateGuildMemberLeftHandler(const std::string& data, uint32_t realm_id) {
     return std::make_unique<FunctionHandler>([data, realm_id]() {
         try {

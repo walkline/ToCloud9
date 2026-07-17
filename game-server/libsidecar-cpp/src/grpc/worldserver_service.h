@@ -23,6 +23,7 @@ struct CppBindings {
     TC9AddPlayersToBattlegroundHandler add_players_bg = nullptr;
     TC9CanPlayerJoinBattlegroundQueueHandler can_join_bg_queue = nullptr;
     TC9CanPlayerTeleportToBattlegroundHandler can_teleport_bg = nullptr;
+    TC9CanTurnInGuildPetitionHandler can_turn_in_guild_petition = nullptr;
     TC9MonitoringDataCollectorHandler monitoring_data_collector = nullptr;
 };
 
@@ -93,6 +94,12 @@ public:
         grpc::ServerContext* context,
         const v1::CanPlayerTeleportToBattlegroundRequest* request,
         v1::CanPlayerTeleportToBattlegroundResponse* response) override;
+
+    // Petitions
+    grpc::Status CanTurnInGuildPetition(
+        grpc::ServerContext* context,
+        const v1::CanTurnInGuildPetitionRequest* request,
+        v1::CanTurnInGuildPetitionResponse* response) override;
 
 private:
     const CppBindings& bindings_;
