@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -36,7 +37,7 @@ func NewServersRegistry(gService service.GameServer, lbService service.Gateway, 
 
 func (s *serversRegistry) SelectGameServerForPlayer(ctx context.Context, request *pb.SelectGameServerForPlayerRequest) (*pb.SelectGameServerForPlayerResponse, error) {
 	selection, err := s.layerService.Select(
-		ctx, request.RealmID, request.MapID, request.ZoneID, request.PlayerGUID, request.PreferredPlayerGUID,
+		ctx, request.RealmID, request.MapID, request.ZoneID, request.GroupID, request.PlayerGUID, request.PreferredPlayerGUID,
 		service.LayerSelectReason(request.Reason), request.CurrentGameServerAddress,
 	)
 	if err != nil {
@@ -55,14 +56,14 @@ func (s *serversRegistry) SelectGameServerForPlayer(ctx context.Context, request
 			GrpcAddress:  selection.Server.GRPCAddress,
 			RealmID:      selection.Server.RealmID,
 			IsCrossRealm: selection.Server.IsCrossRealm,
-			LayerID:      selection.Server.LayerID,
+			LayerID:      selection.LayerID,
 		}
 	}
 	return response, nil
 }
 
 func (s *serversRegistry) PollPlayerLayerAction(ctx context.Context, request *pb.PollPlayerLayerActionRequest) (*pb.SelectGameServerForPlayerResponse, error) {
-	selection, err := s.layerService.Poll(ctx, request.RealmID, request.MapID, request.ZoneID, request.PlayerGUID, request.CurrentGameServerAddress)
+	selection, err := s.layerService.Poll(ctx, request.RealmID, request.MapID, request.ZoneID, request.GroupID, request.PlayerGUID, request.CurrentGameServerAddress)
 	if err != nil {
 		return nil, err
 	}
@@ -77,7 +78,7 @@ func (s *serversRegistry) CompletePlayerLayerSwitch(_ context.Context, request *
 func layerSelectionResponse(selection service.LayerSelection) *pb.SelectGameServerForPlayerResponse {
 	response := &pb.SelectGameServerForPlayerResponse{Api: ver, Status: pb.SelectGameServerForPlayerResponse_Status(selection.Status), LayerID: selection.LayerID, RetryAfterSeconds: uint32(selection.RetryAfter.Round(time.Second) / time.Second)}
 	if selection.Server != nil {
-		response.GameServer = &pb.Server{ID: selection.Server.ID, Address: selection.Server.Address, GrpcAddress: selection.Server.GRPCAddress, RealmID: selection.Server.RealmID, IsCrossRealm: selection.Server.IsCrossRealm, LayerID: selection.Server.LayerID}
+		response.GameServer = &pb.Server{ID: selection.Server.ID, Address: selection.Server.Address, GrpcAddress: selection.Server.GRPCAddress, RealmID: selection.Server.RealmID, IsCrossRealm: selection.Server.IsCrossRealm, LayerID: selection.LayerID}
 	}
 	return response
 }
@@ -102,6 +103,36 @@ func (s *serversRegistry) GetLayerStats(ctx context.Context, request *pb.GetLaye
 func (s *serversRegistry) ForcePlayerLayer(ctx context.Context, request *pb.ForcePlayerLayerRequest) (*pb.ForcePlayerLayerResponse, error) {
 	status := s.layerService.Force(ctx, request.RealmID, request.PlayerGUID, request.LayerID, request.MapID)
 	return &pb.ForcePlayerLayerResponse{Api: ver, Status: pb.ForcePlayerLayerResponse_Status(status)}, nil
+}
+
+func (s *serversRegistry) GetMapLayerConfiguration(_ context.Context, request *pb.GetMapLayerConfigurationRequest) (*pb.GetMapLayerConfigurationResponse, error) {
+	config := s.layerService.MapConfiguration(request.RealmID)
+	resp := &pb.GetMapLayerConfigurationResponse{Api: ver, KubernetesAutoscalingEnabled: s.layerService.KubernetesAutoscalingEnabled()}
+	for mapID, count := range config {
+		resp.Maps = append(resp.Maps, &pb.MapLayerConfiguration{MapID: mapID, LayerCount: count})
+	}
+	sort.Slice(resp.Maps, func(i, j int) bool { return resp.Maps[i].MapID < resp.Maps[j].MapID })
+	return resp, nil
+}
+
+func (s *serversRegistry) UpdateMapLayerConfiguration(ctx context.Context, request *pb.UpdateMapLayerConfigurationRequest) (*pb.UpdateMapLayerConfigurationResponse, error) {
+	config := make(map[uint32]uint32, len(request.Maps))
+	for _, item := range request.Maps {
+		if item != nil {
+			config[item.MapID] = item.LayerCount
+		}
+	}
+	if err := s.layerService.UpdateMapConfiguration(ctx, request.RealmID, config); err != nil {
+		return nil, err
+	}
+	return &pb.UpdateMapLayerConfigurationResponse{Api: ver}, nil
+}
+
+func (s *serversRegistry) BindGroupToGameServer(ctx context.Context, request *pb.BindGroupToGameServerRequest) (*pb.BindGroupToGameServerResponse, error) {
+	if err := s.layerService.BindGroup(ctx, request.RealmID, request.GroupID, request.MapID, request.GameServerAddress); err != nil {
+		return nil, err
+	}
+	return &pb.BindGroupToGameServerResponse{Api: ver}, nil
 }
 
 func (s *serversRegistry) RegisterGameServer(ctx context.Context, request *pb.RegisterGameServerRequest) (*pb.RegisterGameServerResponse, error) {

@@ -292,11 +292,23 @@ func (s *GameSession) handleLayerCommand(ctx context.Context, args []string) err
 		return nil
 	}
 	if len(args) == 1 {
+		mapConfig, err := s.serversRegistryClient.GetMapLayerConfiguration(ctx, &pbServ.GetMapLayerConfigurationRequest{Api: root.SupportedServerRegistryVer, RealmID: root.RealmID})
+		if err != nil {
+			return err
+		}
 		resp, err := s.serversRegistryClient.GetLayerStats(ctx, &pbServ.GetLayerStatsRequest{Api: root.SupportedServerRegistryVer, RealmID: root.RealmID})
 		if err != nil {
 			return err
 		}
 		s.SendSysMessage(fmt.Sprintf("Layering: enabled=%t maxPlayers=%d target=%d%% overflow=%d%% layers=%d-%d cooldown=%ds hourlyLimit=%d", resp.Enabled, resp.MaxPopulation, resp.TargetPopulationPercent, resp.OverflowMarginPercent, resp.MinLayers, resp.MaxLayers, resp.SwitchCooldownSeconds, resp.MaxSwitchesPerHour))
+		for _, item := range mapConfig.Maps {
+			marker := ""
+			if s.character != nil && item.MapID == s.character.Map {
+				marker = fmt.Sprintf(" (current map, you are on layer %d)", s.currentLayerID)
+			}
+			s.SendSysMessage(fmt.Sprintf("Map %d: configured layers=%d%s", item.MapID, item.LayerCount, marker))
+		}
+		s.SendSysMessage(fmt.Sprintf("Kubernetes autoscaling: enabled=%t", mapConfig.KubernetesAutoscalingEnabled))
 		if len(resp.Layers) == 0 {
 			s.SendSysMessage("No layers have registered ready cores.")
 		}

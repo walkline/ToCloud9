@@ -14,7 +14,7 @@ spec:
       labels:
         app: {{ $fullname }}-servers-registry
     spec:
-      {{- if eq .Values.servers_registry.layering.provisioner.type "kubernetes" }}
+      {{- if and .Values.servers_registry.layering.enableKubernetesAutoscaling (eq .Values.servers_registry.layering.provisioner.type "kubernetes") }}
       serviceAccountName: {{ $fullname }}-layer-controller
       {{- end }}
       containers:
@@ -30,6 +30,10 @@ spec:
           value: nats://{{ .Release.Name }}-nats:4222
         - name: LAYERING_ENABLED
           value: "{{ .Values.servers_registry.layering.enabled }}"
+        - name: LAYER_ENABLE_KUBERNETES_AUTOSCALING
+          value: "{{ .Values.servers_registry.layering.enableKubernetesAutoscaling }}"
+        - name: LAYER_MAPS
+          value: "{{- range $i, $item := .Values.servers_registry.layering.maps }}{{ if $i }},{{ end }}{{ $item.mapID }}:{{ $item.layers }}{{- end }}"
         - name: LAYER_MAX_POPULATION
           value: "{{ .Values.servers_registry.layering.maxPopulation }}"
         - name: LAYER_TARGET_POPULATION_PERCENT
@@ -100,7 +104,7 @@ spec:
   selector:
     app: {{ $fullname }}-servers-registry
 
-{{- if eq .Values.servers_registry.layering.provisioner.type "kubernetes" }}
+{{- if and .Values.servers_registry.layering.enableKubernetesAutoscaling (eq .Values.servers_registry.layering.provisioner.type "kubernetes") }}
 ---
 apiVersion: v1
 kind: ServiceAccount

@@ -9,6 +9,7 @@ import (
 	"github.com/walkline/ToCloud9/apps/gateway/packet"
 	pbChar "github.com/walkline/ToCloud9/gen/characters/pb"
 	"github.com/walkline/ToCloud9/gen/group/pb"
+	pbServ "github.com/walkline/ToCloud9/gen/servers-registry/pb"
 	"github.com/walkline/ToCloud9/shared/events"
 )
 
@@ -126,6 +127,17 @@ func (s *GameSession) HandleEventGroupMemberOnlineStatusChanged(ctx context.Cont
 
 func (s *GameSession) HandleEventGroupCreated(ctx context.Context, e *eBroadcaster.Event) error {
 	eventData := e.Payload.(*events.GroupEventGroupCreatedPayload)
+	s.currentGroupID = uint32(eventData.GroupID)
+	if eventData.LeaderGUID == s.character.GUID {
+		_, err := s.serversRegistryClient.BindGroupToGameServer(ctx, &pbServ.BindGroupToGameServerRequest{
+			Api: root.SupportedServerRegistryVer, RealmID: root.RealmID, GroupID: uint32(eventData.GroupID),
+			MapID: s.character.Map, GameServerAddress: s.currentServerAddress,
+		})
+		if err != nil {
+			return fmt.Errorf("bind group layer affinity: %w", err)
+		}
+	}
+	s.queueLayerSwitchForGroup(uint32(eventData.GroupID))
 
 	var member *events.GroupMember
 	for i, memberItr := range eventData.Members {
@@ -191,7 +203,6 @@ func (s *GameSession) HandleGroupInviteAccept(ctx context.Context, _ *packet.Pac
 	if err != nil {
 		return NewGroupServiceUnavailableErr(err)
 	}
-	s.queueLayerSwitchToPlayer(s.pendingGroupInviter)
 	s.pendingGroupInviter = 0
 
 	return nil
@@ -505,13 +516,16 @@ func (s *GameSession) LoadGroupForPlayer(ctx context.Context) error {
 	}
 
 	if res.GroupID == 0 {
+		s.currentGroupID = 0
 		return nil
 	}
+	s.currentGroupID = res.GroupID
 
 	return s.SendGroupUpdate(ctx, uint(res.GroupID))
 }
 
 func (s *GameSession) SendGroupUpdate(ctx context.Context, groupID uint) error {
+	s.currentGroupID = uint32(groupID)
 	groupResp, err := s.groupServiceClient.GetGroup(ctx, &pb.GetGroupRequest{
 		Api:     root.SupportedGroupServiceVer,
 		RealmID: root.RealmID,
@@ -582,6 +596,7 @@ func (s *GameSession) HandleEventGroupMemberLeft(ctx context.Context, e *eBroadc
 	eventData := e.Payload.(*events.GroupEventGroupMemberLeftPayload)
 
 	if eventData.MemberGUID == s.character.GUID {
+		s.currentGroupID = 0
 		s.groupMemberStats = nil
 
 		resp := packet.NewWriterWithSize(packet.SMsgGroupUnInvite, 0)
@@ -603,6 +618,7 @@ func (s *GameSession) HandleEventGroupDisband(ctx context.Context, e *eBroadcast
 	eventData := e.Payload.(*events.GroupEventGroupDisbandPayload)
 
 	s.groupMemberStats = nil
+	s.currentGroupID = 0
 
 	s.groupUpdateCounter++
 
@@ -619,6 +635,10 @@ func (s *GameSession) HandleEventGroupDisband(ctx context.Context, e *eBroadcast
 
 func (s *GameSession) HandleEventGroupMemberAdded(ctx context.Context, e *eBroadcaster.Event) error {
 	eventData := e.Payload.(*events.GroupEventGroupMemberAddedPayload)
+	if eventData.MemberGUID == s.character.GUID {
+		s.currentGroupID = uint32(eventData.GroupID)
+		s.queueLayerSwitchForGroup(uint32(eventData.GroupID))
+	}
 
 	s.publishCharacterStatsSnapshot()
 

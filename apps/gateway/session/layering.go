@@ -12,8 +12,20 @@ import (
 
 type layerSwitchRequest struct {
 	preferredPlayerGUID uint64
+	groupID             uint32
 	reason              pbServ.SelectGameServerForPlayerRequest_Reason
 	notBefore           time.Time
+}
+
+func (s *GameSession) queueLayerSwitchForGroup(groupID uint32) {
+	if !s.layeringEnabled || groupID == 0 || s.character == nil {
+		return
+	}
+	select {
+	case s.layerSwitchQueue <- layerSwitchRequest{groupID: groupID, reason: pbServ.SelectGameServerForPlayerRequest_GROUP_JOIN, notBefore: time.Now().Add(100 * time.Millisecond)}:
+	default:
+		s.SendSysMessage("Your layer switch queue is full. Please try again shortly.")
+	}
 }
 
 func (s *GameSession) queueLayerSwitchToPlayer(preferredPlayerGUID uint64) {
@@ -48,6 +60,7 @@ func (s *GameSession) processNextLayerSwitch(ctx context.Context) error {
 		action, err := s.serversRegistryClient.PollPlayerLayerAction(ctx, &pbServ.PollPlayerLayerActionRequest{
 			Api: root.SupportedServerRegistryVer, RealmID: root.RealmID, MapID: s.character.Map,
 			ZoneID: s.character.Zone, PlayerGUID: s.character.GUID, CurrentGameServerAddress: s.currentServerAddress,
+			GroupID: s.currentGroupID,
 		})
 		if err != nil {
 			return err
@@ -80,6 +93,7 @@ func (s *GameSession) processNextLayerSwitch(ctx context.Context) error {
 		ZoneID:                   s.character.Zone,
 		PlayerGUID:               s.character.GUID,
 		PreferredPlayerGUID:      request.preferredPlayerGUID,
+		GroupID:                  request.groupID,
 		Reason:                   request.reason,
 		CurrentGameServerAddress: s.currentServerAddress,
 	})

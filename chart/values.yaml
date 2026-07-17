@@ -49,6 +49,10 @@ servers_registry:
     externalPort: 8999
   layering:
     enabled: false
+    # Fixed per-map layer counts are authoritative. Maps omitted here use the
+    # normal single-copy map distributor.
+    maps: []
+    enableKubernetesAutoscaling: false
     maxPopulation: 1000
     # Normal placement stops at this percentage and starts another layer.
     targetPopulationPercent: 90

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math/rand"
 	"sort"
+	"sync"
 
 	"github.com/rs/zerolog/log"
 
@@ -22,6 +23,7 @@ type GameServer interface {
 	ListOfCrossRealms(ctx context.Context) ([]repo.GameServer, error)
 	ListAll(ctx context.Context) ([]repo.GameServer, error)
 	MapsLoadedForServer(ctx context.Context, serverID string, maps []uint32) (*repo.GameServer, error)
+	UpdateMapLayerConfiguration(ctx context.Context, realmID uint32, layers map[uint32]uint32) error
 }
 
 type gameServerImpl struct {
@@ -30,6 +32,8 @@ type gameServerImpl struct {
 	metrics     healthandmetrics.MetricsConsumer
 	mapBalancer mapbalancing.MapDistributor
 	eProducer   events.ServerRegistryProducer
+	mapLayers   map[uint32]map[uint32]uint32
+	mapLayersMu sync.RWMutex
 }
 
 func NewGameServer(
@@ -47,6 +51,7 @@ func NewGameServer(
 		metrics:     metrics,
 		mapBalancer: mapBalancer,
 		eProducer:   eProducer,
+		mapLayers:   make(map[uint32]map[uint32]uint32),
 	}
 
 	checker.AddFailedObserver(func(object healthandmetrics.HealthCheckObject, err error) {
@@ -96,6 +101,28 @@ func NewGameServer(
 	}
 
 	return service, nil
+}
+
+func (g *gameServerImpl) UpdateMapLayerConfiguration(ctx context.Context, realmID uint32, layers map[uint32]uint32) error {
+	g.mapLayersMu.Lock()
+	g.mapLayers[realmID] = cloneMapLayerCounts(layers)
+	g.mapLayersMu.Unlock()
+	servers, err := g.ListForRealm(ctx, realmID)
+	if err != nil {
+		return err
+	}
+	_, err = g.distributeMapsToServers(ctx, servers)
+	return err
+}
+
+func cloneMapLayerCounts(src map[uint32]uint32) map[uint32]uint32 {
+	dst := make(map[uint32]uint32, len(src))
+	for mapID, count := range src {
+		if count > 1 {
+			dst[mapID] = count
+		}
+	}
+	return dst
 }
 
 func (g *gameServerImpl) Register(ctx context.Context, server *repo.GameServer) error {
@@ -310,21 +337,15 @@ func (g *gameServerImpl) distributeMapsToServers(ctx context.Context, servers []
 		serversBefore[i] = server.Copy()
 	}
 
-	// Each logical layer must receive its own complete map distribution. Mixing
-	// layers here would assign a map to only one layer and make the duplicate
-	// worlds unusable.
-	byLayer := make(map[uint32][]repo.GameServer)
-	layerIDs := make([]uint32, 0)
-	for _, server := range servers {
-		if _, ok := byLayer[server.LayerID]; !ok {
-			layerIDs = append(layerIDs, server.LayerID)
-		}
-		byLayer[server.LayerID] = append(byLayer[server.LayerID], server)
-	}
-	sort.Slice(layerIDs, func(i, j int) bool { return layerIDs[i] < layerIDs[j] })
-	distributed := make([]repo.GameServer, 0, len(servers))
-	for _, layerID := range layerIDs {
-		distributed = append(distributed, g.mapBalancer.Distribute(byLayer[layerID])...)
+	// First distribute ordinary maps normally across the complete realm pool.
+	// A configured layered map is then assigned to N distinct worldservers; a
+	// single AC process therefore still owns at most one copy of a given map.
+	distributed := g.mapBalancer.Distribute(servers)
+	g.mapLayersMu.RLock()
+	layerCounts := cloneMapLayerCounts(g.mapLayers[firstRealmID(servers)])
+	g.mapLayersMu.RUnlock()
+	for mapID, count := range layerCounts {
+		distributed = assignLayeredMap(distributed, serversBefore, mapID, count)
 	}
 
 	res := make([]events.GameServer, len(distributed))
@@ -370,6 +391,70 @@ func (g *gameServerImpl) distributeMapsToServers(ctx context.Context, servers []
 	}
 
 	return distributed, nil
+}
+
+func firstRealmID(servers []repo.GameServer) uint32 {
+	if len(servers) == 0 {
+		return 0
+	}
+	return servers[0].RealmID
+}
+
+func assignLayeredMap(servers, previous []repo.GameServer, mapID, count uint32) []repo.GameServer {
+	eligible := make([]int, 0, len(servers))
+	for i := range servers {
+		if servers[i].IsAllMapsAvailable() || containsMap(servers[i].AvailableMaps, mapID) {
+			eligible = append(eligible, i)
+		}
+		servers[i].AssignedMapsToHandle = removeMap(servers[i].AssignedMapsToHandle, mapID)
+	}
+	sort.SliceStable(eligible, func(i, j int) bool {
+		a, b := servers[eligible[i]], servers[eligible[j]]
+		ap, bp := serverPreviouslyHandled(previous, a.ID, mapID), serverPreviouslyHandled(previous, b.ID, mapID)
+		if ap != bp {
+			return ap
+		}
+		if a.ActiveConnections != b.ActiveConnections {
+			return a.ActiveConnections < b.ActiveConnections
+		}
+		return a.ID < b.ID
+	})
+	if count > uint32(len(eligible)) {
+		count = uint32(len(eligible))
+	}
+	for _, idx := range eligible[:count] {
+		servers[idx].AssignedMapsToHandle = append(servers[idx].AssignedMapsToHandle, mapID)
+		sort.Slice(servers[idx].AssignedMapsToHandle, func(i, j int) bool {
+			return servers[idx].AssignedMapsToHandle[i] < servers[idx].AssignedMapsToHandle[j]
+		})
+	}
+	return servers
+}
+
+func containsMap(maps []uint32, mapID uint32) bool {
+	for _, id := range maps {
+		if id == mapID {
+			return true
+		}
+	}
+	return false
+}
+func removeMap(maps []uint32, mapID uint32) []uint32 {
+	result := maps[:0]
+	for _, id := range maps {
+		if id != mapID {
+			result = append(result, id)
+		}
+	}
+	return result
+}
+func serverPreviouslyHandled(servers []repo.GameServer, id string, mapID uint32) bool {
+	for i := range servers {
+		if servers[i].ID == id {
+			return containsMap(servers[i].AssignedMapsToHandle, mapID)
+		}
+	}
+	return false
 }
 
 func (g *gameServerImpl) onMetricsUpdate(server *repo.GameServer, m *healthandmetrics.MetricsRead) {

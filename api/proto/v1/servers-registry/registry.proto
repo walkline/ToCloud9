@@ -16,6 +16,9 @@ service ServersRegistryService {
   rpc ReleasePlayerLayer(ReleasePlayerLayerRequest) returns (ReleasePlayerLayerResponse);
   rpc GetLayerStats(GetLayerStatsRequest) returns (GetLayerStatsResponse);
   rpc ForcePlayerLayer(ForcePlayerLayerRequest) returns (ForcePlayerLayerResponse);
+  rpc GetMapLayerConfiguration(GetMapLayerConfigurationRequest) returns (GetMapLayerConfigurationResponse);
+  rpc UpdateMapLayerConfiguration(UpdateMapLayerConfigurationRequest) returns (UpdateMapLayerConfigurationResponse);
+  rpc BindGroupToGameServer(BindGroupToGameServerRequest) returns (BindGroupToGameServerResponse);
 
   rpc RegisterGateway(RegisterGatewayRequest) returns (RegisterGatewayResponse);
   rpc GatewaysForRealms(GatewaysForRealmsRequest) returns (GatewaysForRealmsResponse);
@@ -155,7 +158,36 @@ message SelectGameServerForPlayerRequest {
   Reason reason = 6;
   string currentGameServerAddress = 7;
   uint32 zoneID = 8;
+  uint32 groupID = 9;
 }
+
+message MapLayerConfiguration {
+  uint32 mapID = 1;
+  uint32 layerCount = 2;
+}
+
+message GetMapLayerConfigurationRequest { string api = 1; uint32 realmID = 2; }
+message GetMapLayerConfigurationResponse {
+  string api = 1;
+  repeated MapLayerConfiguration maps = 2;
+  bool kubernetesAutoscalingEnabled = 3;
+}
+
+message UpdateMapLayerConfigurationRequest {
+  string api = 1;
+  uint32 realmID = 2;
+  repeated MapLayerConfiguration maps = 3;
+}
+message UpdateMapLayerConfigurationResponse { string api = 1; }
+
+message BindGroupToGameServerRequest {
+  string api = 1;
+  uint32 realmID = 2;
+  uint32 groupID = 3;
+  uint32 mapID = 4;
+  string gameServerAddress = 5;
+}
+message BindGroupToGameServerResponse { string api = 1; }
 
 message SelectGameServerForPlayerResponse {
   enum Status {
@@ -189,6 +221,7 @@ message PollPlayerLayerActionRequest {
   uint32 zoneID = 4;
   uint64 playerGUID = 5;
   string currentGameServerAddress = 6;
+  uint32 groupID = 7;
 }
 
 message CompletePlayerLayerSwitchRequest {

@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"github.com/rs/zerolog/log"
 	"sort"
 	"sync"
@@ -37,13 +38,17 @@ type LayerSelection struct {
 }
 
 type Layer interface {
-	Select(ctx context.Context, realmID, mapID, zoneID uint32, playerGUID, preferredPlayerGUID uint64, reason LayerSelectReason, currentAddress string) (LayerSelection, error)
-	Poll(ctx context.Context, realmID, mapID, zoneID uint32, playerGUID uint64, currentAddress string) (LayerSelection, error)
+	Select(ctx context.Context, realmID, mapID, zoneID, groupID uint32, playerGUID, preferredPlayerGUID uint64, reason LayerSelectReason, currentAddress string) (LayerSelection, error)
+	Poll(ctx context.Context, realmID, mapID, zoneID, groupID uint32, playerGUID uint64, currentAddress string) (LayerSelection, error)
 	CompleteSwitch(realmID uint32, playerGUID uint64, success bool)
 	Release(realmID uint32, playerGUID uint64)
 	Stats(ctx context.Context, realmID uint32) (LayerStats, error)
 	Force(ctx context.Context, realmID uint32, playerGUID uint64, layerID, mapID uint32) LayerForceStatus
 	RegistrationLayer(ctx context.Context, realmID uint32) uint32
+	MapConfiguration(realmID uint32) map[uint32]uint32
+	KubernetesAutoscalingEnabled() bool
+	UpdateMapConfiguration(ctx context.Context, realmID uint32, config map[uint32]uint32) error
+	BindGroup(ctx context.Context, realmID, groupID, mapID uint32, address string) error
 	Run(ctx context.Context)
 }
 
@@ -93,20 +98,22 @@ type LayerStats struct {
 }
 
 type LayerConfig struct {
-	Enabled                 bool
-	MaxPopulation           uint32
-	TargetPopulationPercent uint32
-	OverflowMarginPercent   uint32
-	MinCapacityPercent      uint32
-	MinCapacityDuration     time.Duration
-	SwitchCooldown          time.Duration
-	MaxSwitchesPerHour      uint32
-	MinLayers               uint32
-	MaxLayers               uint32
-	ReconcileInterval       time.Duration
-	RealmIDs                []uint32
-	Scopes                  []LayerScope
-	Provisioner             LayerProvisioner
+	Enabled                     bool
+	MaxPopulation               uint32
+	TargetPopulationPercent     uint32
+	OverflowMarginPercent       uint32
+	MinCapacityPercent          uint32
+	MinCapacityDuration         time.Duration
+	SwitchCooldown              time.Duration
+	MaxSwitchesPerHour          uint32
+	MinLayers                   uint32
+	MaxLayers                   uint32
+	ReconcileInterval           time.Duration
+	RealmIDs                    []uint32
+	Scopes                      []LayerScope
+	Provisioner                 LayerProvisioner
+	MapLayers                   map[uint32]uint32
+	EnableKubernetesAutoscaling bool
 }
 
 func (l *layerService) Stats(ctx context.Context, realmID uint32) (LayerStats, error) {
@@ -141,6 +148,24 @@ func (l *layerService) Force(ctx context.Context, realmID uint32, playerGUID uin
 	servers, err := l.servers.AvailableForMapAndRealm(ctx, mapID, realmID, false)
 	if err != nil {
 		return LayerForceNoCompatibleCore
+	}
+	l.mu.Lock()
+	configuredCount := l.mapLayers[realmID][mapID]
+	l.mu.Unlock()
+	if configuredCount > 1 {
+		sort.Slice(servers, func(i, j int) bool { return servers[i].ID < servers[j].ID })
+		if layerID == 0 || layerID > uint32(len(servers)) || layerID > configuredCount {
+			return LayerForceNotFound
+		}
+		target := servers[layerID-1]
+		l.mu.Lock()
+		defer l.mu.Unlock()
+		assignment := l.assignments[realmID][playerGUID]
+		if assignment == nil || !assignment.online {
+			return LayerForcePlayerOffline
+		}
+		assignment.pendingLayerID, assignment.pendingServerAddress, assignment.pendingSince = layerID, target.Address, l.now()
+		return LayerForceOK
 	}
 	var target *repo.GameServer
 	layerExists := false
@@ -210,6 +235,14 @@ type layerService struct {
 	assignments         map[uint32]map[uint64]*playerLayerAssignment
 	draining            map[uint32]map[uint32]time.Time
 	underpopulatedSince map[uint32]map[uint32]time.Time
+	mapLayers           map[uint32]map[uint32]uint32
+	groupBindings       map[groupMapKey]groupMapBinding
+}
+
+type groupMapKey struct{ realmID, groupID, mapID uint32 }
+type groupMapBinding struct {
+	serverAddress string
+	layerID       uint32
 }
 
 func NewLayer(servers GameServer, config LayerConfig) Layer {
@@ -240,17 +273,23 @@ func NewLayer(servers GameServer, config LayerConfig) Layer {
 	if config.Provisioner == nil {
 		config.Provisioner = NoopLayerProvisioner{}
 	}
-	return &layerService{
+	l := &layerService{
 		servers:             servers,
 		config:              config,
 		now:                 time.Now,
 		assignments:         make(map[uint32]map[uint64]*playerLayerAssignment),
 		draining:            make(map[uint32]map[uint32]time.Time),
 		underpopulatedSince: make(map[uint32]map[uint32]time.Time),
+		mapLayers:           make(map[uint32]map[uint32]uint32),
+		groupBindings:       make(map[groupMapKey]groupMapBinding),
 	}
+	for _, realmID := range config.RealmIDs {
+		l.mapLayers[realmID] = cloneMapLayerCounts(config.MapLayers)
+	}
+	return l
 }
 
-func (l *layerService) Select(ctx context.Context, realmID, mapID, zoneID uint32, playerGUID, preferredPlayerGUID uint64, reason LayerSelectReason, currentAddress string) (LayerSelection, error) {
+func (l *layerService) Select(ctx context.Context, realmID, mapID, zoneID, groupID uint32, playerGUID, preferredPlayerGUID uint64, reason LayerSelectReason, currentAddress string) (LayerSelection, error) {
 	servers, err := l.servers.AvailableForMapAndRealm(ctx, mapID, realmID, false)
 	if err != nil {
 		return LayerSelection{}, err
@@ -273,6 +312,20 @@ func (l *layerService) Select(ctx context.Context, realmID, mapID, zoneID uint32
 		}
 	}
 	current := realmAssignments[playerGUID]
+	if l.mapLayers[realmID][mapID] > 1 {
+		selection := l.selectMapLayerLocked(realmID, mapID, groupID, servers)
+		if selection.Server == nil {
+			return selection, nil
+		}
+		if current == nil {
+			current = &playerLayerAssignment{}
+		}
+		current.layerID, current.serverAddress = selection.LayerID, selection.Server.Address
+		current.online, current.lastSeen, current.offlineSince = true, now, time.Time{}
+		current.mapID, current.zoneID = mapID, zoneID
+		realmAssignments[playerGUID] = current
+		return selection, nil
+	}
 
 	targetLayer, found := l.targetLayer(realmID, mapID, zoneID, servers, realmAssignments, current, preferredPlayerGUID, reason)
 	if !found {
@@ -330,6 +383,92 @@ func (l *layerService) Select(ctx context.Context, realmID, mapID, zoneID uint32
 	realmAssignments[playerGUID] = current
 	copy := target.Copy()
 	return LayerSelection{Status: LayerSelectOK, Server: &copy, LayerID: target.LayerID}, nil
+}
+
+func (l *layerService) selectMapLayerLocked(realmID, mapID, groupID uint32, servers []repo.GameServer) LayerSelection {
+	sort.Slice(servers, func(i, j int) bool { return servers[i].ID < servers[j].ID })
+	if groupID != 0 {
+		key := groupMapKey{realmID, groupID, mapID}
+		if binding, ok := l.groupBindings[key]; ok {
+			for i := range servers {
+				if servers[i].Address == binding.serverAddress {
+					cp := servers[i].Copy()
+					return LayerSelection{Status: LayerSelectOK, Server: &cp, LayerID: uint32(i + 1)}
+				}
+			}
+			delete(l.groupBindings, key)
+		}
+	}
+	if len(servers) == 0 {
+		return LayerSelection{Status: LayerSelectNoServer}
+	}
+	selected := 0
+	for i := 1; i < len(servers); i++ {
+		if servers[i].ActiveConnections < servers[selected].ActiveConnections ||
+			(servers[i].ActiveConnections == servers[selected].ActiveConnections && servers[i].ID < servers[selected].ID) {
+			selected = i
+		}
+	}
+	cp := servers[selected].Copy()
+	result := LayerSelection{Status: LayerSelectOK, Server: &cp, LayerID: uint32(selected + 1)}
+	if groupID != 0 {
+		l.groupBindings[groupMapKey{realmID, groupID, mapID}] = groupMapBinding{cp.Address, result.LayerID}
+	}
+	return result
+}
+
+func (l *layerService) MapConfiguration(realmID uint32) map[uint32]uint32 {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return cloneMapLayerCounts(l.mapLayers[realmID])
+}
+func (l *layerService) KubernetesAutoscalingEnabled() bool {
+	return l.config.EnableKubernetesAutoscaling
+}
+func (l *layerService) UpdateMapConfiguration(ctx context.Context, realmID uint32, config map[uint32]uint32) error {
+	for _, count := range config {
+		if count == 0 {
+			return fmt.Errorf("layer count must be positive")
+		}
+	}
+	if err := l.servers.UpdateMapLayerConfiguration(ctx, realmID, config); err != nil {
+		return err
+	}
+	l.mu.Lock()
+	l.mapLayers[realmID] = cloneMapLayerCounts(config)
+	for key := range l.groupBindings {
+		if key.realmID == realmID {
+			delete(l.groupBindings, key)
+		}
+	}
+	l.mu.Unlock()
+	return nil
+}
+func (l *layerService) BindGroup(ctx context.Context, realmID, groupID, mapID uint32, address string) error {
+	if groupID == 0 {
+		return fmt.Errorf("group ID must be non-zero")
+	}
+	servers, err := l.servers.AvailableForMapAndRealm(ctx, mapID, realmID, false)
+	if err != nil {
+		return err
+	}
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	for i := range servers {
+		if servers[i].Address == address {
+			sort.Slice(servers, func(i, j int) bool { return servers[i].ID < servers[j].ID })
+			layerID := uint32(1)
+			for j := range servers {
+				if servers[j].Address == address {
+					layerID = uint32(j + 1)
+					break
+				}
+			}
+			l.groupBindings[groupMapKey{realmID, groupID, mapID}] = groupMapBinding{address, layerID}
+			return nil
+		}
+	}
+	return fmt.Errorf("game server %s is unavailable for map %d", address, mapID)
 }
 
 func (l *layerService) targetLayer(realmID, mapID, zoneID uint32, servers []repo.GameServer, assignments map[uint64]*playerLayerAssignment, current *playerLayerAssignment, preferred uint64, reason LayerSelectReason) (uint32, bool) {
@@ -397,7 +536,7 @@ func (l *layerService) targetLayer(realmID, mapID, zoneID uint32, servers []repo
 	return best, best != 0
 }
 
-func (l *layerService) Poll(ctx context.Context, realmID, mapID, zoneID uint32, playerGUID uint64, currentAddress string) (LayerSelection, error) {
+func (l *layerService) Poll(ctx context.Context, realmID, mapID, zoneID, groupID uint32, playerGUID uint64, currentAddress string) (LayerSelection, error) {
 	servers, err := l.servers.AvailableForMapAndRealm(ctx, mapID, realmID, false)
 	if err != nil {
 		return LayerSelection{}, err
@@ -408,6 +547,59 @@ func (l *layerService) Poll(ctx context.Context, realmID, mapID, zoneID uint32, 
 		l.assignments[realmID] = make(map[uint64]*playerLayerAssignment)
 	}
 	assignment := l.assignments[realmID][playerGUID]
+	if assignment != nil && assignment.pendingLayerID != 0 {
+		if currentAddress == assignment.pendingServerAddress {
+			assignment.layerID, assignment.serverAddress = assignment.pendingLayerID, assignment.pendingServerAddress
+			assignment.pendingLayerID, assignment.pendingServerAddress, assignment.pendingSince = 0, "", time.Time{}
+			return LayerSelection{Status: LayerSelectOK}, nil
+		}
+		for i := range servers {
+			if servers[i].Address == assignment.pendingServerAddress {
+				cp := servers[i].Copy()
+				return LayerSelection{Status: LayerSelectOK, Server: &cp, LayerID: assignment.pendingLayerID}, nil
+			}
+		}
+		if l.now().Sub(assignment.pendingSince) < 30*time.Second {
+			return LayerSelection{Status: LayerSelectNoServer}, nil
+		}
+		assignment.pendingLayerID, assignment.pendingServerAddress, assignment.pendingSince = 0, "", time.Time{}
+	}
+	if l.mapLayers[realmID][mapID] > 1 {
+		currentAvailable := false
+		for i := range servers {
+			if servers[i].Address == currentAddress {
+				currentAvailable = true
+				break
+			}
+		}
+		key := groupMapKey{realmID, groupID, mapID}
+		if groupID != 0 {
+			if _, exists := l.groupBindings[key]; !exists && currentAvailable {
+				ordered := append([]repo.GameServer(nil), servers...)
+				sort.Slice(ordered, func(i, j int) bool { return ordered[i].ID < ordered[j].ID })
+				layerID := uint32(1)
+				for i := range ordered {
+					if ordered[i].Address == currentAddress {
+						layerID = uint32(i + 1)
+						break
+					}
+				}
+				l.groupBindings[key] = groupMapBinding{currentAddress, layerID}
+			}
+			selection := l.selectMapLayerLocked(realmID, mapID, groupID, servers)
+			if selection.Server != nil && selection.Server.Address != currentAddress {
+				return selection, nil
+			}
+		}
+		if assignment == nil {
+			assignment = &playerLayerAssignment{online: true, serverAddress: currentAddress, mapID: mapID, zoneID: zoneID, lastSeen: l.now()}
+			l.assignments[realmID][playerGUID] = assignment
+		}
+		if currentAvailable {
+			return LayerSelection{Status: LayerSelectOK}, nil
+		}
+		return l.selectMapLayerLocked(realmID, mapID, groupID, servers), nil
+	}
 	if assignment == nil || !assignment.online {
 		// Registry state is intentionally in-memory, while gateways and cores can
 		// outlive a registry rollout. Reconstruct an online assignment from the
@@ -433,22 +625,6 @@ func (l *layerService) Poll(ctx context.Context, realmID, mapID, zoneID uint32, 
 	}
 	assignment.mapID, assignment.zoneID = mapID, zoneID
 	assignment.lastSeen = l.now()
-	if assignment.pendingLayerID != 0 {
-		if currentAddress == assignment.pendingServerAddress {
-			assignment.layerID, assignment.serverAddress = assignment.pendingLayerID, assignment.pendingServerAddress
-			assignment.pendingLayerID, assignment.pendingServerAddress, assignment.pendingSince = 0, "", time.Time{}
-			return LayerSelection{Status: LayerSelectOK}, nil
-		}
-		target := leastLoadedServer(servers, assignment.pendingLayerID)
-		if target != nil {
-			cp := target.Copy()
-			return LayerSelection{Status: LayerSelectOK, Server: &cp, LayerID: target.LayerID}, nil
-		}
-		if l.now().Sub(assignment.pendingSince) < 30*time.Second {
-			return LayerSelection{Status: LayerSelectNoServer}, nil
-		}
-		assignment.pendingLayerID, assignment.pendingServerAddress, assignment.pendingSince = 0, "", time.Time{}
-	}
 	// Poll is deliberately heartbeat/retry-only. Population changes and drain
 	// state must never redirect a character while it is actively playing.
 	return LayerSelection{Status: LayerSelectOK}, nil
@@ -553,6 +729,9 @@ func (l *layerService) reconcile(ctx context.Context) {
 			}
 		}
 		l.mu.Unlock()
+		if !l.config.EnableKubernetesAutoscaling {
+			continue
+		}
 		// Minimum layers are operator-owned base deployments. Every layer above
 		// that floor is provisioner-owned; EnsureLayer is deliberately idempotent
 		// so partially-created multi-core layers are repaired on every reconcile.
@@ -575,6 +754,17 @@ func (l *layerService) reconcile(ctx context.Context) {
 
 func (l *layerService) desiredLayersLocked(realmID uint32) uint32 {
 	desired := l.config.MinLayers
+	if len(l.mapLayers[realmID]) > 0 {
+		for _, count := range l.mapLayers[realmID] {
+			if count > desired {
+				desired = count
+			}
+		}
+		if desired > l.config.MaxLayers {
+			desired = l.config.MaxLayers
+		}
+		return desired
+	}
 	for _, scope := range l.effectiveScopes() {
 		var population uint32
 		for _, assignment := range l.assignments[realmID] {

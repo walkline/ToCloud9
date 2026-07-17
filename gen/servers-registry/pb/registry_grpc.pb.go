@@ -31,6 +31,9 @@ const (
 	ServersRegistryService_ReleasePlayerLayer_FullMethodName                 = "/v1.ServersRegistryService/ReleasePlayerLayer"
 	ServersRegistryService_GetLayerStats_FullMethodName                      = "/v1.ServersRegistryService/GetLayerStats"
 	ServersRegistryService_ForcePlayerLayer_FullMethodName                   = "/v1.ServersRegistryService/ForcePlayerLayer"
+	ServersRegistryService_GetMapLayerConfiguration_FullMethodName           = "/v1.ServersRegistryService/GetMapLayerConfiguration"
+	ServersRegistryService_UpdateMapLayerConfiguration_FullMethodName        = "/v1.ServersRegistryService/UpdateMapLayerConfiguration"
+	ServersRegistryService_BindGroupToGameServer_FullMethodName              = "/v1.ServersRegistryService/BindGroupToGameServer"
 	ServersRegistryService_RegisterGateway_FullMethodName                    = "/v1.ServersRegistryService/RegisterGateway"
 	ServersRegistryService_GatewaysForRealms_FullMethodName                  = "/v1.ServersRegistryService/GatewaysForRealms"
 	ServersRegistryService_ListGatewaysForRealm_FullMethodName               = "/v1.ServersRegistryService/ListGatewaysForRealm"
@@ -52,6 +55,9 @@ type ServersRegistryServiceClient interface {
 	ReleasePlayerLayer(ctx context.Context, in *ReleasePlayerLayerRequest, opts ...grpc.CallOption) (*ReleasePlayerLayerResponse, error)
 	GetLayerStats(ctx context.Context, in *GetLayerStatsRequest, opts ...grpc.CallOption) (*GetLayerStatsResponse, error)
 	ForcePlayerLayer(ctx context.Context, in *ForcePlayerLayerRequest, opts ...grpc.CallOption) (*ForcePlayerLayerResponse, error)
+	GetMapLayerConfiguration(ctx context.Context, in *GetMapLayerConfigurationRequest, opts ...grpc.CallOption) (*GetMapLayerConfigurationResponse, error)
+	UpdateMapLayerConfiguration(ctx context.Context, in *UpdateMapLayerConfigurationRequest, opts ...grpc.CallOption) (*UpdateMapLayerConfigurationResponse, error)
+	BindGroupToGameServer(ctx context.Context, in *BindGroupToGameServerRequest, opts ...grpc.CallOption) (*BindGroupToGameServerResponse, error)
 	RegisterGateway(ctx context.Context, in *RegisterGatewayRequest, opts ...grpc.CallOption) (*RegisterGatewayResponse, error)
 	GatewaysForRealms(ctx context.Context, in *GatewaysForRealmsRequest, opts ...grpc.CallOption) (*GatewaysForRealmsResponse, error)
 	ListGatewaysForRealm(ctx context.Context, in *ListGatewaysForRealmRequest, opts ...grpc.CallOption) (*ListGatewaysForRealmResponse, error)
@@ -173,6 +179,33 @@ func (c *serversRegistryServiceClient) ForcePlayerLayer(ctx context.Context, in 
 	return out, nil
 }
 
+func (c *serversRegistryServiceClient) GetMapLayerConfiguration(ctx context.Context, in *GetMapLayerConfigurationRequest, opts ...grpc.CallOption) (*GetMapLayerConfigurationResponse, error) {
+	out := new(GetMapLayerConfigurationResponse)
+	err := c.cc.Invoke(ctx, ServersRegistryService_GetMapLayerConfiguration_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *serversRegistryServiceClient) UpdateMapLayerConfiguration(ctx context.Context, in *UpdateMapLayerConfigurationRequest, opts ...grpc.CallOption) (*UpdateMapLayerConfigurationResponse, error) {
+	out := new(UpdateMapLayerConfigurationResponse)
+	err := c.cc.Invoke(ctx, ServersRegistryService_UpdateMapLayerConfiguration_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *serversRegistryServiceClient) BindGroupToGameServer(ctx context.Context, in *BindGroupToGameServerRequest, opts ...grpc.CallOption) (*BindGroupToGameServerResponse, error) {
+	out := new(BindGroupToGameServerResponse)
+	err := c.cc.Invoke(ctx, ServersRegistryService_BindGroupToGameServer_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *serversRegistryServiceClient) RegisterGateway(ctx context.Context, in *RegisterGatewayRequest, opts ...grpc.CallOption) (*RegisterGatewayResponse, error) {
 	out := new(RegisterGatewayResponse)
 	err := c.cc.Invoke(ctx, ServersRegistryService_RegisterGateway_FullMethodName, in, out, opts...)
@@ -216,6 +249,9 @@ type ServersRegistryServiceServer interface {
 	ReleasePlayerLayer(context.Context, *ReleasePlayerLayerRequest) (*ReleasePlayerLayerResponse, error)
 	GetLayerStats(context.Context, *GetLayerStatsRequest) (*GetLayerStatsResponse, error)
 	ForcePlayerLayer(context.Context, *ForcePlayerLayerRequest) (*ForcePlayerLayerResponse, error)
+	GetMapLayerConfiguration(context.Context, *GetMapLayerConfigurationRequest) (*GetMapLayerConfigurationResponse, error)
+	UpdateMapLayerConfiguration(context.Context, *UpdateMapLayerConfigurationRequest) (*UpdateMapLayerConfigurationResponse, error)
+	BindGroupToGameServer(context.Context, *BindGroupToGameServerRequest) (*BindGroupToGameServerResponse, error)
 	RegisterGateway(context.Context, *RegisterGatewayRequest) (*RegisterGatewayResponse, error)
 	GatewaysForRealms(context.Context, *GatewaysForRealmsRequest) (*GatewaysForRealmsResponse, error)
 	ListGatewaysForRealm(context.Context, *ListGatewaysForRealmRequest) (*ListGatewaysForRealmResponse, error)
@@ -261,6 +297,15 @@ func (UnimplementedServersRegistryServiceServer) GetLayerStats(context.Context, 
 }
 func (UnimplementedServersRegistryServiceServer) ForcePlayerLayer(context.Context, *ForcePlayerLayerRequest) (*ForcePlayerLayerResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ForcePlayerLayer not implemented")
+}
+func (UnimplementedServersRegistryServiceServer) GetMapLayerConfiguration(context.Context, *GetMapLayerConfigurationRequest) (*GetMapLayerConfigurationResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetMapLayerConfiguration not implemented")
+}
+func (UnimplementedServersRegistryServiceServer) UpdateMapLayerConfiguration(context.Context, *UpdateMapLayerConfigurationRequest) (*UpdateMapLayerConfigurationResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpdateMapLayerConfiguration not implemented")
+}
+func (UnimplementedServersRegistryServiceServer) BindGroupToGameServer(context.Context, *BindGroupToGameServerRequest) (*BindGroupToGameServerResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method BindGroupToGameServer not implemented")
 }
 func (UnimplementedServersRegistryServiceServer) RegisterGateway(context.Context, *RegisterGatewayRequest) (*RegisterGatewayResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method RegisterGateway not implemented")
@@ -501,6 +546,60 @@ func _ServersRegistryService_ForcePlayerLayer_Handler(srv interface{}, ctx conte
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ServersRegistryService_GetMapLayerConfiguration_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetMapLayerConfigurationRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ServersRegistryServiceServer).GetMapLayerConfiguration(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ServersRegistryService_GetMapLayerConfiguration_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ServersRegistryServiceServer).GetMapLayerConfiguration(ctx, req.(*GetMapLayerConfigurationRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ServersRegistryService_UpdateMapLayerConfiguration_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateMapLayerConfigurationRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ServersRegistryServiceServer).UpdateMapLayerConfiguration(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ServersRegistryService_UpdateMapLayerConfiguration_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ServersRegistryServiceServer).UpdateMapLayerConfiguration(ctx, req.(*UpdateMapLayerConfigurationRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ServersRegistryService_BindGroupToGameServer_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(BindGroupToGameServerRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ServersRegistryServiceServer).BindGroupToGameServer(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ServersRegistryService_BindGroupToGameServer_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ServersRegistryServiceServer).BindGroupToGameServer(ctx, req.(*BindGroupToGameServerRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _ServersRegistryService_RegisterGateway_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(RegisterGatewayRequest)
 	if err := dec(in); err != nil {
@@ -609,6 +708,18 @@ var ServersRegistryService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ForcePlayerLayer",
 			Handler:    _ServersRegistryService_ForcePlayerLayer_Handler,
+		},
+		{
+			MethodName: "GetMapLayerConfiguration",
+			Handler:    _ServersRegistryService_GetMapLayerConfiguration_Handler,
+		},
+		{
+			MethodName: "UpdateMapLayerConfiguration",
+			Handler:    _ServersRegistryService_UpdateMapLayerConfiguration_Handler,
+		},
+		{
+			MethodName: "BindGroupToGameServer",
+			Handler:    _ServersRegistryService_BindGroupToGameServer_Handler,
 		},
 		{
 			MethodName: "RegisterGateway",

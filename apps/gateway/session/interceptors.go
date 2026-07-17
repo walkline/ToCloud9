@@ -289,6 +289,7 @@ func (s *GameSession) InterceptMoveWorldPortAck(ctx context.Context, p *packet.P
 			RealmID:                  root.RealmID,
 			MapID:                    mapID,
 			ZoneID:                   s.character.Zone,
+			GroupID:                  s.currentGroupID,
 			PlayerGUID:               s.character.GUID,
 			Reason:                   pbServ.SelectGameServerForPlayerRequest_MAP_CHANGE,
 			CurrentGameServerAddress: oldServerAddress,

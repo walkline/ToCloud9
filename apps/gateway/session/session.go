@@ -104,6 +104,7 @@ type GameSession struct {
 	layerSwitchInProgress  bool
 	layerSwitchTarget      *pbServ.Server
 	pendingGroupInviter    uint64
+	currentGroupID         uint32
 	lastLayerLifecyclePoll time.Time
 	layerSafety            layerSafetyState
 	seamlessLayerSwitch    bool
@@ -502,6 +503,13 @@ func (s *GameSession) connectToGameServer(ctx context.Context, characterGUID uin
 	}
 	selectedServer := serversResult.GameServers[0]
 	if s.layeringEnabled {
+		groupID := s.currentGroupID
+		if groupID == 0 && s.groupServiceClient != nil {
+			if group, groupErr := s.groupServiceClient.GetGroupIDByPlayer(ctx, &pbGroup.GetGroupIDByPlayerRequest{Api: root.SupportedGroupServiceVer, RealmID: root.RealmID, Player: characterGUID}); groupErr == nil {
+				groupID = group.GroupID
+				s.currentGroupID = groupID
+			}
+		}
 		reason := pbServ.SelectGameServerForPlayerRequest_LOGIN
 		if mapID != nil {
 			reason = pbServ.SelectGameServerForPlayerRequest_MAP_CHANGE
@@ -512,6 +520,7 @@ func (s *GameSession) connectToGameServer(ctx context.Context, characterGUID uin
 			MapID:                    mapIDToLogin,
 			PlayerGUID:               characterGUID,
 			ZoneID:                   r.Character.Zone,
+			GroupID:                  groupID,
 			Reason:                   reason,
 			CurrentGameServerAddress: s.currentServerAddress,
 		})

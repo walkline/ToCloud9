@@ -113,6 +113,15 @@ func (s *serversRegistryDebugLoggerMiddleware) GetLayerStats(ctx context.Context
 func (s *serversRegistryDebugLoggerMiddleware) ForcePlayerLayer(ctx context.Context, request *pb.ForcePlayerLayerRequest) (*pb.ForcePlayerLayerResponse, error) {
 	return s.realService.ForcePlayerLayer(ctx, request)
 }
+func (s *serversRegistryDebugLoggerMiddleware) GetMapLayerConfiguration(ctx context.Context, request *pb.GetMapLayerConfigurationRequest) (*pb.GetMapLayerConfigurationResponse, error) {
+	return s.realService.GetMapLayerConfiguration(ctx, request)
+}
+func (s *serversRegistryDebugLoggerMiddleware) UpdateMapLayerConfiguration(ctx context.Context, request *pb.UpdateMapLayerConfigurationRequest) (*pb.UpdateMapLayerConfigurationResponse, error) {
+	return s.realService.UpdateMapLayerConfiguration(ctx, request)
+}
+func (s *serversRegistryDebugLoggerMiddleware) BindGroupToGameServer(ctx context.Context, request *pb.BindGroupToGameServerRequest) (*pb.BindGroupToGameServerResponse, error) {
+	return s.realService.BindGroupToGameServer(ctx, request)
+}
 
 func (s *serversRegistryDebugLoggerMiddleware) RegisterGateway(ctx context.Context, request *pb.RegisterGatewayRequest) (*pb.RegisterGatewayResponse, error) {
 	// Logs already inside.
