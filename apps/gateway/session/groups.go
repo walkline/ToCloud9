@@ -3,6 +3,7 @@ package session
 import (
 	"context"
 	"fmt"
+	"time"
 
 	root "github.com/walkline/ToCloud9/apps/gateway"
 	eBroadcaster "github.com/walkline/ToCloud9/apps/gateway/events-broadcaster"
@@ -688,13 +689,76 @@ func (s *GameSession) HandleRequestPartyMemberStats(ctx context.Context, p *pack
 
 	stats, found := s.groupMemberStats[guid]
 	if !found {
-		// Not a tracked group member (e.g. pet) — let the game server answer.
+		// The cache starts empty (fresh login or post-redirect session rebuild)
+		// and only ever receives changed fields, so a miss doesn't mean "not a
+		// member". Confirm with the group service before falling through: the
+		// game server would answer with an "offline" stub for a live member.
+		// Offline members do fall through — for them the "offline" stub is the
+		// right answer, while a fabricated status would show a disconnected
+		// member as online with a full health bar. Pets and other non-player
+		// GUIDs (high type bits set) fall through too.
+		if guid>>48 == 0 && s.isOnlineInPlayersGroup(ctx, guid) {
+			s.gameSocket.SendPacket(buildPartyMemberStatsPacket(&events.GroupMemberStatsUpdate{MemberGUID: guid}))
+			return nil
+		}
+
 		s.worldSocket.SendPacket(p)
 		return nil
 	}
 
-	s.gameSocket.SendPacket(buildPartyMemberStatsFullPacket(guid, &stats))
+	// A FULL response resets every field its mask doesn't carry, and the cache
+	// only holds fields that changed since it was created (a member whose HP
+	// never changed has no HP there): an incomplete FULL zeroes health client
+	// side, showing the member as dead. Answer incrementally unless every field
+	// is known — the client then keeps its last known values.
+	if groupMemberStatsComplete(&stats) {
+		s.gameSocket.SendPacket(buildPartyMemberStatsFullPacket(guid, &stats))
+	} else {
+		s.gameSocket.SendPacket(buildPartyMemberStatsPacket(&stats))
+	}
+
 	return nil
+}
+
+func groupMemberStatsComplete(stats *events.GroupMemberStatsUpdate) bool {
+	return stats.CurHP != nil && stats.MaxHP != nil && stats.PowerType != nil &&
+		stats.CurPower != nil && stats.MaxPower != nil && stats.Level != nil && stats.Zone != nil
+}
+
+// groupMembersSnapshotTTL bounds how often a stats request for an unknown GUID
+// may trigger a group service call.
+const groupMembersSnapshotTTL = time.Second * 3
+
+// isOnlineInPlayersGroup reports whether the given GUID belongs to the same group
+// as the session's character and that member is currently online. The membership
+// snapshot is memoized briefly so spamming requests with random GUIDs can't turn
+// into one RPC per packet.
+func (s *GameSession) isOnlineInPlayersGroup(ctx context.Context, guid uint64) bool {
+	if s.groupServiceClient == nil {
+		return false
+	}
+
+	if s.groupMembersSnapshot == nil || time.Since(s.groupMembersSnapshotAt) > groupMembersSnapshotTTL {
+		gr, err := s.groupServiceClient.GetGroupByMember(ctx, &pb.GetGroupByMemberRequest{
+			Api:     root.SupportedGroupServiceVer,
+			RealmID: root.RealmID,
+			Player:  s.character.GUID,
+		})
+		if err != nil {
+			return false
+		}
+
+		snapshot := map[uint64]bool{}
+		if gr.Group != nil {
+			for _, member := range gr.Group.Members {
+				snapshot[member.Guid] = member.IsOnline
+			}
+		}
+		s.groupMembersSnapshot = snapshot
+		s.groupMembersSnapshotAt = time.Now()
+	}
+
+	return s.groupMembersSnapshot[guid]
 }
 
 func (s *GameSession) storeGroupMemberStats(upd *events.GroupMemberStatsUpdate) {
