@@ -25,6 +25,7 @@ const (
 	EventTypeGuildRankCreated
 	EventTypeGuildRankDeleted
 	EventTypeGuildNewMessage
+	EventTypeGuildCreated
 	EventTypeGroupInviteCreated
 	EventTypeGroupCreated
 	EventTypeGroupMemberOnlineStatusChanged
@@ -138,6 +139,7 @@ type Broadcaster interface {
 	NewGuildRankCreatedEvent(payload *events.GuildEventRankCreatedPayload)
 	NewGuildRankDeletedEvent(payload *events.GuildEventRankDeletedPayload)
 	NewGuildMessageEvent(payload *events.GuildEventNewMessagePayload)
+	NewGuildCreatedEvent(payload *events.GuildEventGuildCreatedPayload)
 	NewGroupInviteCreatedEvent(payload *events.GroupEventInviteCreatedPayload)
 	NewGroupCreatedEvent(payload *events.GroupEventGroupCreatedPayload)
 	NewGroupMemberOnlineStatusChangedEvent(payload *events.GroupEventGroupMemberOnlineStatusChangedPayload)
@@ -329,6 +331,18 @@ func (b *broadcasterImpl) NewGuildMessageEvent(payload *events.GuildEventNewMess
 	for _, ch := range b.channelsForGUIDs(payload.Receivers) {
 		ch <- Event{
 			Type:    EventTypeGuildNewMessage,
+			Payload: payload,
+		}
+	}
+}
+
+func (b *broadcasterImpl) NewGuildCreatedEvent(payload *events.GuildEventGuildCreatedPayload) {
+	guids := make([]uint64, 0, len(payload.MemberGUIDs)+1)
+	guids = append(guids, payload.LeaderGUID)
+	guids = append(guids, payload.MemberGUIDs...)
+	for _, ch := range b.channelsForGUIDs(guids) {
+		ch <- Event{
+			Type:    EventTypeGuildCreated,
 			Payload: payload,
 		}
 	}
