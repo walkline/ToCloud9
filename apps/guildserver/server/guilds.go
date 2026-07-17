@@ -8,6 +8,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/walkline/ToCloud9/apps/guildserver"
+	"github.com/walkline/ToCloud9/apps/guildserver/repo"
 	"github.com/walkline/ToCloud9/apps/guildserver/service"
 	"github.com/walkline/ToCloud9/gen/guilds/pb"
 )
@@ -290,10 +291,19 @@ func (g *GuildServer) SendGuildMessage(ctx context.Context, params *pb.SendGuild
 	}, nil
 }
 
-// CreateGuild handles guild creation request.
+// CreateGuild handles guild creation request. Business failures are mapped to
+// gRPC status codes so that callers can react without matching error strings.
 func (g *GuildServer) CreateGuild(ctx context.Context, params *pb.CreateGuildParams) (*pb.CreateGuildResponse, error) {
 	guildID, err := g.guildsService.CreateGuild(ctx, params.RealmID, params.LeaderGUID, params.Name, params.SignatoryGUIDs)
 	if err != nil {
+		switch {
+		case errors.Is(err, repo.ErrGuildNameTaken):
+			return nil, status.Error(codes.AlreadyExists, err.Error())
+		case errors.Is(err, service.ErrAlreadyInGuild):
+			return nil, status.Error(codes.FailedPrecondition, err.Error())
+		case errors.Is(err, service.ErrGuildNameInvalid):
+			return nil, status.Error(codes.InvalidArgument, err.Error())
+		}
 		return nil, err
 	}
 

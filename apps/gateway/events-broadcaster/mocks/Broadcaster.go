@@ -153,6 +153,11 @@ func (_m *Broadcaster) NewGuildMemberPromoteEvent(payload *events.GuildEventMemb
 	_m.Called(payload)
 }
 
+// NewGuildCreatedEvent provides a mock function with given fields: payload
+func (_m *Broadcaster) NewGuildCreatedEvent(payload *events.GuildEventGuildCreatedPayload) {
+	_m.Called(payload)
+}
+
 // NewGuildMessageEvent provides a mock function with given fields: payload
 func (_m *Broadcaster) NewGuildMessageEvent(payload *events.GuildEventNewMessagePayload) {
 	_m.Called(payload)

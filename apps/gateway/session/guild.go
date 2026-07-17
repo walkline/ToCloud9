@@ -295,6 +295,18 @@ func (s *GameSession) HandleEventGuildMOTDUpdated(_ context.Context, e *eBroadca
 	return nil
 }
 
+// HandleEventGuildCreated links the session to the freshly created guild so
+// gateway-side guild features (roster, permissions) work for the petition
+// signatories without a relog. The leader's session is updated synchronously in
+// HandleTurnInPetition; for it this event is a no-op.
+func (s *GameSession) HandleEventGuildCreated(_ context.Context, e *eBroadcaster.Event) error {
+	eventData := e.Payload.(*events.GuildEventGuildCreatedPayload)
+
+	s.character.GuildID = uint32(eventData.GuildID)
+
+	return nil
+}
+
 func (s *GameSession) HandleEventGuildMemberAdded(_ context.Context, e *eBroadcaster.Event) error {
 	eventData := e.Payload.(*events.GuildEventMemberAddedPayload)
 
