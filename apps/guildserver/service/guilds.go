@@ -416,17 +416,20 @@ func (g *guildServiceImpl) SetMemberPublicNote(ctx context.Context, realmID uint
 	}
 
 	rank := g.rankForMember(guild, updaterGUID)
-	if !rank.HasRight(repo.RightEditPublicNote) {
+	if rank == nil || !rank.HasRight(repo.RightEditPublicNote) {
 		return ErrNotEnoughRight
+	}
+
+	target := g.guildMemberForMemberGuid(guild, targetGUID)
+	updater := g.guildMemberForMemberGuid(guild, updaterGUID)
+	if target == nil || updater == nil {
+		return ErrGuildNotFound
 	}
 
 	err = g.guildsRepo.SetMemberPublicNote(ctx, realmID, targetGUID, note)
 	if err != nil {
 		return err
 	}
-
-	target := g.guildMemberForMemberGuid(guild, targetGUID)
-	updater := g.guildMemberForMemberGuid(guild, updaterGUID)
 
 	err = g.eventsProducer.MemberNoteUpdated(&events.GuildEventMembersNoteUpdatedPayload{
 		GenericGuildEvent: *g.buildGenericEventPayload(guild),
@@ -472,18 +475,21 @@ func (g *guildServiceImpl) SetMemberOfficerNote(ctx context.Context, realmID uin
 		return err
 	}
 
-	rank := g.rankForMember(guild, updaterGuildID)
-	if !rank.HasRight(repo.RightEditOfficersNote) {
+	rank := g.rankForMember(guild, updaterGUID)
+	if rank == nil || !rank.HasRight(repo.RightEditOfficersNote) {
 		return ErrNotEnoughRight
+	}
+
+	target := g.guildMemberForMemberGuid(guild, targetGUID)
+	updater := g.guildMemberForMemberGuid(guild, updaterGUID)
+	if target == nil || updater == nil {
+		return ErrGuildNotFound
 	}
 
 	err = g.guildsRepo.SetMemberOfficerNote(ctx, realmID, targetGUID, note)
 	if err != nil {
 		return err
 	}
-
-	target := g.guildMemberForMemberGuid(guild, targetGUID)
-	updater := g.guildMemberForMemberGuid(guild, updaterGUID)
 
 	err = g.eventsProducer.MemberOfficerNoteUpdated(&events.GuildEventMembersOfficerNoteUpdatedPayload{
 		GenericGuildEvent: *g.buildGenericEventPayload(guild),
