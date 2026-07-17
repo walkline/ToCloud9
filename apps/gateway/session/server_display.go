@@ -41,10 +41,10 @@ func (s *GameSession) sendLayerSwitchStarted(server *panel.Server) {
 	label := friendlyGameServer(server)
 	gmLevel, _ := s.accountGMLevel(context.Background())
 	if gmLevel > 0 {
-		s.SendSysMessage(fmt.Sprintf("Moving you to %s (%s). Your character may stop moving briefly.", label, server.Address))
+		s.SendSysMessage(fmt.Sprintf("Moving you to %s (%s).", label, server.Address))
 		return
 	}
-	s.SendSysMessage(fmt.Sprintf("Moving you to %s. Your character may stop moving briefly.", label))
+	s.SendSysMessage(fmt.Sprintf("Moving you to %s.", label))
 }
 
 func (s *GameSession) sendLayerSwitchCompleted(server *panel.Server) {
