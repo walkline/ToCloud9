@@ -2,7 +2,6 @@ package session
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
 	"sync"
@@ -72,7 +71,6 @@ type GameSession struct {
 	pingToWorldServerStarted time.Time
 
 	accountID uint32
-	authDB    *sql.DB
 	character *LoggedInCharacter
 
 	// groupMemberStats holds last known stats of the character's group members,
@@ -97,6 +95,7 @@ type GameSession struct {
 	// showGameserverConnChangeToClient when enabled sends chat system message
 	// to the player with information about connection change.
 	showGameserverConnChangeToClient bool
+	showSensitiveServerInformation   bool
 
 	layeringEnabled        bool
 	currentLayerID         uint32
@@ -118,7 +117,6 @@ type GameSession struct {
 }
 
 type GameSessionParams struct {
-	AuthDB                           *sql.DB
 	CharServiceClient                pbChar.CharactersServiceClient
 	ServersRegistryClient            pbServ.ServersRegistryServiceClient
 	LayerCoordinatorClient           pbCoordinator.LayerCoordinatorServiceClient
@@ -136,6 +134,7 @@ type GameSessionParams struct {
 	GameServerGRPCConnMgr            conn.GameServerGRPCConnMgr
 	PacketProcessTimeout             time.Duration
 	ShowGameserverConnChangeToClient bool
+	ShowSensitiveServerInformation   bool
 	LayeringEnabled                  bool
 	LayerSwitchQueueSize             uint32
 	LayerSwitchProcessInterval       time.Duration
@@ -177,7 +176,6 @@ func NewGameSession(
 		gameSocket: gameSocket,
 		authPacket: authPacket,
 		accountID:  accountID,
-		authDB:     params.AuthDB,
 
 		charServiceClient:                params.CharServiceClient,
 		serversRegistryClient:            params.ServersRegistryClient,
@@ -195,6 +193,7 @@ func NewGameSession(
 		realmNamesService:                params.RealmNamesService,
 		gameServerGRPCConnMgr:            params.GameServerGRPCConnMgr,
 		showGameserverConnChangeToClient: params.ShowGameserverConnChangeToClient,
+		showSensitiveServerInformation:   params.ShowSensitiveServerInformation,
 		layeringEnabled:                  params.LayeringEnabled,
 		layerSwitchQueue:                 make(chan layerSwitchRequest, queueSize),
 		layerSwitchInterval:              queueInterval,
@@ -702,8 +701,7 @@ func (s *GameSession) onWorldSocketClosed() {
 			}
 
 			if session.showGameserverConnChangeToClient {
-				gmLevel, _ := session.accountGMLevel(context.Background())
-				if gmLevel > 0 {
+				if session.showSensitiveServerInformation {
 					session.SendSysMessage(fmt.Sprintf("Connection recovered! New gameserver: %s. Sorry for inconvenience.", s.worldSocket.Address()))
 				} else {
 					session.SendSysMessage("Connection recovered! Sorry for inconvenience.")

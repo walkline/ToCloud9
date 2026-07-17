@@ -1,24 +1,13 @@
 package session
 
 import (
-	"context"
 	"fmt"
 	"strconv"
 	"strings"
 	"unicode"
 
-	root "github.com/walkline/ToCloud9/apps/gateway"
 	panel "github.com/walkline/ToCloud9/gen/servers-registry/pb"
 )
-
-func (s *GameSession) accountGMLevel(ctx context.Context) (uint32, error) {
-	if s.authDB == nil {
-		return 0, nil
-	}
-	var level uint32
-	err := s.authDB.QueryRowContext(ctx, "SELECT COALESCE(MAX(gmlevel), 0) FROM account_access WHERE id = ? AND (RealmID = -1 OR RealmID = ?)", s.accountID, root.RealmID).Scan(&level)
-	return level, err
-}
 
 func friendlyGameServer(server *panel.Server) string {
 	if server == nil {
@@ -39,8 +28,7 @@ func friendlyGameServer(server *panel.Server) string {
 
 func (s *GameSession) sendLayerSwitchStarted(server *panel.Server) {
 	label := friendlyGameServer(server)
-	gmLevel, _ := s.accountGMLevel(context.Background())
-	if gmLevel > 0 {
+	if s.showSensitiveServerInformation {
 		serverLabel := strings.TrimSuffix(label, fmt.Sprintf(" layer %d", server.LayerID))
 		s.SendSysMessage(fmt.Sprintf("Switching to layer %d on %s (%s).", server.LayerID, serverLabel, server.Address))
 		return
@@ -50,8 +38,7 @@ func (s *GameSession) sendLayerSwitchStarted(server *panel.Server) {
 
 func (s *GameSession) sendLayerSwitchCompleted(server *panel.Server) {
 	label := friendlyGameServer(server)
-	gmLevel, _ := s.accountGMLevel(context.Background())
-	if gmLevel > 0 {
+	if s.showSensitiveServerInformation {
 		s.SendSysMessage(fmt.Sprintf("Movement resumed on %s (%s).", label, server.Address))
 		return
 	}

@@ -232,15 +232,6 @@ func (s *GameSession) handleCommandMsgIfNeeded(ctx context.Context, msg string) 
 	if !strings.HasPrefix(msg, TC9CommandPrefix) {
 		return false, nil
 	}
-	gmLevel, err := s.accountGMLevel(ctx)
-	if err != nil {
-		return true, err
-	}
-	if gmLevel == 0 {
-		s.SendSysMessage("You do not have permission to view server diagnostics.")
-		return true, nil
-	}
-
 	args := strings.Split(msg[len(TC9CommandPrefix):], " ")
 	if len(args) == 0 {
 		return true, nil
@@ -279,10 +270,6 @@ func (s *GameSession) handleCommandMsgIfNeeded(ctx context.Context, msg string) 
 }
 
 func (s *GameSession) handleLayerCommand(ctx context.Context, args []string) error {
-	gmLevel, err := s.accountGMLevel(ctx)
-	if err != nil {
-		return err
-	}
 	if len(args) == 1 {
 		if s.character == nil {
 			return nil
@@ -294,13 +281,6 @@ func (s *GameSession) handleLayerCommand(ctx context.Context, args []string) err
 		currentLayerID := resp.CurrentLayerID
 		if currentLayerID == 0 {
 			currentLayerID = s.currentLayerID
-		}
-		if gmLevel == 0 {
-			s.SendSysMessage(fmt.Sprintf("You are currently on layer %d.", currentLayerID))
-			if resp.SwitchCooldownRemainingSeconds > 0 {
-				s.SendSysMessage(fmt.Sprintf("You can switch layers again in %d seconds.", resp.SwitchCooldownRemainingSeconds))
-			}
-			return nil
 		}
 		mapConfig, err := s.serversRegistryClient.GetMapLayerConfiguration(ctx, &pbServ.GetMapLayerConfigurationRequest{Api: root.SupportedServerRegistryVer, RealmID: root.RealmID})
 		if err != nil {
@@ -334,10 +314,6 @@ func (s *GameSession) handleLayerCommand(ctx context.Context, args []string) err
 			}
 			s.SendSysMessage(fmt.Sprintf("Layer %d: players=%d/%d gameserver=%s state=%s%s", layer.LayerID, layer.CurrentPlayers, resp.MaxPopulation, availability, state, marker))
 		}
-		return nil
-	}
-	if gmLevel == 0 {
-		s.SendSysMessage("You do not have permission to switch layers.")
 		return nil
 	}
 	if len(args) < 3 || strings.ToLower(args[1]) != "switch" {
@@ -416,7 +392,11 @@ func (s *GameSession) handleCommandMsgListGameServers(ctx context.Context) error
 			isCurrentlyUsing = true
 		}
 
-		s.SendSysMessage(fmt.Sprintf("> Node address: %s.", server.Address))
+		if s.showSensitiveServerInformation {
+			s.SendSysMessage(fmt.Sprintf("> Node address: %s.", server.Address))
+		} else {
+			s.SendSysMessage(fmt.Sprintf("> Gameserver %s, layer %d.", server.ID, server.LayerID))
+		}
 		s.SendSysMessage(fmt.Sprintf("  Available maps: %s.", mapsAvailable))
 		s.SendSysMessage(fmt.Sprintf("  Assigned maps: %s.", assignedMaps))
 		s.SendSysMessage(fmt.Sprintf("  Active connections: %d.", server.ActiveConnections))
@@ -477,7 +457,11 @@ func (s *GameSession) handleCommandMsgListGateways(ctx context.Context) error {
 	for _, server := range resp.Gateways {
 		isCurrentlyUsing := root.RetrievedGatewayID == server.Id
 
-		s.SendSysMessage(fmt.Sprintf("> Node healthCheckAddress: %s.", server.HealthAddress))
+		if s.showSensitiveServerInformation {
+			s.SendSysMessage(fmt.Sprintf("> Node healthCheckAddress: %s.", server.HealthAddress))
+		} else {
+			s.SendSysMessage(fmt.Sprintf("> Gateway %s.", server.Id))
+		}
 		s.SendSysMessage(fmt.Sprintf("  Active connections: %d.", server.ActiveConnections))
 		if isCurrentlyUsing {
 			s.SendSysMessage("  You are |cff4CFF00connected |rto this one.")

@@ -288,8 +288,7 @@ func (s *GameSession) battlegroundPlayerRedirect(ctx context.Context, playerGuid
 	s.worldSocket = newSocket
 
 	if s.showGameserverConnChangeToClient {
-		gmLevel, _ := s.accountGMLevel(ctx)
-		if gmLevel > 0 {
+		if s.showSensitiveServerInformation {
 			s.SendSysMessage(fmt.Sprintf("You have been redirected from %s to %s gameserver.", oldServerAddress, desiredGameServerAddress))
 		} else {
 			s.SendSysMessage("You have been moved to another game server.")

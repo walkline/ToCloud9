@@ -165,7 +165,6 @@ func main() {
 		//pprof.Lookup("goroutine").WriteTo(os.Stdout, 1)
 
 		s := gamesocket.NewGameSocket(conn, accountRepo, session.GameSessionParams{
-			AuthDB:                           authDB,
 			CharServiceClient:                charClient,
 			ServersRegistryClient:            servRegistryClient,
 			LayerCoordinatorClient:           layerCoordinatorClient,
@@ -183,6 +182,7 @@ func main() {
 			GameServerGRPCConnMgr:            gameserverconn.DefaultGameServerGRPCConnMgr,
 			PacketProcessTimeout:             time.Second * time.Duration(conf.PacketProcessTimeoutSecs),
 			ShowGameserverConnChangeToClient: conf.ShowGameserverConnChangeToClient,
+			ShowSensitiveServerInformation:   conf.ShowSensitiveServerInformation,
 			LayeringEnabled:                  conf.Layering.Enabled,
 			LayerSwitchQueueSize:             conf.Layering.SwitchQueueSize,
 			LayerSwitchProcessInterval:       time.Duration(conf.Layering.QueueProcessIntervalMS) * time.Millisecond,

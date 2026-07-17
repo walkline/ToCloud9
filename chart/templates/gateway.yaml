@@ -45,6 +45,8 @@ spec:
           value: "{{ .Values.gateway.layering.queueProcessIntervalMs }}"
         - name: LAYER_POST_COMBAT_DELAY_SECONDS
           value: "{{ .Values.gateway.layering.postCombatDelaySeconds }}"
+        - name: SHOW_SENSITIVE_SERVER_INFORMATION
+          value: "{{ .Values.gateway.showSensitiveServerInformation }}"
         - name: SERVERS_REGISTRY_SERVICE_ADDRESS
           value: {{ .Release.Name }}-servers-registry:{{ .Values.servers_registry.service.externalPort}}
         - name: LAYER_COORDINATOR_SERVICE_ADDRESS

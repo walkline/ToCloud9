@@ -398,8 +398,7 @@ func (s *GameSession) InterceptMoveWorldPortAck(ctx context.Context, p *packet.P
 			session.layerSwitchTarget = nil
 
 			if session.showGameserverConnChangeToClient && !session.seamlessLayerSwitch {
-				gmLevel, _ := session.accountGMLevel(context.Background())
-				if gmLevel > 0 {
+				if session.showSensitiveServerInformation {
 					session.SendSysMessage(fmt.Sprintf("Layer switch complete: %s -> %s (%s).", oldServerAddress, desiredServerAddress, friendlyGameServer(desiredServer)))
 				} else {
 					session.SendSysMessage(fmt.Sprintf("Layer switch complete: %s.", friendlyGameServer(desiredServer)))
@@ -617,8 +616,7 @@ func (s *GameSession) HandleReadyForRedirectRequest(ctx context.Context, p *pack
 	}
 
 	if s.showGameserverConnChangeToClient {
-		gmLevel, _ := s.accountGMLevel(ctx)
-		if gmLevel > 0 {
+		if s.showSensitiveServerInformation {
 			s.SendSysMessage(fmt.Sprintf("You have been redirected from %s to %s gameserver.", oldConnection, s.worldSocket.Address()))
 		} else {
 			s.SendSysMessage("You have been moved to another game server.")

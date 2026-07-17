@@ -63,6 +63,9 @@ type Config struct {
 	// ShowGameserverConnChangeToClient when enabled sends chat system message to the player with information about connection change.
 	ShowGameserverConnChangeToClient bool `yaml:"showGameserverConnChangeToClient" env:"SHOW_GAMESERVER_CONN_CHANGE_TO_CLIENT" env-default:"true"`
 
+	// ShowSensitiveServerInformation includes internal server addresses in player-facing diagnostics.
+	ShowSensitiveServerInformation bool `yaml:"showSensitiveServerInformation" env:"SHOW_SENSITIVE_SERVER_INFORMATION" env-default:"false"`
+
 	Layering LayeringConfig `yaml:"layering"`
 }
 
