@@ -46,6 +46,19 @@ func (g *GuildServer) GetGuildInfo(ctx context.Context, params *pb.GetInfoParams
 	}, nil
 }
 
+// GetGuildNamesByIDs returns the names of the given guilds keyed by guild id.
+func (g *GuildServer) GetGuildNamesByIDs(ctx context.Context, params *pb.GetGuildNamesByIDsParams) (*pb.GetGuildNamesByIDsResponse, error) {
+	names, err := g.guildsService.GuildNamesByIDs(ctx, params.RealmID, params.GuildIDs)
+	if err != nil {
+		return nil, err
+	}
+
+	return &pb.GetGuildNamesByIDsResponse{
+		Api:        guildserver.Ver,
+		GuildNames: names,
+	}, nil
+}
+
 // GetRosterInfo handles Roster Info request for game client.
 func (g *GuildServer) GetRosterInfo(ctx context.Context, params *pb.GetRosterInfoParams) (*pb.GetRosterInfoResponse, error) {
 	guild, err := g.guildsService.GuildByRealmAndID(ctx, params.RealmID, params.GuildID)
