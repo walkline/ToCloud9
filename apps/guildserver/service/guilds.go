@@ -48,9 +48,10 @@ type GuildService interface {
 	// Unknown guild ids are absent from the result.
 	GuildNamesByIDs(ctx context.Context, realmID uint32, guildIDs []uint64) (map[uint64]string, error)
 
-	// CreateGuild creates a guild with default ranks and the leader as guild master.
+	// CreateGuild creates a guild with default ranks, the leader as guild master and
+	// the given petition signatories as members with the lowest rank.
 	// Returns the id of the created guild.
-	CreateGuild(ctx context.Context, realmID uint32, leaderGUID uint64, name string) (uint64, error)
+	CreateGuild(ctx context.Context, realmID uint32, leaderGUID uint64, name string, signatoryGUIDs []uint64) (uint64, error)
 
 	// InviteMember creates invite to the guild.
 	InviteMember(ctx context.Context, realmID uint32, inviterGUID uint64, inviteeGUID uint64, inviteeName string) error
@@ -884,11 +885,27 @@ func defaultGuildRanks() []repo.GuildRank {
 	}
 }
 
-// CreateGuild creates a guild with default ranks and the leader as guild master.
-func (g *guildServiceImpl) CreateGuild(ctx context.Context, realmID uint32, leaderGUID uint64, name string) (uint64, error) {
+// CreateGuild creates a guild with default ranks, the leader as guild master and
+// the given petition signatories as members with the lowest rank.
+func (g *guildServiceImpl) CreateGuild(ctx context.Context, realmID uint32, leaderGUID uint64, name string, signatoryGUIDs []uint64) (uint64, error) {
 	name = strings.TrimSpace(name)
 	if name == "" || len(name) > 24 {
 		return 0, ErrGuildNameInvalid
+	}
+
+	// The repo retries the whole transaction on id conflicts, so hand it a
+	// deduplicated list without the leader or empty guids.
+	members := make([]uint64, 0, len(signatoryGUIDs))
+	seen := make(map[uint64]struct{}, len(signatoryGUIDs))
+	for _, guid := range signatoryGUIDs {
+		if guid == 0 || guid == leaderGUID {
+			continue
+		}
+		if _, ok := seen[guid]; ok {
+			continue
+		}
+		seen[guid] = struct{}{}
+		members = append(members, guid)
 	}
 
 	existingGuildID, err := g.guildsRepo.GuildIDByRealmAndMemberGUID(ctx, realmID, leaderGUID)
@@ -910,16 +927,28 @@ func (g *guildServiceImpl) CreateGuild(ctx context.Context, realmID uint32, lead
 		return 0, ErrAlreadyInGuild
 	}
 
-	guildID, err := g.guildsRepo.CreateGuild(ctx, realmID, name, leaderGUID, defaultGuildRanks())
+	guildID, err := g.guildsRepo.CreateGuild(ctx, realmID, name, leaderGUID, defaultGuildRanks(), members)
 	if err != nil {
 		return 0, err
 	}
 
+	// Signatories already in a guild are skipped by the repo, so report the
+	// members that actually made it into the guild.
+	addedMembers := []uint64{}
+	if guild, err := g.guildsRepo.GuildByRealmAndID(ctx, realmID, guildID); err == nil && guild != nil {
+		for _, member := range guild.GuildMembers {
+			if member.PlayerGUID != leaderGUID {
+				addedMembers = append(addedMembers, member.PlayerGUID)
+			}
+		}
+	}
+
 	err = g.eventsProducer.GuildCreated(&events.GuildEventGuildCreatedPayload{
-		RealmID:    realmID,
-		GuildID:    guildID,
-		GuildName:  name,
-		LeaderGUID: leaderGUID,
+		RealmID:     realmID,
+		GuildID:     guildID,
+		GuildName:   name,
+		LeaderGUID:  leaderGUID,
+		MemberGUIDs: addedMembers,
 	})
 	if err != nil {
 		return guildID, fmt.Errorf("guild created, but can't send guild created event, err: %w", err)

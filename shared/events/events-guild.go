@@ -254,4 +254,8 @@ type GuildEventGuildCreatedPayload struct {
 	GuildID    uint64
 	GuildName  string
 	LeaderGUID uint64
+
+	// MemberGUIDs are the petition signatories added as members at creation
+	// (the leader is not included).
+	MemberGUIDs []uint64
 }

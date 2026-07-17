@@ -301,15 +301,16 @@ func (g *guildsMySQLRepo) DeleteLowestGuildRank(ctx context.Context, realmID uin
 	return err
 }
 
-// CreateGuild creates a guild with the given ranks and the leader as first member.
-// The guild id is allocated as MAX(guildid)+1 inside the transaction; a concurrent
-// in-process creation on a worldserver can win the same id, so the primary key
-// conflict is retried with a fresh id.
-func (g *guildsMySQLRepo) CreateGuild(ctx context.Context, realmID uint32, name string, leaderGUID uint64, ranks []GuildRank) (uint64, error) {
+// CreateGuild creates a guild with the given ranks, the leader as first member and
+// the given characters as members with the lowest rank. The guild id is allocated
+// as MAX(guildid)+1 inside the transaction; a concurrent in-process creation on a
+// worldserver can win the same id, so the primary key conflict is retried with a
+// fresh id.
+func (g *guildsMySQLRepo) CreateGuild(ctx context.Context, realmID uint32, name string, leaderGUID uint64, ranks []GuildRank, memberGUIDs []uint64) (uint64, error) {
 	const maxAttempts = 3
 	var lastErr error
 	for attempt := 0; attempt < maxAttempts; attempt++ {
-		id, err := g.tryCreateGuild(ctx, realmID, name, leaderGUID, ranks)
+		id, err := g.tryCreateGuild(ctx, realmID, name, leaderGUID, ranks, memberGUIDs)
 		if err == nil || errors.Is(err, ErrGuildNameTaken) {
 			return id, err
 		}
@@ -322,7 +323,7 @@ func (g *guildsMySQLRepo) CreateGuild(ctx context.Context, realmID uint32, name 
 	return 0, fmt.Errorf("guild id allocation kept conflicting, err: %w", lastErr)
 }
 
-func (g *guildsMySQLRepo) tryCreateGuild(ctx context.Context, realmID uint32, name string, leaderGUID uint64, ranks []GuildRank) (uint64, error) {
+func (g *guildsMySQLRepo) tryCreateGuild(ctx context.Context, realmID uint32, name string, leaderGUID uint64, ranks []GuildRank, memberGUIDs []uint64) (uint64, error) {
 	tx, err := g.db.DBByRealm(realmID).BeginTx(ctx, nil)
 	if err != nil {
 		return 0, err
@@ -367,6 +368,32 @@ func (g *guildsMySQLRepo) tryCreateGuild(ctx context.Context, realmID uint32, na
 	)
 	if err != nil {
 		return 0, err
+	}
+
+	// Petition signatories join with the lowest rank. A signatory can have joined
+	// another guild since signing, so filter against guild_member inside the
+	// transaction and skip them silently (same as the in-process turn-in).
+	for _, memberGUID := range memberGUIDs {
+		if memberGUID == leaderGUID {
+			continue
+		}
+
+		var existingGuild uint64
+		err = tx.QueryRowContext(ctx, "SELECT guildid FROM guild_member WHERE guid = ?", memberGUID).Scan(&existingGuild)
+		if err == nil {
+			continue
+		}
+		if !errors.Is(err, sql.ErrNoRows) {
+			return 0, err
+		}
+
+		_, err = tx.ExecContext(ctx,
+			"INSERT INTO guild_member (guildid, guid, `rank`, pnote, offnote) VALUES (?, ?, ?, '', '')",
+			id, memberGUID, uint8(GuildRankInitiate),
+		)
+		if err != nil {
+			return 0, err
+		}
 	}
 
 	return id, tx.Commit()
