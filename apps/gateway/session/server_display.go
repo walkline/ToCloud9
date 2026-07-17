@@ -41,10 +41,11 @@ func (s *GameSession) sendLayerSwitchStarted(server *panel.Server) {
 	label := friendlyGameServer(server)
 	gmLevel, _ := s.accountGMLevel(context.Background())
 	if gmLevel > 0 {
-		s.SendSysMessage(fmt.Sprintf("Moving you to %s (%s).", label, server.Address))
+		serverLabel := strings.TrimSuffix(label, fmt.Sprintf(" layer %d", server.LayerID))
+		s.SendSysMessage(fmt.Sprintf("Switching to layer %d on %s (%s).", server.LayerID, serverLabel, server.Address))
 		return
 	}
-	s.SendSysMessage(fmt.Sprintf("Moving you to %s.", label))
+	s.SendSysMessage(fmt.Sprintf("Switching to layer %d.", server.LayerID))
 }
 
 func (s *GameSession) sendLayerSwitchCompleted(server *panel.Server) {
@@ -54,5 +55,5 @@ func (s *GameSession) sendLayerSwitchCompleted(server *panel.Server) {
 		s.SendSysMessage(fmt.Sprintf("Movement resumed on %s (%s).", label, server.Address))
 		return
 	}
-	s.SendSysMessage(fmt.Sprintf("Movement resumed on %s.", label))
+	s.SendSysMessage(fmt.Sprintf("Switched to layer %d.", server.LayerID))
 }
