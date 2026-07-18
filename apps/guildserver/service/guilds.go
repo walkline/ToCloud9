@@ -41,6 +41,10 @@ type GuildService interface {
 	// GuildByRealmAndID returns guild by realmID and guildID.
 	GuildByRealmAndID(ctx context.Context, realmID uint32, guildID uint64) (*repo.Guild, error)
 
+	// GuildNamesByIDs returns the names of the given guilds keyed by guild id.
+	// Unknown guild ids are absent from the result.
+	GuildNamesByIDs(ctx context.Context, realmID uint32, guildIDs []uint64) (map[uint64]string, error)
+
 	// InviteMember creates invite to the guild.
 	InviteMember(ctx context.Context, realmID uint32, inviterGUID uint64, inviteeGUID uint64, inviteeName string) error
 
@@ -96,6 +100,28 @@ func NewGuildService(guildsRepo repo.GuildsRepo, eventsProducer events.GuildServ
 		guildsRepo:     guildsRepo,
 		eventsProducer: eventsProducer,
 	}
+}
+
+// GuildNamesByIDs returns the names of the given guilds keyed by guild id.
+// Unknown guild ids are absent from the result. Served from the guilds cache,
+// so a batch costs no database round trip.
+func (g *guildServiceImpl) GuildNamesByIDs(ctx context.Context, realmID uint32, guildIDs []uint64) (map[uint64]string, error) {
+	names := make(map[uint64]string, len(guildIDs))
+	for _, id := range guildIDs {
+		if _, ok := names[id]; ok {
+			continue
+		}
+
+		guild, err := g.guildsRepo.GuildByRealmAndID(ctx, realmID, id)
+		if err != nil {
+			return nil, err
+		}
+
+		if guild != nil {
+			names[id] = guild.Name
+		}
+	}
+	return names, nil
 }
 
 // GuildByRealmAndID returns guild by realmID and guildID.
