@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/rs/zerolog/log"
+	"google.golang.org/grpc/status"
 
 	"github.com/walkline/ToCloud9/apps/gateway"
 	eBroadcaster "github.com/walkline/ToCloud9/apps/gateway/events-broadcaster"
@@ -89,7 +90,10 @@ func (s *GameSession) HandleEnqueueToBattleground(ctx context.Context, p *packet
 		TeamID:       teamID,
 	})
 	if err != nil {
-		return err
+		return &UserFriendlyError{
+			UserError: fmt.Sprintf("Can't join the battleground queue: %s.", status.Convert(err).Message()),
+			RealError: err,
+		}
 	}
 
 	s.character.bgInviteOrderingFix.waitingJoinToQueue = true
