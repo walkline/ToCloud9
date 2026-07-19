@@ -23,7 +23,7 @@ std::unique_ptr<Handler> CreateGuildMemberLeftHandler(const std::string& data, u
 std::unique_ptr<Handler> CreateGuildMemberRemovedHandler(const std::string& data, uint32_t realm_id);
 
 // Registry event handler factory
-std::unique_ptr<Handler> CreateMapsReassignedHandler(const std::string& data);
+std::unique_ptr<Handler> CreateMapsReassignedHandler(const std::string& data, const std::string& own_server_id);
 
 }  // namespace tc9
 
