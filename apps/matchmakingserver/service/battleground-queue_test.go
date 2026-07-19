@@ -174,6 +174,52 @@ func TestGenericBattlegroundQueue_BalancedBGDoesNotAbsorbNewGroups(t *testing.T)
 	mockService.AssertExpectations(t)
 }
 
+// TestGenericBattlegroundQueue_BackfillCountsLeaders ensures backfill sizing
+// counts the leader (Members excludes it): a single free slot must invite
+// exactly one solo group, not every solo group in the queue.
+func TestGenericBattlegroundQueue_BackfillCountsLeaders(t *testing.T) {
+	template := repo.BattlegroundTemplate{
+		MinPlayersPerTeam: 5,
+		MaxPlayersPerTeam: 10,
+	}
+
+	runningBG := battleground.Battleground{
+		MinPlayersPerTeam: template.MinPlayersPerTeam,
+		MaxPlayersPerTeam: template.MaxPlayersPerTeam,
+	}
+	for i := uint32(1); i <= 5; i++ {
+		if i <= 4 {
+			runningBG.ActivePlayersPerTeam[battleground.TeamAlliance] = append(runningBG.ActivePlayersPerTeam[battleground.TeamAlliance], getGUID(1, i))
+		}
+		runningBG.ActivePlayersPerTeam[battleground.TeamHorde] = append(runningBG.ActivePlayersPerTeam[battleground.TeamHorde], getGUID(1, i+100))
+	}
+
+	mockService := new(mocks.BattleGroundService)
+	// Let the first five groups queue up without a battleground to fill.
+	mockService.On("BattlegroundsThatNeedPlayers", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return([]battleground.Battleground{}, nil).Times(5)
+	// The sixth pass sees the 4v5 battleground: one free alliance slot.
+	mockService.On("BattlegroundsThatNeedPlayers", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return([]battleground.Battleground{runningBG}, nil)
+	mockService.On("TemplateForQueueTypeID", mock.Anything, mock.Anything).Return(template, nil)
+
+	var invited []service.QueuedGroup
+	mockService.On("InviteGroups", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Run(func(args mock.Arguments) {
+		invited = append(invited, args.Get(1).([]service.QueuedGroup)...)
+	}).Return(nil)
+
+	queue := service.NewGenericBattlegroundQueue(mockService, nil, repo.BattlegroundTemplate{TypeID: 1}, 1, 1, 1)
+
+	for i := 0; i < 6; i++ {
+		assert.NoError(t, queue.AddQueuedGroup(groupWithMembers(1, battleground.TeamAlliance)))
+	}
+
+	players := 0
+	for _, g := range invited {
+		players += len(g.Members) + 1
+	}
+	assert.Equal(t, 1, players, "one free slot must invite exactly one player")
+	assert.Len(t, queue.GetAllQueuedGroups(), 5, "remaining solo groups must stay queued")
+}
+
 func TestGenericBattlegroundQueue_RemoveQueuedGroup(t *testing.T) {
 	mockService := new(mocks.BattleGroundService)
 	mockService.On("BattlegroundsThatNeedPlayers", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return([]battleground.Battleground{}, nil)

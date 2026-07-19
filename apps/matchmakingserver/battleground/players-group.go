@@ -9,7 +9,7 @@ import (
 type QueuedGroup struct {
 	LeaderGUID guid.PlayerUnwrapped
 
-	// Members includes leader as well
+	// Members holds the party members, excluding the leader.
 	Members        []guid.PlayerUnwrapped
 	SlotsPerMember map[guid.PlayerUnwrapped]uint8
 

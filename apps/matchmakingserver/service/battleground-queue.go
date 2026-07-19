@@ -22,7 +22,7 @@ var (
 type QueuedGroup struct {
 	LeaderGUID guid.PlayerUnwrapped
 
-	// Members includes leader as well
+	// Members holds the party members, excluding the leader.
 	Members        []guid.PlayerUnwrapped
 	SlotsPerMember map[guid.PlayerUnwrapped]uint8
 
@@ -315,12 +315,15 @@ func (q *GenericBattlegroundQueue) findGroupsForGivenSlots(slots uint8, team bat
 			break
 		}
 
-		if !(group.TeamID == team || group.TeamID == battleground.TeamAny) || uint8(len(group.Members)) > slots {
+		// Members excludes the leader, so the group occupies len(Members)+1 slots.
+		groupSize := uint8(len(group.Members)) + 1
+
+		if !(group.TeamID == team || group.TeamID == battleground.TeamAny) || groupSize > slots {
 			continue
 		}
 
 		groups = append(groups, group)
-		slots -= uint8(len(group.Members))
+		slots -= groupSize
 	}
 
 	return groups
