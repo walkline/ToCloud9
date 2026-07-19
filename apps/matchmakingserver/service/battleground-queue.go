@@ -157,7 +157,7 @@ func (q *GenericBattlegroundQueue) process(ctx context.Context) error {
 	}
 
 	for _, bg := range battlegroundToFillIn {
-		freeSlotsAlliance := bg.FreeSlotsForTeam(battleground.TeamAlliance)
+		freeSlotsAlliance := bg.BackfillSlotsForTeam(battleground.TeamAlliance)
 		if freeSlotsAlliance > 0 {
 			groupsToInvite := q.findGroupsForGivenSlots(freeSlotsAlliance, battleground.TeamAlliance)
 			if len(groupsToInvite) > 0 {
@@ -165,7 +165,7 @@ func (q *GenericBattlegroundQueue) process(ctx context.Context) error {
 			}
 		}
 
-		freeSlotsHorde := bg.FreeSlotsForTeam(battleground.TeamHorde)
+		freeSlotsHorde := bg.BackfillSlotsForTeam(battleground.TeamHorde)
 		if freeSlotsHorde > 0 {
 			groupsToInvite := q.findGroupsForGivenSlots(freeSlotsHorde, battleground.TeamHorde)
 			if len(groupsToInvite) > 0 {
