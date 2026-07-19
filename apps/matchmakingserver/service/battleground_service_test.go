@@ -1,9 +1,12 @@
 package service
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/walkline/ToCloud9/apps/matchmakingserver/battleground"
+	"github.com/walkline/ToCloud9/apps/matchmakingserver/repo"
 	"github.com/walkline/ToCloud9/shared/wow/guid"
 )
 
@@ -133,4 +136,33 @@ func TestRemoveQueueForGroupMembers(t *testing.T) {
 			LowGUID: guid.LowType(leader),
 		},
 	}][0].Queue)
+}
+
+func TestBattlegroundStatusChangedEndedPurgesInvitedLinks(t *testing.T) {
+	bgRepo := repo.NewBattlegroundInMemRepo()
+
+	activePlayer := guid.PlayerUnwrapped{RealmID: 1, LowGUID: 100}
+	invitedPlayer := guid.PlayerUnwrapped{RealmID: 1, LowGUID: 200}
+
+	bg := &battleground.Battleground{
+		InstanceID: 42,
+		RealmID:    1,
+		Status:     battleground.StatusInProgress,
+	}
+	bg.ActivePlayersPerTeam[battleground.TeamAlliance] = []guid.PlayerUnwrapped{activePlayer}
+	bg.InvitedPlayersPerTeam[battleground.TeamHorde] = []battleground.InvitedPlayer{{GUID: invitedPlayer}}
+	assert.NoError(t, bgRepo.SaveBattleground(context.Background(), bg))
+
+	s := &battleGroundService{
+		playersQueueOrBattleground: make(map[QueuesByRealmAndPlayerKey][]QueueOrBattlegroundLink),
+		battlegroundsRepo:          bgRepo,
+	}
+	bgKey := BattlegroundKey{RealmID: 1, InstanceID: 42}
+	s.playersQueueOrBattleground[QueuesByRealmAndPlayerKey{activePlayer}] = []QueueOrBattlegroundLink{{BattlegroundKey: &bgKey}}
+	s.playersQueueOrBattleground[QueuesByRealmAndPlayerKey{invitedPlayer}] = []QueueOrBattlegroundLink{{BattlegroundKey: &bgKey}}
+
+	assert.NoError(t, s.BattlegroundStatusChanged(context.Background(), battleground.StatusEnded, 1, 42, false))
+
+	assert.Empty(t, s.GetQueueOrBattlegroundLinkForPlayer(QueuesByRealmAndPlayerKey{activePlayer}))
+	assert.Empty(t, s.GetQueueOrBattlegroundLinkForPlayer(QueuesByRealmAndPlayerKey{invitedPlayer}))
 }
