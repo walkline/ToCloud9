@@ -837,9 +837,12 @@ func (s *battleGroundService) PlayerBecomeOffline(ctx context.Context, playerGUI
 }
 
 func (s *battleGroundService) ProcessExpiredBattlegroundInvites(ctx context.Context) {
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
+
 	for {
 		select {
-		case <-time.After(time.Second):
+		case <-ticker.C:
 			s.processExpiredBattlegroundInvitesTick(ctx)
 		case <-ctx.Done():
 			return
