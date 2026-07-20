@@ -13,6 +13,9 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
+var aliasHeroes = [...]string{"anduin", "jaina", "thrall", "sylvanas", "tyrande", "uther", "voljin", "ysera"}
+var aliasBosses = [...]string{"arthas", "illidan", "kelthuzad", "malganis", "onyxia", "ragnaros", "sindragosa", "yogg"}
+
 type gameServerRedisRepo struct {
 	rdb *redis.Client
 }
@@ -25,6 +28,9 @@ func (g *gameServerRedisRepo) Upsert(ctx context.Context, server *GameServer) er
 	server.Address = strings.ToLower(server.Address)
 	if server.ID == "" {
 		server.ID = g.generateID(server.Address)
+	}
+	if server.Alias == "" {
+		server.Alias = g.generateAlias(server.Address)
 	}
 
 	d, err := json.Marshal(server)
@@ -48,26 +54,33 @@ func (g *gameServerRedisRepo) Upsert(ctx context.Context, server *GameServer) er
 }
 
 func (g *gameServerRedisRepo) Update(ctx context.Context, id string, f func(*GameServer) *GameServer) error {
-	res := g.rdb.Get(ctx, g.key(id))
-	if res.Err() != nil {
-		return res.Err()
+	key := g.key(id)
+	for attempt := 0; attempt < 5; attempt++ {
+		err := g.rdb.Watch(ctx, func(tx *redis.Tx) error {
+			value, err := tx.Get(ctx, key).Bytes()
+			if err != nil {
+				return err
+			}
+			server := &GameServer{}
+			if err := json.Unmarshal(value, server); err != nil {
+				return err
+			}
+			updated := f(server)
+			data, err := json.Marshal(updated)
+			if err != nil {
+				return err
+			}
+			_, err = tx.TxPipelined(ctx, func(pipe redis.Pipeliner) error {
+				pipe.Set(ctx, g.key(updated.ID), data, 0)
+				return nil
+			})
+			return err
+		}, key)
+		if !errors.Is(err, redis.TxFailedErr) {
+			return err
+		}
 	}
-
-	v := &GameServer{}
-	err := json.Unmarshal([]byte(res.Val()), v)
-	if err != nil {
-		return err
-	}
-
-	newV := f(v)
-	d, err := json.Marshal(newV)
-	if err != nil {
-		return err
-	}
-
-	key := g.key(newV.ID)
-	status := g.rdb.Set(ctx, key, d, 0)
-	return status.Err()
+	return redis.TxFailedErr
 }
 
 func (g *gameServerRedisRepo) Remove(ctx context.Context, id string) error {
@@ -214,4 +227,11 @@ func (g *gameServerRedisRepo) generateID(address string) string {
 	h := fnv.New32a()
 	_, _ = h.Write([]byte(address))
 	return strconv.FormatUint(uint64(h.Sum32()), 10)
+}
+
+func (g *gameServerRedisRepo) generateAlias(address string) string {
+	h := fnv.New32a()
+	_, _ = h.Write([]byte(strings.ToLower(address)))
+	sum := h.Sum32()
+	return fmt.Sprintf("%s-%s-%08x", aliasHeroes[sum%uint32(len(aliasHeroes))], aliasBosses[(sum/uint32(len(aliasHeroes)))%uint32(len(aliasBosses))], sum)
 }

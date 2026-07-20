@@ -47,6 +47,12 @@ servers_registry:
     type: ClusterIP
     internalPort: 8999
     externalPort: 8999
+  layering:
+    # Fixed per-map layer counts. Runtime updates are persisted in Redis.
+    # maps:
+    #   - mapID: 1
+    #     layers: 2
+    maps: []
 
 authserver:
   replicaCount: 1

@@ -222,6 +222,9 @@ func (s *GameSession) HandleEventIncomingWhisperMessage(ctx context.Context, e *
 
 // TODO: rewrite commands handler with some better and more manageable constructions.
 func (s *GameSession) handleCommandMsgIfNeeded(ctx context.Context, msg string) ( /* isHandled */ bool, error) {
+	if msg == ".layer" || strings.HasPrefix(msg, ".layer ") {
+		return true, s.handleLayerCommand(ctx, strings.Fields(msg))
+	}
 	const TC9CommandPrefix = ".tc9 "
 	if !strings.HasPrefix(msg, TC9CommandPrefix) {
 		return false, nil
@@ -262,6 +265,55 @@ func (s *GameSession) handleCommandMsgIfNeeded(ctx context.Context, msg string) 
 		s.SendSysMessage("unk command")
 	}
 	return true, nil
+}
+
+func (s *GameSession) handleLayerCommand(ctx context.Context, args []string) error {
+	if s.character == nil {
+		return nil
+	}
+	if len(args) == 1 {
+		stats, err := s.serversRegistryClient.GetLayerStats(ctx, &pbServ.GetLayerStatsRequest{
+			Api: root.SupportedServerRegistryVer, RealmID: root.RealmID, MapID: s.character.Map,
+		})
+		if err != nil {
+			return err
+		}
+		s.SendSysMessage(fmt.Sprintf("Map %d has %d configured copies; you are on %s.", s.character.Map, stats.ConfiguredLayers, s.currentGameServerAlias))
+		for _, layer := range stats.Layers {
+			marker := ""
+			if layer.GameServerAlias == s.currentGameServerAlias {
+				marker = " (you)"
+			}
+			s.SendSysMessage(fmt.Sprintf("%s: approximately %d players%s", layer.GameServerAlias, layer.Players, marker))
+		}
+		return nil
+	}
+	if len(args) != 3 || strings.ToLower(args[1]) != "switch" {
+		s.SendSysMessage("Usage: .layer | .layer switch <gameserver-alias>")
+		return nil
+	}
+	alias := strings.ToLower(args[2])
+	if alias == "" {
+		s.SendSysMessage("Gameserver alias is required.")
+		return nil
+	}
+	server, err := s.selectLayerGameServer(ctx, 0, alias)
+	if err != nil {
+		return err
+	}
+	if server == nil {
+		s.SendSysMessage("That gameserver is not assigned to this map.")
+		return nil
+	}
+	if server.ID == s.currentGameServerID {
+		s.SendSysMessage(fmt.Sprintf("You are already on %s.", alias))
+		return nil
+	}
+	s.SendSysMessage(fmt.Sprintf("Switching to %s.", alias))
+	if err := s.redirectToSelectedLayer(ctx, server); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (s *GameSession) handleCommandMsgListGameServers(ctx context.Context) error {

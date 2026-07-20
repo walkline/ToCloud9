@@ -109,6 +109,12 @@ servers-registry:
   logging: *defaultLogging
   realmsID:
     - 1
+  layering:
+    maps:
+      - mapID: 1
+        layers: 2
+      - mapID: 531
+        layers: 2
 
 matchmakingserver:
   port: 8994

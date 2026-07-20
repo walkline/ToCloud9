@@ -19,6 +19,18 @@ type Config struct {
 
 	// RealmsIDs is id of realms that the system supports.
 	RealmsID []uint32 `yaml:"realmsID" env:"REALMs_ID" env-default:"1"`
+
+	Layering LayeringConfig `yaml:"layering"`
+}
+
+type LayeringConfig struct {
+	Maps     []MapLayerConfig `yaml:"maps"`
+	MapSpecs []string         `yaml:"-" env:"LAYER_MAPS"`
+}
+
+type MapLayerConfig struct {
+	MapID  uint32 `yaml:"mapID"`
+	Layers uint32 `yaml:"layers"`
 }
 
 // LoadConfig loads config from env variables
