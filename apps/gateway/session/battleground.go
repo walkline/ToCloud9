@@ -175,7 +175,7 @@ func (s *GameSession) enterBattleground(ctx context.Context) error {
 	}
 
 	if desiredServerAddress != oldServerAddress {
-		err = s.redirectPlayerToGameServer(ctx, crossrealmAdjustedPlayerGUID, desiredServerAddress)
+		err = s.battlegroundPlayerRedirect(ctx, crossrealmAdjustedPlayerGUID, desiredServerAddress)
 		if err != nil {
 			return fmt.Errorf("battleground player redirect failed: %w", err)
 		}
@@ -232,8 +232,7 @@ func (s *GameSession) enterBattleground(ctx context.Context) error {
 	return nil
 }
 
-// redirectPlayerToGameServer uses the gateway's existing, client-visible worldserver handoff.
-func (s *GameSession) redirectPlayerToGameServer(ctx context.Context, playerGuid uint64, desiredGameServerAddress string) error {
+func (s *GameSession) battlegroundPlayerRedirect(ctx context.Context, playerGuid uint64, desiredGameServerAddress string) error {
 	oldServerAddress := s.worldSocket.Address()
 
 	saveAndClosePacket := packet.NewWriterWithSize(packet.TC9CMsgPrepareForRedirect, 0)

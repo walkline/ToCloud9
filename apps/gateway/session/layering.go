@@ -55,3 +55,9 @@ func (s *GameSession) redirectToSelectedLayer(ctx context.Context, server *pbSer
 	s.currentGameServerAlias = server.Alias
 	return nil
 }
+
+// redirectPlayerToGameServer reuses the existing authenticated worldserver
+// handoff without changing battleground behavior.
+func (s *GameSession) redirectPlayerToGameServer(ctx context.Context, characterGUID uint64, address string) error {
+	return s.battlegroundPlayerRedirect(ctx, characterGUID, address)
+}
