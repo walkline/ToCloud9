@@ -47,7 +47,7 @@ func (s *GameSession) redirectToSelectedLayer(ctx context.Context, server *pbSer
 	if err != nil {
 		return fmt.Errorf("connect to layer gameserver gRPC: %w", err)
 	}
-	if err := s.redirectPlayerToGameServer(ctx, s.character.GUID, server.Address); err != nil {
+	if err := s.redirectPlayerToGameServer(ctx, s.character.GUID, server.Address, server.Alias); err != nil {
 		return err
 	}
 	s.gameServerGRPCClient = client
@@ -58,6 +58,6 @@ func (s *GameSession) redirectToSelectedLayer(ctx context.Context, server *pbSer
 
 // redirectPlayerToGameServer reuses the existing authenticated worldserver
 // handoff without changing battleground behavior.
-func (s *GameSession) redirectPlayerToGameServer(ctx context.Context, characterGUID uint64, address string) error {
-	return s.battlegroundPlayerRedirect(ctx, characterGUID, address)
+func (s *GameSession) redirectPlayerToGameServer(ctx context.Context, characterGUID uint64, address, layerAlias string) error {
+	return s.battlegroundPlayerRedirect(ctx, characterGUID, address, layerAlias)
 }
