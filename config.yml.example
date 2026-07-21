@@ -64,6 +64,8 @@ gateway:
   packetProcessTimeoutSecs: 20
   showGameserverConnChangeToClient: true
   natsUrl: *defaultNatsUrl
+  redisUrl: *defaultRedisUrl
+  gatewayLivenessTTLSeconds: 15
   logging: *defaultLogging
 
 guid:

@@ -9,6 +9,7 @@ import (
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/nats-io/nats.go"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	redis "github.com/redis/go-redis/v9"
 	"github.com/rs/zerolog/log"
 	"google.golang.org/grpc"
 
@@ -19,11 +20,11 @@ import (
 	"github.com/walkline/ToCloud9/apps/gateway/service"
 	"github.com/walkline/ToCloud9/apps/gateway/session"
 	"github.com/walkline/ToCloud9/apps/gateway/sockets/gamesocket"
+	pbAH "github.com/walkline/ToCloud9/gen/auctionhouse/pb"
 	pbChar "github.com/walkline/ToCloud9/gen/characters/pb"
 	pbChat "github.com/walkline/ToCloud9/gen/chat/pb"
 	pbGroup "github.com/walkline/ToCloud9/gen/group/pb"
 	pbGuild "github.com/walkline/ToCloud9/gen/guilds/pb"
-	pbAH "github.com/walkline/ToCloud9/gen/auctionhouse/pb"
 	pbMail "github.com/walkline/ToCloud9/gen/mail/pb"
 	pbMM "github.com/walkline/ToCloud9/gen/matchmaking/pb"
 	pbServ "github.com/walkline/ToCloud9/gen/servers-registry/pb"
@@ -102,6 +103,24 @@ func main() {
 	}
 	defer nc.Close()
 
+	redisOptions, err := redis.ParseURL(conf.RedisConnection)
+	if err != nil {
+		log.Fatal().Err(err).Msg("can't parse redis connection for session ownership")
+	}
+	redisClient := redis.NewClient(redisOptions)
+	defer redisClient.Close()
+	if err = redisClient.Ping(context.Background()).Err(); err != nil {
+		log.Fatal().Err(err).Msg("can't connect to redis for session ownership")
+	}
+	sessionOwnership := service.NewSessionOwnershipService(
+		redisClient, nc, &log.Logger, root.RetrievedGatewayID, root.RealmID,
+		time.Duration(conf.GatewayLivenessTTLSeconds)*time.Second,
+	)
+	defer sessionOwnership.Close()
+	if err = sessionOwnership.Listen(); err != nil {
+		log.Fatal().Err(err).Msg("can't listen for session eviction requests")
+	}
+
 	chatChannelsBroadcasterService := eventsBroadcaster.NewChatChannelsService()
 	broadcaster := eventsBroadcaster.NewBroadcaster(chatChannelsBroadcasterService)
 
@@ -179,6 +198,7 @@ func main() {
 			GameServerGRPCConnMgr:            gameserverconn.DefaultGameServerGRPCConnMgr,
 			PacketProcessTimeout:             time.Second * time.Duration(conf.PacketProcessTimeoutSecs),
 			ShowGameserverConnChangeToClient: conf.ShowGameserverConnChangeToClient,
+			SessionOwnership:                 sessionOwnership,
 		})
 		go func() {
 			healthandmetrics.ActiveConnectionsMetrics.Inc()

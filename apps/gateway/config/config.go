@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"strconv"
 
 	"github.com/walkline/ToCloud9/apps/gateway"
@@ -56,6 +57,13 @@ type Config struct {
 	// NatsURL is nats connection url
 	NatsURL string `yaml:"natsUrl" env:"NATS_URL" env-default:"nats://nats:4222"`
 
+	// RedisConnection is used for durable cluster-wide session ownership.
+	RedisConnection string `yaml:"redisUrl" env:"REDIS_URL" env-default:"redis://:@redis:6379/0"`
+
+	// GatewayLivenessTTLSeconds controls crash detection for durable session
+	// ownership. One heartbeat is written per gateway, not per player.
+	GatewayLivenessTTLSeconds uint32 `yaml:"gatewayLivenessTTLSeconds" env:"GATEWAY_LIVENESS_TTL_SECONDS" env-default:"15"`
+
 	// PacketProcessTimeoutSecs is the time given to process single opcode (if it's not forwarded to game server).
 	PacketProcessTimeoutSecs uint32 `yaml:"packetProcessTimeoutSecs" env:"PACKET_PROCESS_TIMEOUT_SECS" env-default:"20"`
 
@@ -82,6 +90,9 @@ func LoadConfig() (*Config, error) {
 	err := config.LoadConfig(&c)
 	if err != nil {
 		return nil, err
+	}
+	if c.Root.GatewayLivenessTTLSeconds < 10 {
+		return nil, fmt.Errorf("gateway liveness TTL must be at least 10 seconds")
 	}
 
 	gateway.RealmID = uint32(c.Root.RealmID)
