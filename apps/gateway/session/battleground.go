@@ -287,7 +287,7 @@ func (s *GameSession) battlegroundPlayerRedirect(ctx context.Context, playerGuid
 
 	if s.showGameserverConnChangeToClient {
 		if len(destinationLayerAlias) != 0 && destinationLayerAlias[0] != "" {
-			s.SendSysMessage(fmt.Sprintf("You have been moved to %s.", destinationLayerAlias[0]))
+			s.SendSysMessage(fmt.Sprintf("You have been moved to %s layer.", destinationLayerAlias[0]))
 		} else {
 			s.SendSysMessage("You have been moved to another gameserver.")
 		}

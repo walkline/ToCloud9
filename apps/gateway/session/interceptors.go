@@ -276,7 +276,7 @@ func (s *GameSession) InterceptMoveWorldPortAck(ctx context.Context, p *packet.P
 			}
 
 			if session.showGameserverConnChangeToClient {
-				session.SendSysMessage(fmt.Sprintf("You have been moved to %s.", desiredServer.Alias))
+				session.SendSysMessage(fmt.Sprintf("You have been moved to %s layer.", desiredServer.Alias))
 			}
 
 			go func() {
@@ -466,7 +466,7 @@ func (s *GameSession) HandleReadyForRedirectRequest(ctx context.Context, p *pack
 	}
 
 	if s.showGameserverConnChangeToClient {
-		s.SendSysMessage(fmt.Sprintf("You have been moved to %s.", s.currentGameServerAlias))
+		s.SendSysMessage(fmt.Sprintf("You have been moved to %s layer.", s.currentGameServerAlias))
 	}
 
 	return nil
