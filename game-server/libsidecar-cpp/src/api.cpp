@@ -143,6 +143,7 @@ TC9_API void TC9InitLib(
         }
 
         g_state.assigned_server_id = server_id;
+        g_state.nats_consumer->SetServerID(server_id);
 
         // Initialize GUID manager
         auto& guid_mgr = tc9::GuidManager::Instance();
@@ -815,7 +816,7 @@ TC9_API void TC9SetOnMapsReassignedHook(OnMapsReassignedHook hook) {
 
     tc9::EventHooks::Instance().RegisterMapsReassigned([](TC9EventMapsReassigned event) {
         if (stored_hook) {
-            stored_hook(event.assignedMaps, event.assignedMapsCount, nullptr, 0);
+            stored_hook(event.assignedMaps, event.assignedMapsCount, event.removedMaps, event.removedMapsCount);
         }
     });
 }
