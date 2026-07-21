@@ -233,8 +233,6 @@ func (s *GameSession) enterBattleground(ctx context.Context) error {
 }
 
 func (s *GameSession) battlegroundPlayerRedirect(ctx context.Context, playerGuid uint64, desiredGameServerAddress string, destinationLayerAlias ...string) error {
-	oldServerAddress := s.worldSocket.Address()
-
 	saveAndClosePacket := packet.NewWriterWithSize(packet.TC9CMsgPrepareForRedirect, 0)
 	s.worldSocket.Send(saveAndClosePacket)
 
@@ -291,7 +289,7 @@ func (s *GameSession) battlegroundPlayerRedirect(ctx context.Context, playerGuid
 		if len(destinationLayerAlias) != 0 && destinationLayerAlias[0] != "" {
 			s.SendSysMessage(fmt.Sprintf("You have been moved to %s.", destinationLayerAlias[0]))
 		} else {
-			s.SendSysMessage(fmt.Sprintf("You have been redirected from %s to %s gameserver.", oldServerAddress, desiredGameServerAddress))
+			s.SendSysMessage("You have been moved to another gameserver.")
 		}
 	}
 
