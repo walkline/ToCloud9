@@ -76,8 +76,10 @@ AzerothCore remains responsible for instance IDs, saves, resets and lockouts.
 
 ## Test commands
 
-- `.layer` shows the current map's configured copy count, available gameserver
-  aliases and approximate populations.
+- `.layer` shows the friendly alias of the current layer.
+- `.layer help` describes the available layer test commands and their options.
+- `.layer config` shows every configured map and layer with approximate player
+  counts.
 - `.layer switch <gameserver-alias>` forces the current character to another
   gameserver assigned to the current map for testing.
 

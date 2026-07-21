@@ -272,24 +272,19 @@ func (s *GameSession) handleLayerCommand(ctx context.Context, args []string) err
 		return nil
 	}
 	if len(args) == 1 {
-		stats, err := s.serversRegistryClient.GetLayerStats(ctx, &pbServ.GetLayerStatsRequest{
-			Api: root.SupportedServerRegistryVer, RealmID: root.RealmID, MapID: s.character.Map,
-		})
-		if err != nil {
-			return err
+		return s.handleLayerStatus(ctx)
+	}
+	if len(args) == 2 {
+		switch strings.ToLower(args[1]) {
+		case "config":
+			return s.handleLayerConfig(ctx)
+		case "help":
+			s.sendLayerHelp()
+			return nil
 		}
-		s.SendSysMessage(fmt.Sprintf("Map %d has %d configured copies; you are on %s.", s.character.Map, stats.ConfiguredLayers, s.currentGameServerAlias))
-		for _, layer := range stats.Layers {
-			marker := ""
-			if layer.GameServerAlias == s.currentGameServerAlias {
-				marker = " (you)"
-			}
-			s.SendSysMessage(fmt.Sprintf("%s: approximately %d players%s", layer.GameServerAlias, layer.Players, marker))
-		}
-		return nil
 	}
 	if len(args) != 3 || strings.ToLower(args[1]) != "switch" {
-		s.SendSysMessage("Usage: .layer | .layer switch <gameserver-alias>")
+		s.sendLayerHelp()
 		return nil
 	}
 	alias := strings.ToLower(args[2])
@@ -314,6 +309,65 @@ func (s *GameSession) handleLayerCommand(ctx context.Context, args []string) err
 		return err
 	}
 	return nil
+}
+
+func (s *GameSession) handleLayerStatus(ctx context.Context) error {
+	configuration, err := s.serversRegistryClient.GetMapLayerConfiguration(ctx, &pbServ.GetMapLayerConfigurationRequest{
+		Api: root.SupportedServerRegistryVer, RealmID: root.RealmID,
+	})
+	if err != nil {
+		return err
+	}
+	for _, configuredMap := range configuration.Maps {
+		if configuredMap.MapID == s.character.Map {
+			s.SendSysMessage(fmt.Sprintf("You are on layer %s.", s.currentGameServerAlias))
+			return nil
+		}
+	}
+	s.SendSysMessage("You are on a map that is not currently layered.")
+	return nil
+}
+
+func (s *GameSession) handleLayerConfig(ctx context.Context) error {
+	configuration, err := s.serversRegistryClient.GetMapLayerConfiguration(ctx, &pbServ.GetMapLayerConfigurationRequest{
+		Api: root.SupportedServerRegistryVer, RealmID: root.RealmID,
+	})
+	if err != nil {
+		return err
+	}
+	s.SendSysMessage(fmt.Sprintf("Layering configuration: %d configured maps.", len(configuration.Maps)))
+	for _, configuredMap := range configuration.Maps {
+		stats, statsErr := s.serversRegistryClient.GetLayerStats(ctx, &pbServ.GetLayerStatsRequest{
+			Api: root.SupportedServerRegistryVer, RealmID: root.RealmID, MapID: configuredMap.MapID,
+		})
+		if statsErr != nil {
+			return statsErr
+		}
+		marker := ""
+		if configuredMap.MapID == s.character.Map {
+			marker = " (current map)"
+		}
+		s.SendSysMessage(fmt.Sprintf("Map %d: %d configured layers%s", configuredMap.MapID, configuredMap.LayerCount, marker))
+		for _, layer := range stats.Layers {
+			layerMarker := ""
+			if configuredMap.MapID == s.character.Map && layer.GameServerAlias == s.currentGameServerAlias {
+				layerMarker = " (you)"
+			}
+			s.SendSysMessage(fmt.Sprintf("  Layer %s: approximately %d players%s", layer.GameServerAlias, layer.Players, layerMarker))
+		}
+		for unavailable := len(stats.Layers); unavailable < int(configuredMap.LayerCount); unavailable++ {
+			s.SendSysMessage("  Layer unavailable: approximately 0 players")
+		}
+	}
+	return nil
+}
+
+func (s *GameSession) sendLayerHelp() {
+	s.SendSysMessage("Layer command help:")
+	s.SendSysMessage("  .layer - show your current layer")
+	s.SendSysMessage("  .layer config - show all configured maps, layers, and player counts")
+	s.SendSysMessage("  .layer switch <gameserver-alias> - switch to an available layer for your current map")
+	s.SendSysMessage("  .layer help - show this command reference")
 }
 
 func (s *GameSession) handleCommandMsgListGameServers(ctx context.Context) error {
