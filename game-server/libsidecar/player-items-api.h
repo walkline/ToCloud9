@@ -39,6 +39,19 @@ typedef GetPlayerItemsByGuidsResponse (*GetPlayerItemsByGuidsHandler) (uint64_t 
 void SetGetPlayerItemsByGuidsHandler(GetPlayerItemsByGuidsHandler h);
 GetPlayerItemsByGuidsResponse CallGetPlayerItemsByGuidsHandler(uint64_t player_guid, uint64_t* items_guids, int items_guids_size);
 
+
+// GetPlayerItemByPos request. Resolves an item by its live inventory
+// position (bag 255 = backpack/base inventory).
+typedef struct {
+    int errorCode;
+    bool found;
+    PlayerItem item;
+} GetPlayerItemByPosResponse;
+
+typedef GetPlayerItemByPosResponse (*GetPlayerItemByPosHandler) (uint64_t /*player_guid*/, uint8_t /*bag*/, uint8_t /*slot*/);
+void SetGetPlayerItemByPosHandler(GetPlayerItemByPosHandler h);
+GetPlayerItemByPosResponse CallGetPlayerItemByPosHandler(uint64_t player_guid, uint8_t bag, uint8_t slot);
+
 // RemoveItemsWithGuidsFromPlayer request.
 typedef struct {
     int errorCode;

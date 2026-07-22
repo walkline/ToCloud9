@@ -10,6 +10,9 @@ service WorldServerService {
   rpc GetPlayerItemsByGuids(GetPlayerItemsByGuidsRequest) returns (GetPlayerItemsByGuidsResponse);
   rpc RemoveItemsWithGuidsFromPlayer(RemoveItemsWithGuidsFromPlayerRequest) returns (RemoveItemsWithGuidsFromPlayerResponse);
   rpc AddExistingItemToPlayer(AddExistingItemToPlayerRequest) returns (AddExistingItemToPlayerResponse);
+  // Resolves an item by its live inventory position. Needed by packets that
+  // carry (bag, slot) instead of the item guid, e.g. CMSG_GUILD_BANK_SWAP_ITEMS.
+  rpc GetPlayerItemByPos(GetPlayerItemByPosRequest) returns (GetPlayerItemByPosResponse);
 
   // Money
   rpc GetMoneyForPlayer(GetMoneyForPlayerRequest) returns (GetMoneyForPlayerResponse);
@@ -18,6 +21,12 @@ service WorldServerService {
   // Interactions
   rpc CanPlayerInteractWithNPC(CanPlayerInteractWithNPCRequest) returns (CanPlayerInteractWithNPCResponse);
   rpc CanPlayerInteractWithGameObject(CanPlayerInteractWithGameObjectRequest) returns (CanPlayerInteractWithGameObjectResponse);
+
+  // Refreshes the guild id/rank unit fields on a live player object. In
+  // cluster mode guild membership changes happen in the guild service, so the
+  // worldserver's PLAYER_GUILDID/PLAYER_GUILDRANK fields go stale until relog;
+  // the client gates the guild control buttons on those fields, not the roster.
+  rpc SetPlayerGuildFields(SetPlayerGuildFieldsRequest) returns (SetPlayerGuildFieldsResponse);
 
   // Battlegrounds
   rpc StartBattleground(StartBattlegroundRequest) returns (StartBattlegroundResponse);
@@ -98,6 +107,23 @@ message AddExistingItemToPlayerResponse {
   Status status = 2;
 }
 
+// GetPlayerItemByPos
+message GetPlayerItemByPosRequest {
+  string api = 1;
+
+  uint64 playerGuid = 2;
+  // Bag slot as sent by the client (255 = backpack/base inventory).
+  uint32 bag = 3;
+  uint32 slot = 4;
+}
+
+message GetPlayerItemByPosResponse {
+  string api = 1;
+
+  // Unset when there is no item at this position.
+  GetPlayerItemsByGuidsResponse.Item item = 2;
+}
+
 // GetMoneyForPlayer
 message GetMoneyForPlayerRequest {
   string api = 1;
@@ -123,6 +149,22 @@ message ModifyMoneyForPlayerResponse {
   string api = 1;
 
   uint32 newMoneyValue = 2;
+}
+
+// SetPlayerGuildFields
+message SetPlayerGuildFieldsRequest {
+  string api = 1;
+
+  uint64 playerGuid = 2;
+  uint32 guildID = 3;
+  uint32 rank = 4;
+}
+
+message SetPlayerGuildFieldsResponse {
+  string api = 1;
+
+  // False when the player is not online on this worldserver.
+  bool applied = 2;
 }
 
 // CanPlayerInteractWithNPC
