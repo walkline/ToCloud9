@@ -27,7 +27,6 @@ The migration is:
 
 ```text
 sql/characters/mysql/000005_create_account_session_locks.up.sql
-sql/characters/mysql/000006_use_gateway_session_liveness.up.sql
 ```
 
 ## Character ownership
