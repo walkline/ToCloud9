@@ -15,6 +15,21 @@ GetPlayerItemsByGuidsResponse CallGetPlayerItemsByGuidsHandler(uint64_t player_g
     return getPlayerItemsByGuidsHandler(player_guid, items_guids, items_guids_size);
 }
 
+static GetPlayerItemByPosHandler getPlayerItemByPosHandler;
+void SetGetPlayerItemByPosHandler(GetPlayerItemByPosHandler h) {
+    getPlayerItemByPosHandler = h;
+}
+
+GetPlayerItemByPosResponse CallGetPlayerItemByPosHandler(uint64_t player_guid, uint8_t bag, uint8_t slot) {
+    if (getPlayerItemByPosHandler == 0) {
+        GetPlayerItemByPosResponse resp = {0};
+        resp.errorCode = PlayerItemErrorCodeNoHandler;
+        return resp;
+    }
+
+    return getPlayerItemByPosHandler(player_guid, bag, slot);
+}
+
 static RemoveItemsWithGuidsFromPlayerHandler removeItemsWithGuidsFromPlayerHandler;
 void SetRemoveItemsWithGuidsFromPlayerHandler(RemoveItemsWithGuidsFromPlayerHandler h) {
     removeItemsWithGuidsFromPlayerHandler = h;

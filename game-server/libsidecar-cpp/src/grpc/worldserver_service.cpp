@@ -111,6 +111,78 @@ grpc::Status WorldServerServiceImpl::GetPlayerItemsByGuids(
     }
 }
 
+grpc::Status WorldServerServiceImpl::GetPlayerItemByPos(
+    grpc::ServerContext* context,
+    const v1::GetPlayerItemByPosRequest* request,
+    v1::GetPlayerItemByPosResponse* response) {
+
+    response->set_api(lib_version_);
+
+    if (request->playerguid() == 0) {
+        return grpc::Status::OK;
+    }
+
+    if (!bindings_.get_player_item_by_pos) {
+        spdlog::error("GetPlayerItemByPos: No handler registered");
+        return grpc::Status(grpc::StatusCode::UNIMPLEMENTED, "No handler registered");
+    }
+
+    auto promise = std::make_shared<std::promise<TC9GetPlayerItemByPosResponse>>();
+    auto future = promise->get_future();
+
+    uint64_t playerGuid = request->playerguid();
+    uint8_t bag = static_cast<uint8_t>(request->bag());
+    uint8_t slot = static_cast<uint8_t>(request->slot());
+
+    read_queue_.Push(MakeHandler([=]() {
+        try {
+            promise->set_value(bindings_.get_player_item_by_pos(playerGuid, bag, slot));
+        } catch (const std::exception& e) {
+            spdlog::error("GetPlayerItemByPos handler threw: {}", e.what());
+            promise->set_exception(std::current_exception());
+        }
+    }));
+
+    if (future.wait_for(timeout_) == std::future_status::timeout) {
+        spdlog::warn("GetPlayerItemByPos: Request timeout");
+        return grpc::Status(grpc::StatusCode::DEADLINE_EXCEEDED, "Request timeout");
+    }
+
+    try {
+        auto resp = future.get();
+
+        if (resp.errorCode != TC9_ERROR_SUCCESS) {
+            spdlog::error("GetPlayerItemByPos: Error code {}", resp.errorCode);
+            return grpc::Status(grpc::StatusCode::INTERNAL, "Handler returned error");
+        }
+
+        if (resp.found) {
+            auto* item = response->mutable_item();
+            item->set_guid(resp.item.guid);
+            item->set_entry(resp.item.entry);
+            item->set_owner(resp.item.owner);
+            item->set_bagslot(resp.item.bagSlot);
+            item->set_slot(resp.item.slot);
+            item->set_istradable(resp.item.isTradable);
+            item->set_count(resp.item.count);
+            item->set_flags(resp.item.flags);
+            item->set_durability(resp.item.durability);
+            item->set_randompropertyid(resp.item.randomPropertyID);
+            item->set_text(SafeString(resp.item.text));
+
+            if (resp.item.text) {
+                free(const_cast<char*>(resp.item.text));
+            }
+        }
+
+        return grpc::Status::OK;
+
+    } catch (const std::exception& e) {
+        spdlog::error("GetPlayerItemByPos: Exception: {}", e.what());
+        return grpc::Status(grpc::StatusCode::INTERNAL, e.what());
+    }
+}
+
 grpc::Status WorldServerServiceImpl::RemoveItemsWithGuidsFromPlayer(
     grpc::ServerContext* context,
     const v1::RemoveItemsWithGuidsFromPlayerRequest* request,
@@ -270,6 +342,54 @@ grpc::Status WorldServerServiceImpl::GetMoneyForPlayer(
         }
 
         response->set_money(money);
+        return grpc::Status::OK;
+    } catch (const std::exception& e) {
+        return grpc::Status(grpc::StatusCode::INTERNAL, e.what());
+    }
+}
+
+grpc::Status WorldServerServiceImpl::SetPlayerGuildFields(
+    grpc::ServerContext* context,
+    const v1::SetPlayerGuildFieldsRequest* request,
+    v1::SetPlayerGuildFieldsResponse* response) {
+
+    response->set_api(lib_version_);
+
+    if (request->playerguid() == 0) {
+        return grpc::Status::OK;
+    }
+
+    if (!bindings_.set_player_guild_fields) {
+        return grpc::Status(grpc::StatusCode::UNIMPLEMENTED, "No handler registered");
+    }
+
+    auto promise = std::make_shared<std::promise<std::pair<bool, int>>>();
+    auto future = promise->get_future();
+
+    uint64_t playerGuid = request->playerguid();
+    uint32_t guildId = request->guildid();
+    uint32_t rank = request->rank();
+
+    write_queue_.Push(MakeHandler([=]() {
+        try {
+            int error_code = 0;
+            bool applied = bindings_.set_player_guild_fields(playerGuid, guildId, rank, &error_code);
+            promise->set_value({applied, error_code});
+        } catch (...) {
+            promise->set_exception(std::current_exception());
+        }
+    }));
+
+    if (future.wait_for(timeout_) == std::future_status::timeout) {
+        return grpc::Status(grpc::StatusCode::DEADLINE_EXCEEDED, "Request timeout");
+    }
+
+    try {
+        auto [applied, error_code] = future.get();
+        if (error_code != TC9_ERROR_SUCCESS) {
+            return grpc::Status(grpc::StatusCode::INTERNAL, "Handler returned error");
+        }
+        response->set_applied(applied);
         return grpc::Status::OK;
     } catch (const std::exception& e) {
         return grpc::Status(grpc::StatusCode::INTERNAL, e.what());

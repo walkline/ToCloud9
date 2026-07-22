@@ -2,6 +2,7 @@ package grpcapi
 
 import (
 	"context"
+	"math"
 
 	"github.com/walkline/ToCloud9/game-server/libsidecar/queue"
 	"github.com/walkline/ToCloud9/gen/worldserver/pb"
@@ -65,6 +66,72 @@ func (w *WorldServerGRPCAPI) GetPlayerItemsByGuids(ctx context.Context, request 
 		Api:   LibVer,
 		Items: items,
 	}, nil
+}
+
+func (w *WorldServerGRPCAPI) GetPlayerItemByPos(ctx context.Context, request *pb.GetPlayerItemByPosRequest) (*pb.GetPlayerItemByPosResponse, error) {
+	if request.PlayerGuid == 0 {
+		return &pb.GetPlayerItemByPosResponse{
+			Api: LibVer,
+		}, nil
+	}
+
+	// Inventory positions are single bytes on the game server side.
+	if request.Bag > math.MaxUint8 || request.Slot > math.MaxUint8 {
+		return &pb.GetPlayerItemByPosResponse{
+			Api: LibVer,
+		}, nil
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, w.timeout)
+	defer cancel()
+
+	type respType struct {
+		item *PlayerItem
+		err  error
+	}
+	var resp respType
+
+	respChan := make(chan respType, 1)
+
+	w.readQueue.Push(queue.HandlerFunc(func() {
+		item, err := w.bindings.GetPlayerItemByPos(request.PlayerGuid, uint8(request.Bag), uint8(request.Slot))
+		respChan <- respType{
+			item: item,
+			err:  err,
+		}
+		close(respChan)
+	}))
+
+	select {
+	case <-ctx.Done():
+		return nil, ErrTimeout
+	case resp = <-respChan:
+	}
+
+	if resp.err != nil {
+		return nil, resp.err
+	}
+
+	result := &pb.GetPlayerItemByPosResponse{
+		Api: LibVer,
+	}
+	if resp.item != nil {
+		result.Item = &pb.GetPlayerItemsByGuidsResponse_Item{
+			Guid:             resp.item.Guid,
+			Entry:            resp.item.Entry,
+			Owner:            resp.item.Owner,
+			BagSlot:          uint32(resp.item.BagSlot),
+			Slot:             uint32(resp.item.Slot),
+			IsTradable:       resp.item.IsTradable,
+			Count:            resp.item.Count,
+			Flags:            uint32(resp.item.Flags),
+			Durability:       resp.item.Durability,
+			RandomPropertyID: resp.item.RandomPropertyID,
+			Text:             resp.item.Text,
+		}
+	}
+
+	return result, nil
 }
 
 func (w *WorldServerGRPCAPI) RemoveItemsWithGuidsFromPlayer(ctx context.Context, request *pb.RemoveItemsWithGuidsFromPlayerRequest) (*pb.RemoveItemsWithGuidsFromPlayerResponse, error) {

@@ -18,6 +18,13 @@ func TC9SetGetPlayerItemsByGuidsHandler(h C.GetPlayerItemsByGuidsHandler) {
 	C.SetGetPlayerItemsByGuidsHandler(h)
 }
 
+// TC9SetGetPlayerItemByPosHandler sets handler for resolving an item by its inventory position.
+//
+//export TC9SetGetPlayerItemByPosHandler
+func TC9SetGetPlayerItemByPosHandler(h C.GetPlayerItemByPosHandler) {
+	C.SetGetPlayerItemByPosHandler(h)
+}
+
 // TC9SetRemoveItemsWithGuidsFromPlayerHandler sets handler for removing items by guids from player request.
 //
 //export TC9SetRemoveItemsWithGuidsFromPlayerHandler
@@ -59,6 +66,35 @@ func GetPlayerItemsByGuidHandler(player uint64, items []uint64) ([]grpcapi.Playe
 	C.free((unsafe.Pointer)(res.items))
 
 	return itemsResult, nil
+}
+
+// GetPlayerItemByPosHandler calls C++ GetPlayerItemByPosHandler implementation and makes Go<->C conversions of in/out params.
+func GetPlayerItemByPosHandler(player uint64, bag, slot uint8) (*grpcapi.PlayerItem, error) {
+	res := C.CallGetPlayerItemByPosHandler(C.uint64_t(player), C.uint8_t(bag), C.uint8_t(slot))
+	if res.errorCode != C.PlayerItemErrorCodeNoError {
+		return nil, grpcapi.ItemError(res.errorCode)
+	}
+
+	if !bool(res.found) {
+		return nil, nil
+	}
+
+	item := &grpcapi.PlayerItem{
+		Guid:             uint64(res.item.guid),
+		Entry:            uint32(res.item.entry),
+		Owner:            uint64(res.item.owner),
+		BagSlot:          uint8(res.item.bagSlot),
+		Slot:             uint8(res.item.slot),
+		IsTradable:       bool(res.item.isTradable),
+		Count:            uint32(res.item.count),
+		Flags:            uint16(res.item.flags),
+		Durability:       uint32(res.item.durability),
+		RandomPropertyID: uint32(res.item.randomPropertyID),
+		Text:             C.GoString(res.item.text),
+	}
+	C.free((unsafe.Pointer)(res.item.text))
+
+	return item, nil
 }
 
 // RemoveItemsWithGuidsFromPlayerHandler calls C++ RemoveItemsWithGuidsFromPlayerHandler implementation and makes Go<->C conversions of in/out params.

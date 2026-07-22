@@ -44,6 +44,13 @@ typedef struct TC9GetPlayerItemsResponse {
     int itemsSize;
 } TC9GetPlayerItemsResponse;
 
+/* Get Player Item By Position Response */
+typedef struct TC9GetPlayerItemByPosResponse {
+    int errorCode;
+    bool found;
+    TC9PlayerItem item;  /* Valid when errorCode == 0 and found */
+} TC9GetPlayerItemByPosResponse;
+
 /* Remove Items Response */
 typedef struct TC9RemoveItemsResponse {
     int errorCode;
@@ -107,6 +114,13 @@ typedef TC9GetPlayerItemsResponse (*TC9GetPlayerItemsByGuidsHandler)(
     int itemGuidsSize
 );
 
+/* Get player item by inventory position */
+typedef TC9GetPlayerItemByPosResponse (*TC9GetPlayerItemByPosHandler)(
+    uint64_t playerGuid,
+    uint8_t bag,
+    uint8_t slot
+);
+
 /* Remove items from player */
 typedef TC9RemoveItemsResponse (*TC9RemoveItemsWithGuidsFromPlayerHandler)(
     uint64_t playerGuid,
@@ -131,6 +145,14 @@ typedef uint32_t (*TC9GetMoneyForPlayerHandler)(
 typedef uint32_t (*TC9ModifyMoneyForPlayerHandler)(
     uint64_t playerGuid,
     int32_t value,
+    int* errorCode  /* OUT: error code */
+);
+
+/* Set player guild fields (guild id + rank) on the live player object */
+typedef bool (*TC9SetPlayerGuildFieldsHandler)(
+    uint64_t playerGuid,
+    uint32_t guildId,
+    uint32_t rank,
     int* errorCode  /* OUT: error code */
 );
 

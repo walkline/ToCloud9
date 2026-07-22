@@ -33,10 +33,12 @@ func SetupGRPCService(conf *config.Config) (net.Listener, *grpc.Server) {
 		grpcapi.NewWorldServerGRPCAPI(
 			grpcapi.CppBindings{
 				GetPlayerItemsByGuids:           GetPlayerItemsByGuidHandler,
+				GetPlayerItemByPos:              GetPlayerItemByPosHandler,
 				RemoveItemsWithGuidsFromPlayer:  RemoveItemsWithGuidsFromPlayerHandler,
 				AddExistingItemToPlayer:         AddExistingItemToPlayerHandler,
 				GetMoneyForPlayer:               GetMoneyForPlayerHandler,
 				ModifyMoneyForPlayer:            ModifyMoneyForPlayerHandler,
+				SetPlayerGuildFields:            SetPlayerGuildFieldsHandler,
 				CanPlayerInteractWithNPC:        CanPlayerInteractWithNPCAndFlagsHandler,
 				CanPlayerInteractWithGO:         CanPlayerInteractWithGOAndTypeHandler,
 				StartBattleground:               BattlegroundStartHandler,
