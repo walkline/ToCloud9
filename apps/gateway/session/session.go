@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/rs/zerolog"
@@ -60,7 +59,6 @@ type GameSession struct {
 	charsUpdsBarrier              *service.CharactersUpdatesBarrier
 	realmNamesService             *service.RealmNamesService
 	gameServerGRPCConnMgr         conn.GameServerGRPCConnMgr
-	sessionOwnership              SessionOwnership
 
 	groupUpdateCounter uint32
 
@@ -72,11 +70,6 @@ type GameSession struct {
 
 	accountID uint32
 	character *LoggedInCharacter
-
-	sessionToken          string
-	sessionDone           chan struct{}
-	intentionalDisconnect atomic.Bool
-	ownedCharacterGUID    atomic.Uint64
 
 	// groupMemberStats holds last known stats of the character's group members,
 	// fed by group members updated events. Used to answer party member stats requests.
@@ -119,8 +112,6 @@ type GameSessionParams struct {
 	GameServerGRPCConnMgr            conn.GameServerGRPCConnMgr
 	PacketProcessTimeout             time.Duration
 	ShowGameserverConnChangeToClient bool
-	SessionOwnership                 SessionOwnership
-	AccountSessionGatewayID          string
 }
 
 func NewGameSession(
@@ -155,10 +146,7 @@ func NewGameSession(
 		charsUpdsBarrier:                 params.CharsUpdsBarrier,
 		realmNamesService:                params.RealmNamesService,
 		gameServerGRPCConnMgr:            params.GameServerGRPCConnMgr,
-		sessionOwnership:                 params.SessionOwnership,
 		showGameserverConnChangeToClient: params.ShowGameserverConnChangeToClient,
-		sessionToken:                     newSessionToken(),
-		sessionDone:                      make(chan struct{}),
 
 		sessionSafeFuChan:        make(chan func(*GameSession), 100),
 		packetProcessTimeout:     packetProcessTimeout,
@@ -174,12 +162,6 @@ func (s *GameSession) HandlePackets(ctx context.Context) {
 	c, cancel := context.WithCancel(ctx)
 	defer cancel()
 	defer s.logger.Debug().Msg("Stopped to handle packets")
-	defer close(s.sessionDone)
-
-	if s.sessionOwnership != nil {
-		unregister := s.sessionOwnership.Register(s.sessionToken, s.evictDuplicateSession)
-		defer unregister()
-	}
 
 	defer func() {
 		if s.character != nil {
@@ -239,9 +221,6 @@ func (s *GameSession) HandlePackets(ctx context.Context) {
 		case p, ok := <-worldReadChan:
 			if !ok {
 				s.worldSocket = nil
-				if s.intentionalDisconnect.Load() {
-					return
-				}
 				s.onWorldSocketClosed()
 				break
 			}
@@ -282,18 +261,28 @@ func (s *GameSession) Login(ctx context.Context, p *packet.Packet) error {
 	// Reset sending control for new login.
 	s.packetSendingControl = PacketSendingControl{}
 	characterGUID := p.Reader().Uint64()
-	if s.sessionOwnership != nil {
-		if err := s.sessionOwnership.ClaimCharacter(ctx, characterGUID, s.sessionToken); err != nil {
-			return fmt.Errorf("can't claim character session ownership: %w", err)
+	lock, err := s.charServiceClient.AcquireCharacterLoginLock(ctx, &pbChar.AcquireCharacterLoginLockRequest{
+		RealmID:       root.RealmID,
+		AccountID:     s.accountID,
+		CharacterGUID: characterGUID,
+		GatewayID:     root.RetrievedGatewayID,
+	})
+	if err != nil || !lock.Acquired {
+		resp := packet.NewWriterWithSize(packet.SMsgCharacterLoginFailed, 1)
+		resp.Uint8(uint8(packet.LoginErrorCodeDuplicateCharacter))
+		s.gameSocket.Send(resp)
+		if err != nil {
+			return fmt.Errorf("acquire character login lock: %w", err)
 		}
-		s.ownedCharacterGUID.Store(characterGUID)
+		return nil
 	}
 
 	char, socket, err := s.connectToGameServer(ctx, characterGUID, nil, nil)
 	if err != nil {
-		if s.sessionOwnership != nil {
-			_ = s.sessionOwnership.ReleaseCharacter(context.Background(), characterGUID, s.sessionToken)
-			s.ownedCharacterGUID.Store(0)
+		if releaseErr := s.eventsProducer.CharacterLoggedOut(&events.GWEventCharacterLoggedOutPayload{
+			RealmID: root.RealmID, GatewayID: root.RetrievedGatewayID, CharGUID: characterGUID, AccountID: s.accountID,
+		}); releaseErr != nil {
+			s.logger.Error().Err(releaseErr).Msg("can't release failed character login lock")
 		}
 		code := packet.LoginErrorCodeLoginFailed
 		switch {
@@ -659,29 +648,7 @@ func (s *GameSession) onLoggedOut() {
 	// go stale (a member logging out would be missed and answered as still online).
 	s.groupMemberStats = nil
 
-	if s.sessionOwnership != nil {
-		releaseCtx, cancel := context.WithTimeout(context.Background(), time.Second)
-		if err := s.sessionOwnership.ReleaseCharacter(releaseCtx, s.character.GUID, s.sessionToken); err != nil {
-			s.logger.Warn().Err(err).Msg("can't release character session ownership")
-		}
-		cancel()
-		s.ownedCharacterGUID.Store(0)
-	}
-
 	s.character = nil
-}
-
-func (s *GameSession) evictDuplicateSession(ctx context.Context) {
-	s.intentionalDisconnect.Store(true)
-	s.logger.Info().Msg("disconnecting session because the account logged in elsewhere")
-	if s.worldSocket != nil {
-		s.worldSocket.Close()
-	}
-	s.gameSocket.Close()
-	select {
-	case <-s.sessionDone:
-	case <-ctx.Done():
-	}
 }
 
 var WorldSocketCreator = worldsocket.NewWorldSocketWithAddress

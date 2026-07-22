@@ -28,6 +28,15 @@ func main() {
 
 	log.Logger = conf.Logger()
 
+	authDB, err := sql.Open("mysql", conf.AuthDBConnection)
+	if err != nil {
+		log.Fatal().Err(err).Msg("can't connect to auth db")
+	}
+	configureDBConn(authDB)
+	defer authDB.Close()
+	loginLocks := repo.NewCharacterLoginLocksMySQL(authDB)
+	loginLockEvents := service.NewCharacterLoginLockEvents(loginLocks)
+
 	// nats setup
 	nc, err := nats.Connect(
 		conf.NatsURL,
@@ -83,7 +92,7 @@ func main() {
 		handlers: []events.GWCharacterLoggedInHandler{onlineCharsRepo, friendsOnlineCache},
 	}
 	compositeLoggedOutHandler := &compositeLoggedOutHandler{
-		handlers: []events.GWCharacterLoggedOutHandler{onlineCharsRepo, friendsOnlineCache},
+		handlers: []events.GWCharacterLoggedOutHandler{onlineCharsRepo, friendsOnlineCache, loginLockEvents},
 	}
 	compositeUpdatesHandler := &compositeCharsUpdatesHandler{
 		handlers: []events.GWCharactersUpdatesHandler{onlineCharsRepo, friendsOnlineCache},
@@ -101,7 +110,7 @@ func main() {
 	}
 	defer gwEventsConsumer.Stop()
 
-	srHandler := service.NewServersRegistryListener(onlineCharsRepo, events.NewCharactersServiceProducerNatsJSON(nc, charserver.Ver), nc)
+	srHandler := service.NewServersRegistryListener(onlineCharsRepo, events.NewCharactersServiceProducerNatsJSON(nc, charserver.Ver), nc, loginLockEvents)
 	err = srHandler.Listen()
 	if err != nil {
 		log.Fatal().Err(err).Msg("can't listen to servers registry updates")
@@ -109,7 +118,7 @@ func main() {
 	defer srHandler.Stop()
 
 	grpcServer := grpc.NewServer()
-	pb.RegisterCharactersServiceServer(grpcServer, server.NewCharServer(charRepo, onlineCharsRepo, onlineCharsRepo, itemsTemplate, friendsService))
+	pb.RegisterCharactersServiceServer(grpcServer, server.NewCharServer(charRepo, onlineCharsRepo, onlineCharsRepo, itemsTemplate, friendsService, loginLocks))
 
 	log.Info().Str("address", lis.Addr().String()).Msg("🚀 Characters Server Started!")
 

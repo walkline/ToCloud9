@@ -24,42 +24,33 @@ type CharServer struct {
 	itemsTemplate  repo.ItemsTemplate
 	onlineChars    repo.CharactersOnline
 	friendsService service.FriendsService
+	loginLocks     repo.CharacterLoginLocks
 }
 
-func NewCharServer(repo repo.Characters, onlineChars repo.CharactersOnline, whoHandler repo.WhoHandler, itemsTemplate repo.ItemsTemplate, friendsService service.FriendsService) pb.CharactersServiceServer {
+func NewCharServer(repo repo.Characters, onlineChars repo.CharactersOnline, whoHandler repo.WhoHandler, itemsTemplate repo.ItemsTemplate, friendsService service.FriendsService, loginLocks repo.CharacterLoginLocks) pb.CharactersServiceServer {
 	return &CharServer{
 		repo:           repo,
 		whoHandler:     whoHandler,
 		itemsTemplate:  itemsTemplate,
 		onlineChars:    onlineChars,
 		friendsService: friendsService,
+		loginLocks:     loginLocks,
 	}
 }
 
-func (c *CharServer) AcquireAccountSession(ctx context.Context, request *pb.AcquireAccountSessionRequest) (*pb.AcquireAccountSessionResponse, error) {
-	if request.AccountID == 0 || len(request.OwnerToken) != 32 || len(request.GatewayID) == 0 || len(request.GatewayID) > 64 {
-		return nil, status.Error(codes.InvalidArgument, "invalid account session owner")
+func (c *CharServer) AcquireCharacterLoginLock(ctx context.Context, request *pb.AcquireCharacterLoginLockRequest) (*pb.AcquireCharacterLoginLockResponse, error) {
+	if request.AccountID == 0 || request.CharacterGUID == 0 || len(request.GatewayID) == 0 || len(request.GatewayID) > 64 {
+		return nil, status.Error(codes.InvalidArgument, "invalid character login lock owner")
 	}
-	acquired, err := c.repo.AcquireAccountSession(ctx, request.RealmID, request.AccountID, request.GatewayID, request.OwnerToken)
-	return &pb.AcquireAccountSessionResponse{Acquired: acquired}, err
-}
-
-func (c *CharServer) HeartbeatGatewaySession(ctx context.Context, request *pb.HeartbeatGatewaySessionRequest) (*pb.HeartbeatGatewaySessionResponse, error) {
-	if len(request.GatewayID) == 0 || len(request.GatewayID) > 64 || request.LivenessSeconds < 10 || request.LivenessSeconds > 300 {
-		return nil, status.Error(codes.InvalidArgument, "invalid gateway session liveness")
-	}
-	if err := c.repo.HeartbeatGatewaySession(ctx, request.RealmID, request.GatewayID, request.LivenessSeconds); err != nil {
+	character, err := c.repo.CharacterToLogInByGUID(ctx, request.RealmID, request.CharacterGUID)
+	if err != nil {
 		return nil, err
 	}
-	return &pb.HeartbeatGatewaySessionResponse{}, nil
-}
-
-func (c *CharServer) ReleaseAccountSession(ctx context.Context, request *pb.ReleaseAccountSessionRequest) (*pb.ReleaseAccountSessionResponse, error) {
-	if request.AccountID == 0 || len(request.OwnerToken) != 32 {
-		return nil, status.Error(codes.InvalidArgument, "invalid account session owner")
+	if character == nil || character.AccountID != request.AccountID {
+		return &pb.AcquireCharacterLoginLockResponse{}, nil
 	}
-	released, err := c.repo.ReleaseAccountSession(ctx, request.RealmID, request.AccountID, request.OwnerToken)
-	return &pb.ReleaseAccountSessionResponse{Released: released}, err
+	acquired, err := c.loginLocks.Acquire(ctx, request.RealmID, request.AccountID, request.CharacterGUID, request.GatewayID)
+	return &pb.AcquireCharacterLoginLockResponse{Acquired: acquired}, err
 }
 
 func (c *CharServer) CharactersToLoginForAccount(ctx context.Context, request *pb.CharactersToLoginForAccountRequest) (*pb.CharactersToLoginForAccountResponse, error) {

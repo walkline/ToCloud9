@@ -11,17 +11,19 @@ import (
 )
 
 type ServersRegistryListener struct {
-	charRepo repo.CharactersOnline
-	nc       *nats.Conn
-	subs     []*nats.Subscription
-	producer events.CharactersServiceProducer
+	charRepo   repo.CharactersOnline
+	nc         *nats.Conn
+	subs       []*nats.Subscription
+	producer   events.CharactersServiceProducer
+	loginLocks *CharacterLoginLockEvents
 }
 
-func NewServersRegistryListener(charRepo repo.CharactersOnline, producer events.CharactersServiceProducer, nc *nats.Conn) *ServersRegistryListener {
+func NewServersRegistryListener(charRepo repo.CharactersOnline, producer events.CharactersServiceProducer, nc *nats.Conn, loginLocks *CharacterLoginLockEvents) *ServersRegistryListener {
 	return &ServersRegistryListener{
-		charRepo: charRepo,
-		nc:       nc,
-		producer: producer,
+		charRepo:   charRepo,
+		nc:         nc,
+		producer:   producer,
+		loginLocks: loginLocks,
 	}
 }
 
@@ -32,6 +34,10 @@ func (c *ServersRegistryListener) Listen() error {
 		_, err := events.Unmarshal(msg.Data, &payload)
 		if err != nil {
 			log.Error().Err(err).Msg("can't read ServerRegistryEventGWRemovedUnhealthy (payload part) event")
+			return
+		}
+		if err = c.loginLocks.ReleaseGateway(context.Background(), payload.RealmID, payload.ID); err != nil {
+			log.Error().Err(err).Msg("can't release character login locks for unhealthy gateway")
 			return
 		}
 

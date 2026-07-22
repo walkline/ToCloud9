@@ -9,6 +9,10 @@ import (
 type LoginErrorCode uint8
 
 const (
+	// LoginErrorCodeDuplicateCharacter indicates that the character or its
+	// account already has an active world session.
+	LoginErrorCodeDuplicateCharacter LoginErrorCode = 0x4F
+
 	// LoginErrorCodeLoginFailed is error msg - "Login Failed."
 	LoginErrorCodeLoginFailed LoginErrorCode = 0x51
 

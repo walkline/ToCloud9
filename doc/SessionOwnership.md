@@ -1,57 +1,43 @@
-# Cluster-wide session ownership
+# Character login locks
 
-The character service owns account admission. After validating the world-auth
-proof, a gateway asks it to acquire `(realm ID, account ID)` before accepting
-the session. A second login is rejected with the client's native
-`AUTH_ALREADY_ONLINE` response; it never evicts the established session.
+The character service owns cluster-wide login admission. Authentication and
+character enumeration remain unchanged. When the client sends
+`CMSG_PLAYER_LOGIN`, the gateway calls `AcquireCharacterLoginLock` with the
+authenticated account ID, selected character GUID, realm ID and registry
+gateway ID.
 
-The gateway also passes the authenticated account ID when resolving the
-selected character. The character service returns the character only when it
-belongs to that account.
+The character service first verifies that the character belongs to the
+authenticated account. It then inserts a lock into the auth database. The
+primary key on `(realm_id, account_id)` permits one active character per account
+and a unique key on `(realm_id, character_guid)` prevents duplicate character
+sessions. Concurrent requests are serialized by MySQL's unique constraints.
 
-## Durable account ownership
-
-The characters database stores one account lease per realm database. Its
-primary key makes simultaneous claims from any number of gateway or character
-service replicas mutually exclusive. Each account row contains the owning
-gateway ID and a cryptographically random session token.
-
-The database also stores one expiring liveness row per gateway. A gateway
-refreshes that single row regardless of its player count. A graceful disconnect
-deletes an account row only when its session token still matches. If a gateway
-crashes, all account rows referencing it become reclaimable after its liveness
-expires. Token-fenced release prevents cleanup from an old connection from
-changing a newer owner's row.
-
-The migration is:
+The schema is created by:
 
 ```text
-sql/characters/mysql/000005_create_account_session_locks.up.sql
+sql/auth/mysql/000002_create_character_login_locks.up.sql
 ```
 
-## Character ownership
+## Releasing locks
 
-Redis/NATS ownership remains limited to a selected character GUID. It protects
-redirect and recovery flows from two gateways concurrently driving the same
-character. Account admission does not use Redis and does not perform takeover.
+- Normal logout and client disconnect already publish
+  `GWEventCharacterLoggedOut`, including account, character, realm and gateway.
+  Character service processing deletes the matching login lock.
+- If world connection fails after acquisition, the gateway publishes the same
+  logout event to release the provisional lock.
+- When the servers registry removes an unhealthy gateway, the character
+  service deletes every login lock associated with that gateway before
+  processing its existing online-character cleanup.
 
-## Failure behavior and scaling
+The gateway holds no login ownership state in Redis or RAM. Character-service
+replicas share the auth database, so any replica can acquire or release a lock.
+The gateway-offline event is handled by the existing character-service NATS
+queue group and the resulting database cleanup is idempotent.
 
-- Gateway and character-service replicas keep no authoritative account state
-  in RAM.
-- Character-service failover is safe because account admission is serialized
-  by the shared characters database.
-- A gateway crash leaves only a bounded gateway-liveness interval before its
-  account rows can be reclaimed.
-- Database errors fail new authentication closed with `AUTH_UNAVAILABLE`.
-- If a gateway cannot refresh liveness before it would expire, it terminates
-  itself. This prevents its existing sessions from overlapping with accounts
-  reclaimed by another gateway.
-- Redis or NATS failure affects character fencing/recovery, not the account
-  admission decision.
+## Event sanitation
 
-Steady-state database writes are one heartbeat and bounded stale-heartbeat
-cleanup per gateway every one-third of `gatewayLivenessTTLSeconds`. Account
-rows are written only at login, logout, and dead-gateway reclamation. Database
-load therefore follows gateway count and session transitions, not connected
-player count.
+The current project uses non-durable NATS events for gateway and character
+lifecycle updates. If every character-service replica is unavailable when a
+gateway-offline event is emitted, any affected lifecycle state can become
+stale. The project treats reconciliation/sanitation of missed lifecycle events
+as a generic concern rather than part of character login locking.

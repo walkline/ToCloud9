@@ -61,8 +61,6 @@ services:
         condition: service_started
       database-ac:
         condition: service_healthy
-      redis:
-        condition: service_started
     environment:
       SERVERS_REGISTRY_SERVICE_ADDRESS: servers-registry:8999
       CHAR_SERVICE_ADDRESS: charserver:8087
@@ -78,7 +76,6 @@ services:
       LOG_LEVEL: 0
       PORT: 8085
       NATS_URL: nats://nats:4222
-      REDIS_URL: redis://:@redis:6379/0
     profiles:
       - ac
       - tc
@@ -94,8 +91,6 @@ services:
         condition: service_started
       database-ac:
         condition: service_healthy
-      redis:
-        condition: service_started
     environment:
       SERVERS_REGISTRY_SERVICE_ADDRESS: servers-registry:8999
       CHAR_SERVICE_ADDRESS: charserver:8087
@@ -111,7 +106,6 @@ services:
       LOG_LEVEL: 0
       PORT: 8045
       NATS_URL: nats://nats:4222
-      REDIS_URL: redis://:@redis:6379/0
     profiles:
       - ac
       - tc
@@ -163,6 +157,7 @@ services:
       - "8087:8087"
     environment:
       PORT: 8087
+      AUTH_DB_CONNECTION: ${AUTH_DB_USER}:${AUTH_DB_PASS}@tcp(${AUTH_DB_HOST}:${AUTH_DB_PORT})/${AUTH_DB_NAME}
       CHAR_DB_CONNECTION: 1:${CHAR_DB_USER}:${CHAR_DB_PASS}@tcp(${CHAR_DB_HOST}:${CHAR_DB_PORT})/${CHAR_DB_NAME}
       WORLD_DB_CONNECTION: ${WORLD_DB_USER}:${WORLD_DB_PASS}@tcp(${WORLD_DB_HOST}:${WORLD_DB_PORT})/${WORLD_DB_NAME}
     profiles:

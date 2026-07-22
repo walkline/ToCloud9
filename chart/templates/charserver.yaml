@@ -28,6 +28,11 @@ spec:
             secretKeyRef:
               name: {{ .Release.Name }}-databases-config
               key: CHAR_DB_CONNECTION
+        - name: AUTH_DB_CONNECTION
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Release.Name }}-databases-config
+              key: AUTH_DB_CONNECTION
         - name: WORLD_DB_CONNECTION
           valueFrom:
             secretKeyRef:

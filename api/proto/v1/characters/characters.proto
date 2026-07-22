@@ -5,9 +5,7 @@ option go_package = "gen/characters/pb";
 
 // Service to manage characters
 service CharactersService {
-  rpc AcquireAccountSession(AcquireAccountSessionRequest) returns (AcquireAccountSessionResponse);
-  rpc ReleaseAccountSession(ReleaseAccountSessionRequest) returns (ReleaseAccountSessionResponse);
-  rpc HeartbeatGatewaySession(HeartbeatGatewaySessionRequest) returns (HeartbeatGatewaySessionResponse);
+  rpc AcquireCharacterLoginLock(AcquireCharacterLoginLockRequest) returns (AcquireCharacterLoginLockResponse);
 
   rpc CharactersToLoginForAccount(CharactersToLoginForAccountRequest) returns (CharactersToLoginForAccountResponse);
   rpc CharactersToLoginByGUID(CharactersToLoginByGUIDRequest) returns (CharactersToLoginByGUIDResponse);
@@ -378,27 +376,11 @@ message GetOnlineCharactersResponse {
   uint32 totalCount = 3;
 }
 
-message AcquireAccountSessionRequest {
+message AcquireCharacterLoginLockRequest {
   uint32 accountID = 1;
   uint32 realmID = 2;
-  string ownerToken = 3;
+  uint64 characterGUID = 3;
   string gatewayID = 4;
 }
 
-message AcquireAccountSessionResponse { bool acquired = 1; }
-
-message HeartbeatGatewaySessionRequest {
-  string gatewayID = 1;
-  uint32 realmID = 2;
-  uint32 livenessSeconds = 3;
-}
-
-message HeartbeatGatewaySessionResponse {}
-
-message ReleaseAccountSessionRequest {
-  uint32 accountID = 1;
-  uint32 realmID = 2;
-  string ownerToken = 3;
-}
-
-message ReleaseAccountSessionResponse { bool released = 1; }
+message AcquireCharacterLoginLockResponse { bool acquired = 1; }

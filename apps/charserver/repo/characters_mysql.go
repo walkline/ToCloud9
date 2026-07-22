@@ -2,71 +2,13 @@ package repo
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"strconv"
 	"strings"
 	"unicode"
 
-	"github.com/go-sql-driver/mysql"
 	shrepo "github.com/walkline/ToCloud9/shared/repo"
 )
-
-func (c CharactersMYSQL) AcquireAccountSession(ctx context.Context, realmID, accountID uint32, gatewayID, ownerToken string) (bool, error) {
-	tx, err := c.db.DBByRealm(realmID).BeginTx(ctx, nil)
-	if err != nil {
-		return false, err
-	}
-	defer tx.Rollback()
-
-	var currentToken string
-	var gatewayLive bool
-	err = tx.QueryRowContext(ctx, `SELECT a.owner_token, COALESCE(g.expires_at > NOW(6), FALSE)
-		FROM account_session_lock a
-		LEFT JOIN gateway_session_liveness g ON g.gateway_id = a.gateway_id
-		WHERE a.account_id = ? FOR UPDATE`, accountID).Scan(&currentToken, &gatewayLive)
-	switch {
-	case err == sql.ErrNoRows:
-		_, err = tx.ExecContext(ctx, `INSERT INTO account_session_lock (account_id, gateway_id, owner_token) VALUES (?, ?, ?)`, accountID, gatewayID, ownerToken)
-	case err != nil:
-		return false, err
-	case currentToken != ownerToken && gatewayLive:
-		return false, nil
-	default:
-		_, err = tx.ExecContext(ctx, `UPDATE account_session_lock SET gateway_id = ?, owner_token = ? WHERE account_id = ?`, gatewayID, ownerToken, accountID)
-	}
-	if mysqlErr, ok := err.(*mysql.MySQLError); ok && mysqlErr.Number == 1062 {
-		return false, nil
-	}
-	if err != nil {
-		return false, err
-	}
-	if err = tx.Commit(); err != nil {
-		return false, err
-	}
-	return true, nil
-}
-
-func (c CharactersMYSQL) HeartbeatGatewaySession(ctx context.Context, realmID uint32, gatewayID string, livenessSeconds uint32) error {
-	db := c.db.DBByRealm(realmID)
-	_, err := db.ExecContext(ctx, `INSERT INTO gateway_session_liveness (gateway_id, expires_at)
-		VALUES (?, NOW(6) + INTERVAL ? SECOND)
-		ON DUPLICATE KEY UPDATE expires_at = VALUES(expires_at)`, gatewayID, livenessSeconds)
-	if err != nil {
-		return err
-	}
-	_, err = db.ExecContext(ctx, `DELETE FROM gateway_session_liveness WHERE expires_at < NOW(6) - INTERVAL 1 DAY LIMIT 100`)
-	return err
-}
-
-func (c CharactersMYSQL) ReleaseAccountSession(ctx context.Context, realmID, accountID uint32, ownerToken string) (bool, error) {
-	result, err := c.db.DBByRealm(realmID).ExecContext(ctx, `DELETE FROM account_session_lock WHERE account_id = ? AND owner_token = ?`, accountID, ownerToken)
-	if err != nil {
-		return false, err
-	}
-	rows, err := result.RowsAffected()
-	return rows == 1, err
-}
 
 type CharactersPreparedStatements uint32
 

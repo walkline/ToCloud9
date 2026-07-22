@@ -33,8 +33,6 @@ spec:
           value: "8900"
         - name: PORT
           value: "{{ .Values.gateway.port }}"
-        - name: REDIS_URL
-          value: redis://{{ .Release.Name }}-redis-headless:6379/0
         - name: NATS_URL
           value: nats://{{ .Release.Name }}-nats:4222
         - name: SERVERS_REGISTRY_SERVICE_ADDRESS

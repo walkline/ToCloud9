@@ -9,7 +9,6 @@ import (
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/nats-io/nats.go"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-	redis "github.com/redis/go-redis/v9"
 	"github.com/rs/zerolog/log"
 	"google.golang.org/grpc"
 
@@ -90,22 +89,6 @@ func main() {
 	}()
 
 	root.RetrievedGatewayID = registerGateway(servRegistryClient, conf)
-	accountSessionGatewayID, err := service.NewGatewaySessionInstanceID()
-	if err != nil {
-		log.Fatal().Err(err).Msg("can't generate gateway account-session identity")
-	}
-	accountSessionLiveness := service.NewAccountSessionGatewayLiveness(
-		charClient, &log.Logger, accountSessionGatewayID, root.RealmID,
-		time.Duration(conf.GatewayLivenessTTLSeconds)*time.Second,
-	)
-	if err = accountSessionLiveness.Heartbeat(context.Background()); err != nil {
-		log.Fatal().Err(err).Msg("can't establish gateway account-session liveness")
-	}
-	go func() {
-		if livenessErr := accountSessionLiveness.Run(context.Background()); livenessErr != nil {
-			log.Fatal().Err(livenessErr).Msg("gateway account-session liveness became unsafe")
-		}
-	}()
 
 	nc, err := nats.Connect(
 		conf.NatsURL,
@@ -118,24 +101,6 @@ func main() {
 		log.Fatal().Err(err).Msg("can't connect to nats")
 	}
 	defer nc.Close()
-
-	redisOptions, err := redis.ParseURL(conf.RedisConnection)
-	if err != nil {
-		log.Fatal().Err(err).Msg("can't parse redis connection for session ownership")
-	}
-	redisClient := redis.NewClient(redisOptions)
-	defer redisClient.Close()
-	if err = redisClient.Ping(context.Background()).Err(); err != nil {
-		log.Fatal().Err(err).Msg("can't connect to redis for session ownership")
-	}
-	sessionOwnership := service.NewSessionOwnershipService(
-		redisClient, nc, &log.Logger, root.RetrievedGatewayID, root.RealmID,
-		time.Duration(conf.GatewayLivenessTTLSeconds)*time.Second,
-	)
-	defer sessionOwnership.Close()
-	if err = sessionOwnership.Listen(); err != nil {
-		log.Fatal().Err(err).Msg("can't listen for session eviction requests")
-	}
 
 	chatChannelsBroadcasterService := eventsBroadcaster.NewChatChannelsService()
 	broadcaster := eventsBroadcaster.NewBroadcaster(chatChannelsBroadcasterService)
@@ -214,8 +179,6 @@ func main() {
 			GameServerGRPCConnMgr:            gameserverconn.DefaultGameServerGRPCConnMgr,
 			PacketProcessTimeout:             time.Second * time.Duration(conf.PacketProcessTimeoutSecs),
 			ShowGameserverConnChangeToClient: conf.ShowGameserverConnChangeToClient,
-			SessionOwnership:                 sessionOwnership,
-			AccountSessionGatewayID:          accountSessionGatewayID,
 		})
 		go func() {
 			healthandmetrics.ActiveConnectionsMetrics.Inc()

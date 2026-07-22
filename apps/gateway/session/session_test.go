@@ -364,6 +364,7 @@ func TestGameSessionLogin(t *testing.T) {
 	)
 
 	charMock := &charMocks.CharactersServiceClient{}
+	charMock.On("AcquireCharacterLoginLock", mock.Anything, mock.Anything).Return(&pbChar.AcquireCharacterLoginLockResponse{Acquired: true}, nil)
 	charMock.On("CharactersToLoginByGUID", mock.Anything, mock.Anything).Return(&pbChar.CharactersToLoginByGUIDResponse{
 		Character: &pbChar.LogInCharacter{GUID: charID, Map: 1},
 	}, nil)

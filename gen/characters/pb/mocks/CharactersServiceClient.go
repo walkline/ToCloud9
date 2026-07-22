@@ -54,8 +54,8 @@ func (_m *CharactersServiceClient) AccountDataForAccount(ctx context.Context, in
 	return r0, r1
 }
 
-// AcquireAccountSession provides a mock function with given fields: ctx, in, opts
-func (_m *CharactersServiceClient) AcquireAccountSession(ctx context.Context, in *pb.AcquireAccountSessionRequest, opts ...grpc.CallOption) (*pb.AcquireAccountSessionResponse, error) {
+// AcquireCharacterLoginLock provides a mock function with given fields: ctx, in, opts
+func (_m *CharactersServiceClient) AcquireCharacterLoginLock(ctx context.Context, in *pb.AcquireCharacterLoginLockRequest, opts ...grpc.CallOption) (*pb.AcquireCharacterLoginLockResponse, error) {
 	_va := make([]interface{}, len(opts))
 	for _i := range opts {
 		_va[_i] = opts[_i]
@@ -66,23 +66,23 @@ func (_m *CharactersServiceClient) AcquireAccountSession(ctx context.Context, in
 	ret := _m.Called(_ca...)
 
 	if len(ret) == 0 {
-		panic("no return value specified for AcquireAccountSession")
+		panic("no return value specified for AcquireCharacterLoginLock")
 	}
 
-	var r0 *pb.AcquireAccountSessionResponse
+	var r0 *pb.AcquireCharacterLoginLockResponse
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, *pb.AcquireAccountSessionRequest, ...grpc.CallOption) (*pb.AcquireAccountSessionResponse, error)); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, *pb.AcquireCharacterLoginLockRequest, ...grpc.CallOption) (*pb.AcquireCharacterLoginLockResponse, error)); ok {
 		return rf(ctx, in, opts...)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, *pb.AcquireAccountSessionRequest, ...grpc.CallOption) *pb.AcquireAccountSessionResponse); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, *pb.AcquireCharacterLoginLockRequest, ...grpc.CallOption) *pb.AcquireCharacterLoginLockResponse); ok {
 		r0 = rf(ctx, in, opts...)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*pb.AcquireAccountSessionResponse)
+			r0 = ret.Get(0).(*pb.AcquireCharacterLoginLockResponse)
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, *pb.AcquireAccountSessionRequest, ...grpc.CallOption) error); ok {
+	if rf, ok := ret.Get(1).(func(context.Context, *pb.AcquireCharacterLoginLockRequest, ...grpc.CallOption) error); ok {
 		r1 = rf(ctx, in, opts...)
 	} else {
 		r1 = ret.Error(1)
@@ -387,43 +387,6 @@ func (_m *CharactersServiceClient) GetOnlineCharacters(ctx context.Context, in *
 	return r0, r1
 }
 
-// HeartbeatGatewaySession provides a mock function with given fields: ctx, in, opts
-func (_m *CharactersServiceClient) HeartbeatGatewaySession(ctx context.Context, in *pb.HeartbeatGatewaySessionRequest, opts ...grpc.CallOption) (*pb.HeartbeatGatewaySessionResponse, error) {
-	_va := make([]interface{}, len(opts))
-	for _i := range opts {
-		_va[_i] = opts[_i]
-	}
-	var _ca []interface{}
-	_ca = append(_ca, ctx, in)
-	_ca = append(_ca, _va...)
-	ret := _m.Called(_ca...)
-
-	if len(ret) == 0 {
-		panic("no return value specified for HeartbeatGatewaySession")
-	}
-
-	var r0 *pb.HeartbeatGatewaySessionResponse
-	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, *pb.HeartbeatGatewaySessionRequest, ...grpc.CallOption) (*pb.HeartbeatGatewaySessionResponse, error)); ok {
-		return rf(ctx, in, opts...)
-	}
-	if rf, ok := ret.Get(0).(func(context.Context, *pb.HeartbeatGatewaySessionRequest, ...grpc.CallOption) *pb.HeartbeatGatewaySessionResponse); ok {
-		r0 = rf(ctx, in, opts...)
-	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*pb.HeartbeatGatewaySessionResponse)
-		}
-	}
-
-	if rf, ok := ret.Get(1).(func(context.Context, *pb.HeartbeatGatewaySessionRequest, ...grpc.CallOption) error); ok {
-		r1 = rf(ctx, in, opts...)
-	} else {
-		r1 = ret.Error(1)
-	}
-
-	return r0, r1
-}
-
 // NotifyStatusChange provides a mock function with given fields: ctx, in, opts
 func (_m *CharactersServiceClient) NotifyStatusChange(ctx context.Context, in *pb.NotifyStatusChangeRequest, opts ...grpc.CallOption) (*pb.NotifyStatusChangeResponse, error) {
 	_va := make([]interface{}, len(opts))
@@ -453,43 +416,6 @@ func (_m *CharactersServiceClient) NotifyStatusChange(ctx context.Context, in *p
 	}
 
 	if rf, ok := ret.Get(1).(func(context.Context, *pb.NotifyStatusChangeRequest, ...grpc.CallOption) error); ok {
-		r1 = rf(ctx, in, opts...)
-	} else {
-		r1 = ret.Error(1)
-	}
-
-	return r0, r1
-}
-
-// ReleaseAccountSession provides a mock function with given fields: ctx, in, opts
-func (_m *CharactersServiceClient) ReleaseAccountSession(ctx context.Context, in *pb.ReleaseAccountSessionRequest, opts ...grpc.CallOption) (*pb.ReleaseAccountSessionResponse, error) {
-	_va := make([]interface{}, len(opts))
-	for _i := range opts {
-		_va[_i] = opts[_i]
-	}
-	var _ca []interface{}
-	_ca = append(_ca, ctx, in)
-	_ca = append(_ca, _va...)
-	ret := _m.Called(_ca...)
-
-	if len(ret) == 0 {
-		panic("no return value specified for ReleaseAccountSession")
-	}
-
-	var r0 *pb.ReleaseAccountSessionResponse
-	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, *pb.ReleaseAccountSessionRequest, ...grpc.CallOption) (*pb.ReleaseAccountSessionResponse, error)); ok {
-		return rf(ctx, in, opts...)
-	}
-	if rf, ok := ret.Get(0).(func(context.Context, *pb.ReleaseAccountSessionRequest, ...grpc.CallOption) *pb.ReleaseAccountSessionResponse); ok {
-		r0 = rf(ctx, in, opts...)
-	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*pb.ReleaseAccountSessionResponse)
-		}
-	}
-
-	if rf, ok := ret.Get(1).(func(context.Context, *pb.ReleaseAccountSessionRequest, ...grpc.CallOption) error); ok {
 		r1 = rf(ctx, in, opts...)
 	} else {
 		r1 = ret.Error(1)

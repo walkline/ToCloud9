@@ -6,31 +6,22 @@ import (
 	"crypto/rand"
 	"crypto/sha1"
 	"encoding/binary"
-	"encoding/hex"
 	"fmt"
 	"net"
-	"time"
 
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 
-	root "github.com/walkline/ToCloud9/apps/gateway"
 	"github.com/walkline/ToCloud9/apps/gateway/crypto"
 	"github.com/walkline/ToCloud9/apps/gateway/packet"
 	"github.com/walkline/ToCloud9/apps/gateway/repo"
 	"github.com/walkline/ToCloud9/apps/gateway/session"
 	"github.com/walkline/ToCloud9/apps/gateway/sockets"
-	pbChar "github.com/walkline/ToCloud9/gen/characters/pb"
 	"github.com/walkline/ToCloud9/shared/slices"
 )
 
 // useEncryption used to disable encryption during testing
 var useEncryption = true
-
-const (
-	authResultAlreadyOnline uint8 = 0x1D
-	authResultUnavailable   uint8 = 0x10
-)
 
 // GameSocket socket between game client and gateway
 type GameSocket struct {
@@ -50,10 +41,8 @@ type GameSocket struct {
 	sessionParams session.GameSessionParams
 	session       *session.GameSession
 
-	authSeed               []byte
-	accountID              uint32
-	accountSessionToken    string
-	accountSessionAcquired bool
+	authSeed  []byte
+	accountID uint32
 }
 
 func NewGameSocket(
@@ -100,19 +89,6 @@ func (s *GameSocket) Handshake() error {
 func (s *GameSocket) ListenAndProcess(ctx context.Context) error {
 	newCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	defer func() {
-		if !s.accountSessionAcquired {
-			return
-		}
-		releaseCtx, releaseCancel := context.WithTimeout(context.Background(), 2*time.Second)
-		defer releaseCancel()
-		_, err := s.sessionParams.CharServiceClient.ReleaseAccountSession(releaseCtx, &pbChar.ReleaseAccountSessionRequest{
-			RealmID: root.RealmID, AccountID: s.accountID, OwnerToken: s.accountSessionToken,
-		})
-		if err != nil {
-			s.logger.Warn().Err(err).Msg("can't release account session")
-		}
-	}()
 
 	s.ctx = newCtx
 
@@ -248,34 +224,6 @@ func (s *GameSocket) AuthSession(p *packet.Packet) error {
 	}
 
 	s.packetsReader.EnableEncryption(s.encryption)
-	var tokenBytes [16]byte
-	if _, err := rand.Read(tokenBytes[:]); err != nil {
-		return fmt.Errorf("generate account session token: %w", err)
-	}
-	s.accountSessionToken = hex.EncodeToString(tokenBytes[:])
-	acquireCtx, acquireCancel := context.WithTimeout(s.ctx, 3*time.Second)
-	acquired, err := s.sessionParams.CharServiceClient.AcquireAccountSession(acquireCtx, &pbChar.AcquireAccountSessionRequest{
-		RealmID:    root.RealmID,
-		AccountID:  s.accountID,
-		OwnerToken: s.accountSessionToken,
-		GatewayID:  s.sessionParams.AccountSessionGatewayID,
-	})
-	acquireCancel()
-	if err != nil || !acquired.Acquired {
-		result := authResultAlreadyOnline
-		if err != nil {
-			result = authResultUnavailable
-			s.logger.Error().Err(err).Msg("can't acquire account session")
-		}
-		resp := packet.NewWriterWithSize(packet.SMsgAuthResponse, 1)
-		resp.Uint8(result)
-		if sendErr := s.sendOriginalPacket(&packet.Packet{Opcode: resp.Opcode, Size: uint32(resp.Payload.Len()), Data: resp.Payload.Bytes()}); sendErr != nil {
-			return fmt.Errorf("send authentication rejection: %w", sendErr)
-		}
-		s.Close()
-		return nil
-	}
-	s.accountSessionAcquired = true
 
 	resp := packet.NewWriterWithSize(packet.SMsgAuthResponse, 1+4+1+4+1)
 	resp.Uint8(12)

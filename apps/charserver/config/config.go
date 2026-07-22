@@ -11,6 +11,9 @@ type Config struct {
 	// Port is port that would be used to serve grpc server
 	Port string `yaml:"port" env:"PORT" env-default:"8991"`
 
+	// AuthDBConnection is used for cluster-wide character login locks.
+	AuthDBConnection string `yaml:"authDB" env:"AUTH_DB_CONNECTION" env-default:"trinity:trinity@tcp(127.0.0.1:3306)/auth"`
+
 	// CharDBConnection is connection string to the characters database
 	CharDBConnection map[uint32]string `yaml:"charactersDB" env:"CHAR_DB_CONNECTION" env-separator:";" env-default:"1:trinity:trinity@tcp(127.0.0.1:3306)/characters"`
 
