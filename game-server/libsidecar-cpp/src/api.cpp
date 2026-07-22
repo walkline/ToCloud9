@@ -108,7 +108,11 @@ TC9_API void TC9InitLib(
             config.matchmaking_address()
         );
 
-        g_state.realm_id = realmID;
+        // In cross-realm mode this server hosts several realms and player GUIDs
+        // carry their true realm ID, so there is no single realm to pin.
+        if (isCrossRealm == 0) {
+            g_state.realm_id = realmID;
+        }
 
         // Start NATS consumer
         g_state.nats_consumer->SetEventQueue(g_state.event_queue.get());
