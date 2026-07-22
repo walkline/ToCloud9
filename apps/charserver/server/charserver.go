@@ -37,19 +37,21 @@ func NewCharServer(repo repo.Characters, onlineChars repo.CharactersOnline, whoH
 }
 
 func (c *CharServer) AcquireAccountSession(ctx context.Context, request *pb.AcquireAccountSessionRequest) (*pb.AcquireAccountSessionResponse, error) {
-	if err := validateAccountSessionRequest(request.AccountID, request.OwnerToken, request.LeaseSeconds); err != nil {
-		return nil, err
+	if request.AccountID == 0 || len(request.OwnerToken) != 32 || len(request.GatewayID) == 0 || len(request.GatewayID) > 64 {
+		return nil, status.Error(codes.InvalidArgument, "invalid account session owner")
 	}
-	acquired, err := c.repo.AcquireAccountSession(ctx, request.RealmID, request.AccountID, request.OwnerToken, request.LeaseSeconds)
+	acquired, err := c.repo.AcquireAccountSession(ctx, request.RealmID, request.AccountID, request.GatewayID, request.OwnerToken)
 	return &pb.AcquireAccountSessionResponse{Acquired: acquired}, err
 }
 
-func (c *CharServer) RenewAccountSession(ctx context.Context, request *pb.RenewAccountSessionRequest) (*pb.RenewAccountSessionResponse, error) {
-	if err := validateAccountSessionRequest(request.AccountID, request.OwnerToken, request.LeaseSeconds); err != nil {
+func (c *CharServer) HeartbeatGatewaySession(ctx context.Context, request *pb.HeartbeatGatewaySessionRequest) (*pb.HeartbeatGatewaySessionResponse, error) {
+	if len(request.GatewayID) == 0 || len(request.GatewayID) > 64 || request.LivenessSeconds < 10 || request.LivenessSeconds > 300 {
+		return nil, status.Error(codes.InvalidArgument, "invalid gateway session liveness")
+	}
+	if err := c.repo.HeartbeatGatewaySession(ctx, request.RealmID, request.GatewayID, request.LivenessSeconds); err != nil {
 		return nil, err
 	}
-	renewed, err := c.repo.RenewAccountSession(ctx, request.RealmID, request.AccountID, request.OwnerToken, request.LeaseSeconds)
-	return &pb.RenewAccountSessionResponse{Renewed: renewed}, err
+	return &pb.HeartbeatGatewaySessionResponse{}, nil
 }
 
 func (c *CharServer) ReleaseAccountSession(ctx context.Context, request *pb.ReleaseAccountSessionRequest) (*pb.ReleaseAccountSessionResponse, error) {
@@ -58,13 +60,6 @@ func (c *CharServer) ReleaseAccountSession(ctx context.Context, request *pb.Rele
 	}
 	released, err := c.repo.ReleaseAccountSession(ctx, request.RealmID, request.AccountID, request.OwnerToken)
 	return &pb.ReleaseAccountSessionResponse{Released: released}, err
-}
-
-func validateAccountSessionRequest(accountID uint32, ownerToken string, leaseSeconds uint32) error {
-	if accountID == 0 || len(ownerToken) != 32 || leaseSeconds < 5 || leaseSeconds > 300 {
-		return status.Error(codes.InvalidArgument, "invalid account session lease")
-	}
-	return nil
 }
 
 func (c *CharServer) CharactersToLoginForAccount(ctx context.Context, request *pb.CharactersToLoginForAccountRequest) (*pb.CharactersToLoginForAccountResponse, error) {

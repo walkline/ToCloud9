@@ -387,6 +387,43 @@ func (_m *CharactersServiceClient) GetOnlineCharacters(ctx context.Context, in *
 	return r0, r1
 }
 
+// HeartbeatGatewaySession provides a mock function with given fields: ctx, in, opts
+func (_m *CharactersServiceClient) HeartbeatGatewaySession(ctx context.Context, in *pb.HeartbeatGatewaySessionRequest, opts ...grpc.CallOption) (*pb.HeartbeatGatewaySessionResponse, error) {
+	_va := make([]interface{}, len(opts))
+	for _i := range opts {
+		_va[_i] = opts[_i]
+	}
+	var _ca []interface{}
+	_ca = append(_ca, ctx, in)
+	_ca = append(_ca, _va...)
+	ret := _m.Called(_ca...)
+
+	if len(ret) == 0 {
+		panic("no return value specified for HeartbeatGatewaySession")
+	}
+
+	var r0 *pb.HeartbeatGatewaySessionResponse
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, *pb.HeartbeatGatewaySessionRequest, ...grpc.CallOption) (*pb.HeartbeatGatewaySessionResponse, error)); ok {
+		return rf(ctx, in, opts...)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, *pb.HeartbeatGatewaySessionRequest, ...grpc.CallOption) *pb.HeartbeatGatewaySessionResponse); ok {
+		r0 = rf(ctx, in, opts...)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*pb.HeartbeatGatewaySessionResponse)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, *pb.HeartbeatGatewaySessionRequest, ...grpc.CallOption) error); ok {
+		r1 = rf(ctx, in, opts...)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
 // NotifyStatusChange provides a mock function with given fields: ctx, in, opts
 func (_m *CharactersServiceClient) NotifyStatusChange(ctx context.Context, in *pb.NotifyStatusChangeRequest, opts ...grpc.CallOption) (*pb.NotifyStatusChangeResponse, error) {
 	_va := make([]interface{}, len(opts))
@@ -527,43 +564,6 @@ func (_m *CharactersServiceClient) RemoveIgnore(ctx context.Context, in *pb.Remo
 	}
 
 	if rf, ok := ret.Get(1).(func(context.Context, *pb.RemoveIgnoreRequest, ...grpc.CallOption) error); ok {
-		r1 = rf(ctx, in, opts...)
-	} else {
-		r1 = ret.Error(1)
-	}
-
-	return r0, r1
-}
-
-// RenewAccountSession provides a mock function with given fields: ctx, in, opts
-func (_m *CharactersServiceClient) RenewAccountSession(ctx context.Context, in *pb.RenewAccountSessionRequest, opts ...grpc.CallOption) (*pb.RenewAccountSessionResponse, error) {
-	_va := make([]interface{}, len(opts))
-	for _i := range opts {
-		_va[_i] = opts[_i]
-	}
-	var _ca []interface{}
-	_ca = append(_ca, ctx, in)
-	_ca = append(_ca, _va...)
-	ret := _m.Called(_ca...)
-
-	if len(ret) == 0 {
-		panic("no return value specified for RenewAccountSession")
-	}
-
-	var r0 *pb.RenewAccountSessionResponse
-	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, *pb.RenewAccountSessionRequest, ...grpc.CallOption) (*pb.RenewAccountSessionResponse, error)); ok {
-		return rf(ctx, in, opts...)
-	}
-	if rf, ok := ret.Get(0).(func(context.Context, *pb.RenewAccountSessionRequest, ...grpc.CallOption) *pb.RenewAccountSessionResponse); ok {
-		r0 = rf(ctx, in, opts...)
-	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*pb.RenewAccountSessionResponse)
-		}
-	}
-
-	if rf, ok := ret.Get(1).(func(context.Context, *pb.RenewAccountSessionRequest, ...grpc.CallOption) error); ok {
 		r1 = rf(ctx, in, opts...)
 	} else {
 		r1 = ret.Error(1)

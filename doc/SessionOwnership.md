@@ -9,23 +9,25 @@ The gateway also passes the authenticated account ID when resolving the
 selected character. The character service returns the character only when it
 belongs to that account.
 
-## Durable account lease
+## Durable account ownership
 
 The characters database stores one account lease per realm database. Its
 primary key makes simultaneous claims from any number of gateway or character
-service replicas mutually exclusive. Each lease contains a cryptographically
-random owner token and an expiry time.
+service replicas mutually exclusive. Each account row contains the owning
+gateway ID and a cryptographically random session token.
 
-Gateways renew their leases every 10 seconds. A graceful disconnect deletes a
-lease only when its owner token still matches. If a gateway crashes, its lease
-expires after 30 seconds and a replacement login can claim it. Token-fenced
-renewal and release prevent cleanup from an old connection from changing a
-newer's lease.
+The database also stores one expiring liveness row per gateway. A gateway
+refreshes that single row regardless of its player count. A graceful disconnect
+deletes an account row only when its session token still matches. If a gateway
+crashes, all account rows referencing it become reclaimable after its liveness
+expires. Token-fenced release prevents cleanup from an old connection from
+changing a newer owner's row.
 
 The migration is:
 
 ```text
 sql/characters/mysql/000005_create_account_session_locks.up.sql
+sql/characters/mysql/000006_use_gateway_session_liveness.up.sql
 ```
 
 ## Character ownership
@@ -40,10 +42,17 @@ character. Account admission does not use Redis and does not perform takeover.
   in RAM.
 - Character-service failover is safe because account admission is serialized
   by the shared characters database.
-- A gateway crash leaves only a bounded 30-second lease.
+- A gateway crash leaves only a bounded gateway-liveness interval before its
+  account rows can be reclaimed.
 - Database errors fail new authentication closed with `AUTH_UNAVAILABLE`.
-- A renewal error does not immediately disconnect an established player. If
-  the lease is later found to belong to another token, that gateway closes its
-  stale connection.
+- If a gateway cannot refresh liveness before it would expire, it terminates
+  itself. This prevents its existing sessions from overlapping with accounts
+  reclaimed by another gateway.
 - Redis or NATS failure affects character fencing/recovery, not the account
   admission decision.
+
+Steady-state database writes are one heartbeat and bounded stale-heartbeat
+cleanup per gateway every one-third of `gatewayLivenessTTLSeconds`. Account
+rows are written only at login, logout, and dead-gateway reclamation. Database
+load therefore follows gateway count and session transitions, not connected
+player count.

@@ -28,10 +28,8 @@ import (
 var useEncryption = true
 
 const (
-	authResultAlreadyOnline     uint8 = 0x1D
-	authResultUnavailable       uint8 = 0x10
-	accountSessionLeaseSeconds        = 30
-	accountSessionRenewInterval       = 10 * time.Second
+	authResultAlreadyOnline uint8 = 0x1D
+	authResultUnavailable   uint8 = 0x10
 )
 
 // GameSocket socket between game client and gateway
@@ -257,10 +255,10 @@ func (s *GameSocket) AuthSession(p *packet.Packet) error {
 	s.accountSessionToken = hex.EncodeToString(tokenBytes[:])
 	acquireCtx, acquireCancel := context.WithTimeout(s.ctx, 3*time.Second)
 	acquired, err := s.sessionParams.CharServiceClient.AcquireAccountSession(acquireCtx, &pbChar.AcquireAccountSessionRequest{
-		RealmID:      root.RealmID,
-		AccountID:    s.accountID,
-		OwnerToken:   s.accountSessionToken,
-		LeaseSeconds: accountSessionLeaseSeconds,
+		RealmID:    root.RealmID,
+		AccountID:  s.accountID,
+		OwnerToken: s.accountSessionToken,
+		GatewayID:  s.sessionParams.AccountSessionGatewayID,
 	})
 	acquireCancel()
 	if err != nil || !acquired.Acquired {
@@ -278,7 +276,6 @@ func (s *GameSocket) AuthSession(p *packet.Packet) error {
 		return nil
 	}
 	s.accountSessionAcquired = true
-	go s.renewAccountSession()
 
 	resp := packet.NewWriterWithSize(packet.SMsgAuthResponse, 1+4+1+4+1)
 	resp.Uint8(12)
@@ -303,35 +300,6 @@ func (s *GameSocket) AuthSession(p *packet.Packet) error {
 	go s.session.HandlePackets(s.ctx)
 
 	return nil
-}
-
-func (s *GameSocket) renewAccountSession() {
-	ticker := time.NewTicker(accountSessionRenewInterval)
-	defer ticker.Stop()
-	for {
-		select {
-		case <-s.ctx.Done():
-			return
-		case <-ticker.C:
-			ctx, cancel := context.WithTimeout(s.ctx, 3*time.Second)
-			response, err := s.sessionParams.CharServiceClient.RenewAccountSession(ctx, &pbChar.RenewAccountSessionRequest{
-				RealmID:      root.RealmID,
-				AccountID:    s.accountID,
-				OwnerToken:   s.accountSessionToken,
-				LeaseSeconds: accountSessionLeaseSeconds,
-			})
-			cancel()
-			if err != nil {
-				s.logger.Warn().Err(err).Msg("can't renew account session")
-				continue
-			}
-			if !response.Renewed {
-				s.logger.Warn().Msg("account session ownership was lost")
-				s.Close()
-				return
-			}
-		}
-	}
 }
 
 func (s *GameSocket) Address() string {

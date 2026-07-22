@@ -90,6 +90,22 @@ func main() {
 	}()
 
 	root.RetrievedGatewayID = registerGateway(servRegistryClient, conf)
+	accountSessionGatewayID, err := service.NewGatewaySessionInstanceID()
+	if err != nil {
+		log.Fatal().Err(err).Msg("can't generate gateway account-session identity")
+	}
+	accountSessionLiveness := service.NewAccountSessionGatewayLiveness(
+		charClient, &log.Logger, accountSessionGatewayID, root.RealmID,
+		time.Duration(conf.GatewayLivenessTTLSeconds)*time.Second,
+	)
+	if err = accountSessionLiveness.Heartbeat(context.Background()); err != nil {
+		log.Fatal().Err(err).Msg("can't establish gateway account-session liveness")
+	}
+	go func() {
+		if livenessErr := accountSessionLiveness.Run(context.Background()); livenessErr != nil {
+			log.Fatal().Err(livenessErr).Msg("gateway account-session liveness became unsafe")
+		}
+	}()
 
 	nc, err := nats.Connect(
 		conf.NatsURL,
@@ -199,6 +215,7 @@ func main() {
 			PacketProcessTimeout:             time.Second * time.Duration(conf.PacketProcessTimeoutSecs),
 			ShowGameserverConnChangeToClient: conf.ShowGameserverConnChangeToClient,
 			SessionOwnership:                 sessionOwnership,
+			AccountSessionGatewayID:          accountSessionGatewayID,
 		})
 		go func() {
 			healthandmetrics.ActiveConnectionsMetrics.Inc()

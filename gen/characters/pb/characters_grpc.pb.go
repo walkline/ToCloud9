@@ -20,8 +20,8 @@ const _ = grpc.SupportPackageIsVersion7
 
 const (
 	CharactersService_AcquireAccountSession_FullMethodName            = "/v1.CharactersService/AcquireAccountSession"
-	CharactersService_RenewAccountSession_FullMethodName              = "/v1.CharactersService/RenewAccountSession"
 	CharactersService_ReleaseAccountSession_FullMethodName            = "/v1.CharactersService/ReleaseAccountSession"
+	CharactersService_HeartbeatGatewaySession_FullMethodName          = "/v1.CharactersService/HeartbeatGatewaySession"
 	CharactersService_CharactersToLoginForAccount_FullMethodName      = "/v1.CharactersService/CharactersToLoginForAccount"
 	CharactersService_CharactersToLoginByGUID_FullMethodName          = "/v1.CharactersService/CharactersToLoginByGUID"
 	CharactersService_AccountDataForAccount_FullMethodName            = "/v1.CharactersService/AccountDataForAccount"
@@ -45,8 +45,8 @@ const (
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type CharactersServiceClient interface {
 	AcquireAccountSession(ctx context.Context, in *AcquireAccountSessionRequest, opts ...grpc.CallOption) (*AcquireAccountSessionResponse, error)
-	RenewAccountSession(ctx context.Context, in *RenewAccountSessionRequest, opts ...grpc.CallOption) (*RenewAccountSessionResponse, error)
 	ReleaseAccountSession(ctx context.Context, in *ReleaseAccountSessionRequest, opts ...grpc.CallOption) (*ReleaseAccountSessionResponse, error)
+	HeartbeatGatewaySession(ctx context.Context, in *HeartbeatGatewaySessionRequest, opts ...grpc.CallOption) (*HeartbeatGatewaySessionResponse, error)
 	CharactersToLoginForAccount(ctx context.Context, in *CharactersToLoginForAccountRequest, opts ...grpc.CallOption) (*CharactersToLoginForAccountResponse, error)
 	CharactersToLoginByGUID(ctx context.Context, in *CharactersToLoginByGUIDRequest, opts ...grpc.CallOption) (*CharactersToLoginByGUIDResponse, error)
 	AccountDataForAccount(ctx context.Context, in *AccountDataForAccountRequest, opts ...grpc.CallOption) (*AccountDataForAccountResponse, error)
@@ -85,18 +85,18 @@ func (c *charactersServiceClient) AcquireAccountSession(ctx context.Context, in 
 	return out, nil
 }
 
-func (c *charactersServiceClient) RenewAccountSession(ctx context.Context, in *RenewAccountSessionRequest, opts ...grpc.CallOption) (*RenewAccountSessionResponse, error) {
-	out := new(RenewAccountSessionResponse)
-	err := c.cc.Invoke(ctx, CharactersService_RenewAccountSession_FullMethodName, in, out, opts...)
+func (c *charactersServiceClient) ReleaseAccountSession(ctx context.Context, in *ReleaseAccountSessionRequest, opts ...grpc.CallOption) (*ReleaseAccountSessionResponse, error) {
+	out := new(ReleaseAccountSessionResponse)
+	err := c.cc.Invoke(ctx, CharactersService_ReleaseAccountSession_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *charactersServiceClient) ReleaseAccountSession(ctx context.Context, in *ReleaseAccountSessionRequest, opts ...grpc.CallOption) (*ReleaseAccountSessionResponse, error) {
-	out := new(ReleaseAccountSessionResponse)
-	err := c.cc.Invoke(ctx, CharactersService_ReleaseAccountSession_FullMethodName, in, out, opts...)
+func (c *charactersServiceClient) HeartbeatGatewaySession(ctx context.Context, in *HeartbeatGatewaySessionRequest, opts ...grpc.CallOption) (*HeartbeatGatewaySessionResponse, error) {
+	out := new(HeartbeatGatewaySessionResponse)
+	err := c.cc.Invoke(ctx, CharactersService_HeartbeatGatewaySession_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -252,8 +252,8 @@ func (c *charactersServiceClient) GetOnlineCharacters(ctx context.Context, in *G
 // for forward compatibility
 type CharactersServiceServer interface {
 	AcquireAccountSession(context.Context, *AcquireAccountSessionRequest) (*AcquireAccountSessionResponse, error)
-	RenewAccountSession(context.Context, *RenewAccountSessionRequest) (*RenewAccountSessionResponse, error)
 	ReleaseAccountSession(context.Context, *ReleaseAccountSessionRequest) (*ReleaseAccountSessionResponse, error)
+	HeartbeatGatewaySession(context.Context, *HeartbeatGatewaySessionRequest) (*HeartbeatGatewaySessionResponse, error)
 	CharactersToLoginForAccount(context.Context, *CharactersToLoginForAccountRequest) (*CharactersToLoginForAccountResponse, error)
 	CharactersToLoginByGUID(context.Context, *CharactersToLoginByGUIDRequest) (*CharactersToLoginByGUIDResponse, error)
 	AccountDataForAccount(context.Context, *AccountDataForAccountRequest) (*AccountDataForAccountResponse, error)
@@ -283,11 +283,11 @@ type UnimplementedCharactersServiceServer struct {
 func (UnimplementedCharactersServiceServer) AcquireAccountSession(context.Context, *AcquireAccountSessionRequest) (*AcquireAccountSessionResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method AcquireAccountSession not implemented")
 }
-func (UnimplementedCharactersServiceServer) RenewAccountSession(context.Context, *RenewAccountSessionRequest) (*RenewAccountSessionResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method RenewAccountSession not implemented")
-}
 func (UnimplementedCharactersServiceServer) ReleaseAccountSession(context.Context, *ReleaseAccountSessionRequest) (*ReleaseAccountSessionResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ReleaseAccountSession not implemented")
+}
+func (UnimplementedCharactersServiceServer) HeartbeatGatewaySession(context.Context, *HeartbeatGatewaySessionRequest) (*HeartbeatGatewaySessionResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method HeartbeatGatewaySession not implemented")
 }
 func (UnimplementedCharactersServiceServer) CharactersToLoginForAccount(context.Context, *CharactersToLoginForAccountRequest) (*CharactersToLoginForAccountResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CharactersToLoginForAccount not implemented")
@@ -368,24 +368,6 @@ func _CharactersService_AcquireAccountSession_Handler(srv interface{}, ctx conte
 	return interceptor(ctx, in, info, handler)
 }
 
-func _CharactersService_RenewAccountSession_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(RenewAccountSessionRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(CharactersServiceServer).RenewAccountSession(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: CharactersService_RenewAccountSession_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(CharactersServiceServer).RenewAccountSession(ctx, req.(*RenewAccountSessionRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
 func _CharactersService_ReleaseAccountSession_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ReleaseAccountSessionRequest)
 	if err := dec(in); err != nil {
@@ -400,6 +382,24 @@ func _CharactersService_ReleaseAccountSession_Handler(srv interface{}, ctx conte
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(CharactersServiceServer).ReleaseAccountSession(ctx, req.(*ReleaseAccountSessionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _CharactersService_HeartbeatGatewaySession_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(HeartbeatGatewaySessionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CharactersServiceServer).HeartbeatGatewaySession(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: CharactersService_HeartbeatGatewaySession_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CharactersServiceServer).HeartbeatGatewaySession(ctx, req.(*HeartbeatGatewaySessionRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -704,12 +704,12 @@ var CharactersService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _CharactersService_AcquireAccountSession_Handler,
 		},
 		{
-			MethodName: "RenewAccountSession",
-			Handler:    _CharactersService_RenewAccountSession_Handler,
-		},
-		{
 			MethodName: "ReleaseAccountSession",
 			Handler:    _CharactersService_ReleaseAccountSession_Handler,
+		},
+		{
+			MethodName: "HeartbeatGatewaySession",
+			Handler:    _CharactersService_HeartbeatGatewaySession_Handler,
 		},
 		{
 			MethodName: "CharactersToLoginForAccount",

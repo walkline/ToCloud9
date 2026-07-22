@@ -120,6 +120,7 @@ type GameSessionParams struct {
 	PacketProcessTimeout             time.Duration
 	ShowGameserverConnChangeToClient bool
 	SessionOwnership                 SessionOwnership
+	AccountSessionGatewayID          string
 }
 
 func NewGameSession(
