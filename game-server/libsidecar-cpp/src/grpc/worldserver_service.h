@@ -13,10 +13,12 @@ namespace tc9 {
 // C++ bindings struct to hold C callback pointers
 struct CppBindings {
     TC9GetPlayerItemsByGuidsHandler get_player_items = nullptr;
+    TC9GetPlayerItemByPosHandler get_player_item_by_pos = nullptr;
     TC9RemoveItemsWithGuidsFromPlayerHandler remove_items = nullptr;
     TC9AddExistingItemToPlayerHandler add_item = nullptr;
     TC9GetMoneyForPlayerHandler get_money = nullptr;
     TC9ModifyMoneyForPlayerHandler modify_money = nullptr;
+    TC9SetPlayerGuildFieldsHandler set_player_guild_fields = nullptr;
     TC9CanPlayerInteractWithNPCHandler interact_npc = nullptr;
     TC9CanPlayerInteractWithGOHandler interact_go = nullptr;
     TC9StartBattlegroundHandler start_bg = nullptr;
@@ -41,6 +43,11 @@ public:
         const v1::GetPlayerItemsByGuidsRequest* request,
         v1::GetPlayerItemsByGuidsResponse* response) override;
 
+    grpc::Status GetPlayerItemByPos(
+        grpc::ServerContext* context,
+        const v1::GetPlayerItemByPosRequest* request,
+        v1::GetPlayerItemByPosResponse* response) override;
+
     grpc::Status RemoveItemsWithGuidsFromPlayer(
         grpc::ServerContext* context,
         const v1::RemoveItemsWithGuidsFromPlayerRequest* request,
@@ -61,6 +68,11 @@ public:
         grpc::ServerContext* context,
         const v1::ModifyMoneyForPlayerRequest* request,
         v1::ModifyMoneyForPlayerResponse* response) override;
+
+    grpc::Status SetPlayerGuildFields(
+        grpc::ServerContext* context,
+        const v1::SetPlayerGuildFieldsRequest* request,
+        v1::SetPlayerGuildFieldsResponse* response) override;
 
     // Interactions
     grpc::Status CanPlayerInteractWithNPC(
