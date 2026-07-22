@@ -60,6 +60,9 @@ type FriendEntry struct {
 }
 
 type Characters interface {
+	AcquireAccountSession(ctx context.Context, realmID, accountID uint32, ownerToken string, leaseSeconds uint32) (bool, error)
+	RenewAccountSession(ctx context.Context, realmID, accountID uint32, ownerToken string, leaseSeconds uint32) (bool, error)
+	ReleaseAccountSession(ctx context.Context, realmID, accountID uint32, ownerToken string) (bool, error)
 	ListCharactersToLogIn(ctx context.Context, realmID, accountID uint32) ([]LogInCharacter, error)
 	CharacterToLogInByGUID(ctx context.Context, realmID uint32, charGUID uint64) (*LogInCharacter, error)
 	CharacterByName(ctx context.Context, realmID uint32, name string) (*Character, error)

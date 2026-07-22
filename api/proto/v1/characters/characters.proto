@@ -5,6 +5,10 @@ option go_package = "gen/characters/pb";
 
 // Service to manage characters
 service CharactersService {
+  rpc AcquireAccountSession(AcquireAccountSessionRequest) returns (AcquireAccountSessionResponse);
+  rpc RenewAccountSession(RenewAccountSessionRequest) returns (RenewAccountSessionResponse);
+  rpc ReleaseAccountSession(ReleaseAccountSessionRequest) returns (ReleaseAccountSessionResponse);
+
   rpc CharactersToLoginForAccount(CharactersToLoginForAccountRequest) returns (CharactersToLoginForAccountResponse);
   rpc CharactersToLoginByGUID(CharactersToLoginByGUIDRequest) returns (CharactersToLoginByGUIDResponse);
 
@@ -88,6 +92,9 @@ message CharactersToLoginByGUIDRequest{
 
   uint64 characterGUID = 2;
   uint32 realmID = 3;
+  // When non-zero, only return a character owned by this account. Character
+  // login always sets it; read-only cross-character lookups may omit it.
+  uint32 accountID = 4;
 }
 
 // Response that contains character to login
@@ -370,3 +377,29 @@ message GetOnlineCharactersResponse {
   repeated uint64 characterGUIDs = 2;
   uint32 totalCount = 3;
 }
+
+message AcquireAccountSessionRequest {
+  uint32 accountID = 1;
+  uint32 realmID = 2;
+  string ownerToken = 3;
+  uint32 leaseSeconds = 4;
+}
+
+message AcquireAccountSessionResponse { bool acquired = 1; }
+
+message RenewAccountSessionRequest {
+  uint32 accountID = 1;
+  uint32 realmID = 2;
+  string ownerToken = 3;
+  uint32 leaseSeconds = 4;
+}
+
+message RenewAccountSessionResponse { bool renewed = 1; }
+
+message ReleaseAccountSessionRequest {
+  uint32 accountID = 1;
+  uint32 realmID = 2;
+  string ownerToken = 3;
+}
+
+message ReleaseAccountSessionResponse { bool released = 1; }

@@ -19,6 +19,9 @@ import (
 const _ = grpc.SupportPackageIsVersion7
 
 const (
+	CharactersService_AcquireAccountSession_FullMethodName            = "/v1.CharactersService/AcquireAccountSession"
+	CharactersService_RenewAccountSession_FullMethodName              = "/v1.CharactersService/RenewAccountSession"
+	CharactersService_ReleaseAccountSession_FullMethodName            = "/v1.CharactersService/ReleaseAccountSession"
 	CharactersService_CharactersToLoginForAccount_FullMethodName      = "/v1.CharactersService/CharactersToLoginForAccount"
 	CharactersService_CharactersToLoginByGUID_FullMethodName          = "/v1.CharactersService/CharactersToLoginByGUID"
 	CharactersService_AccountDataForAccount_FullMethodName            = "/v1.CharactersService/AccountDataForAccount"
@@ -41,6 +44,9 @@ const (
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type CharactersServiceClient interface {
+	AcquireAccountSession(ctx context.Context, in *AcquireAccountSessionRequest, opts ...grpc.CallOption) (*AcquireAccountSessionResponse, error)
+	RenewAccountSession(ctx context.Context, in *RenewAccountSessionRequest, opts ...grpc.CallOption) (*RenewAccountSessionResponse, error)
+	ReleaseAccountSession(ctx context.Context, in *ReleaseAccountSessionRequest, opts ...grpc.CallOption) (*ReleaseAccountSessionResponse, error)
 	CharactersToLoginForAccount(ctx context.Context, in *CharactersToLoginForAccountRequest, opts ...grpc.CallOption) (*CharactersToLoginForAccountResponse, error)
 	CharactersToLoginByGUID(ctx context.Context, in *CharactersToLoginByGUIDRequest, opts ...grpc.CallOption) (*CharactersToLoginByGUIDResponse, error)
 	AccountDataForAccount(ctx context.Context, in *AccountDataForAccountRequest, opts ...grpc.CallOption) (*AccountDataForAccountResponse, error)
@@ -68,6 +74,33 @@ type charactersServiceClient struct {
 
 func NewCharactersServiceClient(cc grpc.ClientConnInterface) CharactersServiceClient {
 	return &charactersServiceClient{cc}
+}
+
+func (c *charactersServiceClient) AcquireAccountSession(ctx context.Context, in *AcquireAccountSessionRequest, opts ...grpc.CallOption) (*AcquireAccountSessionResponse, error) {
+	out := new(AcquireAccountSessionResponse)
+	err := c.cc.Invoke(ctx, CharactersService_AcquireAccountSession_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *charactersServiceClient) RenewAccountSession(ctx context.Context, in *RenewAccountSessionRequest, opts ...grpc.CallOption) (*RenewAccountSessionResponse, error) {
+	out := new(RenewAccountSessionResponse)
+	err := c.cc.Invoke(ctx, CharactersService_RenewAccountSession_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *charactersServiceClient) ReleaseAccountSession(ctx context.Context, in *ReleaseAccountSessionRequest, opts ...grpc.CallOption) (*ReleaseAccountSessionResponse, error) {
+	out := new(ReleaseAccountSessionResponse)
+	err := c.cc.Invoke(ctx, CharactersService_ReleaseAccountSession_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 func (c *charactersServiceClient) CharactersToLoginForAccount(ctx context.Context, in *CharactersToLoginForAccountRequest, opts ...grpc.CallOption) (*CharactersToLoginForAccountResponse, error) {
@@ -218,6 +251,9 @@ func (c *charactersServiceClient) GetOnlineCharacters(ctx context.Context, in *G
 // All implementations must embed UnimplementedCharactersServiceServer
 // for forward compatibility
 type CharactersServiceServer interface {
+	AcquireAccountSession(context.Context, *AcquireAccountSessionRequest) (*AcquireAccountSessionResponse, error)
+	RenewAccountSession(context.Context, *RenewAccountSessionRequest) (*RenewAccountSessionResponse, error)
+	ReleaseAccountSession(context.Context, *ReleaseAccountSessionRequest) (*ReleaseAccountSessionResponse, error)
 	CharactersToLoginForAccount(context.Context, *CharactersToLoginForAccountRequest) (*CharactersToLoginForAccountResponse, error)
 	CharactersToLoginByGUID(context.Context, *CharactersToLoginByGUIDRequest) (*CharactersToLoginByGUIDResponse, error)
 	AccountDataForAccount(context.Context, *AccountDataForAccountRequest) (*AccountDataForAccountResponse, error)
@@ -244,6 +280,15 @@ type CharactersServiceServer interface {
 type UnimplementedCharactersServiceServer struct {
 }
 
+func (UnimplementedCharactersServiceServer) AcquireAccountSession(context.Context, *AcquireAccountSessionRequest) (*AcquireAccountSessionResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method AcquireAccountSession not implemented")
+}
+func (UnimplementedCharactersServiceServer) RenewAccountSession(context.Context, *RenewAccountSessionRequest) (*RenewAccountSessionResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method RenewAccountSession not implemented")
+}
+func (UnimplementedCharactersServiceServer) ReleaseAccountSession(context.Context, *ReleaseAccountSessionRequest) (*ReleaseAccountSessionResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ReleaseAccountSession not implemented")
+}
 func (UnimplementedCharactersServiceServer) CharactersToLoginForAccount(context.Context, *CharactersToLoginForAccountRequest) (*CharactersToLoginForAccountResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CharactersToLoginForAccount not implemented")
 }
@@ -303,6 +348,60 @@ type UnsafeCharactersServiceServer interface {
 
 func RegisterCharactersServiceServer(s grpc.ServiceRegistrar, srv CharactersServiceServer) {
 	s.RegisterService(&CharactersService_ServiceDesc, srv)
+}
+
+func _CharactersService_AcquireAccountSession_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AcquireAccountSessionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CharactersServiceServer).AcquireAccountSession(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: CharactersService_AcquireAccountSession_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CharactersServiceServer).AcquireAccountSession(ctx, req.(*AcquireAccountSessionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _CharactersService_RenewAccountSession_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RenewAccountSessionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CharactersServiceServer).RenewAccountSession(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: CharactersService_RenewAccountSession_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CharactersServiceServer).RenewAccountSession(ctx, req.(*RenewAccountSessionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _CharactersService_ReleaseAccountSession_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ReleaseAccountSessionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CharactersServiceServer).ReleaseAccountSession(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: CharactersService_ReleaseAccountSession_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CharactersServiceServer).ReleaseAccountSession(ctx, req.(*ReleaseAccountSessionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
 }
 
 func _CharactersService_CharactersToLoginForAccount_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
@@ -600,6 +699,18 @@ var CharactersService_ServiceDesc = grpc.ServiceDesc{
 	ServiceName: "v1.CharactersService",
 	HandlerType: (*CharactersServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "AcquireAccountSession",
+			Handler:    _CharactersService_AcquireAccountSession_Handler,
+		},
+		{
+			MethodName: "RenewAccountSession",
+			Handler:    _CharactersService_RenewAccountSession_Handler,
+		},
+		{
+			MethodName: "ReleaseAccountSession",
+			Handler:    _CharactersService_ReleaseAccountSession_Handler,
+		},
 		{
 			MethodName: "CharactersToLoginForAccount",
 			Handler:    _CharactersService_CharactersToLoginForAccount_Handler,

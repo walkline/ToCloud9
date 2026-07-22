@@ -48,18 +48,18 @@ func TestSessionOwnershipIntegrationTakeover(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	defer rdb.Del(context.Background(),
-		first.accountKey(accountID), first.evictionStreamKey(first.gatewayID),
+		first.characterKey(uint64(accountID)), first.evictionStreamKey(first.gatewayID),
 		second.evictionStreamKey(second.gatewayID),
 	)
 
 	evicted := make(chan struct{})
 	unregister := first.Register("token-1", func(context.Context) { close(evicted) })
 	defer unregister()
-	if err = first.ClaimAccount(ctx, accountID, "token-1"); err != nil {
+	if err = first.ClaimCharacter(ctx, uint64(accountID), "token-1"); err != nil {
 		t.Fatalf("first claim: %v", err)
 	}
 	takeoverStarted := time.Now()
-	if err = second.ClaimAccount(ctx, accountID, "token-2"); err != nil {
+	if err = second.ClaimCharacter(ctx, uint64(accountID), "token-2"); err != nil {
 		t.Fatalf("takeover claim: %v", err)
 	}
 	if elapsed := time.Since(takeoverStarted); elapsed > time.Second {
@@ -70,10 +70,10 @@ func TestSessionOwnershipIntegrationTakeover(t *testing.T) {
 	case <-ctx.Done():
 		t.Fatal("previous owner was not evicted")
 	}
-	if err = first.ReleaseAccount(ctx, accountID, "token-1"); err != nil {
+	if err = first.ReleaseCharacter(ctx, uint64(accountID), "token-1"); err != nil {
 		t.Fatal(err)
 	}
-	owner, err := rdb.Get(ctx, second.accountKey(accountID)).Result()
+	owner, err := rdb.Get(ctx, second.characterKey(uint64(accountID))).Result()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -123,18 +123,18 @@ func TestSessionOwnershipIntegrationDurableEvictionWithoutNATS(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	defer rdb.Del(context.Background(),
-		first.accountKey(accountID), first.evictionStreamKey(first.gatewayID),
+		first.characterKey(uint64(accountID)), first.evictionStreamKey(first.gatewayID),
 		second.evictionStreamKey(second.gatewayID),
 	)
 
 	evicted := make(chan struct{})
 	unregister := first.Register("stream-token-1", func(context.Context) { close(evicted) })
 	defer unregister()
-	if err = first.ClaimAccount(ctx, accountID, "stream-token-1"); err != nil {
+	if err = first.ClaimCharacter(ctx, uint64(accountID), "stream-token-1"); err != nil {
 		t.Fatal(err)
 	}
 	firstNATS.Close() // force the durable Redis Stream path
-	if err = second.ClaimAccount(ctx, accountID, "stream-token-2"); err != nil {
+	if err = second.ClaimCharacter(ctx, uint64(accountID), "stream-token-2"); err != nil {
 		t.Fatalf("durable takeover claim: %v", err)
 	}
 	select {

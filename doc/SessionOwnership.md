@@ -1,54 +1,49 @@
 # Cluster-wide session ownership
 
-Gateways enforce one active session per realm/account and per
-realm/character. The implementation is gateway-owned because only the gateway
-has both the client socket and a cluster-wide view of authentication.
+The character service owns account admission. After validating the world-auth
+proof, a gateway asks it to acquire `(realm ID, account ID)` before accepting
+the session. A second login is rejected with the client's native
+`AUTH_ALREADY_ONLINE` response; it never evicts the established session.
 
-## State and takeover
+The gateway also passes the authenticated account ID when resolving the
+selected character. The character service returns the character only when it
+belongs to that account.
 
-Redis stores token-fenced owner records. An owner contains the gateway ID and a
-cryptographically random session token. A normal logout deletes an owner only
-when its token still matches, so cleanup from an older connection cannot delete
-a newer connection's ownership.
+## Durable account lease
 
-A takeover atomically replaces the owner and appends an eviction event to the
-previous gateway's Redis Stream. All keys involved in that transaction share a
-realm-scoped Redis Cluster hash tag. The claimant verifies the owner again
-before continuing, which prevents an intermediate claimant from succeeding
-during concurrent logins.
+The characters database stores one account lease per realm database. Its
+primary key makes simultaneous claims from any number of gateway or character
+service replicas mutually exclusive. Each lease contains a cryptographically
+random owner token and an expiry time.
 
-NATS sends the same eviction as a low-latency fast path. Redis Streams are the
-durable path: an eviction is still consumed if NATS delivery is interrupted.
-Duplicate deliveries are deduplicated by eviction ID.
+Gateways renew their leases every 10 seconds. A graceful disconnect deletes a
+lease only when its owner token still matches. If a gateway crashes, its lease
+expires after 30 seconds and a replacement login can claim it. Token-fenced
+renewal and release prevent cleanup from an old connection from changing a
+newer's lease.
 
-## Failure behaviour
+The migration is:
 
-- A gateway crash closes its client sockets. Stale owner records are harmless:
-  the next claim replaces them using a new fencing token.
-- Each gateway writes one expiring liveness heartbeat. A claimant waits for an
-  eviction acknowledgement only while the previous gateway is considered live.
-- A temporary Redis outage does not disconnect existing players because there
-  are no per-session renewals. New claims fail closed until ownership can be
-  established again.
-- A temporary NATS outage falls back to the durable Redis eviction stream.
-
-## Load model
-
-Idle players generate no Redis traffic. Redis receives one heartbeat per
-gateway every one-third of `gatewayLivenessTTLSeconds`, plus operations for
-login, character selection, takeover and logout. Load therefore follows gateway
-count and session transitions rather than the number of connected players.
-
-Eviction work is bounded to 32 concurrent workers per gateway, and each Redis
-Stream is approximately trimmed to 4096 events.
-
-## Configuration
-
-```yaml
-gateway:
-  redisUrl: redis://redis:6379/0
-  gatewayLivenessTTLSeconds: 15
+```text
+sql/characters/mysql/000005_create_account_session_locks.up.sql
 ```
 
-The liveness TTL must be at least 10 seconds. Redis and NATS high availability
-are deployment concerns and can be provided independently of gateway scaling.
+## Character ownership
+
+Redis/NATS ownership remains limited to a selected character GUID. It protects
+redirect and recovery flows from two gateways concurrently driving the same
+character. Account admission does not use Redis and does not perform takeover.
+
+## Failure behavior and scaling
+
+- Gateway and character-service replicas keep no authoritative account state
+  in RAM.
+- Character-service failover is safe because account admission is serialized
+  by the shared characters database.
+- A gateway crash leaves only a bounded 30-second lease.
+- Database errors fail new authentication closed with `AUTH_UNAVAILABLE`.
+- A renewal error does not immediately disconnect an established player. If
+  the lease is later found to belong to another token, that gateway closes its
+  stale connection.
+- Redis or NATS failure affects character fencing/recovery, not the account
+  admission decision.

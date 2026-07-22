@@ -5,6 +5,8 @@ import (
 	"time"
 
 	"github.com/rs/zerolog/log"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	"github.com/walkline/ToCloud9/apps/charserver/repo"
 	"github.com/walkline/ToCloud9/apps/charserver/service"
@@ -32,6 +34,37 @@ func NewCharServer(repo repo.Characters, onlineChars repo.CharactersOnline, whoH
 		onlineChars:    onlineChars,
 		friendsService: friendsService,
 	}
+}
+
+func (c *CharServer) AcquireAccountSession(ctx context.Context, request *pb.AcquireAccountSessionRequest) (*pb.AcquireAccountSessionResponse, error) {
+	if err := validateAccountSessionRequest(request.AccountID, request.OwnerToken, request.LeaseSeconds); err != nil {
+		return nil, err
+	}
+	acquired, err := c.repo.AcquireAccountSession(ctx, request.RealmID, request.AccountID, request.OwnerToken, request.LeaseSeconds)
+	return &pb.AcquireAccountSessionResponse{Acquired: acquired}, err
+}
+
+func (c *CharServer) RenewAccountSession(ctx context.Context, request *pb.RenewAccountSessionRequest) (*pb.RenewAccountSessionResponse, error) {
+	if err := validateAccountSessionRequest(request.AccountID, request.OwnerToken, request.LeaseSeconds); err != nil {
+		return nil, err
+	}
+	renewed, err := c.repo.RenewAccountSession(ctx, request.RealmID, request.AccountID, request.OwnerToken, request.LeaseSeconds)
+	return &pb.RenewAccountSessionResponse{Renewed: renewed}, err
+}
+
+func (c *CharServer) ReleaseAccountSession(ctx context.Context, request *pb.ReleaseAccountSessionRequest) (*pb.ReleaseAccountSessionResponse, error) {
+	if request.AccountID == 0 || len(request.OwnerToken) != 32 {
+		return nil, status.Error(codes.InvalidArgument, "invalid account session owner")
+	}
+	released, err := c.repo.ReleaseAccountSession(ctx, request.RealmID, request.AccountID, request.OwnerToken)
+	return &pb.ReleaseAccountSessionResponse{Released: released}, err
+}
+
+func validateAccountSessionRequest(accountID uint32, ownerToken string, leaseSeconds uint32) error {
+	if accountID == 0 || len(ownerToken) != 32 || leaseSeconds < 5 || leaseSeconds > 300 {
+		return status.Error(codes.InvalidArgument, "invalid account session lease")
+	}
+	return nil
 }
 
 func (c *CharServer) CharactersToLoginForAccount(ctx context.Context, request *pb.CharactersToLoginForAccountRequest) (*pb.CharactersToLoginForAccountResponse, error) {
@@ -146,6 +179,9 @@ func (c *CharServer) CharactersToLoginByGUID(ctx context.Context, request *pb.Ch
 	char, err := c.repo.CharacterToLogInByGUID(ctx, request.RealmID, request.CharacterGUID)
 	if err != nil {
 		return nil, err
+	}
+	if char != nil && request.AccountID != 0 && char.AccountID != request.AccountID {
+		char = nil
 	}
 	var charResult *pb.LogInCharacter
 	if char != nil {
@@ -581,8 +617,8 @@ func (c *CharServer) GetOnlineCharacters(ctx context.Context, request *pb.GetOnl
 	}
 
 	return &pb.GetOnlineCharactersResponse{
-		Api:             ver,
-		CharacterGUIDs:  guids,
-		TotalCount:      uint32(len(guids)),
+		Api:            ver,
+		CharacterGUIDs: guids,
+		TotalCount:     uint32(len(guids)),
 	}, nil
 }

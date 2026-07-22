@@ -178,19 +178,6 @@ func (s *GameSession) HandlePackets(ctx context.Context) {
 	if s.sessionOwnership != nil {
 		unregister := s.sessionOwnership.Register(s.sessionToken, s.evictDuplicateSession)
 		defer unregister()
-		if err := s.sessionOwnership.ClaimAccount(c, s.accountID, s.sessionToken); err != nil {
-			s.logger.Error().Err(err).Msg("can't claim account session ownership")
-			s.intentionalDisconnect.Store(true)
-			s.gameSocket.Close()
-			return
-		}
-		defer func() {
-			releaseCtx, releaseCancel := context.WithTimeout(context.Background(), time.Second)
-			defer releaseCancel()
-			if err := s.sessionOwnership.ReleaseAccount(releaseCtx, s.accountID, s.sessionToken); err != nil {
-				s.logger.Warn().Err(err).Msg("can't release account session ownership")
-			}
-		}()
 	}
 
 	defer func() {
@@ -469,6 +456,7 @@ func (s *GameSession) connectToGameServer(ctx context.Context, characterGUID uin
 		Api:           root.SupportedCharServiceVer,
 		CharacterGUID: characterGUID,
 		RealmID:       root.RealmID,
+		AccountID:     s.accountID,
 	})
 
 	if err != nil {

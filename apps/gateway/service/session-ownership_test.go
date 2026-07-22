@@ -20,14 +20,11 @@ func TestParseSessionOwner(t *testing.T) {
 
 func TestSessionOwnershipKeysAreScopedByRealmAndIdentity(t *testing.T) {
 	service := NewSessionOwnershipService(nil, nil, nil, "gateway", 7, 15*time.Second)
-	if got, want := service.accountKey(12), "{gateway-session:7}:owner:account:12"; got != want {
-		t.Fatalf("account key = %q, want %q", got, want)
-	}
 	if got, want := service.characterKey(34), "{gateway-session:7}:owner:character:34"; got != want {
 		t.Fatalf("character key = %q, want %q", got, want)
 	}
 	for _, key := range []string{
-		service.accountKey(12), service.characterKey(34), service.evictionStreamKey("other"),
+		service.characterKey(34), service.evictionStreamKey("other"),
 		service.gatewayLivenessKey("other"), service.evictionAckKey("token", 0),
 	} {
 		if !strings.HasPrefix(key, "{gateway-session:7}:") {

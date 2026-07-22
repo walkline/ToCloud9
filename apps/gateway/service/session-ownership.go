@@ -135,16 +135,8 @@ func (s *SessionOwnershipService) Register(token string, evict func(context.Cont
 	}
 }
 
-func (s *SessionOwnershipService) ClaimAccount(ctx context.Context, accountID uint32, token string) error {
-	return s.claim(ctx, s.accountKey(accountID), token)
-}
-
 func (s *SessionOwnershipService) ClaimCharacter(ctx context.Context, characterGUID uint64, token string) error {
 	return s.claim(ctx, s.characterKey(characterGUID), token)
-}
-
-func (s *SessionOwnershipService) ReleaseAccount(ctx context.Context, accountID uint32, token string) error {
-	return s.release(ctx, s.accountKey(accountID), token)
 }
 
 func (s *SessionOwnershipService) ReleaseCharacter(ctx context.Context, characterGUID uint64, token string) error {
@@ -353,10 +345,6 @@ func parseSessionOwner(value string) (string, string, bool) {
 
 func (s *SessionOwnershipService) realmHashTag() string {
 	return "{gateway-session:" + strconv.FormatUint(uint64(s.realmID), 10) + "}"
-}
-
-func (s *SessionOwnershipService) accountKey(accountID uint32) string {
-	return s.realmHashTag() + ":owner:account:" + strconv.FormatUint(uint64(accountID), 10)
 }
 
 func (s *SessionOwnershipService) characterKey(characterGUID uint64) string {

@@ -2,13 +2,65 @@ package repo
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"strconv"
 	"strings"
 	"unicode"
 
+	"github.com/go-sql-driver/mysql"
 	shrepo "github.com/walkline/ToCloud9/shared/repo"
 )
+
+func (c CharactersMYSQL) AcquireAccountSession(ctx context.Context, realmID, accountID uint32, ownerToken string, leaseSeconds uint32) (bool, error) {
+	tx, err := c.db.DBByRealm(realmID).BeginTx(ctx, nil)
+	if err != nil {
+		return false, err
+	}
+	defer tx.Rollback()
+
+	var currentToken string
+	var expired bool
+	err = tx.QueryRowContext(ctx, `SELECT owner_token, expires_at <= NOW(6) FROM account_session_lock WHERE account_id = ? FOR UPDATE`, accountID).Scan(&currentToken, &expired)
+	switch {
+	case err == sql.ErrNoRows:
+		_, err = tx.ExecContext(ctx, `INSERT INTO account_session_lock (account_id, owner_token, expires_at) VALUES (?, ?, NOW(6) + INTERVAL ? SECOND)`, accountID, ownerToken, leaseSeconds)
+	case err != nil:
+		return false, err
+	case currentToken != ownerToken && !expired:
+		return false, nil
+	default:
+		_, err = tx.ExecContext(ctx, `UPDATE account_session_lock SET owner_token = ?, expires_at = NOW(6) + INTERVAL ? SECOND WHERE account_id = ?`, ownerToken, leaseSeconds, accountID)
+	}
+	if mysqlErr, ok := err.(*mysql.MySQLError); ok && mysqlErr.Number == 1062 {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	if err = tx.Commit(); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+func (c CharactersMYSQL) RenewAccountSession(ctx context.Context, realmID, accountID uint32, ownerToken string, leaseSeconds uint32) (bool, error) {
+	result, err := c.db.DBByRealm(realmID).ExecContext(ctx, `UPDATE account_session_lock SET expires_at = NOW(6) + INTERVAL ? SECOND WHERE account_id = ? AND owner_token = ?`, leaseSeconds, accountID, ownerToken)
+	if err != nil {
+		return false, err
+	}
+	rows, err := result.RowsAffected()
+	return rows == 1, err
+}
+
+func (c CharactersMYSQL) ReleaseAccountSession(ctx context.Context, realmID, accountID uint32, ownerToken string) (bool, error) {
+	result, err := c.db.DBByRealm(realmID).ExecContext(ctx, `DELETE FROM account_session_lock WHERE account_id = ? AND owner_token = ?`, accountID, ownerToken)
+	if err != nil {
+		return false, err
+	}
+	rows, err := result.RowsAffected()
+	return rows == 1, err
+}
 
 type CharactersPreparedStatements uint32
 

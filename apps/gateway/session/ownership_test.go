@@ -31,34 +31,27 @@ func (s *ownershipTestSocket) ReadChannel() <-chan *packet.Packet  { return s.re
 func (s *ownershipTestSocket) WriteChannel() chan<- *packet.Packet { return s.write }
 
 type ownershipTestCoordinator struct {
-	mu       sync.Mutex
-	claimed  bool
-	released bool
-	evict    func(context.Context)
+	mu           sync.Mutex
+	registered   bool
+	unregistered bool
+	evict        func(context.Context)
 }
 
 func (o *ownershipTestCoordinator) Register(_ string, evict func(context.Context)) func() {
 	o.mu.Lock()
 	o.evict = evict
+	o.registered = true
 	o.mu.Unlock()
-	return func() {}
+	return func() {
+		o.mu.Lock()
+		o.unregistered = true
+		o.mu.Unlock()
+	}
 }
-func (o *ownershipTestCoordinator) ClaimAccount(context.Context, uint32, string) error {
-	o.mu.Lock()
-	o.claimed = true
-	o.mu.Unlock()
-	return nil
-}
-func (*ownershipTestCoordinator) ClaimCharacter(context.Context, uint64, string) error { return nil }
-func (o *ownershipTestCoordinator) ReleaseAccount(context.Context, uint32, string) error {
-	o.mu.Lock()
-	o.released = true
-	o.mu.Unlock()
-	return nil
-}
+func (*ownershipTestCoordinator) ClaimCharacter(context.Context, uint64, string) error   { return nil }
 func (*ownershipTestCoordinator) ReleaseCharacter(context.Context, uint64, string) error { return nil }
 
-func TestGameSessionClaimsAndReleasesAccountOwnership(t *testing.T) {
+func TestGameSessionRegistersCharacterOwnershipCoordinator(t *testing.T) {
 	socket := newOwnershipTestSocket()
 	coordinator := &ownershipTestCoordinator{}
 	logger := zerolog.Nop()
@@ -74,7 +67,7 @@ func TestGameSessionClaimsAndReleasesAccountOwnership(t *testing.T) {
 
 	coordinator.mu.Lock()
 	defer coordinator.mu.Unlock()
-	if !coordinator.claimed || !coordinator.released {
-		t.Fatalf("ownership lifecycle incomplete: claimed=%v released=%v", coordinator.claimed, coordinator.released)
+	if !coordinator.registered || !coordinator.unregistered {
+		t.Fatalf("ownership lifecycle incomplete: registered=%v unregistered=%v", coordinator.registered, coordinator.unregistered)
 	}
 }
