@@ -46,6 +46,11 @@ func (m *guildServiceClientInviteMock) GetRosterInfo(_ context.Context, _ *pbGui
 	return m.rosterResp, nil
 }
 
+func (m *guildServiceClientInviteMock) GetBankState(_ context.Context, _ *pbGuild.GetBankStateParams, _ ...grpc.CallOption) (*pbGuild.GetBankStateResponse, error) {
+	// Mirrors the rank of promoteRoster so the permissions assertions hold.
+	return &pbGuild.GetBankStateResponse{RankID: 1, RankRights: 0xFFF, MoneyPerDay: 100}, nil
+}
+
 func guildTestSession(t *testing.T, guildClient pbGuild.GuildServiceClient, charClient pbChar.CharactersServiceClient) (*GameSession, *[]*packet.Writer) {
 	t.Helper()
 

@@ -21,6 +21,10 @@ var EventsHandleMap = map[eBroadcaster.EventType]EventsHandlersQueue{
 	eBroadcaster.EventTypeGuildRankUpdated:    NewEventHandler("GuildRankUpdated", (*GameSession).HandleEventGuildRankUpdated),
 	eBroadcaster.EventTypeGuildRankDeleted:    NewEventHandler("GuildRankDeleted", (*GameSession).HandleEventGuildRankDeleted),
 	eBroadcaster.EventTypeGuildNewMessage:     NewEventHandler("GuildNewMessage", (*GameSession).HandleEventGuildNewMessage),
+	eBroadcaster.EventTypeGuildBankMoneyUpdated: NewEventHandler("GuildBankMoneyUpdated", (*GameSession).HandleEventGuildBankMoneyUpdated),
+	eBroadcaster.EventTypeGuildBankTabUpdated:   NewEventHandler("GuildBankTabUpdated", (*GameSession).HandleEventGuildBankTabUpdated),
+	eBroadcaster.EventTypeGuildBankTabsChanged:  NewEventHandler("GuildBankTabsChanged", (*GameSession).HandleEventGuildBankTabsChanged),
+	eBroadcaster.EventTypeGuildBankTextUpdated:  NewEventHandler("GuildBankTextUpdated", (*GameSession).HandleEventGuildBankTextUpdated),
 
 	// Mail
 	eBroadcaster.EventTypeIncomingMail: NewEventHandler("IncomingMail", (*GameSession).HandleEventIncomingMail),
