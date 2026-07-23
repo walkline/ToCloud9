@@ -19,6 +19,9 @@ type Config struct {
 
 	// NatsURL is nats connection url
 	NatsURL string `yaml:"natsUrl" env:"NATS_URL" env-default:"nats://nats:4222"`
+
+	// GuildsServiceAddress is address of guilds service
+	GuildsServiceAddress string `yaml:"guildsServiceAddress" env:"GUILDS_SERVICE_ADDRESS" env-default:"localhost:8995"`
 }
 
 // LoadConfig loads config from env variables

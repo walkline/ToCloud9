@@ -39,6 +39,17 @@ public:
     // Set the realm ID for filtering events
     void SetRealmID(uint32_t realm_id) { realm_id_ = realm_id; }
 
+    // Registry-assigned game server ID: written once registration completes
+    // (after Start), read from the NATS delivery thread.
+    void SetServerID(const std::string& server_id) {
+        std::lock_guard<std::mutex> lock(server_id_mutex_);
+        server_id_ = server_id;
+    }
+    std::string GetServerID() {
+        std::lock_guard<std::mutex> lock(server_id_mutex_);
+        return server_id_;
+    }
+
     // Delete copy/move
     NatsConsumer(const NatsConsumer&) = delete;
     NatsConsumer& operator=(const NatsConsumer&) = delete;
@@ -56,6 +67,8 @@ private:
 
     HandlersQueue* event_queue_ = nullptr;
     uint32_t realm_id_ = 0;
+    std::string server_id_;
+    std::mutex server_id_mutex_;
 
     // Generic subscriptions (own mutex: read from the NATS delivery thread
     // in OnMessage while mutex_ may be held by Start/Stop).

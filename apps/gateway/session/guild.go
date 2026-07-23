@@ -7,7 +7,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/rs/zerolog/log"
+  "github.com/rs/zerolog/log"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	root "github.com/walkline/ToCloud9/apps/gateway"
 	eBroadcaster "github.com/walkline/ToCloud9/apps/gateway/events-broadcaster"
@@ -160,6 +162,31 @@ func (s *GameSession) guildMemberGUIDByName(ctx context.Context, name string) (u
 	return 0, nil
 }
 
+// Guild command and result codes carried by SMSG_GUILD_COMMAND_RESULT. The
+// client localizes the displayed message from these codes, so no server-side
+// translation is needed.
+const (
+	guildCommandCreate       = 0  // GUILD_COMMAND_CREATE
+	guildCommandInvite       = 1  // GUILD_COMMAND_INVITE
+	guildErrCommandSuccess   = 0  // ERR_GUILD_COMMAND_SUCCESS
+	guildErrAlreadyInGuildS  = 3  // ERR_ALREADY_IN_GUILD_S
+	guildErrNameInvalid      = 6  // ERR_GUILD_NAME_INVALID
+	guildErrNameExistsS      = 7  // ERR_GUILD_NAME_EXISTS_S
+	guildErrPermissions      = 8  // ERR_GUILD_PERMISSIONS
+	guildErrPlayerNotInGuild = 9  // ERR_GUILD_PLAYER_NOT_IN_GUILD
+	guildErrPlayerNotFoundS  = 11 // ERR_GUILD_PLAYER_NOT_FOUND_S
+)
+
+// sendGuildCommandResult sends SMSG_GUILD_COMMAND_RESULT so the client renders
+// the localized guild feedback (e.g. "You have invited X into your guild").
+func (s *GameSession) sendGuildCommandResult(command uint32, param string, result uint32) {
+	w := packet.NewWriterWithSize(packet.SMsgGuildCommandResult, 0)
+	w.Uint32(command)
+	w.String(param)
+	w.Uint32(result)
+	s.gameSocket.Send(w)
+}
+
 func (s *GameSession) HandleGuildInvite(ctx context.Context, p *packet.Packet) error {
 	resp, err := s.charServiceClient.CharacterOnlineByName(ctx, &pbChar.CharacterOnlineByNameRequest{
 		Api:           root.Ver,
@@ -184,6 +211,24 @@ func (s *GameSession) HandleGuildInvite(ctx context.Context, p *packet.Packet) e
 		Invitee:     resp.Character.CharGUID,
 		InviteeName: resp.Character.CharName,
 	})
+	if err != nil {
+		// Business failures come back as gRPC status codes (see guildserver
+		// server layer); surface them to the client instead of a silent log.
+		switch status.Code(err) {
+		case codes.FailedPrecondition:
+			s.sendGuildCommandResult(guildCommandInvite, resp.Character.CharName, guildErrAlreadyInGuildS)
+			return nil
+		case codes.PermissionDenied:
+			s.sendGuildCommandResult(guildCommandInvite, "", guildErrPermissions)
+			return nil
+		case codes.NotFound:
+			s.sendGuildCommandResult(guildCommandInvite, "", guildErrPlayerNotInGuild)
+			return nil
+		}
+		return fmt.Errorf("can't invite member to guild: %w", err)
+	}
+
+	s.sendGuildCommandResult(guildCommandInvite, resp.Character.CharName, guildErrCommandSuccess)
 
 	return nil
 }

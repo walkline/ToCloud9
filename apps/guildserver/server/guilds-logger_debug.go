@@ -48,6 +48,19 @@ func (g *guildDebugLoggerMiddleware) GetRosterInfo(ctx context.Context, params *
 	return
 }
 
+func (g *guildDebugLoggerMiddleware) GetGuildNamesByIDs(ctx context.Context, params *pb.GetGuildNamesByIDsParams) (res *pb.GetGuildNamesByIDsResponse, err error) {
+	defer func(t time.Time) {
+		g.logger.Debug().
+			Uint32("realmID", params.RealmID).
+			Int("guildsCount", len(params.GuildIDs)).
+			Err(err).
+			Msgf("Handled GetGuildNamesByIDs for %v.", time.Since(t))
+	}(time.Now())
+
+	res, err = g.realService.GetGuildNamesByIDs(ctx, params)
+	return
+}
+
 func (g *guildDebugLoggerMiddleware) InviteMember(ctx context.Context, params *pb.InviteMemberParams) (res *pb.InviteMemberResponse, err error) {
 	defer func(t time.Time) {
 		g.logger.Debug().
