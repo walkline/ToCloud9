@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+  "github.com/rs/zerolog/log"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
@@ -253,6 +254,13 @@ func (s *GameSession) HandleEventGuildMemberPromoted(ctx context.Context, e *eBr
 		eventData.RankName,
 	))
 
+	if eventData.MemberGUID == s.character.GUID {
+		// Best effort: a failed push must not abort the remaining event handlers.
+		if err := s.sendGuildPermissions(ctx); err != nil {
+			log.Warn().Err(err).Msg("can't push guild permissions after rank change")
+		}
+	}
+
 	return nil
 }
 
@@ -265,6 +273,13 @@ func (s *GameSession) HandleEventGuildMemberDemoted(ctx context.Context, e *eBro
 		eventData.MemberName,
 		eventData.RankName,
 	))
+
+	if eventData.MemberGUID == s.character.GUID {
+		// Best effort: a failed push must not abort the remaining event handlers.
+		if err := s.sendGuildPermissions(ctx); err != nil {
+			log.Warn().Err(err).Msg("can't push guild permissions after rank change")
+		}
+	}
 
 	return nil
 }
@@ -654,6 +669,15 @@ func (s *GameSession) HandleGuildQuery(ctx context.Context, p *packet.Packet) er
 }
 
 func (s *GameSession) HandleGuildPermissions(ctx context.Context, p *packet.Packet) error {
+	return s.sendGuildPermissions(ctx)
+}
+
+// sendGuildPermissions pushes the MSG_GUILD_PERMISSIONS response with the
+// member's current rank rights. Besides answering the client query, it is
+// pushed unsolicited after a promotion/demotion since the client doesn't
+// re-query permissions on its own (same trick as the core SendPermissions
+// call on guild bank tab purchase).
+func (s *GameSession) sendGuildPermissions(ctx context.Context) error {
 	if s.character.GuildID == 0 {
 		// TODO: send proper message to the client
 		return nil
@@ -674,7 +698,7 @@ func (s *GameSession) HandleGuildPermissions(ctx context.Context, p *packet.Pack
 			for _, rank := range guildResp.Guild.Ranks {
 				if rank.Id == member.RankID {
 					resp.Uint32(rank.Id)
-					resp.Int32(int32(rank.Flags))
+					resp.Uint32(rank.Flags)
 					resp.Int32(int32(rank.GoldLimit))
 					resp.Uint8(6) // Tabs count.
 
