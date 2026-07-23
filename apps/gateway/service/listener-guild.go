@@ -62,6 +62,46 @@ func (g *guildNatsListener) Listen() error {
 		return err
 	}
 
+	err = g.newSubscribe(events.GuildEventBankMoneyUpdated, func() (interface{}, func()) {
+		d := &events.GuildEventBankMoneyUpdatedPayload{}
+		return d, func() {
+			g.broadcaster.NewGuildBankMoneyUpdatedEvent(d)
+		}
+	})
+	if err != nil {
+		return err
+	}
+
+	err = g.newSubscribe(events.GuildEventBankTabUpdated, func() (interface{}, func()) {
+		d := &events.GuildEventBankTabUpdatedPayload{}
+		return d, func() {
+			g.broadcaster.NewGuildBankTabUpdatedEvent(d)
+		}
+	})
+	if err != nil {
+		return err
+	}
+
+	err = g.newSubscribe(events.GuildEventBankTabsChanged, func() (interface{}, func()) {
+		d := &events.GuildEventBankTabsChangedPayload{}
+		return d, func() {
+			g.broadcaster.NewGuildBankTabsChangedEvent(d)
+		}
+	})
+	if err != nil {
+		return err
+	}
+
+	err = g.newSubscribe(events.GuildEventBankTextUpdated, func() (interface{}, func()) {
+		d := &events.GuildEventBankTextUpdatedPayload{}
+		return d, func() {
+			g.broadcaster.NewGuildBankTextUpdatedEvent(d)
+		}
+	})
+	if err != nil {
+		return err
+	}
+
 	err = g.newSubscribe(events.GuildEventMemberAdded, func() (interface{}, func()) {
 		d := &events.GuildEventMemberAddedPayload{}
 		return d, func() {
