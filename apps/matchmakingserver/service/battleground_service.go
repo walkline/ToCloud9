@@ -244,26 +244,8 @@ func (s *battleGroundService) AddGroupToQueue(
 	leaderLvl uint8,
 	teamID battleground.PVPTeam,
 ) error {
-	leaderUnwrappedGUID := guid.PlayerUnwrapped{
-		RealmID: uint16(realmID),
-		LowGUID: guid.LowType(leaderGUID),
-	}
-
-	// Probably player can be in several queues in the same time.
-	if len(s.GetQueueOrBattlegroundLinkForPlayer(QueuesByRealmAndPlayerKey{leaderUnwrappedGUID})) > 0 {
-		return ErrAlreadyInQueue
-	}
-
 	partyMembersGUIDs := make([]guid.PlayerUnwrapped, len(partyMembers))
 	for i, playerGUID := range partyMembers {
-		if len(s.GetQueueOrBattlegroundLinkForPlayer(QueuesByRealmAndPlayerKey{
-			guid.PlayerUnwrapped{
-				RealmID: uint16(realmID),
-				LowGUID: guid.LowType(playerGUID),
-			},
-		})) > 0 {
-			return ErrAlreadyInQueue
-		}
 		partyMembersGUIDs[i] = guid.PlayerUnwrapped{
 			RealmID: uint16(realmID),
 			LowGUID: guid.LowType(playerGUID),
@@ -309,7 +291,12 @@ func (s *battleGroundService) AddGroupToQueue(
 		EnqueuedTime: time.Now(),
 	}
 
-	slots := s.addQueueForGroupMembers(queue, group)
+	// Check and link under a single lock: two concurrent enqueues of the
+	// same player must not both pass the "already in queue" check.
+	slots, err := s.addQueueForGroupMembersIfFree(queue, group)
+	if err != nil {
+		return err
+	}
 
 	err = queue.AddQueuedGroup(group)
 	if err != nil {
@@ -896,10 +883,33 @@ func (s *battleGroundService) addBattlegroundForGroupMembers(b *battleground.Bat
 	return s.addQueueOrBattlegroundLinkForGroupMembers(QueueOrBattlegroundLink{BattlegroundKey: &BattlegroundKey{RealmID: b.RealmID, BattlegroupID: b.BattleGroupID, InstanceID: b.InstanceID}}, group)
 }
 
+// addQueueForGroupMembersIfFree links the group members to the queue only if
+// none of them already has a queue or battleground link, all under one lock.
+func (s *battleGroundService) addQueueForGroupMembersIfFree(q PVPQueue, group *QueuedGroup) (map[guid.PlayerUnwrapped]uint8, error) {
+	s.playersQueueOrBattlegroundMutex.Lock()
+	defer s.playersQueueOrBattlegroundMutex.Unlock()
+
+	// A player holds at most one queue or battleground link at a time.
+	if len(s.playersQueueOrBattleground[QueuesByRealmAndPlayerKey{group.LeaderGUID}]) > 0 {
+		return nil, ErrAlreadyInQueue
+	}
+	for _, member := range group.Members {
+		if len(s.playersQueueOrBattleground[QueuesByRealmAndPlayerKey{member}]) > 0 {
+			return nil, ErrAlreadyInQueue
+		}
+	}
+
+	return s.addQueueOrBattlegroundLinkForGroupMembersLocked(QueueOrBattlegroundLink{Queue: q}, group), nil
+}
+
 func (s *battleGroundService) addQueueOrBattlegroundLinkForGroupMembers(q QueueOrBattlegroundLink, group *QueuedGroup) map[guid.PlayerUnwrapped]uint8 {
 	s.playersQueueOrBattlegroundMutex.Lock()
 	defer s.playersQueueOrBattlegroundMutex.Unlock()
 
+	return s.addQueueOrBattlegroundLinkForGroupMembersLocked(q, group)
+}
+
+func (s *battleGroundService) addQueueOrBattlegroundLinkForGroupMembersLocked(q QueueOrBattlegroundLink, group *QueuedGroup) map[guid.PlayerUnwrapped]uint8 {
 	group.SlotsPerMember = map[guid.PlayerUnwrapped]uint8{}
 	for _, playerGUID := range group.Members {
 		s.playersQueueOrBattleground[QueuesByRealmAndPlayerKey{playerGUID}] = append(s.playersQueueOrBattleground[QueuesByRealmAndPlayerKey{
