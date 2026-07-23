@@ -14,6 +14,7 @@ var (
 	ErrNotEnoughRight  = errors.New("not enough rights")
 	ErrGuildNotFound   = errors.New("guild not found")
 	ErrLeaderCantLeave = errors.New("leader can't leave")
+	ErrAlreadyInGuild  = errors.New("already in guild")
 )
 
 // InviteAcceptedParams represents parameters for InviteAcceptedParams.InviteAccepted function.
@@ -155,7 +156,7 @@ func (g *guildServiceImpl) InviteMember(ctx context.Context, realmID uint32, inv
 	}
 
 	if inviteeGuildID != 0 {
-		return errors.New("invitee already in guild")
+		return ErrAlreadyInGuild
 	}
 
 	guild, err := g.guildsRepo.GuildByRealmAndID(ctx, realmID, guildID)
