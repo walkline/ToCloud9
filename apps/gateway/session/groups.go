@@ -11,6 +11,7 @@ import (
 	pbChar "github.com/walkline/ToCloud9/gen/characters/pb"
 	"github.com/walkline/ToCloud9/gen/group/pb"
 	"github.com/walkline/ToCloud9/shared/events"
+	guidpkg "github.com/walkline/ToCloud9/shared/wow/guid"
 )
 
 type GroupOperation uint8
@@ -697,7 +698,7 @@ func (s *GameSession) HandleRequestPartyMemberStats(ctx context.Context, p *pack
 		// right answer, while a fabricated status would show a disconnected
 		// member as online with a full health bar. Pets and other non-player
 		// GUIDs (high type bits set) fall through too.
-		if guid>>48 == 0 && s.isOnlineInPlayersGroup(ctx, guid) {
+		if guidpkg.New(guid).GetHigh() == guidpkg.Player && s.isOnlineInPlayersGroup(ctx, guid) {
 			s.gameSocket.SendPacket(buildPartyMemberStatsPacket(&events.GroupMemberStatsUpdate{MemberGUID: guid}))
 			return nil
 		}
