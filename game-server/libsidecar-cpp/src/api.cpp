@@ -409,6 +409,41 @@ TC9_API void TC9SetGetPlayerItemsByGuidsHandler(GetPlayerItemsByGuidsHandler han
     spdlog::debug("GetPlayerItemsByGuids handler registered");
 }
 
+TC9_API void TC9SetGetPlayerItemByPosHandler(GetPlayerItemByPosHandler handler) {
+    static GetPlayerItemByPosHandler stored_handler = nullptr;
+    stored_handler = handler;
+
+    g_state.bindings.get_player_item_by_pos = [](uint64_t playerGuid, uint8_t bag, uint8_t slot) -> TC9GetPlayerItemByPosResponse {
+        if (stored_handler) {
+            GetPlayerItemByPosResponse old_resp = stored_handler(playerGuid, bag, slot);
+
+            TC9GetPlayerItemByPosResponse resp{};
+            resp.errorCode = old_resp.errorCode;
+            resp.found = old_resp.found;
+            if (old_resp.found) {
+                resp.item.guid = old_resp.item.guid;
+                resp.item.entry = old_resp.item.entry;
+                resp.item.owner = old_resp.item.owner;
+                resp.item.bagSlot = old_resp.item.bagSlot;
+                resp.item.slot = old_resp.item.slot;
+                resp.item.isTradable = old_resp.item.isTradable;
+                resp.item.count = old_resp.item.count;
+                resp.item.flags = old_resp.item.flags;
+                resp.item.durability = old_resp.item.durability;
+                resp.item.randomPropertyID = old_resp.item.randomPropertyID;
+                resp.item.text = old_resp.item.text;
+            }
+            return resp;
+        }
+
+        TC9GetPlayerItemByPosResponse resp{};
+        resp.errorCode = TC9_ERROR_NO_HANDLER;
+        return resp;
+    };
+
+    spdlog::debug("GetPlayerItemByPos handler registered");
+}
+
 TC9_API void TC9SetRemoveItemsWithGuidsFromPlayerHandler(RemoveItemsWithGuidsFromPlayerHandler handler) {
     static RemoveItemsWithGuidsFromPlayerHandler stored_handler = nullptr;
     stored_handler = handler;
@@ -497,6 +532,24 @@ TC9_API void TC9SetModifyMoneyForPlayerHandler(ModifyMoneyForPlayerHandler handl
     };
 
     spdlog::debug("ModifyMoneyForPlayer handler registered");
+}
+
+TC9_API void TC9SetSetPlayerGuildFieldsHandler(SetPlayerGuildFieldsHandler handler) {
+    static SetPlayerGuildFieldsHandler stored_handler = nullptr;
+    stored_handler = handler;
+
+    g_state.bindings.set_player_guild_fields = [](uint64_t playerGuid, uint32_t guildId, uint32_t rank, int* errorCode) -> bool {
+        if (stored_handler) {
+            SetPlayerGuildFieldsResponse old_resp = stored_handler(playerGuid, guildId, rank);
+            *errorCode = old_resp.errorCode;
+            return old_resp.applied;
+        }
+
+        *errorCode = TC9_ERROR_NO_HANDLER;
+        return false;
+    };
+
+    spdlog::debug("SetPlayerGuildFields handler registered");
 }
 
 TC9_API void TC9SetCanPlayerInteractWithNPCAndFlagsHandler(CanPlayerInteractWithNPCAndFlagsHandler handler) {
