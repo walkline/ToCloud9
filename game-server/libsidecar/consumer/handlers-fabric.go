@@ -9,6 +9,7 @@ type GuildHandlersFabric interface {
 	GuildMemberAddedHandler(guildID, characterGUID uint64) queue.Handler
 	GuildMemberRemovedHandler(guildID, characterGUID uint64) queue.Handler
 	GuildMemberLeftHandler(guildID, characterGUID uint64) queue.Handler
+	GuildCreatedHandler(payload *events.GuildEventGuildCreatedPayload) queue.Handler
 }
 
 type GroupHandlersFabric interface {
