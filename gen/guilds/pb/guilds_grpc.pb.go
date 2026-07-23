@@ -37,6 +37,17 @@ const (
 	GuildService_DemoteMember_FullMethodName         = "/v1.GuildService/DemoteMember"
 	GuildService_SendGuildMessage_FullMethodName     = "/v1.GuildService/SendGuildMessage"
 	GuildService_CreateGuild_FullMethodName          = "/v1.GuildService/CreateGuild"
+	GuildService_GetBankState_FullMethodName         = "/v1.GuildService/GetBankState"
+	GuildService_GetBankTab_FullMethodName           = "/v1.GuildService/GetBankTab"
+	GuildService_BankDepositMoney_FullMethodName     = "/v1.GuildService/BankDepositMoney"
+	GuildService_BankWithdrawMoney_FullMethodName    = "/v1.GuildService/BankWithdrawMoney"
+	GuildService_BankDepositItem_FullMethodName      = "/v1.GuildService/BankDepositItem"
+	GuildService_BankWithdrawItem_FullMethodName     = "/v1.GuildService/BankWithdrawItem"
+	GuildService_BankMoveItem_FullMethodName         = "/v1.GuildService/BankMoveItem"
+	GuildService_BankBuyTab_FullMethodName           = "/v1.GuildService/BankBuyTab"
+	GuildService_BankSetTabInfo_FullMethodName       = "/v1.GuildService/BankSetTabInfo"
+	GuildService_BankSetTabText_FullMethodName       = "/v1.GuildService/BankSetTabText"
+	GuildService_GetBankLog_FullMethodName           = "/v1.GuildService/GetBankLog"
 )
 
 // GuildServiceClient is the client API for GuildService service.
@@ -61,6 +72,21 @@ type GuildServiceClient interface {
 	DemoteMember(ctx context.Context, in *PromoteDemoteParams, opts ...grpc.CallOption) (*PromoteDemoteResponse, error)
 	SendGuildMessage(ctx context.Context, in *SendGuildMessageParams, opts ...grpc.CallOption) (*SendGuildMessageResponse, error)
 	CreateGuild(ctx context.Context, in *CreateGuildParams, opts ...grpc.CallOption) (*CreateGuildResponse, error)
+	// Guild bank. The guild service is the only writer of the bank state
+	// (tabs, items placement, money, per-rank tab rights, withdrawal counters).
+	// Items themselves live in item_instance and move between a player and the
+	// bank through the worldserver items API, driven by the gateway.
+	GetBankState(ctx context.Context, in *GetBankStateParams, opts ...grpc.CallOption) (*GetBankStateResponse, error)
+	GetBankTab(ctx context.Context, in *GetBankTabParams, opts ...grpc.CallOption) (*GetBankTabResponse, error)
+	BankDepositMoney(ctx context.Context, in *BankMoneyParams, opts ...grpc.CallOption) (*BankMoneyResponse, error)
+	BankWithdrawMoney(ctx context.Context, in *BankMoneyParams, opts ...grpc.CallOption) (*BankMoneyResponse, error)
+	BankDepositItem(ctx context.Context, in *BankDepositItemParams, opts ...grpc.CallOption) (*BankDepositItemResponse, error)
+	BankWithdrawItem(ctx context.Context, in *BankWithdrawItemParams, opts ...grpc.CallOption) (*BankWithdrawItemResponse, error)
+	BankMoveItem(ctx context.Context, in *BankMoveItemParams, opts ...grpc.CallOption) (*BankMoveItemResponse, error)
+	BankBuyTab(ctx context.Context, in *BankBuyTabParams, opts ...grpc.CallOption) (*BankBuyTabResponse, error)
+	BankSetTabInfo(ctx context.Context, in *BankSetTabInfoParams, opts ...grpc.CallOption) (*BankSetTabInfoResponse, error)
+	BankSetTabText(ctx context.Context, in *BankSetTabTextParams, opts ...grpc.CallOption) (*BankSetTabTextResponse, error)
+	GetBankLog(ctx context.Context, in *GetBankLogParams, opts ...grpc.CallOption) (*GetBankLogResponse, error)
 }
 
 type guildServiceClient struct {
@@ -233,6 +259,105 @@ func (c *guildServiceClient) CreateGuild(ctx context.Context, in *CreateGuildPar
 	return out, nil
 }
 
+func (c *guildServiceClient) GetBankState(ctx context.Context, in *GetBankStateParams, opts ...grpc.CallOption) (*GetBankStateResponse, error) {
+	out := new(GetBankStateResponse)
+	err := c.cc.Invoke(ctx, GuildService_GetBankState_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *guildServiceClient) GetBankTab(ctx context.Context, in *GetBankTabParams, opts ...grpc.CallOption) (*GetBankTabResponse, error) {
+	out := new(GetBankTabResponse)
+	err := c.cc.Invoke(ctx, GuildService_GetBankTab_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *guildServiceClient) BankDepositMoney(ctx context.Context, in *BankMoneyParams, opts ...grpc.CallOption) (*BankMoneyResponse, error) {
+	out := new(BankMoneyResponse)
+	err := c.cc.Invoke(ctx, GuildService_BankDepositMoney_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *guildServiceClient) BankWithdrawMoney(ctx context.Context, in *BankMoneyParams, opts ...grpc.CallOption) (*BankMoneyResponse, error) {
+	out := new(BankMoneyResponse)
+	err := c.cc.Invoke(ctx, GuildService_BankWithdrawMoney_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *guildServiceClient) BankDepositItem(ctx context.Context, in *BankDepositItemParams, opts ...grpc.CallOption) (*BankDepositItemResponse, error) {
+	out := new(BankDepositItemResponse)
+	err := c.cc.Invoke(ctx, GuildService_BankDepositItem_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *guildServiceClient) BankWithdrawItem(ctx context.Context, in *BankWithdrawItemParams, opts ...grpc.CallOption) (*BankWithdrawItemResponse, error) {
+	out := new(BankWithdrawItemResponse)
+	err := c.cc.Invoke(ctx, GuildService_BankWithdrawItem_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *guildServiceClient) BankMoveItem(ctx context.Context, in *BankMoveItemParams, opts ...grpc.CallOption) (*BankMoveItemResponse, error) {
+	out := new(BankMoveItemResponse)
+	err := c.cc.Invoke(ctx, GuildService_BankMoveItem_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *guildServiceClient) BankBuyTab(ctx context.Context, in *BankBuyTabParams, opts ...grpc.CallOption) (*BankBuyTabResponse, error) {
+	out := new(BankBuyTabResponse)
+	err := c.cc.Invoke(ctx, GuildService_BankBuyTab_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *guildServiceClient) BankSetTabInfo(ctx context.Context, in *BankSetTabInfoParams, opts ...grpc.CallOption) (*BankSetTabInfoResponse, error) {
+	out := new(BankSetTabInfoResponse)
+	err := c.cc.Invoke(ctx, GuildService_BankSetTabInfo_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *guildServiceClient) BankSetTabText(ctx context.Context, in *BankSetTabTextParams, opts ...grpc.CallOption) (*BankSetTabTextResponse, error) {
+	out := new(BankSetTabTextResponse)
+	err := c.cc.Invoke(ctx, GuildService_BankSetTabText_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *guildServiceClient) GetBankLog(ctx context.Context, in *GetBankLogParams, opts ...grpc.CallOption) (*GetBankLogResponse, error) {
+	out := new(GetBankLogResponse)
+	err := c.cc.Invoke(ctx, GuildService_GetBankLog_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // GuildServiceServer is the server API for GuildService service.
 // All implementations must embed UnimplementedGuildServiceServer
 // for forward compatibility
@@ -255,6 +380,21 @@ type GuildServiceServer interface {
 	DemoteMember(context.Context, *PromoteDemoteParams) (*PromoteDemoteResponse, error)
 	SendGuildMessage(context.Context, *SendGuildMessageParams) (*SendGuildMessageResponse, error)
 	CreateGuild(context.Context, *CreateGuildParams) (*CreateGuildResponse, error)
+	// Guild bank. The guild service is the only writer of the bank state
+	// (tabs, items placement, money, per-rank tab rights, withdrawal counters).
+	// Items themselves live in item_instance and move between a player and the
+	// bank through the worldserver items API, driven by the gateway.
+	GetBankState(context.Context, *GetBankStateParams) (*GetBankStateResponse, error)
+	GetBankTab(context.Context, *GetBankTabParams) (*GetBankTabResponse, error)
+	BankDepositMoney(context.Context, *BankMoneyParams) (*BankMoneyResponse, error)
+	BankWithdrawMoney(context.Context, *BankMoneyParams) (*BankMoneyResponse, error)
+	BankDepositItem(context.Context, *BankDepositItemParams) (*BankDepositItemResponse, error)
+	BankWithdrawItem(context.Context, *BankWithdrawItemParams) (*BankWithdrawItemResponse, error)
+	BankMoveItem(context.Context, *BankMoveItemParams) (*BankMoveItemResponse, error)
+	BankBuyTab(context.Context, *BankBuyTabParams) (*BankBuyTabResponse, error)
+	BankSetTabInfo(context.Context, *BankSetTabInfoParams) (*BankSetTabInfoResponse, error)
+	BankSetTabText(context.Context, *BankSetTabTextParams) (*BankSetTabTextResponse, error)
+	GetBankLog(context.Context, *GetBankLogParams) (*GetBankLogResponse, error)
 	mustEmbedUnimplementedGuildServiceServer()
 }
 
@@ -315,6 +455,39 @@ func (UnimplementedGuildServiceServer) SendGuildMessage(context.Context, *SendGu
 }
 func (UnimplementedGuildServiceServer) CreateGuild(context.Context, *CreateGuildParams) (*CreateGuildResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CreateGuild not implemented")
+}
+func (UnimplementedGuildServiceServer) GetBankState(context.Context, *GetBankStateParams) (*GetBankStateResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetBankState not implemented")
+}
+func (UnimplementedGuildServiceServer) GetBankTab(context.Context, *GetBankTabParams) (*GetBankTabResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetBankTab not implemented")
+}
+func (UnimplementedGuildServiceServer) BankDepositMoney(context.Context, *BankMoneyParams) (*BankMoneyResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method BankDepositMoney not implemented")
+}
+func (UnimplementedGuildServiceServer) BankWithdrawMoney(context.Context, *BankMoneyParams) (*BankMoneyResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method BankWithdrawMoney not implemented")
+}
+func (UnimplementedGuildServiceServer) BankDepositItem(context.Context, *BankDepositItemParams) (*BankDepositItemResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method BankDepositItem not implemented")
+}
+func (UnimplementedGuildServiceServer) BankWithdrawItem(context.Context, *BankWithdrawItemParams) (*BankWithdrawItemResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method BankWithdrawItem not implemented")
+}
+func (UnimplementedGuildServiceServer) BankMoveItem(context.Context, *BankMoveItemParams) (*BankMoveItemResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method BankMoveItem not implemented")
+}
+func (UnimplementedGuildServiceServer) BankBuyTab(context.Context, *BankBuyTabParams) (*BankBuyTabResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method BankBuyTab not implemented")
+}
+func (UnimplementedGuildServiceServer) BankSetTabInfo(context.Context, *BankSetTabInfoParams) (*BankSetTabInfoResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method BankSetTabInfo not implemented")
+}
+func (UnimplementedGuildServiceServer) BankSetTabText(context.Context, *BankSetTabTextParams) (*BankSetTabTextResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method BankSetTabText not implemented")
+}
+func (UnimplementedGuildServiceServer) GetBankLog(context.Context, *GetBankLogParams) (*GetBankLogResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetBankLog not implemented")
 }
 func (UnimplementedGuildServiceServer) mustEmbedUnimplementedGuildServiceServer() {}
 
@@ -653,6 +826,204 @@ func _GuildService_CreateGuild_Handler(srv interface{}, ctx context.Context, dec
 	return interceptor(ctx, in, info, handler)
 }
 
+func _GuildService_GetBankState_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetBankStateParams)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(GuildServiceServer).GetBankState(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: GuildService_GetBankState_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(GuildServiceServer).GetBankState(ctx, req.(*GetBankStateParams))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _GuildService_GetBankTab_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetBankTabParams)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(GuildServiceServer).GetBankTab(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: GuildService_GetBankTab_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(GuildServiceServer).GetBankTab(ctx, req.(*GetBankTabParams))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _GuildService_BankDepositMoney_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(BankMoneyParams)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(GuildServiceServer).BankDepositMoney(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: GuildService_BankDepositMoney_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(GuildServiceServer).BankDepositMoney(ctx, req.(*BankMoneyParams))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _GuildService_BankWithdrawMoney_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(BankMoneyParams)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(GuildServiceServer).BankWithdrawMoney(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: GuildService_BankWithdrawMoney_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(GuildServiceServer).BankWithdrawMoney(ctx, req.(*BankMoneyParams))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _GuildService_BankDepositItem_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(BankDepositItemParams)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(GuildServiceServer).BankDepositItem(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: GuildService_BankDepositItem_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(GuildServiceServer).BankDepositItem(ctx, req.(*BankDepositItemParams))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _GuildService_BankWithdrawItem_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(BankWithdrawItemParams)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(GuildServiceServer).BankWithdrawItem(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: GuildService_BankWithdrawItem_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(GuildServiceServer).BankWithdrawItem(ctx, req.(*BankWithdrawItemParams))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _GuildService_BankMoveItem_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(BankMoveItemParams)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(GuildServiceServer).BankMoveItem(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: GuildService_BankMoveItem_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(GuildServiceServer).BankMoveItem(ctx, req.(*BankMoveItemParams))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _GuildService_BankBuyTab_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(BankBuyTabParams)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(GuildServiceServer).BankBuyTab(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: GuildService_BankBuyTab_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(GuildServiceServer).BankBuyTab(ctx, req.(*BankBuyTabParams))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _GuildService_BankSetTabInfo_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(BankSetTabInfoParams)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(GuildServiceServer).BankSetTabInfo(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: GuildService_BankSetTabInfo_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(GuildServiceServer).BankSetTabInfo(ctx, req.(*BankSetTabInfoParams))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _GuildService_BankSetTabText_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(BankSetTabTextParams)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(GuildServiceServer).BankSetTabText(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: GuildService_BankSetTabText_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(GuildServiceServer).BankSetTabText(ctx, req.(*BankSetTabTextParams))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _GuildService_GetBankLog_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetBankLogParams)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(GuildServiceServer).GetBankLog(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: GuildService_GetBankLog_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(GuildServiceServer).GetBankLog(ctx, req.(*GetBankLogParams))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // GuildService_ServiceDesc is the grpc.ServiceDesc for GuildService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -731,6 +1102,50 @@ var GuildService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "CreateGuild",
 			Handler:    _GuildService_CreateGuild_Handler,
+		},
+		{
+			MethodName: "GetBankState",
+			Handler:    _GuildService_GetBankState_Handler,
+		},
+		{
+			MethodName: "GetBankTab",
+			Handler:    _GuildService_GetBankTab_Handler,
+		},
+		{
+			MethodName: "BankDepositMoney",
+			Handler:    _GuildService_BankDepositMoney_Handler,
+		},
+		{
+			MethodName: "BankWithdrawMoney",
+			Handler:    _GuildService_BankWithdrawMoney_Handler,
+		},
+		{
+			MethodName: "BankDepositItem",
+			Handler:    _GuildService_BankDepositItem_Handler,
+		},
+		{
+			MethodName: "BankWithdrawItem",
+			Handler:    _GuildService_BankWithdrawItem_Handler,
+		},
+		{
+			MethodName: "BankMoveItem",
+			Handler:    _GuildService_BankMoveItem_Handler,
+		},
+		{
+			MethodName: "BankBuyTab",
+			Handler:    _GuildService_BankBuyTab_Handler,
+		},
+		{
+			MethodName: "BankSetTabInfo",
+			Handler:    _GuildService_BankSetTabInfo_Handler,
+		},
+		{
+			MethodName: "BankSetTabText",
+			Handler:    _GuildService_BankSetTabText_Handler,
+		},
+		{
+			MethodName: "GetBankLog",
+			Handler:    _GuildService_GetBankLog_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
