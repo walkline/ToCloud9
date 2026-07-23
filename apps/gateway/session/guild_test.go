@@ -8,16 +8,17 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"google.golang.org/grpc"
-  "google.golang.org/grpc/codes"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-  eBroadcaster "github.com/walkline/ToCloud9/apps/gateway/events-broadcaster"
+	eBroadcaster "github.com/walkline/ToCloud9/apps/gateway/events-broadcaster"
 	"github.com/walkline/ToCloud9/apps/gateway/packet"
 	mocks "github.com/walkline/ToCloud9/apps/gateway/sockets/socketmock"
 	pbChar "github.com/walkline/ToCloud9/gen/characters/pb"
 	pbGuild "github.com/walkline/ToCloud9/gen/guilds/pb"
+	pbWorld "github.com/walkline/ToCloud9/gen/worldserver/pb"
+	"github.com/walkline/ToCloud9/shared/events"
 	"github.com/walkline/ToCloud9/shared/wow"
-  "github.com/walkline/ToCloud9/shared/events"
 )
 
 type charServiceClientOnlineByNameMock struct {
@@ -54,10 +55,11 @@ func (m *guildServiceClientInviteMock) GetBankState(_ context.Context, _ *pbGuil
 	return &pbGuild.GetBankStateResponse{RankID: 1, RankRights: 0xFFF, MoneyPerDay: 100}, nil
 }
 
-func guildTestSession(t *testing.T, guildClient pbGuild.GuildServiceClient, charClient pbChar.CharactersServiceClient) (*GameSession, *[]*packet.Writer) {
+func guildTestSession(t *testing.T, guildClient pbGuild.GuildServiceClient, charClient pbChar.CharactersServiceClient) (*GameSession, *[]*packet.Writer, *worldServerGuildFieldsMock) {
 	t.Helper()
 
 	sentToClient := &[]*packet.Writer{}
+	worldClient := &worldServerGuildFieldsMock{}
 	gameSocket := &mocks.Socket{}
 	gameSocket.On("Send", mock.Anything).Run(func(args mock.Arguments) {
 		*sentToClient = append(*sentToClient, args.Get(0).(*packet.Writer))
@@ -69,9 +71,23 @@ func guildTestSession(t *testing.T, guildClient pbGuild.GuildServiceClient, char
 		character:          &LoggedInCharacter{GUID: 42, GuildID: 7},
 		guildServiceClient: guildClient,
 		charServiceClient:  charClient,
+
+		gameServerGRPCClient: worldClient,
 	}
 
-	return session, sentToClient
+	return session, sentToClient, worldClient
+}
+
+// worldServerGuildFieldsMock answers SetPlayerGuildFields, which the rank
+// refresh calls before touching the client UI.
+type worldServerGuildFieldsMock struct {
+	pbWorld.WorldServerServiceClient
+	lastRequest *pbWorld.SetPlayerGuildFieldsRequest
+}
+
+func (m *worldServerGuildFieldsMock) SetPlayerGuildFields(_ context.Context, in *pbWorld.SetPlayerGuildFieldsRequest, _ ...grpc.CallOption) (*pbWorld.SetPlayerGuildFieldsResponse, error) {
+	m.lastRequest = in
+	return &pbWorld.SetPlayerGuildFieldsResponse{Applied: true}, nil
 }
 
 func promoteRoster() *pbGuild.GetRosterInfoResponse {
@@ -89,7 +105,7 @@ func promoteRoster() *pbGuild.GetRosterInfoResponse {
 
 func TestPromoteEventPushesPermissionsToPromotedMember(t *testing.T) {
 	guildClient := &guildServiceClientInviteMock{rosterResp: promoteRoster()}
-	session, sentToClient := guildTestSession(t, guildClient, nil)
+	session, sentToClient, worldClient := guildTestSession(t, guildClient, nil)
 
 	err := session.HandleEventGuildMemberPromoted(context.Background(), &eBroadcaster.Event{
 		Payload: &events.GuildEventMemberPromotePayload{
@@ -97,13 +113,21 @@ func TestPromoteEventPushesPermissionsToPromotedMember(t *testing.T) {
 			PromoterName: "Leader",
 			MemberName:   "Member",
 			MemberGUID:   42,
+			RankID:       1,
 		},
 	})
 	assert.Nil(t, err)
 
-	if assert.Len(t, *sentToClient, 2) {
+	// The unit field carries the rank the client gates its buttons on.
+	if assert.NotNil(t, worldClient.lastRequest) {
+		assert.Equal(t, uint64(42), worldClient.lastRequest.PlayerGuid)
+		assert.Equal(t, uint32(1), worldClient.lastRequest.Rank)
+	}
+
+	if assert.Len(t, *sentToClient, 3) {
 		assert.Equal(t, packet.SMsgGuildEvent, (*sentToClient)[0].Opcode)
 		assert.Equal(t, packet.MsgGuildPermissions, (*sentToClient)[1].Opcode)
+		assert.Equal(t, packet.SMsgGuildRoster, (*sentToClient)[2].Opcode)
 		r := (*sentToClient)[1].ToPacket().Reader()
 		assert.Equal(t, uint32(1), r.Uint32())     // rank id
 		assert.Equal(t, uint32(0xFFF), r.Uint32()) // rank flags
@@ -112,7 +136,7 @@ func TestPromoteEventPushesPermissionsToPromotedMember(t *testing.T) {
 
 func TestPromoteEventOtherMemberNoPermissionsPush(t *testing.T) {
 	guildClient := &guildServiceClientInviteMock{rosterResp: promoteRoster()}
-	session, sentToClient := guildTestSession(t, guildClient, nil)
+	session, sentToClient, worldClient := guildTestSession(t, guildClient, nil)
 
 	err := session.HandleEventGuildMemberPromoted(context.Background(), &eBroadcaster.Event{
 		Payload: &events.GuildEventMemberPromotePayload{
@@ -123,6 +147,8 @@ func TestPromoteEventOtherMemberNoPermissionsPush(t *testing.T) {
 	})
 	assert.Nil(t, err)
 
+	assert.Nil(t, worldClient.lastRequest, "another member's rank change must not touch our unit fields")
+
 	if assert.Len(t, *sentToClient, 1) {
 		assert.Equal(t, packet.SMsgGuildEvent, (*sentToClient)[0].Opcode)
 	}
@@ -130,7 +156,7 @@ func TestPromoteEventOtherMemberNoPermissionsPush(t *testing.T) {
 
 func TestDemoteEventPushesPermissionsToDemotedMember(t *testing.T) {
 	guildClient := &guildServiceClientInviteMock{rosterResp: promoteRoster()}
-	session, sentToClient := guildTestSession(t, guildClient, nil)
+	session, sentToClient, worldClient := guildTestSession(t, guildClient, nil)
 
 	err := session.HandleEventGuildMemberDemoted(context.Background(), &eBroadcaster.Event{
 		Payload: &events.GuildEventMemberDemotePayload{
@@ -138,12 +164,18 @@ func TestDemoteEventPushesPermissionsToDemotedMember(t *testing.T) {
 			DemoterName: "Leader",
 			MemberName:  "Member",
 			MemberGUID:  42,
+			RankID:      1,
 		},
 	})
 	assert.Nil(t, err)
 
-	if assert.Len(t, *sentToClient, 2) {
+	if assert.NotNil(t, worldClient.lastRequest) {
+		assert.Equal(t, uint32(1), worldClient.lastRequest.Rank)
+	}
+
+	if assert.Len(t, *sentToClient, 3) {
 		assert.Equal(t, packet.MsgGuildPermissions, (*sentToClient)[1].Opcode)
+		assert.Equal(t, packet.SMsgGuildRoster, (*sentToClient)[2].Opcode)
 	}
 }
 func guildInvitePacket(name string) *packet.Packet {
@@ -173,7 +205,7 @@ func TestHandleGuildInviteMapsBusinessErrors(t *testing.T) {
 				},
 			}
 			guildClient := &guildServiceClientInviteMock{inviteErr: tt.inviteErr}
-			session, sentToClient := guildTestSession(t, guildClient, charClient)
+			session, sentToClient, _ := guildTestSession(t, guildClient, charClient)
 
 			err := session.HandleGuildInvite(context.Background(), guildInvitePacket("Thrall"))
 			assert.Nil(t, err)
@@ -196,7 +228,7 @@ func TestHandleGuildInviteUnknownErrorStaysAnError(t *testing.T) {
 		},
 	}
 	guildClient := &guildServiceClientInviteMock{inviteErr: status.Error(codes.Internal, "boom")}
-	session, sentToClient := guildTestSession(t, guildClient, charClient)
+	session, sentToClient, _ := guildTestSession(t, guildClient, charClient)
 
 	err := session.HandleGuildInvite(context.Background(), guildInvitePacket("Thrall"))
 	assert.NotNil(t, err)
@@ -230,7 +262,7 @@ func TestHandleGuildInviteRefusesTheOtherFaction(t *testing.T) {
 				},
 			}
 			guildClient := &guildServiceClientInviteMock{}
-			session, sentToClient := guildTestSession(t, guildClient, charClient)
+			session, sentToClient, _ := guildTestSession(t, guildClient, charClient)
 			session.character.Race = tt.inviterRace
 			session.allowCrossFactionGuilds = tt.allowCross
 
@@ -254,7 +286,7 @@ func TestHandleGuildInviteRefusesTheOtherFaction(t *testing.T) {
 	}
 }
 func TestGuildDisbandIsRefusedAndNotForwarded(t *testing.T) {
-	session, sentToClient := guildTestSession(t, nil, nil)
+	session, sentToClient, _ := guildTestSession(t, nil, nil)
 
 	err := session.HandleGuildDisband(context.Background(), nil)
 	assert.Nil(t, err)
@@ -267,7 +299,7 @@ func TestGuildDisbandIsRefusedAndNotForwarded(t *testing.T) {
 }
 
 func TestGuildLeaderChangeIsRefusedAndNotForwarded(t *testing.T) {
-	session, sentToClient := guildTestSession(t, nil, nil)
+	session, sentToClient, _ := guildTestSession(t, nil, nil)
 
 	err := session.HandleGuildLeaderChange(context.Background(), nil)
 	assert.Nil(t, err)
@@ -278,7 +310,7 @@ func TestGuildLeaderChangeIsRefusedAndNotForwarded(t *testing.T) {
 }
 
 func TestGuildlessPlayerGetsNoRefusalMessage(t *testing.T) {
-	session, sentToClient := guildTestSession(t, nil, nil)
+	session, sentToClient, _ := guildTestSession(t, nil, nil)
 	session.character.GuildID = 0
 
 	assert.Nil(t, session.HandleGuildDisband(context.Background(), nil))
