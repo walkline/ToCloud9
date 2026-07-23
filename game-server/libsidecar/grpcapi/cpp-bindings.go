@@ -70,6 +70,27 @@ type CanPlayerJoinBattlegroundQueueHandler func(player uint64) error
 
 type CanPlayerTeleportToBattlegroundHandler func(player uint64) error
 
+// GuildPetitionCheckStatus mirrors the statuses of the C petition-api.
+type GuildPetitionCheckStatus int
+
+const (
+	GuildPetitionCheckStatusOk                 GuildPetitionCheckStatus = 0
+	GuildPetitionCheckStatusPlayerNotFound     GuildPetitionCheckStatus = 2
+	GuildPetitionCheckStatusPetitionNotFound   GuildPetitionCheckStatus = 3
+	GuildPetitionCheckStatusNotPetitionOwner   GuildPetitionCheckStatus = 4
+	GuildPetitionCheckStatusNotGuildPetition   GuildPetitionCheckStatus = 5
+	GuildPetitionCheckStatusAlreadyInGuild     GuildPetitionCheckStatus = 6
+	GuildPetitionCheckStatusNeedMoreSignatures GuildPetitionCheckStatus = 7
+)
+
+type GuildPetitionCheckResult struct {
+	Status         GuildPetitionCheckStatus
+	GuildName      string
+	SignatoryGUIDs []uint64
+}
+
+type CanTurnInGuildPetitionHandler func(playerGUID, petitionItemGUID uint64) (*GuildPetitionCheckResult, error)
+
 type CppBindings struct {
 	GetPlayerItemsByGuids           GetPlayerItemsByGuidsHandler
 	RemoveItemsWithGuidsFromPlayer  RemoveItemsWithGuidsFromPlayerHandler
@@ -82,4 +103,5 @@ type CppBindings struct {
 	AddPlayersToBattleground        AddPlayersToBattlegroundHandler
 	CanPlayerJoinBattlegroundQueue  CanPlayerJoinBattlegroundQueueHandler
 	CanPlayerTeleportToBattleground CanPlayerTeleportToBattlegroundHandler
+	CanTurnInGuildPetition          CanTurnInGuildPetitionHandler
 }

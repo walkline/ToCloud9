@@ -79,6 +79,16 @@ typedef struct {
     uint64_t memberGuid;
 } TC9EventGuildMemberRemoved;
 
+typedef struct {
+    uint64_t guildGuid;
+    /* Owned by the dispatcher, the hook must copy. */
+    const char* guildName;
+    uint64_t leaderGuid;
+    /* Owned by the dispatcher, the hook must copy. */
+    const uint64_t* memberGuids;
+    int memberGuidsCount;
+} TC9EventGuildCreated;
+
 /* Registry Events */
 
 typedef struct {
@@ -106,6 +116,7 @@ typedef void (*TC9OnGroupConvertedToRaidHook)(TC9EventGroupConvertedToRaid event
 typedef void (*TC9OnGuildMemberAddedHook)(TC9EventGuildMemberAdded event);
 typedef void (*TC9OnGuildMemberLeftHook)(TC9EventGuildMemberLeft event);
 typedef void (*TC9OnGuildMemberRemovedHook)(TC9EventGuildMemberRemoved event);
+typedef void (*TC9OnGuildCreatedHook)(TC9EventGuildCreated event);
 
 /* Registry event hooks */
 typedef void (*TC9OnMapsReassignedHook)(TC9EventMapsReassigned event);

@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"time"
 
@@ -75,6 +76,48 @@ func (g *guildsInMemCache) GuildIDByRealmAndMemberGUID(_ context.Context, realmI
 	return member.GuildID, nil
 }
 
+// GuildIDByRealmAndMemberGUIDFromSource returns guild id by guild member guid from
+// the underlying repo. The world can remove guilds and members without going through
+// this service (e.g. GM commands handled in-process), so a positive cached membership
+// can be stale — when the source disagrees, the cached entry is evicted.
+func (g *guildsInMemCache) GuildIDByRealmAndMemberGUIDFromSource(ctx context.Context, realmID uint32, memberGUID uint64) (uint64, error) {
+	guildID, err := g.r.GuildIDByRealmAndMemberGUID(ctx, realmID, memberGUID)
+	if err != nil {
+		return 0, err
+	}
+
+	if guildID == 0 {
+		g.evictGuildMember(realmID, memberGUID)
+	}
+
+	return guildID, nil
+}
+
+// evictGuildMember removes the member from the members cache and from the cached guild roster.
+func (g *guildsInMemCache) evictGuildMember(realmID uint32, characterGUID uint64) {
+	g.cacheMutex.Lock()
+	defer g.cacheMutex.Unlock()
+
+	member := g.guildMembersCache[realmID][characterGUID]
+	if member == nil {
+		return
+	}
+
+	delete(g.guildMembersCache[realmID], characterGUID)
+
+	guild := g.cache[realmID][member.GuildID]
+	if guild == nil {
+		return
+	}
+
+	for i, mem := range guild.GuildMembers {
+		if mem.PlayerGUID == characterGUID {
+			guild.GuildMembers = append(guild.GuildMembers[:i], guild.GuildMembers[i+1:]...)
+			break
+		}
+	}
+}
+
 // AddGuildMember adds guild member to the guild.
 func (g *guildsInMemCache) AddGuildMember(ctx context.Context, realmID uint32, member repo.GuildMember) error {
 	if err := g.r.AddGuildMember(ctx, realmID, member); err != nil {
@@ -95,25 +138,7 @@ func (g *guildsInMemCache) RemoveGuildMember(ctx context.Context, realmID uint32
 		return err
 	}
 
-	g.cacheMutex.Lock()
-	defer g.cacheMutex.Unlock()
-
-	member := g.guildMembersCache[realmID][characterGUID]
-	if member == nil {
-		return nil
-	}
-
-	delete(g.guildMembersCache[realmID], characterGUID)
-
-	for i, mem := range g.cache[realmID][member.GuildID].GuildMembers {
-		if mem.PlayerGUID == characterGUID {
-			g.cache[realmID][member.GuildID].GuildMembers = append(
-				g.cache[realmID][member.GuildID].GuildMembers[:i],
-				g.cache[realmID][member.GuildID].GuildMembers[i+1:]...,
-			)
-			break
-		}
-	}
+	g.evictGuildMember(realmID, characterGUID)
 
 	return nil
 }
@@ -367,4 +392,39 @@ func applyCharUpdate(member *repo.GuildMember, upd *events.CharacterUpdate) {
 	if upd.Lvl != nil {
 		member.Lvl = *upd.Lvl
 	}
+}
+
+// CreateGuild creates the guild in the underlying repo and caches it hydrated
+// (the reload joins member details from the characters table).
+func (g *guildsInMemCache) CreateGuild(ctx context.Context, realmID uint32, name string, leaderGUID uint64, ranks []repo.GuildRank, memberGUIDs []uint64) (uint64, error) {
+	id, err := g.r.CreateGuild(ctx, realmID, name, leaderGUID, ranks, memberGUIDs)
+	if err != nil {
+		return 0, err
+	}
+
+	guild, err := g.r.GuildByRealmAndID(ctx, realmID, id)
+	if err != nil {
+		return id, fmt.Errorf("guild %d created but not cached, err: %w", id, err)
+	}
+
+	g.cacheMutex.Lock()
+	if g.cache[realmID] == nil {
+		g.cache[realmID] = map[uint64]*repo.Guild{}
+	}
+	if g.guildMembersCache[realmID] == nil {
+		g.guildMembersCache[realmID] = map[uint64]*repo.GuildMember{}
+	}
+	g.cache[realmID][id] = guild
+	for _, member := range guild.GuildMembers {
+		if member.PlayerGUID == leaderGUID {
+			// Guild creation is always driven by a live session of the leader,
+			// but the world may not have flushed the online flag to the
+			// characters table yet, so the hydration can miss it.
+			member.Status = repo.GuildMemberStatusOnline
+		}
+		g.guildMembersCache[realmID][member.PlayerGUID] = member
+	}
+	g.cacheMutex.Unlock()
+
+	return id, nil
 }
