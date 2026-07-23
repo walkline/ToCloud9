@@ -16,6 +16,7 @@ import (
 	"github.com/walkline/ToCloud9/apps/gateway/packet"
 	pbChar "github.com/walkline/ToCloud9/gen/characters/pb"
 	pbGuild "github.com/walkline/ToCloud9/gen/guilds/pb"
+	pbGameServ "github.com/walkline/ToCloud9/gen/worldserver/pb"
 	"github.com/walkline/ToCloud9/shared/events"
 )
 
@@ -255,10 +256,7 @@ func (s *GameSession) HandleEventGuildMemberPromoted(ctx context.Context, e *eBr
 	))
 
 	if eventData.MemberGUID == s.character.GUID {
-		// Best effort: a failed push must not abort the remaining event handlers.
-		if err := s.sendGuildPermissions(ctx); err != nil {
-			log.Warn().Err(err).Msg("can't push guild permissions after rank change")
-		}
+		s.refreshGuildFieldsAndUI(ctx, uint32(eventData.RankID))
 	}
 
 	return nil
@@ -275,13 +273,37 @@ func (s *GameSession) HandleEventGuildMemberDemoted(ctx context.Context, e *eBro
 	))
 
 	if eventData.MemberGUID == s.character.GUID {
-		// Best effort: a failed push must not abort the remaining event handlers.
-		if err := s.sendGuildPermissions(ctx); err != nil {
-			log.Warn().Err(err).Msg("can't push guild permissions after rank change")
-		}
+		s.refreshGuildFieldsAndUI(ctx, uint32(eventData.RankID))
 	}
 
 	return nil
+}
+
+// refreshGuildFieldsAndUI re-arms the guild UI of the member whose rank just
+// changed. The client gates the guild control buttons (invite, promote, ...)
+// on the PLAYER_GUILDRANK unit field, which no longer follows the rank in
+// cluster mode: the guild service owns the change and the worldserver never
+// calls SetRank on the live player object, so the buttons keep the old state
+// until the player relogs. Push the new rank onto the object first, then
+// refresh the permissions and the roster.
+func (s *GameSession) refreshGuildFieldsAndUI(ctx context.Context, rank uint32) {
+	// Best effort throughout: a failed push must not abort the remaining
+	// event handlers.
+	if _, err := s.gameServerGRPCClient.SetPlayerGuildFields(ctx, &pbGameServ.SetPlayerGuildFieldsRequest{
+		Api:        root.Ver,
+		PlayerGuid: s.character.GUID,
+		GuildID:    s.character.GuildID,
+		Rank:       rank,
+	}); err != nil {
+		log.Warn().Err(err).Msg("can't refresh player guild fields after rank change")
+	}
+
+	if err := s.sendGuildPermissions(ctx); err != nil {
+		log.Warn().Err(err).Msg("can't push guild permissions after rank change")
+	}
+	if err := s.HandleGuildRoster(ctx, nil); err != nil {
+		log.Warn().Err(err).Msg("can't push guild roster after rank change")
+	}
 }
 
 func (s *GameSession) HandleEventGuildMOTDUpdated(_ context.Context, e *eBroadcaster.Event) error {
