@@ -837,53 +837,64 @@ func (s *battleGroundService) PlayerBecomeOffline(ctx context.Context, playerGUI
 }
 
 func (s *battleGroundService) ProcessExpiredBattlegroundInvites(ctx context.Context) {
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
+
 	for {
 		select {
-		case <-time.After(time.Second):
-			bgs, err := s.battlegroundsRepo.GetAllActiveBattlegrounds(ctx)
-			if err != nil {
-				log.Err(err).Msg("failed to get all active battlegrounds")
-				break
-			}
-			for _, bg := range bgs {
-				for _, invites := range bg.InvitedPlayersPerTeam {
-					for _, invite := range invites {
-						if time.Since(invite.InvitedTime) > time.Minute {
-							err = s.battlegroundsRepo.UpdateBattleground(
-								ctx,
-								bg.InstanceID,
-								repo.RealmWithBattlegroupKey{RealmID: bg.RealmID, BattlegroupID: bg.BattleGroupID},
-								func(b *battleground.Battleground) error {
-									b.RemovePlayerFromInvite(uint64(invite.GUID.LowGUID), uint32(invite.GUID.RealmID))
-									return nil
-								},
-							)
-							if err != nil {
-								log.Err(err).Msg("failed to remove invite from Battleground")
-								continue
-							}
+		case <-ticker.C:
+			s.processExpiredBattlegroundInvitesTick(ctx)
+		case <-ctx.Done():
+			return
+		}
+	}
+}
 
-							err = s.RemovePlayerFromQueue(ctx, uint64(invite.GUID.LowGUID), uint32(invite.GUID.RealmID), bg.QueueTypeID)
-							if err != nil {
-								log.Err(err).Msg("failed to remove invited player from queue")
-								continue
-							}
+func (s *battleGroundService) processExpiredBattlegroundInvitesTick(ctx context.Context) {
+	bgs, err := s.battlegroundsRepo.GetAllActiveBattlegrounds(ctx)
+	if err != nil {
+		log.Err(err).Msg("failed to get all active battlegrounds")
+		return
+	}
+	for _, bg := range bgs {
+		for _, invites := range bg.InvitedPlayersPerTeam {
+			for _, invite := range invites {
+				if time.Since(invite.InvitedTime) > time.Minute {
+					err = s.battlegroundsRepo.UpdateBattleground(
+						ctx,
+						bg.InstanceID,
+						repo.RealmWithBattlegroupKey{RealmID: bg.RealmID, BattlegroupID: bg.BattleGroupID},
+						func(b *battleground.Battleground) error {
+							b.RemovePlayerFromInvite(uint64(invite.GUID.LowGUID), uint32(invite.GUID.RealmID))
+							return nil
+						},
+					)
+					if err != nil {
+						log.Err(err).Msg("failed to remove invite from Battleground")
+						continue
+					}
 
-							slot := uint8(0) // TODO: provide real slot
-							err = s.eventsProducer.InviteExpired(&events.MatchmakingEventPlayersInviteExpiredPayload{
-								RealmID:           uint32(invite.GUID.RealmID),
-								PlayersGUID:       []guid.LowType{invite.GUID.LowGUID},
-								QueueSlotByPlayer: map[guid.LowType]uint8{invite.GUID.LowGUID: slot},
-							})
-							if err != nil {
-								log.Err(err).Msg("Failed to add invited player to queue")
-							}
-						}
+					// Unlink only this battleground: RemovePlayerFromQueue
+					// removed the player from every battleground of the same
+					// queue type, including one where they are an active
+					// participant of a running match.
+					s.removeBattlegroundLinkForPlayer(BattlegroundKey{
+						RealmID:       bg.RealmID,
+						InstanceID:    bg.InstanceID,
+						BattlegroupID: bg.BattleGroupID,
+					}, uint64(invite.GUID.LowGUID), uint32(invite.GUID.RealmID))
+
+					slot := uint8(0) // TODO: provide real slot
+					err = s.eventsProducer.InviteExpired(&events.MatchmakingEventPlayersInviteExpiredPayload{
+						RealmID:           uint32(invite.GUID.RealmID),
+						PlayersGUID:       []guid.LowType{invite.GUID.LowGUID},
+						QueueSlotByPlayer: map[guid.LowType]uint8{invite.GUID.LowGUID: slot},
+					})
+					if err != nil {
+						log.Err(err).Msg("Failed to add invited player to queue")
 					}
 				}
 			}
-		case <-ctx.Done():
-			return
 		}
 	}
 }

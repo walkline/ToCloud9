@@ -1,9 +1,14 @@
 package service
 
 import (
+	"context"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/walkline/ToCloud9/apps/matchmakingserver/battleground"
+	"github.com/walkline/ToCloud9/apps/matchmakingserver/repo"
+	"github.com/walkline/ToCloud9/shared/events"
 	"github.com/walkline/ToCloud9/shared/wow/guid"
 )
 
@@ -133,4 +138,63 @@ func TestRemoveQueueForGroupMembers(t *testing.T) {
 			LowGUID: guid.LowType(leader),
 		},
 	}][0].Queue)
+}
+
+type noopMatchmakingProducer struct{}
+
+func (noopMatchmakingProducer) JoinedQueue(*events.MatchmakingEventPlayersQueuedPayload) error {
+	return nil
+}
+func (noopMatchmakingProducer) InvitedToBGOrArena(*events.MatchmakingEventPlayersInvitedPayload) error {
+	return nil
+}
+func (noopMatchmakingProducer) InviteExpired(*events.MatchmakingEventPlayersInviteExpiredPayload) error {
+	return nil
+}
+
+func TestExpiredInviteOnlyUnlinksItsBattleground(t *testing.T) {
+	bgRepo := repo.NewBattlegroundInMemRepo()
+	player := guid.PlayerUnwrapped{RealmID: 1, LowGUID: 7}
+
+	expiredBG := &battleground.Battleground{
+		InstanceID:  42,
+		RealmID:     1,
+		QueueTypeID: battleground.QueueTypeIDWarsongGulch,
+		Status:      battleground.StatusWaitJoin,
+	}
+	expiredBG.InvitedPlayersPerTeam[battleground.TeamAlliance] = []battleground.InvitedPlayer{
+		{GUID: player, InvitedTime: time.Now().Add(-2 * time.Minute)},
+	}
+	activeBG := &battleground.Battleground{
+		InstanceID:  43,
+		RealmID:     1,
+		QueueTypeID: battleground.QueueTypeIDWarsongGulch,
+		Status:      battleground.StatusInProgress,
+	}
+	activeBG.ActivePlayersPerTeam[battleground.TeamAlliance] = []guid.PlayerUnwrapped{player}
+	assert.NoError(t, bgRepo.SaveBattleground(context.Background(), expiredBG))
+	assert.NoError(t, bgRepo.SaveBattleground(context.Background(), activeBG))
+
+	s := &battleGroundService{
+		playersQueueOrBattleground: make(map[QueuesByRealmAndPlayerKey][]QueueOrBattlegroundLink),
+		battlegroundsRepo:          bgRepo,
+		eventsProducer:             noopMatchmakingProducer{},
+	}
+	expiredKey := BattlegroundKey{RealmID: 1, InstanceID: 42}
+	activeKey := BattlegroundKey{RealmID: 1, InstanceID: 43}
+	s.playersQueueOrBattleground[QueuesByRealmAndPlayerKey{player}] = []QueueOrBattlegroundLink{
+		{BattlegroundKey: &expiredKey},
+		{BattlegroundKey: &activeKey},
+	}
+
+	s.processExpiredBattlegroundInvitesTick(context.Background())
+
+	links := s.GetQueueOrBattlegroundLinkForPlayer(QueuesByRealmAndPlayerKey{player})
+	assert.Len(t, links, 1, "the active battleground link must survive")
+	assert.Equal(t, activeKey, *links[0].BattlegroundKey)
+
+	// The invite itself is gone from the expired battleground.
+	got, err := bgRepo.GetBattlegroundByInstanceID(context.Background(), 42, repo.RealmWithBattlegroupKey{RealmID: 1})
+	assert.NoError(t, err)
+	assert.Empty(t, got.InvitedPlayersPerTeam[battleground.TeamAlliance])
 }
