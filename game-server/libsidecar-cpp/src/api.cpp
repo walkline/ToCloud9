@@ -46,6 +46,7 @@ struct TC9State {
     tc9::CppBindings bindings;
 
     bool initialized = false;
+    uint32_t realm_id = 0;
     std::string assigned_server_id;
 };
 
@@ -106,6 +107,12 @@ TC9_API void TC9InitLib(
             config.guid_provider_address(),
             config.matchmaking_address()
         );
+
+        // In cross-realm mode this server hosts several realms and player GUIDs
+        // carry their true realm ID, so there is no single realm to pin.
+        if (isCrossRealm == 0) {
+            g_state.realm_id = realmID;
+        }
 
         // Start NATS consumer
         g_state.nats_consumer->SetEventQueue(g_state.event_queue.get());
@@ -339,6 +346,12 @@ TC9_API void TC9PlayerLeftBattleground(
         return;
     }
 
+    // Local players carry realm 0 in their GUID; the matchmaking looks the
+    // battleground up by (instanceID, realmID), so 0 would never match.
+    if (realmID == 0) {
+        realmID = g_state.realm_id;
+    }
+
     try {
         g_state.grpc_clients->PlayerLeftBattleground(realmID, playerGUID, instanceID, false);
     } catch (const std::exception& e) {
@@ -352,11 +365,7 @@ TC9_API void TC9BattlegroundStatusChanged(uint32_t instanceID, uint8_t status) {
     }
 
     try {
-        // Realm ID is stored in config
-        auto& config = tc9::Config::Instance();
-        // Note: We'd need to pass realm ID to this function or store it globally
-        // For now, using 0 as placeholder - this should be fixed in the API
-        g_state.grpc_clients->BattlegroundStatusChanged(0, instanceID, false, status);
+        g_state.grpc_clients->BattlegroundStatusChanged(g_state.realm_id, instanceID, false, status);
     } catch (const std::exception& e) {
         spdlog::error("Error notifying BG status changed: {}", e.what());
     }
