@@ -22,7 +22,7 @@ var (
 type QueuedGroup struct {
 	LeaderGUID guid.PlayerUnwrapped
 
-	// Members includes leader as well
+	// Members holds the party members, excluding the leader.
 	Members        []guid.PlayerUnwrapped
 	SlotsPerMember map[guid.PlayerUnwrapped]uint8
 
@@ -157,7 +157,7 @@ func (q *GenericBattlegroundQueue) process(ctx context.Context) error {
 	}
 
 	for _, bg := range battlegroundToFillIn {
-		freeSlotsAlliance := bg.FreeSlotsForTeam(battleground.TeamAlliance)
+		freeSlotsAlliance := bg.BackfillSlotsForTeam(battleground.TeamAlliance)
 		if freeSlotsAlliance > 0 {
 			groupsToInvite := q.findGroupsForGivenSlots(freeSlotsAlliance, battleground.TeamAlliance)
 			if len(groupsToInvite) > 0 {
@@ -165,7 +165,7 @@ func (q *GenericBattlegroundQueue) process(ctx context.Context) error {
 			}
 		}
 
-		freeSlotsHorde := bg.FreeSlotsForTeam(battleground.TeamHorde)
+		freeSlotsHorde := bg.BackfillSlotsForTeam(battleground.TeamHorde)
 		if freeSlotsHorde > 0 {
 			groupsToInvite := q.findGroupsForGivenSlots(freeSlotsHorde, battleground.TeamHorde)
 			if len(groupsToInvite) > 0 {
@@ -315,12 +315,15 @@ func (q *GenericBattlegroundQueue) findGroupsForGivenSlots(slots uint8, team bat
 			break
 		}
 
-		if !(group.TeamID == team || group.TeamID == battleground.TeamAny) || uint8(len(group.Members)) > slots {
+		// Members excludes the leader, so the group occupies len(Members)+1 slots.
+		groupSize := uint8(len(group.Members)) + 1
+
+		if !(group.TeamID == team || group.TeamID == battleground.TeamAny) || groupSize > slots {
 			continue
 		}
 
 		groups = append(groups, group)
-		slots -= uint8(len(group.Members))
+		slots -= groupSize
 	}
 
 	return groups
