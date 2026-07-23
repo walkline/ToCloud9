@@ -2,6 +2,10 @@ package server
 
 import (
 	"context"
+	"errors"
+
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	matchmaking "github.com/walkline/ToCloud9/apps/matchmakingserver"
 	"github.com/walkline/ToCloud9/apps/matchmakingserver/battleground"
@@ -29,6 +33,11 @@ func NewMatchmakingServer(bgService service.BattleGroundService, grpcConnMgr con
 func (s *MatchmakingServer) EnqueueToBattleground(ctx context.Context, req *pb.EnqueueToBattlegroundRequest) (*pb.EnqueueToBattlegroundResponse, error) {
 	err := s.bgService.AddGroupToQueue(ctx, req.RealmID, req.LeaderGUID, req.PartyMembers, battleground.QueueTypeID(req.BgTypeID), uint8(req.LeadersLvl), battleground.PVPTeam(req.TeamID))
 	if err != nil {
+		// Expected business failures get a typed code so the gateway can show
+		// them to the player; everything else stays internal.
+		if errors.Is(err, service.ErrAlreadyInQueue) {
+			return nil, status.Error(codes.FailedPrecondition, service.ErrAlreadyInQueue.Error())
+		}
 		return nil, err
 	}
 	return &pb.EnqueueToBattlegroundResponse{
