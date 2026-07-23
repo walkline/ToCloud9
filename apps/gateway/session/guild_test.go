@@ -253,3 +253,35 @@ func TestHandleGuildInviteRefusesTheOtherFaction(t *testing.T) {
 		})
 	}
 }
+func TestGuildDisbandIsRefusedAndNotForwarded(t *testing.T) {
+	session, sentToClient := guildTestSession(t, nil, nil)
+
+	err := session.HandleGuildDisband(context.Background(), nil)
+	assert.Nil(t, err)
+
+	// A system message goes back to the client and nothing reaches the
+	// worldserver, which would otherwise disband the guild on stale state.
+	if assert.Len(t, *sentToClient, 1) {
+		assert.Equal(t, packet.SMsgMessageChat, (*sentToClient)[0].Opcode)
+	}
+}
+
+func TestGuildLeaderChangeIsRefusedAndNotForwarded(t *testing.T) {
+	session, sentToClient := guildTestSession(t, nil, nil)
+
+	err := session.HandleGuildLeaderChange(context.Background(), nil)
+	assert.Nil(t, err)
+
+	if assert.Len(t, *sentToClient, 1) {
+		assert.Equal(t, packet.SMsgMessageChat, (*sentToClient)[0].Opcode)
+	}
+}
+
+func TestGuildlessPlayerGetsNoRefusalMessage(t *testing.T) {
+	session, sentToClient := guildTestSession(t, nil, nil)
+	session.character.GuildID = 0
+
+	assert.Nil(t, session.HandleGuildDisband(context.Background(), nil))
+	assert.Nil(t, session.HandleGuildLeaderChange(context.Background(), nil))
+	assert.Empty(t, *sentToClient)
+}
