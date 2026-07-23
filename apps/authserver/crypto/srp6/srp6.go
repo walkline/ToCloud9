@@ -8,6 +8,8 @@ import (
 	"github.com/walkline/ToCloud9/shared/slices"
 )
 
+const keySize = 32
+
 var _N = big.NewInt(0).
 	SetBytes([]byte{
 		137, 75, 100, 94, 137, 225, 83, 91, 189, 173, 91, 139, 41, 6, 80, 83,
@@ -30,7 +32,9 @@ type SRP6 struct {
 }
 
 func (s *SRP6) DataForClient() (B []byte, g []byte, N []byte, _s []byte) {
-	B, g, N, _s = s._B, bigIntToBytesLittleEndian(_g), bigIntToBytesLittleEndian(_N), s._s
+	// g is intentionally unpadded (1 byte with an explicit length field in the packet).
+	// B and N are fixed 32-byte packet fields and must be zero-padded in little-endian form.
+	B, g, N, _s = s._B, bigIntToBytesLittleEndian(_g), bigIntToBytesLittleEndianPadded(_N, keySize), s._s
 	return
 }
 
@@ -107,10 +111,12 @@ func (s *SRP6) VerifyChallengeResponse(A []byte, clientM []byte) []byte {
 		_N,
 	)
 
-	S := bigIntToBytesLittleEndian(SBig)
+	// S must be a fixed 32-byte little-endian value; (*big.Int).Bytes strips
+	// leading zeros, which would desync K from the WoW client's interleave.
+	S := bigIntToBytesLittleEndianPadded(SBig, keySize)
 	K := s.sha1Interleave(S)
 
-	NHash := sha1.Sum(bigIntToBytesLittleEndian(_N))
+	NHash := sha1.Sum(bigIntToBytesLittleEndianPadded(_N, keySize))
 	gHash := sha1.Sum(bigIntToBytesLittleEndian(_g))
 
 	NgHash := [sha1.Size]byte{}
@@ -140,7 +146,9 @@ func _B(b, v *big.Int) []byte {
 	result := big.Int{}
 	result.Mod(&gbnExpPlusV3, _N)
 
-	return bigIntToBytesLittleEndian(&result)
+	// B is a fixed 32-byte field in CMD_AUTH_LOGON_CHALLENGE; pad so the
+	// packet layout (and ABHash / M proofs) stay aligned when B < 2^248.
+	return bigIntToBytesLittleEndianPadded(&result, keySize)
 }
 
 func ReconnectChallengeValid(username string, R1, R2, reconnectProof, K []byte) bool {
@@ -159,6 +167,23 @@ func switchEndian(b []byte) []byte {
 
 func bigIntToBytesLittleEndian(i *big.Int) []byte {
 	return switchEndian(i.Bytes())
+}
+
+// bigIntToBytesLittleEndianPadded returns a little-endian encoding of i with a
+// fixed length. (*big.Int).Bytes omits high-order zero bytes; WoW SRP6 fields
+// (B, S, N) are fixed-width and must retain those zeros or auth fails randomly.
+func bigIntToBytesLittleEndianPadded(i *big.Int, size int) []byte {
+	b := bigIntToBytesLittleEndian(i)
+	if len(b) == size {
+		return b
+	}
+	if len(b) > size {
+		// Values used here are always mod N (< 2^256), so this is defensive only.
+		return b[:size]
+	}
+	padded := make([]byte, size)
+	copy(padded, b)
+	return padded
 }
 
 func bigIntFromLittleEndian(b []byte) *big.Int {
