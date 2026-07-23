@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -20,12 +21,14 @@ type serversRegistry struct {
 	pb.UnimplementedServersRegistryServiceServer
 	gService  service.GameServer
 	lbService service.Gateway
+	layer     service.Layer
 }
 
-func NewServersRegistry(gService service.GameServer, lbService service.Gateway) pb.ServersRegistryServiceServer {
+func NewServersRegistry(gService service.GameServer, lbService service.Gateway, layer service.Layer) pb.ServersRegistryServiceServer {
 	return &serversRegistry{
 		gService:  gService,
 		lbService: lbService,
+		layer:     layer,
 	}
 }
 
@@ -57,10 +60,26 @@ func (s *serversRegistry) RegisterGameServer(ctx context.Context, request *pb.Re
 		Api:          ver,
 		Id:           gameServer.ID,
 		AssignedMaps: gameServer.AssignedMapsToHandle,
+		Alias:        gameServer.Alias,
 	}, nil
 }
 
 func (s *serversRegistry) AvailableGameServersForMapAndRealm(ctx context.Context, request *pb.AvailableGameServersForMapAndRealmRequest) (*pb.AvailableGameServersForMapAndRealmResponse, error) {
+	if !request.IsCrossRealm {
+		selection, err := s.layer.Select(ctx, request.RealmID, request.MapID, request.GroupID, request.PreferredGameServerAlias)
+		if err != nil {
+			return nil, err
+		}
+		response := &pb.AvailableGameServersForMapAndRealmResponse{Api: ver}
+		if selection.Status == service.LayerSelectionOK && selection.Server != nil {
+			response.GameServers = []*pb.Server{{
+				ID: selection.Server.ID, Address: selection.Server.Address, RealmID: selection.Server.RealmID,
+				GrpcAddress: selection.Server.GRPCAddress, Alias: selection.Server.Alias,
+			}}
+		}
+		return response, nil
+	}
+
 	servers, err := s.gService.AvailableForMapAndRealm(ctx, request.MapID, request.RealmID, request.IsCrossRealm)
 	if err != nil {
 		return nil, err
@@ -69,10 +88,12 @@ func (s *serversRegistry) AvailableGameServersForMapAndRealm(ctx context.Context
 	resultServers := make([]*pb.Server, 0, len(servers))
 	for i := range servers {
 		resultServers = append(resultServers, &pb.Server{
+			ID:           servers[i].ID,
 			Address:      servers[i].Address,
 			RealmID:      servers[i].RealmID,
 			IsCrossRealm: servers[i].IsCrossRealm,
 			GrpcAddress:  servers[i].GRPCAddress,
+			Alias:        servers[i].Alias,
 		})
 	}
 
@@ -109,6 +130,7 @@ func (s *serversRegistry) ListGameServersForRealm(ctx context.Context, request *
 			ActiveConnections: servers[i].ActiveConnections,
 			AvailableMaps:     servers[i].AvailableMaps,
 			AssignedMaps:      servers[i].AssignedMapsToHandle,
+			Alias:             servers[i].Alias,
 			Diff: &pb.GameServerDetailed_Diff{
 				Mean:         servers[i].Diff.Mean,
 				Median:       servers[i].Diff.Median,
@@ -142,6 +164,7 @@ func (s *serversRegistry) ListAllGameServers(ctx context.Context, request *pb.Li
 			ActiveConnections: servers[i].ActiveConnections,
 			AvailableMaps:     servers[i].AvailableMaps,
 			AssignedMaps:      servers[i].AssignedMapsToHandle,
+			Alias:             servers[i].Alias,
 			Diff: &pb.GameServerDetailed_Diff{
 				Mean:         servers[i].Diff.Mean,
 				Median:       servers[i].Diff.Median,
@@ -259,6 +282,53 @@ func (s *serversRegistry) ListGatewaysForRealm(ctx context.Context, request *pb.
 		Api:      ver,
 		Gateways: result,
 	}, nil
+}
+
+func (s *serversRegistry) BindGroupToGameServer(ctx context.Context, request *pb.BindGroupToGameServerRequest) (*pb.BindGroupToGameServerResponse, error) {
+	if err := s.layer.BindGroup(ctx, request.RealmID, request.GroupID, request.MapID, request.GameServerID); err != nil {
+		return nil, err
+	}
+	return &pb.BindGroupToGameServerResponse{Api: ver}, nil
+}
+
+func (s *serversRegistry) GetMapLayerConfiguration(ctx context.Context, request *pb.GetMapLayerConfigurationRequest) (*pb.GetMapLayerConfigurationResponse, error) {
+	config, err := s.layer.Configuration(ctx, request.RealmID)
+	if err != nil {
+		return nil, err
+	}
+	mapIDs := make([]uint32, 0, len(config))
+	for mapID := range config {
+		mapIDs = append(mapIDs, mapID)
+	}
+	sort.Slice(mapIDs, func(i, j int) bool { return mapIDs[i] < mapIDs[j] })
+	response := &pb.GetMapLayerConfigurationResponse{Api: ver}
+	for _, mapID := range mapIDs {
+		response.Maps = append(response.Maps, &pb.MapLayerConfiguration{MapID: mapID, LayerCount: config[mapID]})
+	}
+	return response, nil
+}
+
+func (s *serversRegistry) UpdateMapLayerConfiguration(ctx context.Context, request *pb.UpdateMapLayerConfigurationRequest) (*pb.UpdateMapLayerConfigurationResponse, error) {
+	config := make(map[uint32]uint32, len(request.Maps))
+	for _, item := range request.Maps {
+		config[item.MapID] = item.LayerCount
+	}
+	if err := s.layer.UpdateConfiguration(ctx, request.RealmID, config); err != nil {
+		return nil, err
+	}
+	return &pb.UpdateMapLayerConfigurationResponse{Api: ver}, nil
+}
+
+func (s *serversRegistry) GetLayerStats(ctx context.Context, request *pb.GetLayerStatsRequest) (*pb.GetLayerStatsResponse, error) {
+	configured, stats, err := s.layer.Stats(ctx, request.RealmID, request.MapID)
+	if err != nil {
+		return nil, err
+	}
+	response := &pb.GetLayerStatsResponse{Api: ver, ConfiguredLayers: configured}
+	for _, stat := range stats {
+		response.Layers = append(response.Layers, &pb.GetLayerStatsResponse_Layer{Players: stat.Players, GameServerID: stat.Server.ID, Address: stat.Server.Address, GameServerAlias: stat.Server.Alias})
+	}
+	return response, nil
 }
 
 func removePortFromAddress(address string) string {

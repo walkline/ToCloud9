@@ -122,6 +122,7 @@ services:
     environment:
       PORT: 8999
       REDIS_URL: redis://:@redis:6379/0
+      LAYER_MAPS: ${LAYER_MAPS:-}
     profiles:
       - ac
       - tc

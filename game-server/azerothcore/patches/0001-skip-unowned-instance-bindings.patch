@@ -1,0 +1,14 @@
+diff --git a/src/server/game/Instances/InstanceSaveMgr.cpp b/src/server/game/Instances/InstanceSaveMgr.cpp
+index aa9eea29d..2a325120f 100644
+--- a/src/server/game/Instances/InstanceSaveMgr.cpp
++++ b/src/server/game/Instances/InstanceSaveMgr.cpp
+@@ -757,0 +758 @@ InstancePlayerBind* InstanceSaveMgr::PlayerBindToInstance(ObjectGuid guid, Insta
++    bool const persistBinding = !sToCloud9Sidecar->ClusterModeEnabled() || sToCloud9Sidecar->IsMapAssigned(save->GetMapId());
+@@ -772 +773,2 @@ InstancePlayerBind* InstanceSaveMgr::PlayerBindToInstance(ObjectGuid guid, Insta
+-            CharacterDatabase.Execute(stmt);
++            if (persistBinding)
++                CharacterDatabase.Execute(stmt);
+@@ -799 +801,2 @@ InstancePlayerBind* InstanceSaveMgr::PlayerBindToInstance(ObjectGuid guid, Insta
+-        CharacterDatabase.Execute(stmt);
++        if (persistBinding)
++            CharacterDatabase.Execute(stmt);
