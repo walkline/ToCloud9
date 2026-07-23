@@ -71,6 +71,8 @@ var HandleMap = map[packet.Opcode]HandlersQueue{
 	packet.CMsgGuildDelRank:           NewHandler("CMsgGuildDelRank", (*GameSession).HandleGuildRankDelete),
 	packet.CMsgGuildPromote:           NewHandler("CMsgGuildPromote", (*GameSession).HandleGuildPromote),
 	packet.CMsgGuildDemote:            NewHandler("CMsgGuildDemote", (*GameSession).HandleGuildDemote),
+	packet.CMsgGuildDisband:           NewHandler("CMsgGuildDisband", (*GameSession).HandleGuildDisband),
+	packet.CMsgGuildLeader:            NewHandler("CMsgGuildLeader", (*GameSession).HandleGuildLeaderChange),
 	packet.CMsgSendMail:               NewHandler("CMsgSendMail", (*GameSession).HandleSendMail),
 	packet.CMsgGetMailList:            NewHandler("CMsgGetMailList", (*GameSession).HandleGetMailList),
 	packet.CMsgMailMarkAsRead:         NewHandler("CMsgMailMarkAsRead", (*GameSession).HandleMailMarksAsRead),

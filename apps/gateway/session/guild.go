@@ -725,6 +725,32 @@ func (s *GameSession) HandleGuildBankMoneyWithdrawn(ctx context.Context, p *pack
 	return nil
 }
 
+// HandleGuildDisband and HandleGuildLeaderChange intercept the two remaining
+// guild write opcodes that still reach the worldserver. In cluster mode the
+// in-worldserver guild code works on the state it loaded at boot, so letting
+// these through makes it write on stale data and desync the guild service.
+// Until the guild service supports both operations, refusing them cleanly is
+// the safe behavior.
+func (s *GameSession) HandleGuildDisband(_ context.Context, _ *packet.Packet) error {
+	if s.character == nil || s.character.GuildID == 0 {
+		return nil
+	}
+
+	s.SendSysMessage("Guild disband is not supported yet on this realm.")
+
+	return nil
+}
+
+func (s *GameSession) HandleGuildLeaderChange(_ context.Context, _ *packet.Packet) error {
+	if s.character == nil || s.character.GuildID == 0 {
+		return nil
+	}
+
+	s.SendSysMessage("Guild leader change is not supported yet on this realm.")
+
+	return nil
+}
+
 func buildGuildEventPacket(t GuildEventType, guid uint64, args ...string) *packet.Writer {
 	resp := packet.NewWriterWithSize(packet.SMsgGuildEvent, 0)
 	resp.Uint8(uint8(t))
