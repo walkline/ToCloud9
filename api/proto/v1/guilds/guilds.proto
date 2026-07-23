@@ -29,6 +29,24 @@ service GuildService {
   rpc DemoteMember(PromoteDemoteParams) returns (PromoteDemoteResponse);
 
   rpc SendGuildMessage(SendGuildMessageParams) returns (SendGuildMessageResponse);
+
+  rpc CreateGuild(CreateGuildParams) returns (CreateGuildResponse);
+
+  // Guild bank. The guild service is the only writer of the bank state
+  // (tabs, items placement, money, per-rank tab rights, withdrawal counters).
+  // Items themselves live in item_instance and move between a player and the
+  // bank through the worldserver items API, driven by the gateway.
+  rpc GetBankState(GetBankStateParams) returns (GetBankStateResponse);
+  rpc GetBankTab(GetBankTabParams) returns (GetBankTabResponse);
+  rpc BankDepositMoney(BankMoneyParams) returns (BankMoneyResponse);
+  rpc BankWithdrawMoney(BankMoneyParams) returns (BankMoneyResponse);
+  rpc BankDepositItem(BankDepositItemParams) returns (BankDepositItemResponse);
+  rpc BankWithdrawItem(BankWithdrawItemParams) returns (BankWithdrawItemResponse);
+  rpc BankMoveItem(BankMoveItemParams) returns (BankMoveItemResponse);
+  rpc BankBuyTab(BankBuyTabParams) returns (BankBuyTabResponse);
+  rpc BankSetTabInfo(BankSetTabInfoParams) returns (BankSetTabInfoResponse);
+  rpc BankSetTabText(BankSetTabTextParams) returns (BankSetTabTextResponse);
+  rpc GetBankLog(GetBankLogParams) returns (GetBankLogResponse);
 }
 
 message GetInfoParams {
@@ -93,6 +111,10 @@ message GetRosterInfoResponse {
     uint32 id = 1;
     uint32 flags = 2;
     uint32 goldLimit = 3;
+    // Per-bank-tab rights (GUILD_BANK_RIGHT_* bitmask) and item withdrawals
+    // per day, indexed by tab id. Empty when the guild has no purchased tabs.
+    repeated uint32 bankTabRights = 4;
+    repeated uint32 bankTabSlotsPerDay = 5;
   }
 
   message Guild {
@@ -212,6 +234,10 @@ message RankUpdateParams {
   string rankName = 5;
   uint32 rights = 6;
   uint32 moneyPerDay = 7;
+  // Per-bank-tab rights and item withdrawals per day from CMSG_GUILD_RANK
+  // (6 entries). Only entries for purchased tabs are persisted.
+  repeated uint32 bankTabRights = 8;
+  repeated uint32 bankTabSlotsPerDay = 9;
 }
 
 message RankUpdateResponse {
@@ -261,4 +287,216 @@ message SendGuildMessageParams {
 
 message SendGuildMessageResponse {
   string api = 1;
+}
+
+message CreateGuildParams {
+  string api = 1;
+
+  uint32 realmID = 2;
+  uint64 leaderGUID = 3;
+  string name = 4;
+  // Petition signatories to add as members (lowest rank) in the same transaction.
+  repeated uint64 signatoryGUIDs = 5;
+}
+
+message CreateGuildResponse {
+  string api = 1;
+
+  uint64 guildID = 2;
+}
+
+// GuildBankItem describes an item stored in the guild bank, with the
+// item_instance fields the client needs to render it in the bank list.
+message GuildBankItem {
+  uint32 slot = 1;
+  uint64 itemGuid = 2;
+  uint32 entry = 3;
+  uint32 count = 4;
+  uint32 flags = 5;
+  uint32 durability = 6;
+  int32  randomPropertyID = 7;
+  // Permanent enchant id (first entry of item_instance.enchantments).
+  uint32 enchantmentID = 8;
+  // Remaining charges of the first charged spell, absolute value.
+  uint32 charges = 9;
+  string text = 10;
+  // Gem enchant ids by socket index (0 = empty socket).
+  repeated uint32 socketEnchantIDs = 11;
+}
+
+message GetBankStateParams {
+  string api = 1;
+  uint32 realmID = 2;
+  uint64 guildID = 3;
+  uint64 playerGUID = 4;
+}
+
+message GetBankStateResponse {
+  string api = 1;
+
+  uint64 money = 2;
+  uint32 rankID = 3;
+  uint32 rankRights = 4;
+  // Gold withdrawal limit per day of the member's rank (0xFFFFFFFF = unlimited).
+  uint32 moneyPerDay = 5;
+  // Gold the member can still withdraw today (0xFFFFFFFF = unlimited).
+  uint32 remainingMoney = 6;
+
+  message Tab {
+    string name = 1;
+    string icon = 2;
+    string text = 3;
+    // Member's rights on this tab (GUILD_BANK_RIGHT_* bitmask).
+    uint32 rights = 4;
+    // Item withdrawals the member has left today on this tab.
+    uint32 remainingSlots = 5;
+  }
+  // Purchased tabs only, index = tab id.
+  repeated Tab tabs = 7;
+
+  // Cost of the next purchasable tab in copper, 0 when all tabs are purchased.
+  uint32 nextTabCost = 8;
+}
+
+message GetBankTabParams {
+  string api = 1;
+  uint32 realmID = 2;
+  uint64 guildID = 3;
+  uint64 playerGUID = 4;
+  uint32 tab = 5;
+}
+
+message GetBankTabResponse {
+  string api = 1;
+  repeated GuildBankItem items = 2;
+}
+
+message BankMoneyParams {
+  string api = 1;
+  uint32 realmID = 2;
+  uint64 guildID = 3;
+  uint64 playerGUID = 4;
+  uint64 amount = 5;
+}
+
+message BankMoneyResponse {
+  string api = 1;
+  uint64 newBankMoney = 2;
+  uint32 remainingMoney = 3;
+}
+
+message BankDepositItemParams {
+  string api = 1;
+  uint32 realmID = 2;
+  uint64 guildID = 3;
+  uint64 playerGUID = 4;
+  uint32 tab = 5;
+  // 255 = first free slot.
+  uint32 slot = 6;
+  GuildBankItem item = 7;
+  // Compensation path (failed withdraw): skip the rights check.
+  bool restore = 8;
+}
+
+message BankDepositItemResponse {
+  string api = 1;
+  // Slot the item was placed in.
+  uint32 slot = 2;
+}
+
+message BankWithdrawItemParams {
+  string api = 1;
+  uint32 realmID = 2;
+  uint64 guildID = 3;
+  uint64 playerGUID = 4;
+  uint32 tab = 5;
+  uint32 slot = 6;
+}
+
+message BankWithdrawItemResponse {
+  string api = 1;
+  GuildBankItem item = 2;
+  uint32 remainingSlots = 3;
+}
+
+message BankMoveItemParams {
+  string api = 1;
+  uint32 realmID = 2;
+  uint64 guildID = 3;
+  uint64 playerGUID = 4;
+  uint32 srcTab = 5;
+  uint32 srcSlot = 6;
+  uint32 dstTab = 7;
+  uint32 dstSlot = 8;
+  // 0 = move/swap the whole stack. Splits are not supported yet.
+  uint32 splitCount = 9;
+}
+
+message BankMoveItemResponse {
+  string api = 1;
+}
+
+message BankBuyTabParams {
+  string api = 1;
+  uint32 realmID = 2;
+  uint64 guildID = 3;
+  uint64 playerGUID = 4;
+  uint32 tab = 5;
+  // Cost the gateway already took from the player, re-validated by the service.
+  uint32 paidCost = 6;
+}
+
+message BankBuyTabResponse {
+  string api = 1;
+}
+
+message BankSetTabInfoParams {
+  string api = 1;
+  uint32 realmID = 2;
+  uint64 guildID = 3;
+  uint64 playerGUID = 4;
+  uint32 tab = 5;
+  string name = 6;
+  string icon = 7;
+}
+
+message BankSetTabInfoResponse {
+  string api = 1;
+}
+
+message BankSetTabTextParams {
+  string api = 1;
+  uint32 realmID = 2;
+  uint64 guildID = 3;
+  uint64 playerGUID = 4;
+  uint32 tab = 5;
+  string text = 6;
+}
+
+message BankSetTabTextResponse {
+  string api = 1;
+}
+
+message GetBankLogParams {
+  string api = 1;
+  uint32 realmID = 2;
+  uint64 guildID = 3;
+  uint64 playerGUID = 4;
+  // 0-5 = item tab log, 6 = money log.
+  uint32 tab = 5;
+}
+
+message GetBankLogResponse {
+  string api = 1;
+
+  message Entry {
+    uint32 eventType = 1;
+    uint64 playerGUID = 2;
+    uint32 itemEntry = 3;
+    uint32 count = 4;
+    uint32 destTab = 5;
+    uint64 money = 6;
+    int64 timestamp = 7;
+  }
+  repeated Entry entries = 2;
 }

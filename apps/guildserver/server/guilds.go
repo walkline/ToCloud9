@@ -8,6 +8,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/walkline/ToCloud9/apps/guildserver"
+	"github.com/walkline/ToCloud9/apps/guildserver/repo"
 	"github.com/walkline/ToCloud9/apps/guildserver/service"
 	"github.com/walkline/ToCloud9/gen/guilds/pb"
 )
@@ -16,12 +17,14 @@ import (
 type GuildServer struct {
 	pb.UnimplementedGuildServiceServer
 	guildsService service.GuildService
+	bankService   service.GuildBankService
 }
 
 // NewGuildServer creates new guild server.
-func NewGuildServer(guildsService service.GuildService) pb.GuildServiceServer {
+func NewGuildServer(guildsService service.GuildService, bankService service.GuildBankService) pb.GuildServiceServer {
 	return &GuildServer{
 		guildsService: guildsService,
+		bankService:   bankService,
 	}
 }
 
@@ -87,12 +90,29 @@ func (g *GuildServer) GetRosterInfo(ctx context.Context, params *pb.GetRosterInf
 		}
 	}
 
+	// Per-rank bank tab rights for the roster packet. Best effort: without
+	// them the roster is still valid, the bank columns just show no rights.
+	bankRights, err := g.bankService.RankBankTabRights(ctx, params.RealmID, params.GuildID)
+	if err != nil {
+		bankRights = nil
+	}
+
 	ranks := make([]*pb.GetRosterInfoResponse_Rank, len(guild.GuildRanks))
 	for i := range guild.GuildRanks {
 		ranks[i] = &pb.GetRosterInfoResponse_Rank{
 			Id:        uint32(guild.GuildRanks[i].Rank),
 			Flags:     guild.GuildRanks[i].Rights,
 			GoldLimit: guild.GuildRanks[i].MoneyPerDay,
+		}
+		for tab := 0; tab < repo.GuildBankMaxTabs; tab++ {
+			if guild.GuildRanks[i].Rank == uint8(repo.GuildRankGuildMaster) {
+				ranks[i].BankTabRights = append(ranks[i].BankTabRights, repo.BankRightFull)
+				ranks[i].BankTabSlotsPerDay = append(ranks[i].BankTabSlotsPerDay, repo.BankWithdrawUnlimited)
+				continue
+			}
+			tr := bankRights[guild.GuildRanks[i].Rank][tab]
+			ranks[i].BankTabRights = append(ranks[i].BankTabRights, uint32(tr.Rights))
+			ranks[i].BankTabSlotsPerDay = append(ranks[i].BankTabSlotsPerDay, tr.SlotsPerDay)
 		}
 	}
 
@@ -229,6 +249,22 @@ func (g *GuildServer) UpdateRank(ctx context.Context, params *pb.RankUpdateParam
 	if err != nil {
 		return nil, err
 	}
+
+	// Persist the bank part of CMSG_GUILD_RANK. UpdateGuildRank already
+	// enforced that the changer is the guild master.
+	if len(params.BankTabRights) > 0 {
+		rights := make([]repo.BankTabRights, len(params.BankTabRights))
+		for i := range params.BankTabRights {
+			rights[i] = repo.BankTabRights{Rights: uint8(params.BankTabRights[i])}
+			if i < len(params.BankTabSlotsPerDay) {
+				rights[i].SlotsPerDay = params.BankTabSlotsPerDay[i]
+			}
+		}
+		if err = g.bankService.SetRankBankTabRightsByChanger(ctx, params.RealmID, params.ChangerGUID, uint8(params.Rank), rights); err != nil {
+			return nil, bankStatusError(err)
+		}
+	}
+
 	return &pb.RankUpdateResponse{
 		Api: guildserver.Ver,
 	}, nil
@@ -287,5 +323,18 @@ func (g *GuildServer) SendGuildMessage(ctx context.Context, params *pb.SendGuild
 
 	return &pb.SendGuildMessageResponse{
 		Api: guildserver.Ver,
+	}, nil
+}
+
+// CreateGuild handles guild creation request.
+func (g *GuildServer) CreateGuild(ctx context.Context, params *pb.CreateGuildParams) (*pb.CreateGuildResponse, error) {
+	guildID, err := g.guildsService.CreateGuild(ctx, params.RealmID, params.LeaderGUID, params.Name, params.SignatoryGUIDs)
+	if err != nil {
+		return nil, err
+	}
+
+	return &pb.CreateGuildResponse{
+		Api:     guildserver.Ver,
+		GuildID: guildID,
 	}, nil
 }

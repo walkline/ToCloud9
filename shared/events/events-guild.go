@@ -47,6 +47,21 @@ const (
 
 	// GuildEventNewMessage guild event when guild member sent some message
 	GuildEventNewMessage
+
+	// GuildEventGuildCreated guild event when new guild created
+	GuildEventGuildCreated
+
+	// GuildEventBankMoneyUpdated guild event when the bank money changed
+	GuildEventBankMoneyUpdated
+
+	// GuildEventBankTabUpdated guild event when the content of a bank tab changed
+	GuildEventBankTabUpdated
+
+	// GuildEventBankTabsChanged guild event when a bank tab was bought or renamed
+	GuildEventBankTabsChanged
+
+	// GuildEventBankTextUpdated guild event when the text of a bank tab changed
+	GuildEventBankTextUpdated
 )
 
 // SubjectName is key that nats uses
@@ -80,6 +95,16 @@ func (e GuildServiceEvent) SubjectName() string {
 		return "guild.info.updated"
 	case GuildEventNewMessage:
 		return "guild.message.new"
+	case GuildEventGuildCreated:
+		return "guild.created"
+	case GuildEventBankMoneyUpdated:
+		return "guild.bank.money.updated"
+	case GuildEventBankTabUpdated:
+		return "guild.bank.tab.updated"
+	case GuildEventBankTabsChanged:
+		return "guild.bank.tabs.changed"
+	case GuildEventBankTextUpdated:
+		return "guild.bank.text.updated"
 	}
 	panic(fmt.Errorf("unk event %d", e))
 }
@@ -240,4 +265,43 @@ type GuildEventNewMessagePayload struct {
 	ForOfficers bool
 
 	Receivers []uint64
+}
+
+// GuildEventBankMoneyUpdatedPayload represents payload of the bank money updated event
+type GuildEventBankMoneyUpdatedPayload struct {
+	GenericGuildEvent
+
+	Money uint64
+}
+
+// GuildEventBankTabUpdatedPayload represents payload of the bank tab content updated event
+type GuildEventBankTabUpdatedPayload struct {
+	GenericGuildEvent
+
+	TabID uint8
+}
+
+// GuildEventBankTabsChangedPayload represents payload of the bank tab bought/renamed event
+type GuildEventBankTabsChangedPayload struct {
+	GenericGuildEvent
+}
+
+// GuildEventBankTextUpdatedPayload represents payload of the bank tab text updated event
+type GuildEventBankTextUpdatedPayload struct {
+	GenericGuildEvent
+
+	TabID uint8
+}
+
+// GuildEventGuildCreatedPayload represents payload of the guild created event
+type GuildEventGuildCreatedPayload struct {
+	RealmID uint32
+
+	GuildID    uint64
+	GuildName  string
+	LeaderGUID uint64
+
+	// MemberGUIDs are the petition signatories added as members at creation
+	// (the leader is not included).
+	MemberGUIDs []uint64
 }
