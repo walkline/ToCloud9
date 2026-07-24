@@ -3,9 +3,12 @@ package session
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/rs/zerolog/log"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	"github.com/walkline/ToCloud9/apps/gateway"
 	eBroadcaster "github.com/walkline/ToCloud9/apps/gateway/events-broadcaster"
@@ -89,7 +92,16 @@ func (s *GameSession) HandleEnqueueToBattleground(ctx context.Context, p *packet
 		TeamID:       teamID,
 	})
 	if err != nil {
-		return err
+		// Only surface messages the matchmaking server tagged as player-facing;
+		// anything else stays generic so internal details end up in logs only.
+		reason := "internal error"
+		if s := status.Convert(err); s.Code() == codes.FailedPrecondition || s.Code() == codes.InvalidArgument {
+			reason = strings.TrimRight(s.Message(), ".")
+		}
+		return &UserFriendlyError{
+			UserError: fmt.Sprintf("Can't join the battleground queue: %s.", reason),
+			RealError: err,
+		}
 	}
 
 	s.character.bgInviteOrderingFix.waitingJoinToQueue = true

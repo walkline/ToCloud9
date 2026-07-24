@@ -84,6 +84,8 @@ typedef struct {
 typedef struct {
     uint32_t* assignedMaps;
     int assignedMapsCount;
+    uint32_t* removedMaps;
+    int removedMapsCount;
 } TC9EventMapsReassigned;
 
 /*

@@ -99,6 +99,37 @@ func (b *Battleground) FreeSlotsForTeam(team PVPTeam) uint8 {
 	return uint8(r)
 }
 
+// BackfillSlotsForTeam returns how many players the team can accept from the
+// queue without outgrowing the opposite team: a running battleground only
+// refills a team up to the opposite team's headcount (or MinPlayersPerTeam if
+// bigger), capped by MaxPlayersPerTeam. A balanced battleground accepts no
+// newcomers, so fresh groups stay queued and can pop a new instance instead
+// of stacking one team of an in-progress match.
+func (b *Battleground) BackfillSlotsForTeam(team PVPTeam) uint8 {
+	other := TeamAlliance
+	if team == TeamAlliance {
+		other = TeamHorde
+	}
+
+	teamCount := len(b.ActivePlayersPerTeam[team]) + len(b.InvitedPlayersPerTeam[team])
+	otherCount := len(b.ActivePlayersPerTeam[other]) + len(b.InvitedPlayersPerTeam[other])
+
+	target := int(b.MinPlayersPerTeam)
+	if otherCount > target {
+		target = otherCount
+	}
+	if target > int(b.MaxPlayersPerTeam) {
+		target = int(b.MaxPlayersPerTeam)
+	}
+
+	r := target - teamCount
+	if r < 0 {
+		return 0
+	}
+
+	return uint8(r)
+}
+
 func (b *Battleground) InviteGroups(eventsProducer events.MatchmakingServiceProducer, groups []QueuedGroup, team PVPTeam) error {
 	groupsByRealm := make(map[uint32][]QueuedGroup)
 	for _, group := range groups {

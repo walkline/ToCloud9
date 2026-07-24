@@ -125,12 +125,12 @@ func (s *battleGroundService) BattlegroundsThatNeedPlayers(ctx context.Context, 
 
 	res := make([]battleground.Battleground, 0, len(bgs)/2)
 	for _, bg := range bgs {
-		if bg.FreeSlotsForTeam(battleground.TeamAlliance) > 0 {
+		if bg.BackfillSlotsForTeam(battleground.TeamAlliance) > 0 {
 			res = append(res, bg)
 			continue
 		}
 
-		if bg.FreeSlotsForTeam(battleground.TeamHorde) > 0 {
+		if bg.BackfillSlotsForTeam(battleground.TeamHorde) > 0 {
 			res = append(res, bg)
 		}
 	}
@@ -711,19 +711,21 @@ func (s *battleGroundService) BattlegroundStatusChanged(ctx context.Context, sta
 	err := s.battlegroundsRepo.UpdateBattleground(ctx, instanceID, realmKey, func(b *battleground.Battleground) error {
 		b.Status = status
 		if b.Status == battleground.StatusEnded {
-			for _, guid := range b.ActivePlayersPerTeam[battleground.TeamHorde] {
-				s.removeBattlegroundLinkForPlayer(BattlegroundKey{
-					RealmID:       b.RealmID,
-					InstanceID:    b.InstanceID,
-					BattlegroupID: b.BattleGroupID,
-				}, uint64(guid.LowGUID), uint32(guid.RealmID))
+			bgKey := BattlegroundKey{
+				RealmID:       b.RealmID,
+				InstanceID:    b.InstanceID,
+				BattlegroupID: b.BattleGroupID,
 			}
-			for _, guid := range b.ActivePlayersPerTeam[battleground.TeamAlliance] {
-				s.removeBattlegroundLinkForPlayer(BattlegroundKey{
-					RealmID:       b.RealmID,
-					InstanceID:    b.InstanceID,
-					BattlegroupID: b.BattleGroupID,
-				}, uint64(guid.LowGUID), uint32(guid.RealmID))
+			for _, team := range []battleground.PVPTeam{battleground.TeamAlliance, battleground.TeamHorde} {
+				for _, guid := range b.ActivePlayersPerTeam[team] {
+					s.removeBattlegroundLinkForPlayer(bgKey, uint64(guid.LowGUID), uint32(guid.RealmID))
+				}
+				// Players still invited when the match ends never emit a
+				// left/joined event: purge their links too, otherwise they
+				// stay "already in queue" forever.
+				for _, invite := range b.InvitedPlayersPerTeam[team] {
+					s.removeBattlegroundLinkForPlayer(bgKey, uint64(invite.GUID.LowGUID), uint32(invite.GUID.RealmID))
+				}
 			}
 		}
 		return nil

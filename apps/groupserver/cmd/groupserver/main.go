@@ -151,6 +151,12 @@ func createGroupService(cfg *config.Config, natsCon *nats.Conn) service.GroupsSe
 		log.Fatal().Err(err).Msg("can't listen to gateway characters updates")
 	}
 
+	charsListener := service.NewCharactersListener(natsCon, cache, s, statsCollector)
+	err = charsListener.Listen()
+	if err != nil {
+		log.Fatal().Err(err).Msg("can't listen to characters service events")
+	}
+
 	return s
 }
 

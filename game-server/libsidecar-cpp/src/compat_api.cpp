@@ -276,9 +276,9 @@ void SetOnMapsReassignedHook(OnMapsReassignedHook h) {
     TC9SetOnMapsReassignedHook(h);
 }
 
-int CallOnMapsReassignedHook(uint32_t* maps_added, int maps_added_size, uint32_t* /*maps_removed*/, int /*maps_removed_size*/) {
+int CallOnMapsReassignedHook(uint32_t* maps_added, int maps_added_size, uint32_t* maps_removed, int maps_removed_size) {
     if (g_compat_handlers.maps_reassigned) {
-        g_compat_handlers.maps_reassigned(maps_added, maps_added_size, nullptr, 0);
+        g_compat_handlers.maps_reassigned(maps_added, maps_added_size, maps_removed, maps_removed_size);
         return ServersRegistryHookStatusOK;
     }
     return ServersRegistryHookStatusNoHook;
