@@ -16,6 +16,10 @@ type Config struct {
 
 	// CharDBConnection is connection string to the characters database
 	CharDBConnection map[uint32]string `yaml:"charactersDB" env:"CHAR_DB_CONNECTION" env-separator:";" env-default:"1:trinity:trinity@tcp(127.0.0.1:3306)/characters"`
+
+	// CharServiceAddress is address of characters service, used on startup to
+	// recover the online state of guild members. Empty disables the recovery.
+	CharServiceAddress string `yaml:"charactersServiceAddress" env:"CHAR_SERVICE_ADDRESS" env-default:"localhost:8991"`
 }
 
 // LoadConfig loads config from file or/and env variables
