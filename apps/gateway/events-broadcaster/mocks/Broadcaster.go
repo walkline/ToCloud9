@@ -153,6 +153,26 @@ func (_m *Broadcaster) NewGuildMemberPromoteEvent(payload *events.GuildEventMemb
 	_m.Called(payload)
 }
 
+// NewGuildBankMoneyUpdatedEvent provides a mock function with given fields: payload
+func (_m *Broadcaster) NewGuildBankMoneyUpdatedEvent(payload *events.GuildEventBankMoneyUpdatedPayload) {
+	_m.Called(payload)
+}
+
+// NewGuildBankTabUpdatedEvent provides a mock function with given fields: payload
+func (_m *Broadcaster) NewGuildBankTabUpdatedEvent(payload *events.GuildEventBankTabUpdatedPayload) {
+	_m.Called(payload)
+}
+
+// NewGuildBankTabsChangedEvent provides a mock function with given fields: payload
+func (_m *Broadcaster) NewGuildBankTabsChangedEvent(payload *events.GuildEventBankTabsChangedPayload) {
+	_m.Called(payload)
+}
+
+// NewGuildBankTextUpdatedEvent provides a mock function with given fields: payload
+func (_m *Broadcaster) NewGuildBankTextUpdatedEvent(payload *events.GuildEventBankTextUpdatedPayload) {
+	_m.Called(payload)
+}
+
 // NewGuildMessageEvent provides a mock function with given fields: payload
 func (_m *Broadcaster) NewGuildMessageEvent(payload *events.GuildEventNewMessagePayload) {
 	_m.Called(payload)

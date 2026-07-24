@@ -69,10 +69,17 @@ func (s *GameSession) HandleGuildRoster(ctx context.Context, p *packet.Packet) e
 		resp.Uint32(rank.Flags)
 		resp.Uint32(rank.GoldLimit)
 
-		// TODO: guild bank
 		for i := 0; i < 6; i++ {
-			resp.Uint32(0) // tab flags
-			resp.Uint32(0) // tab withdraw limit
+			if i < len(rank.BankTabRights) {
+				resp.Uint32(rank.BankTabRights[i])
+			} else {
+				resp.Uint32(0)
+			}
+			if i < len(rank.BankTabSlotsPerDay) {
+				resp.Uint32(rank.BankTabSlotsPerDay[i])
+			} else {
+				resp.Uint32(0)
+			}
 		}
 	}
 
@@ -545,14 +552,24 @@ func (s *GameSession) HandleGuildRankUpdate(ctx context.Context, p *packet.Packe
 	name := reader.String()
 	withdrawGoldLimit := reader.Uint32()
 
+	// CMSG_GUILD_RANK carries the bank rights of all six tabs.
+	bankTabRights := make([]uint32, 0, 6)
+	bankTabSlots := make([]uint32, 0, 6)
+	for i := 0; i < 6; i++ {
+		bankTabRights = append(bankTabRights, reader.Uint32())
+		bankTabSlots = append(bankTabSlots, reader.Uint32())
+	}
+
 	_, err := s.guildServiceClient.UpdateRank(ctx, &pbGuild.RankUpdateParams{
-		Api:         root.Ver,
-		RealmID:     root.RealmID,
-		ChangerGUID: s.character.GUID,
-		Rank:        rankID,
-		RankName:    name,
-		Rights:      rights,
-		MoneyPerDay: withdrawGoldLimit,
+		Api:                root.Ver,
+		RealmID:            root.RealmID,
+		ChangerGUID:        s.character.GUID,
+		Rank:               rankID,
+		RankName:           name,
+		Rights:             rights,
+		MoneyPerDay:        withdrawGoldLimit,
+		BankTabRights:      bankTabRights,
+		BankTabSlotsPerDay: bankTabSlots,
 	})
 	if err != nil {
 		return err
@@ -683,34 +700,24 @@ func (s *GameSession) sendGuildPermissions(ctx context.Context) error {
 		return nil
 	}
 
-	guildResp, err := s.guildServiceClient.GetRosterInfo(ctx, &pbGuild.GetRosterInfoParams{
-		Api:     root.Ver,
-		RealmID: root.RealmID,
-		GuildID: uint64(s.character.GuildID),
-	})
+	state, err := s.guildBankState(ctx)
 	if err != nil {
 		return err
 	}
 
 	resp := packet.NewWriterWithSize(packet.MsgGuildPermissions, 0)
-	for _, member := range guildResp.Guild.Members {
-		if member.Guid == s.character.GUID {
-			for _, rank := range guildResp.Guild.Ranks {
-				if rank.Id == member.RankID {
-					resp.Uint32(rank.Id)
-					resp.Uint32(rank.Flags)
-					resp.Int32(int32(rank.GoldLimit))
-					resp.Uint8(6) // Tabs count.
+	resp.Uint32(state.RankID)
+	resp.Int32(int32(state.RankRights))
+	resp.Int32(int32(state.MoneyPerDay))
+	resp.Uint8(uint8(len(state.Tabs)))
 
-					for i := 0; i < 6; i++ {
-						resp.Uint32(0) // tab flags
-						resp.Uint32(0) // tab withdraw limit
-					}
-
-					break
-				}
-			}
-			break
+	for i := 0; i < 6; i++ {
+		if i < len(state.Tabs) {
+			resp.Int32(int32(state.Tabs[i].Rights))
+			resp.Int32(int32(state.Tabs[i].RemainingSlots))
+		} else {
+			resp.Int32(0)
+			resp.Int32(0)
 		}
 	}
 
@@ -719,10 +726,7 @@ func (s *GameSession) sendGuildPermissions(ctx context.Context) error {
 }
 
 func (s *GameSession) HandleGuildBankMoneyWithdrawn(ctx context.Context, p *packet.Packet) error {
-	resp := packet.NewWriterWithSize(packet.MsgGuildBankMoneyWithdrawn, 4)
-	resp.Uint32(0)
-	s.gameSocket.Send(resp)
-	return nil
+	return s.sendGuildBankMoneyInfo(ctx)
 }
 
 func buildGuildEventPacket(t GuildEventType, guid uint64, args ...string) *packet.Writer {

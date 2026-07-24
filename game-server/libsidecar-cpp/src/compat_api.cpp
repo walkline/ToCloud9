@@ -323,6 +323,18 @@ GetPlayerItemsByGuidsResponse CallGetPlayerItemsByGuidsHandler(uint64_t /*player
     return resp;
 }
 
+void SetGetPlayerItemByPosHandler(GetPlayerItemByPosHandler h) {
+    // Prefer TC9SetGetPlayerItemByPosHandler; kept for surface completeness.
+    (void)h;
+    spdlog::warn("SetGetPlayerItemByPosHandler: Bridging not yet implemented");
+}
+
+GetPlayerItemByPosResponse CallGetPlayerItemByPosHandler(uint64_t /*player_guid*/, uint8_t /*bag*/, uint8_t /*slot*/) {
+    GetPlayerItemByPosResponse resp{};
+    resp.errorCode = PlayerItemErrorCodeNoHandler;
+    return resp;
+}
+
 void SetRemoveItemsWithGuidsFromPlayerHandler(RemoveItemsWithGuidsFromPlayerHandler h) {
     g_compat_handlers.remove_items = h;
     spdlog::warn("SetRemoveItemsWithGuidsFromPlayerHandler: Bridging not yet implemented");
@@ -366,6 +378,18 @@ void SetModifyMoneyForPlayerHandler(ModifyMoneyForPlayerHandler h) {
 ModifyMoneyForPlayerResponse CallModifyMoneyForPlayerHandler(uint64_t /*player_guid*/, int32_t /*amount*/) {
     ModifyMoneyForPlayerResponse resp{};
     resp.errorCode = PlayerMoneyErrorCodeNoHandler;
+    return resp;
+}
+
+void SetSetPlayerGuildFieldsHandler(SetPlayerGuildFieldsHandler h) {
+    // Prefer TC9SetSetPlayerGuildFieldsHandler; kept for surface completeness.
+    (void)h;
+    spdlog::warn("SetSetPlayerGuildFieldsHandler: Bridging not yet implemented");
+}
+
+SetPlayerGuildFieldsResponse CallSetPlayerGuildFieldsHandler(uint64_t /*player_guid*/, uint32_t /*guild_id*/, uint32_t /*rank*/) {
+    SetPlayerGuildFieldsResponse resp{};
+    resp.errorCode = PlayerGuildErrorCodeNoHandler;
     return resp;
 }
 
