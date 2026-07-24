@@ -125,12 +125,12 @@ func (s *battleGroundService) BattlegroundsThatNeedPlayers(ctx context.Context, 
 
 	res := make([]battleground.Battleground, 0, len(bgs)/2)
 	for _, bg := range bgs {
-		if bg.FreeSlotsForTeam(battleground.TeamAlliance) > 0 {
+		if bg.BackfillSlotsForTeam(battleground.TeamAlliance) > 0 {
 			res = append(res, bg)
 			continue
 		}
 
-		if bg.FreeSlotsForTeam(battleground.TeamHorde) > 0 {
+		if bg.BackfillSlotsForTeam(battleground.TeamHorde) > 0 {
 			res = append(res, bg)
 		}
 	}
