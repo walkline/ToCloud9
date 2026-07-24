@@ -29,6 +29,8 @@ service GuildService {
   rpc DemoteMember(PromoteDemoteParams) returns (PromoteDemoteResponse);
 
   rpc SendGuildMessage(SendGuildMessageParams) returns (SendGuildMessageResponse);
+
+  rpc CreateGuild(CreateGuildParams) returns (CreateGuildResponse);
 }
 
 message GetInfoParams {
@@ -261,4 +263,20 @@ message SendGuildMessageParams {
 
 message SendGuildMessageResponse {
   string api = 1;
+}
+
+message CreateGuildParams {
+  string api = 1;
+
+  uint32 realmID = 2;
+  uint64 leaderGUID = 3;
+  string name = 4;
+  // Petition signatories to add as members (lowest rank) in the same transaction.
+  repeated uint64 signatoryGUIDs = 5;
+}
+
+message CreateGuildResponse {
+  string api = 1;
+
+  uint64 guildID = 2;
 }
