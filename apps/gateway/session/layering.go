@@ -3,8 +3,11 @@ package session
 import (
 	"context"
 	"fmt"
+	"time"
 
 	root "github.com/walkline/ToCloud9/apps/gateway"
+	"github.com/walkline/ToCloud9/apps/gateway/packet"
+	"github.com/walkline/ToCloud9/apps/gateway/sockets"
 	pbServ "github.com/walkline/ToCloud9/gen/servers-registry/pb"
 )
 
@@ -47,7 +50,7 @@ func (s *GameSession) redirectToSelectedLayer(ctx context.Context, server *pbSer
 	if err != nil {
 		return fmt.Errorf("connect to layer gameserver gRPC: %w", err)
 	}
-	if err := s.redirectPlayerToGameServer(ctx, s.character.GUID, server.Address, server.Alias); err != nil {
+	if err := s.layerPlayerRedirect(ctx, s.character.GUID, server.Address, server.Alias); err != nil {
 		return err
 	}
 	s.gameServerGRPCClient = client
@@ -56,8 +59,95 @@ func (s *GameSession) redirectToSelectedLayer(ctx context.Context, server *pbSer
 	return nil
 }
 
-// redirectPlayerToGameServer reuses the existing authenticated worldserver
-// handoff without changing battleground behavior.
-func (s *GameSession) redirectPlayerToGameServer(ctx context.Context, characterGUID uint64, address, layerAlias string) error {
-	return s.battlegroundPlayerRedirect(ctx, characterGUID, address, layerAlias)
+// layerPlayerRedirect performs a regular client world transition while moving
+// a character between gameservers that host different copies of the same map.
+// Battleground redirects intentionally keep their separate protocol.
+func (s *GameSession) layerPlayerRedirect(ctx context.Context, characterGUID uint64, address, layerAlias string) error {
+	if s.worldSocket == nil || s.character == nil {
+		return nil
+	}
+
+	oldSocket := s.worldSocket
+	oldSocket.Send(packet.NewWriterWithSize(packet.TC9CMsgPrepareForRedirect, 0))
+	if err := waitForWorldServerRedirect(ctx, oldSocket); err != nil {
+		return fmt.Errorf("prepare layer redirect for account %d: %w", s.accountID, err)
+	}
+
+	oldSocket.Close()
+	s.worldSocket = nil
+	s.worldEntryPending = true
+
+	newSocket, err := s.connectToGameServerWithAddress(ctx, characterGUID, address, nil)
+	if err != nil {
+		return fmt.Errorf("connect to layer gameserver %s: %w", address, err)
+	}
+
+	readyPacket, err := waitForLayerWorldReady(ctx, newSocket)
+	if err != nil {
+		newSocket.Close()
+		return fmt.Errorf("wait for layer gameserver %s: %w", address, err)
+	}
+
+	// The destination worldserver logs the character into the same map, so it
+	// sends SMSG_LOGIN_VERIFY_WORLD rather than a map-changing SMSG_NEW_WORLD.
+	// Explicitly start a client world transition before destination object
+	// updates can be forwarded, which clears objects from the previous layer.
+	if readyPacket.Opcode == packet.SMsgNewWorld {
+		s.gameSocket.SendPacket(readyPacket)
+	} else {
+		newWorld := packet.NewWriterWithSize(packet.SMsgNewWorld, 0)
+		newWorld.Uint32(s.character.Map)
+		newWorld.Float32(s.character.PositionX)
+		newWorld.Float32(s.character.PositionY)
+		newWorld.Float32(s.character.PositionZ)
+		newWorld.Float32(s.character.PositionO)
+		s.gameSocket.Send(newWorld)
+	}
+
+	s.worldSocket = newSocket
+	if s.showGameserverConnChangeToClient {
+		s.SendSysMessage(fmt.Sprintf("You have been moved to %s layer.", layerAlias))
+	}
+
+	return nil
+}
+
+func waitForWorldServerRedirect(ctx context.Context, socket sockets.Socket) error {
+	confirmationContext, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
+	for {
+		select {
+		case <-confirmationContext.Done():
+			return confirmationContext.Err()
+		case response, open := <-socket.ReadChannel():
+			if !open {
+				// A closed source socket also means it completed the handoff.
+				return nil
+			}
+			if response.Opcode == packet.TC9SMsgReadyForRedirect {
+				if response.Reader().Uint8() != 0 {
+					return fmt.Errorf("worldserver rejected redirect")
+				}
+				return nil
+			}
+		}
+	}
+}
+
+func waitForLayerWorldReady(ctx context.Context, socket sockets.Socket) (*packet.Packet, error) {
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case response, open := <-socket.ReadChannel():
+		if !open {
+			return nil, fmt.Errorf("world socket closed")
+		}
+		switch response.Opcode {
+		case packet.SMsgLoginVerifyWorld, packet.SMsgNewWorld:
+			return response, nil
+		default:
+			return nil, fmt.Errorf("unexpected initial world packet %s", response.Opcode)
+		}
+	}
 }

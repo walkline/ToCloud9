@@ -84,6 +84,11 @@ AzerothCore remains responsible for instance IDs, saves, resets and lockouts.
 - `.tc9 ws switch <gameserver-alias>` forces the current character to another
   gameserver assigned to the current map for testing.
 
-The test command uses the ordinary redirect path. There is no visibility cache,
-transition state machine, movement preservation, special recovery flow, portal
-catalog or reset handoff.
+Layer changes use a dedicated worldserver handoff. After the destination has
+accepted the character, the gateway sends `SMSG_NEW_WORLD` with the current map
+and position before it starts forwarding destination packets. This makes the
+client clear objects from the previous layer through its ordinary world-loading
+flow. Battleground redirects remain unchanged.
+
+There is no visibility cache, transition state machine, movement preservation,
+special recovery flow, portal catalog or reset handoff.
