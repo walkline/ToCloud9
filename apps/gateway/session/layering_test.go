@@ -30,7 +30,13 @@ func TestLayerPlayerRedirectSendsNewWorldBeforeInstallingDestinationSocket(t *te
 
 	destinationRead := make(chan *packet.Packet, 2)
 	destinationRead <- packet.NewWriter(packet.SMsgAuthChallenge).ToPacket()
-	destinationRead <- packet.NewWriter(packet.SMsgLoginVerifyWorld).ToPacket()
+	destinationRead <- packet.NewWriter(packet.SMsgLoginVerifyWorld).
+		Uint32(1).
+		Float32(10.5).
+		Float32(20.25).
+		Float32(30.75).
+		Float32(1.5).
+		ToPacket()
 	destinationSocket := socketMocks.NewSocket(t)
 	destinationSocket.On("ListenAndProcess", mock.Anything).Return(nil)
 	destinationSocket.On("SendPacket", mock.Anything).Return()
@@ -42,6 +48,9 @@ func TestLayerPlayerRedirectSendsNewWorldBeforeInstallingDestinationSocket(t *te
 	gameSocket := socketMocks.NewSocket(t)
 	var newWorldPacket *packet.Packet
 	var session *GameSession
+	gameSocket.On("Send", mock.MatchedBy(func(writer *packet.Writer) bool {
+		return writer.Opcode == packet.SMsgTransferPending
+	})).Return()
 	gameSocket.On("Send", mock.MatchedBy(func(writer *packet.Writer) bool {
 		return writer.Opcode == packet.SMsgNewWorld
 	})).Run(func(arguments mock.Arguments) {

@@ -82,7 +82,7 @@ func (s *GameSession) layerPlayerRedirect(ctx context.Context, characterGUID uin
 		return fmt.Errorf("connect to layer gameserver %s: %w", address, err)
 	}
 
-	readyPacket, err := waitForLayerWorldReady(ctx, newSocket)
+	readyPacket, pendingPackets, err := waitForLayerWorldReady(ctx, newSocket)
 	if err != nil {
 		newSocket.Close()
 		return fmt.Errorf("wait for layer gameserver %s: %w", address, err)
@@ -90,20 +90,38 @@ func (s *GameSession) layerPlayerRedirect(ctx context.Context, characterGUID uin
 
 	// The destination worldserver logs the character into the same map, so it
 	// sends SMSG_LOGIN_VERIFY_WORLD rather than a map-changing SMSG_NEW_WORLD.
-	// Explicitly start a client world transition before destination object
-	// updates can be forwarded, which clears objects from the previous layer.
+	// Use its post-save position and facing for the synthetic transfer.
 	if readyPacket.Opcode == packet.SMsgNewWorld {
 		s.gameSocket.SendPacket(readyPacket)
 	} else {
+		ready := readyPacket.Reader()
+		mapID := ready.Uint32()
+		x := ready.Float32()
+		y := ready.Float32()
+		z := ready.Float32()
+		o := ready.Float32()
+		if err := ready.Error(); err != nil {
+			newSocket.Close()
+			return fmt.Errorf("read layer destination position: %w", err)
+		}
+
+		// SMSG_TRANSFER_PENDING is what makes the client enter its normal
+		// loading-screen state. It is required here even though the map ID is
+		// unchanged, because the backing worldserver is changing.
+		transferPending := packet.NewWriterWithSize(packet.SMsgTransferPending, 0)
+		transferPending.Uint32(mapID)
+		s.gameSocket.Send(transferPending)
+
 		newWorld := packet.NewWriterWithSize(packet.SMsgNewWorld, 0)
-		newWorld.Uint32(s.character.Map)
-		newWorld.Float32(s.character.PositionX)
-		newWorld.Float32(s.character.PositionY)
-		newWorld.Float32(s.character.PositionZ)
-		newWorld.Float32(s.character.PositionO)
+		newWorld.Uint32(mapID)
+		newWorld.Float32(x)
+		newWorld.Float32(y)
+		newWorld.Float32(z)
+		newWorld.Float32(o)
 		s.gameSocket.Send(newWorld)
 	}
-
+	s.layerPendingPackets = pendingPackets
+	s.layerWorldAckPending = true
 	s.worldSocket = newSocket
 	if s.showGameserverConnChangeToClient {
 		s.SendSysMessage(fmt.Sprintf("You have been moved to %s layer.", layerAlias))
@@ -135,19 +153,25 @@ func waitForWorldServerRedirect(ctx context.Context, socket sockets.Socket) erro
 	}
 }
 
-func waitForLayerWorldReady(ctx context.Context, socket sockets.Socket) (*packet.Packet, error) {
-	select {
-	case <-ctx.Done():
-		return nil, ctx.Err()
-	case response, open := <-socket.ReadChannel():
-		if !open {
-			return nil, fmt.Errorf("world socket closed")
-		}
-		switch response.Opcode {
-		case packet.SMsgLoginVerifyWorld, packet.SMsgNewWorld:
-			return response, nil
-		default:
-			return nil, fmt.Errorf("unexpected initial world packet %s", response.Opcode)
+func waitForLayerWorldReady(ctx context.Context, socket sockets.Socket) (*packet.Packet, []*packet.Packet, error) {
+	pendingPackets := make([]*packet.Packet, 0, 8)
+	for {
+		select {
+		case <-ctx.Done():
+			return nil, nil, ctx.Err()
+		case response, open := <-socket.ReadChannel():
+			if !open {
+				return nil, nil, fmt.Errorf("world socket closed")
+			}
+			switch response.Opcode {
+			case packet.SMsgLoginVerifyWorld, packet.SMsgNewWorld:
+				return response, pendingPackets, nil
+			default:
+				// AzerothCore can emit ordinary character initialization
+				// packets before SMSG_LOGIN_VERIFY_WORLD. Preserve them and
+				// forward them after starting the client's world transition.
+				pendingPackets = append(pendingPackets, response)
+			}
 		}
 	}
 }

@@ -82,6 +82,10 @@ type GameSession struct {
 	// world server drops STATUS_LOGGEDIN opcodes, so the gateway answers name
 	// queries itself (see HandleNameQuery).
 	worldEntryPending bool
+	// layerWorldAckPending holds destination initialization packets after a
+	// same-map layer redirect until the client acknowledges SMSG_NEW_WORLD.
+	layerWorldAckPending bool
+	layerPendingPackets  []*packet.Packet
 
 	packetSendingControl PacketSendingControl
 
@@ -225,6 +229,11 @@ func (s *GameSession) HandlePackets(ctx context.Context) {
 			if !ok {
 				s.worldSocket = nil
 				s.onWorldSocketClosed()
+				break
+			}
+
+			if s.layerWorldAckPending {
+				s.layerPendingPackets = append(s.layerPendingPackets, p)
 				break
 			}
 
