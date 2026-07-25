@@ -24,13 +24,7 @@ type Config struct {
 }
 
 type LayeringConfig struct {
-	Maps     []MapLayerConfig `yaml:"maps"`
-	MapSpecs []string         `yaml:"-" env:"LAYER_MAPS"`
-}
-
-type MapLayerConfig struct {
-	MapID  uint32 `yaml:"mapID"`
-	Layers uint32 `yaml:"layers"`
+	Maps map[uint32]uint32 `yaml:"maps" env:"LAYER_MAPS" env-separator:";"`
 }
 
 // LoadConfig loads config from env variables

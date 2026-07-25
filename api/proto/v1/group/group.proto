@@ -36,6 +36,8 @@ message InviteParams {
 
   string inviterName = 5;
   string invitedName = 6;
+  uint32 inviterMapID = 7;
+  string inviterGameServerID = 8;
 }
 
 message InviteResponse {

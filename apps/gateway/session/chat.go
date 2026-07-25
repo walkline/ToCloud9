@@ -222,9 +222,6 @@ func (s *GameSession) HandleEventIncomingWhisperMessage(ctx context.Context, e *
 
 // TODO: rewrite commands handler with some better and more manageable constructions.
 func (s *GameSession) handleCommandMsgIfNeeded(ctx context.Context, msg string) ( /* isHandled */ bool, error) {
-	if msg == ".layer" || strings.HasPrefix(msg, ".layer ") {
-		return true, s.handleLayerCommand(ctx, strings.Fields(msg))
-	}
 	const TC9CommandPrefix = ".tc9 "
 	if !strings.HasPrefix(msg, TC9CommandPrefix) {
 		return false, nil
@@ -245,6 +242,8 @@ func (s *GameSession) handleCommandMsgIfNeeded(ctx context.Context, msg string) 
 		switch strings.ToLower(args[1]) {
 		case "list", "ls":
 			return true, s.handleCommandMsgListGameServers(ctx)
+		case "switch":
+			return true, s.handleCommandMsgSwitchGameServer(ctx, args[2:])
 		default:
 			s.SendSysMessage("unk subcommand")
 		}
@@ -267,27 +266,15 @@ func (s *GameSession) handleCommandMsgIfNeeded(ctx context.Context, msg string) 
 	return true, nil
 }
 
-func (s *GameSession) handleLayerCommand(ctx context.Context, args []string) error {
+func (s *GameSession) handleCommandMsgSwitchGameServer(ctx context.Context, args []string) error {
 	if s.character == nil {
 		return nil
 	}
-	if len(args) == 1 {
-		return s.handleLayerStatus(ctx)
-	}
-	if len(args) == 2 {
-		switch strings.ToLower(args[1]) {
-		case "config":
-			return s.handleLayerConfig(ctx)
-		case "help":
-			s.sendLayerHelp()
-			return nil
-		}
-	}
-	if len(args) != 3 || strings.ToLower(args[1]) != "switch" {
-		s.sendLayerHelp()
+	if len(args) != 1 {
+		s.SendSysMessage("Usage: .tc9 ws switch <gameserver-alias>")
 		return nil
 	}
-	alias := strings.ToLower(args[2])
+	alias := strings.ToLower(args[0])
 	if alias == "" {
 		s.SendSysMessage("Gameserver alias is required.")
 		return nil
@@ -311,24 +298,7 @@ func (s *GameSession) handleLayerCommand(ctx context.Context, args []string) err
 	return nil
 }
 
-func (s *GameSession) handleLayerStatus(ctx context.Context) error {
-	configuration, err := s.serversRegistryClient.GetMapLayerConfiguration(ctx, &pbServ.GetMapLayerConfigurationRequest{
-		Api: root.SupportedServerRegistryVer, RealmID: root.RealmID,
-	})
-	if err != nil {
-		return err
-	}
-	for _, configuredMap := range configuration.Maps {
-		if configuredMap.MapID == s.character.Map {
-			s.SendSysMessage(fmt.Sprintf("You are on layer %s.", s.currentGameServerAlias))
-			return nil
-		}
-	}
-	s.SendSysMessage("You are on a map that is not currently layered.")
-	return nil
-}
-
-func (s *GameSession) handleLayerConfig(ctx context.Context) error {
+func (s *GameSession) sendLayerConfiguration(ctx context.Context) error {
 	configuration, err := s.serversRegistryClient.GetMapLayerConfiguration(ctx, &pbServ.GetMapLayerConfigurationRequest{
 		Api: root.SupportedServerRegistryVer, RealmID: root.RealmID,
 	})
@@ -362,15 +332,11 @@ func (s *GameSession) handleLayerConfig(ctx context.Context) error {
 	return nil
 }
 
-func (s *GameSession) sendLayerHelp() {
-	s.SendSysMessage("Layer command help:")
-	s.SendSysMessage("  .layer - show your current layer")
-	s.SendSysMessage("  .layer config - show all configured maps, layers, and player counts")
-	s.SendSysMessage("  .layer switch <gameserver-alias> - switch to an available layer for your current map")
-	s.SendSysMessage("  .layer help - show this command reference")
-}
-
 func (s *GameSession) handleCommandMsgListGameServers(ctx context.Context) error {
+	if err := s.sendLayerConfiguration(ctx); err != nil {
+		return err
+	}
+
 	resp, err := s.serversRegistryClient.ListAllGameServers(ctx, &pbServ.ListAllGameServersRequest{
 		Api: root.SupportedServerRegistryVer,
 	})

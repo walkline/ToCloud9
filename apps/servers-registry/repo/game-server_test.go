@@ -24,4 +24,5 @@ func TestGameServerAliasIsDeterministicAndReadable(t *testing.T) {
 	require.Equal(t, first, repository.generateAlias("10.0.0.1:9601"))
 	require.NotEqual(t, first, repository.generateAlias("10.0.0.2:9601"))
 	require.Len(t, strings.Split(first, "-"), 3)
+	require.LessOrEqual(t, len(first), 12)
 }

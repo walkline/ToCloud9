@@ -192,7 +192,7 @@ func (s *GameSession) InterceptMoveWorldPortAck(ctx context.Context, p *packet.P
 	s.teleportingToNewMap = nil
 	s.character.ignoreNextInterceptToNewMap = nil
 
-	desiredServer, err := s.selectGameServerForMap(ctx, s.character.GUID, mapID)
+	desiredServer, err := s.selectGameServerForMap(ctx, mapID)
 	if err != nil {
 		return err
 	}

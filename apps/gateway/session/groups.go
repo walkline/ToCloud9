@@ -9,7 +9,6 @@ import (
 	"github.com/walkline/ToCloud9/apps/gateway/packet"
 	pbChar "github.com/walkline/ToCloud9/gen/characters/pb"
 	"github.com/walkline/ToCloud9/gen/group/pb"
-	pbServ "github.com/walkline/ToCloud9/gen/servers-registry/pb"
 	"github.com/walkline/ToCloud9/shared/events"
 )
 
@@ -75,12 +74,14 @@ func (s *GameSession) HandleGroupInvite(ctx context.Context, p *packet.Packet) e
 	}
 
 	inviteRes, err := s.groupServiceClient.Invite(ctx, &pb.InviteParams{
-		Api:         root.SupportedGroupServiceVer,
-		RealmID:     root.RealmID,
-		Inviter:     s.character.GUID,
-		Invited:     resp.Character.CharGUID,
-		InviterName: s.character.Name,
-		InvitedName: resp.Character.CharName,
+		Api:                 root.SupportedGroupServiceVer,
+		RealmID:             root.RealmID,
+		Inviter:             s.character.GUID,
+		Invited:             resp.Character.CharGUID,
+		InviterName:         s.character.Name,
+		InvitedName:         resp.Character.CharName,
+		InviterMapID:        s.character.Map,
+		InviterGameServerID: s.currentGameServerID,
 	})
 	if err != nil {
 		return NewGroupServiceUnavailableErr(err)
@@ -127,15 +128,6 @@ func (s *GameSession) HandleEventGroupMemberOnlineStatusChanged(ctx context.Cont
 func (s *GameSession) HandleEventGroupCreated(ctx context.Context, e *eBroadcaster.Event) error {
 	eventData := e.Payload.(*events.GroupEventGroupCreatedPayload)
 	s.currentGroupID = uint32(eventData.GroupID)
-	if eventData.LeaderGUID == s.character.GUID && s.currentGameServerID != "" {
-		_, err := s.serversRegistryClient.BindGroupToGameServer(ctx, &pbServ.BindGroupToGameServerRequest{
-			Api: root.SupportedServerRegistryVer, RealmID: root.RealmID, GroupID: uint32(eventData.GroupID),
-			MapID: s.character.Map, GameServerID: s.currentGameServerID,
-		})
-		if err != nil {
-			return fmt.Errorf("bind group layer: %w", err)
-		}
-	}
 	if err := s.applyGroupLayer(ctx, uint32(eventData.GroupID)); err != nil {
 		return fmt.Errorf("apply group layer: %w", err)
 	}

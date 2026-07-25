@@ -13,8 +13,8 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-var aliasHeroes = [...]string{"anduin", "jaina", "thrall", "sylvanas", "tyrande", "uther", "voljin", "ysera"}
-var aliasBosses = [...]string{"arthas", "illidan", "kelthuzad", "malganis", "onyxia", "ragnaros", "sindragosa", "yogg"}
+var aliasModifiers = [...]string{"red", "blue", "gold", "dark", "snow", "lime", "ice", "fire", "cold", "holy", "void", "ash"}
+var aliasBosses = [...]string{"ony", "rag", "illi", "arth", "kel", "sin", "mal", "yogg"}
 
 type gameServerRedisRepo struct {
 	rdb *redis.Client
@@ -233,5 +233,8 @@ func (g *gameServerRedisRepo) generateAlias(address string) string {
 	h := fnv.New32a()
 	_, _ = h.Write([]byte(strings.ToLower(address)))
 	sum := h.Sum32()
-	return fmt.Sprintf("%s-%s-%08x", aliasHeroes[sum%uint32(len(aliasHeroes))], aliasBosses[(sum/uint32(len(aliasHeroes)))%uint32(len(aliasBosses))], sum)
+	modifier := aliasModifiers[sum%uint32(len(aliasModifiers))]
+	boss := aliasBosses[(sum/uint32(len(aliasModifiers)))%uint32(len(aliasBosses))]
+	code := sum / uint32(len(aliasModifiers)*len(aliasBosses)) % (36 * 36)
+	return fmt.Sprintf("%s-%s-%02s", modifier, boss, strconv.FormatUint(uint64(code), 36))
 }

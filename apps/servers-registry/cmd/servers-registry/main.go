@@ -6,8 +6,6 @@ import (
 	"net"
 	"os"
 	"os/signal"
-	"strconv"
-	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -103,22 +101,7 @@ func main() {
 	}
 
 	layerService := service.NewLayer(gameServersService, layerStore)
-	startupLayers := make(map[uint32]uint32, len(conf.Layering.Maps)+len(conf.Layering.MapSpecs))
-	for _, item := range conf.Layering.Maps {
-		startupLayers[item.MapID] = item.Layers
-	}
-	for _, spec := range conf.Layering.MapSpecs {
-		parts := strings.SplitN(spec, ":", 2)
-		if len(parts) != 2 {
-			log.Fatal().Str("mapLayer", spec).Msg("invalid LAYER_MAPS entry; expected mapID:layers")
-		}
-		mapID, mapErr := strconv.ParseUint(parts[0], 10, 32)
-		layers, layerErr := strconv.ParseUint(parts[1], 10, 32)
-		if mapErr != nil || layerErr != nil || layers == 0 {
-			log.Fatal().Str("mapLayer", spec).Msg("invalid LAYER_MAPS entry")
-		}
-		startupLayers[uint32(mapID)] = uint32(layers)
-	}
+	startupLayers := conf.Layering.Maps
 	if len(startupLayers) > 0 {
 		for _, realmID := range supportedRealms {
 			if err := layerService.UpdateConfiguration(mainContext, realmID, startupLayers); err != nil {

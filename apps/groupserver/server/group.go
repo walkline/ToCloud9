@@ -66,7 +66,16 @@ func (g GroupServer) GetGroupIDByPlayer(ctx context.Context, request *pb.GetGrou
 }
 
 func (g GroupServer) Invite(ctx context.Context, params *pb.InviteParams) (*pb.InviteResponse, error) {
-	err := g.groupService.Invite(ctx, params.RealmID, params.Inviter, params.Invited, params.InviterName, params.InvitedName)
+	err := g.groupService.Invite(
+		ctx,
+		params.RealmID,
+		params.Inviter,
+		params.Invited,
+		params.InviterName,
+		params.InvitedName,
+		params.InviterMapID,
+		params.InviterGameServerID,
+	)
 	if err != nil {
 		return nil, err
 	}

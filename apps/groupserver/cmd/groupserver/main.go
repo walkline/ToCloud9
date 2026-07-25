@@ -25,6 +25,7 @@ import (
 	"github.com/walkline/ToCloud9/apps/groupserver/service"
 	pbChar "github.com/walkline/ToCloud9/gen/characters/pb"
 	"github.com/walkline/ToCloud9/gen/group/pb"
+	pbServ "github.com/walkline/ToCloud9/gen/servers-registry/pb"
 	"github.com/walkline/ToCloud9/shared/events"
 	shrepo "github.com/walkline/ToCloud9/shared/repo"
 )
@@ -121,8 +122,9 @@ func createGroupService(cfg *config.Config, natsCon *nats.Conn) service.GroupsSe
 	}
 
 	charClient := charService(cfg)
+	serversRegistryClient := serversRegistryService(cfg)
 
-	s := service.NewGroupsService(cache, charClient, events.NewGroupServiceProducerNatsJSON(natsCon, groupserver.Ver))
+	s := service.NewGroupsService(cache, charClient, serversRegistryClient, events.NewGroupServiceProducerNatsJSON(natsCon, groupserver.Ver))
 
 	// TODO: combine this with consumer for cache
 	err = events.NewGatewayConsumer(
@@ -161,6 +163,15 @@ func charService(cnf *config.Config) pbChar.CharactersServiceClient {
 	}
 
 	return pbChar.NewCharactersServiceClient(conn)
+}
+
+func serversRegistryService(cnf *config.Config) pbServ.ServersRegistryServiceClient {
+	conn, err := grpc.Dial(cnf.ServersRegistryServiceAddress, grpc.WithInsecure())
+	if err != nil {
+		log.Fatal().Err(err).Msg("can't connect to servers registry service")
+	}
+
+	return pbServ.NewServersRegistryServiceClient(conn)
 }
 
 func configureDBConn(db *sql.DB) {
