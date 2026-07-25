@@ -1,6 +1,7 @@
 package repo
 
 import (
+	"regexp"
 	"strings"
 	"testing"
 
@@ -23,6 +24,13 @@ func TestGameServerAliasIsDeterministicAndReadable(t *testing.T) {
 
 	require.Equal(t, first, repository.generateAlias("10.0.0.1:9601"))
 	require.NotEqual(t, first, repository.generateAlias("10.0.0.2:9601"))
-	require.Len(t, strings.Split(first, "-"), 3)
-	require.LessOrEqual(t, len(first), 12)
+	require.GreaterOrEqual(t, len(strings.Split(first, "-")), 3)
+	require.Regexp(t, regexp.MustCompile(`^[a-z]+(?:-[a-z]+)*-[0-9a-z]{2}$`), first)
+}
+
+func TestAliasRaidBossNamesAreASCIIAndCommandSafe(t *testing.T) {
+	require.Greater(t, len(aliasRaidBosses), 100)
+	for _, boss := range aliasRaidBosses {
+		require.Regexp(t, regexp.MustCompile(`^[a-z]+(?:-[a-z]+)*$`), boss)
+	}
 }

@@ -36,7 +36,7 @@ maps, but can host at most one copy of any particular map.
 
 Gameservers do not register a global layer ID. Their normal gameserver ID is
 the routing identity. The registry derives a deterministic, display-only alias
-such as `red-ony-a1` from the server address. Aliases never replace the
+such as `red-ragnaros-a1` from the server address. Aliases never replace the
 gameserver ID in Redis bindings.
 
 ## Player and group placement

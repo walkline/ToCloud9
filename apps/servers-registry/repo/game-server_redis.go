@@ -14,7 +14,57 @@ import (
 )
 
 var aliasModifiers = [...]string{"red", "blue", "gold", "dark", "snow", "lime", "ice", "fire", "cold", "holy", "void", "ash"}
-var aliasBosses = [...]string{"ony", "rag", "illi", "arth", "kel", "sin", "mal", "yogg"}
+var aliasRaidBosses = [...]string{
+	// World of Warcraft
+	"high-priestess-jeklik", "high-priest-venoxis", "high-priest-thekal",
+	"high-priestess-arlokk", "bloodlord-mandokir", "renataki", "wushoolay",
+	"hakkar-the-soulflayer", "kurinnaxx", "general-rajaxx", "moam",
+	"buru-the-gorger", "ayamiss-the-hunter", "ossirian-the-unscarred",
+	"lucifron", "magmadar", "gehennas", "garr", "baron-geddon", "shazzrah",
+	"sulfuron-harbinger", "golemagg-the-incinerator", "majordomo-executus",
+	"ragnaros", "onyxia",
+	"razorgore-the-untamed", "vaelastrasz-the-corrupt", "broodlord-lashlayer",
+	"firemaw", "ebonroc", "flamegor", "chromaggus", "nefarian",
+	"the-prophet-skeram", "lord-kri", "princess-yauj", "vem",
+	"battleguard-sartura", "fankriss-the-unyielding", "viscidus",
+	"princess-huhuran", "ouro", "grand-widow-faerlina", "maexxna",
+	"noth-the-plaguebringer", "heigan-the-unclean", "loatheb",
+	"instructor-razuvious", "gothik-the-harvester", "lady-blaumeux",
+	"baron-rivendare", "sir-zeliek", "patchwerk", "grobbulus", "gluth",
+	"thaddius", "sapphiron", "azuregos", "lord-kazzak", "emeriss", "lethon",
+	"taerar", "ysondre",
+
+	// The Burning Crusade
+	"attumen-the-huntsman", "moroes", "maiden-of-virtue", "big-bad-wolf",
+	"julianne", "romulo", "the-crone", "the-curator", "terestian-illhoof",
+	"shade-of-aran", "netherspite", "prince-malchezaar", "nightbane",
+	"high-king-maulgar", "gruul-the-dragonkiller", "magtheridon",
+	"hydross-the-unstable", "the-lurker-below", "leotheras-the-blind",
+	"fathom-lord-karathress", "morogrim-tidewalker", "lady-vashj",
+	"void-reaver", "high-astromancer-solarian", "rage-winterchill",
+	"anetheron", "kazrogal", "azgalor", "archimonde", "supremus",
+	"shade-of-akama", "teron-gorefiend", "gurtogg-bloodboil",
+	"reliquary-of-souls", "mother-shahraz", "illidari-council",
+	"illidan-stormrage", "nalorakk", "halazzi", "hex-lord-malacrass",
+	"kalecgos", "sathrovarr-the-corruptor", "brutallus", "felmyst",
+	"grand-warlock-alythess", "lady-sacrolash", "entropius",
+	"doom-lord-kazzak", "doomwalker",
+
+	// Wrath of the Lich King
+	"tenebron", "shadron", "vesperon", "sartharion", "malygos",
+	"archavon-the-stone-watcher", "emalon-the-storm-watcher",
+	"koralon-the-flame-watcher", "toravon-the-ice-watcher",
+	"flame-leviathan", "ignis-the-furnace-master", "razorscale",
+	"steelbreaker", "runemaster-molgeim", "stormcaller-brundir", "kologarn",
+	"auriaya", "hodir", "thorim", "freya", "mimiron", "general-vezax",
+	"algalon-the-observer", "gormok-the-impaler", "acidmaw", "dreadscale",
+	"icehowl", "lord-jaraxxus", "fjola-lightbane", "eydis-darkbane",
+	"lord-marrowgar", "lady-deathwhisper", "deathbringer-saurfang",
+	"festergut", "rotface", "professor-putricide", "prince-keleseth",
+	"prince-taldaram", "prince-valanar", "valithria-dreamwalker",
+	"sindragosa", "the-lich-king", "saviana-ragefire",
+	"baltharus-the-warborn", "general-zarithrian", "halion",
+}
 
 type gameServerRedisRepo struct {
 	rdb *redis.Client
@@ -234,7 +284,7 @@ func (g *gameServerRedisRepo) generateAlias(address string) string {
 	_, _ = h.Write([]byte(strings.ToLower(address)))
 	sum := h.Sum32()
 	modifier := aliasModifiers[sum%uint32(len(aliasModifiers))]
-	boss := aliasBosses[(sum/uint32(len(aliasModifiers)))%uint32(len(aliasBosses))]
-	code := sum / uint32(len(aliasModifiers)*len(aliasBosses)) % (36 * 36)
+	boss := aliasRaidBosses[(sum/uint32(len(aliasModifiers)))%uint32(len(aliasRaidBosses))]
+	code := sum / uint32(len(aliasModifiers)*len(aliasRaidBosses)) % (36 * 36)
 	return fmt.Sprintf("%s-%s-%02s", modifier, boss, strconv.FormatUint(uint64(code), 36))
 }
