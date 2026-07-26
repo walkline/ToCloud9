@@ -16,6 +16,7 @@ import (
 	mocks "github.com/walkline/ToCloud9/apps/gateway/sockets/socketmock"
 	pbChar "github.com/walkline/ToCloud9/gen/characters/pb"
 	pbGuild "github.com/walkline/ToCloud9/gen/guilds/pb"
+	"github.com/walkline/ToCloud9/shared/wow"
   "github.com/walkline/ToCloud9/shared/events"
 )
 
@@ -31,11 +32,13 @@ func (m *charServiceClientOnlineByNameMock) CharacterOnlineByName(_ context.Cont
 
 type guildServiceClientInviteMock struct {
 	pbGuild.GuildServiceClient
-	inviteErr  error
-	rosterResp *pbGuild.GetRosterInfoResponse
+	inviteErr    error
+	inviteCalled bool
+	rosterResp   *pbGuild.GetRosterInfoResponse
 }
 
 func (m *guildServiceClientInviteMock) InviteMember(_ context.Context, _ *pbGuild.InviteMemberParams, _ ...grpc.CallOption) (*pbGuild.InviteMemberResponse, error) {
+	m.inviteCalled = true
 	if m.inviteErr != nil {
 		return nil, m.inviteErr
 	}
@@ -195,3 +198,53 @@ func TestHandleGuildInviteUnknownErrorStaysAnError(t *testing.T) {
 	assert.Empty(t, *sentToClient)
 }
 
+func TestHandleGuildInviteRefusesTheOtherFaction(t *testing.T) {
+	tests := []struct {
+		name        string
+		inviterRace uint8
+		inviteeRace uint32
+		allowCross  bool
+		wantRefused bool
+	}{
+		{"alliance invites horde", uint8(wow.RaceIDNightElf), uint32(wow.RaceIDBloodElf), false, true},
+		{"horde invites alliance", uint8(wow.RaceIDOrc), uint32(wow.RaceIDDwarf), false, true},
+		{"same faction goes through", uint8(wow.RaceIDOrc), uint32(wow.RaceIDTauren), false, false},
+		{"cross faction allowed by config", uint8(wow.RaceIDNightElf), uint32(wow.RaceIDBloodElf), true, false},
+		{"unknown race is not refused", 0, 0, false, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			charClient := &charServiceClientOnlineByNameMock{
+				resp: &pbChar.CharacterOnlineByNameResponse{
+					Character: &pbChar.CharacterOnlineByNameResponse_Char{
+						CharGUID: 51,
+						CharName: "Thrall",
+						CharRace: tt.inviteeRace,
+					},
+				},
+			}
+			guildClient := &guildServiceClientInviteMock{}
+			session, sentToClient := guildTestSession(t, guildClient, charClient)
+			session.character.Race = tt.inviterRace
+			session.allowCrossFactionGuilds = tt.allowCross
+
+			err := session.HandleGuildInvite(context.Background(), guildInvitePacket("Thrall"))
+			assert.Nil(t, err)
+
+			if !tt.wantRefused {
+				assert.True(t, guildClient.inviteCalled, "the invite must reach the guild service")
+				return
+			}
+
+			assert.False(t, guildClient.inviteCalled, "no invite must reach the guild service")
+			if assert.Len(t, *sentToClient, 1) {
+				assert.Equal(t, packet.SMsgGuildCommandResult, (*sentToClient)[0].Opcode)
+				r := (*sentToClient)[0].ToPacket().Reader()
+				assert.Equal(t, uint32(guildCommandInvite), r.Uint32())
+				assert.Equal(t, "Thrall", r.String())
+				assert.Equal(t, uint32(guildErrNotAllied), r.Uint32())
+			}
+		})
+	}
+}
