@@ -80,7 +80,7 @@ func TestLayerPlayerRedirectSendsNewWorldBeforeInstallingDestinationSocket(t *te
 		return destinationSocket, nil
 	}
 
-	require.NoError(t, session.layerPlayerRedirect(context.Background(), 42, "destination:8085", "red-ragnaros-a1"))
+	require.NoError(t, session.layerPlayerRedirect(context.Background(), 42, "destination:8085", "illidan-vashj-z4"))
 	require.Same(t, destinationSocket, session.worldSocket)
 	require.True(t, session.worldEntryPending)
 	require.NotNil(t, newWorldPacket)
@@ -108,7 +108,7 @@ func TestLayerPlayerRedirectKeepsSourceSocketWhenPreparationFails(t *testing.T) 
 		accountID:   7,
 	}
 
-	err := session.layerPlayerRedirect(context.Background(), 42, "destination:8085", "red-ragnaros-a1")
+	err := session.layerPlayerRedirect(context.Background(), 42, "destination:8085", "illidan-vashj-z4")
 	require.Error(t, err)
 	assert.Same(t, sourceSocket, session.worldSocket)
 }

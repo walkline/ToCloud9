@@ -13,7 +13,6 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-var aliasModifiers = [...]string{"red", "blue", "gold", "dark", "snow", "lime", "ice", "fire", "cold", "holy", "void", "ash"}
 var aliasRaidBosses = [...]string{
 	// World of Warcraft
 	"high-priestess-jeklik", "high-priest-venoxis", "high-priest-thekal",
@@ -283,8 +282,17 @@ func (g *gameServerRedisRepo) generateAlias(address string) string {
 	h := fnv.New32a()
 	_, _ = h.Write([]byte(strings.ToLower(address)))
 	sum := h.Sum32()
-	modifier := aliasModifiers[sum%uint32(len(aliasModifiers))]
-	boss := aliasRaidBosses[(sum/uint32(len(aliasModifiers)))%uint32(len(aliasRaidBosses))]
-	code := sum / uint32(len(aliasModifiers)*len(aliasRaidBosses)) % (36 * 36)
-	return fmt.Sprintf("%s-%s-%02s", modifier, boss, strconv.FormatUint(uint64(code), 36))
+	bossCount := uint32(len(aliasRaidBosses))
+	firstBossIndex := sum % bossCount
+	secondBossIndex := (sum / bossCount) % bossCount
+	if secondBossIndex == firstBossIndex {
+		secondBossIndex = (secondBossIndex + 1) % bossCount
+	}
+	code := sum / (bossCount * bossCount) % (36 * 36)
+	return fmt.Sprintf(
+		"%s-%s-%02s",
+		aliasRaidBosses[firstBossIndex],
+		aliasRaidBosses[secondBossIndex],
+		strconv.FormatUint(uint64(code), 36),
+	)
 }
