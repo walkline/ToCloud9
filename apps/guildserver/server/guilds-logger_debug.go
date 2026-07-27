@@ -24,6 +24,51 @@ func NewGuildsDebugLoggerMiddleware(realService pb.GuildServiceServer, logger ze
 	}
 }
 
+// Bank RPCs are delegated without extra logging.
+func (g *guildDebugLoggerMiddleware) GetBankState(ctx context.Context, params *pb.GetBankStateParams) (*pb.GetBankStateResponse, error) {
+	return g.realService.GetBankState(ctx, params)
+}
+
+func (g *guildDebugLoggerMiddleware) GetBankTab(ctx context.Context, params *pb.GetBankTabParams) (*pb.GetBankTabResponse, error) {
+	return g.realService.GetBankTab(ctx, params)
+}
+
+func (g *guildDebugLoggerMiddleware) BankDepositMoney(ctx context.Context, params *pb.BankMoneyParams) (*pb.BankMoneyResponse, error) {
+	return g.realService.BankDepositMoney(ctx, params)
+}
+
+func (g *guildDebugLoggerMiddleware) BankWithdrawMoney(ctx context.Context, params *pb.BankMoneyParams) (*pb.BankMoneyResponse, error) {
+	return g.realService.BankWithdrawMoney(ctx, params)
+}
+
+func (g *guildDebugLoggerMiddleware) BankDepositItem(ctx context.Context, params *pb.BankDepositItemParams) (*pb.BankDepositItemResponse, error) {
+	return g.realService.BankDepositItem(ctx, params)
+}
+
+func (g *guildDebugLoggerMiddleware) BankWithdrawItem(ctx context.Context, params *pb.BankWithdrawItemParams) (*pb.BankWithdrawItemResponse, error) {
+	return g.realService.BankWithdrawItem(ctx, params)
+}
+
+func (g *guildDebugLoggerMiddleware) BankMoveItem(ctx context.Context, params *pb.BankMoveItemParams) (*pb.BankMoveItemResponse, error) {
+	return g.realService.BankMoveItem(ctx, params)
+}
+
+func (g *guildDebugLoggerMiddleware) BankBuyTab(ctx context.Context, params *pb.BankBuyTabParams) (*pb.BankBuyTabResponse, error) {
+	return g.realService.BankBuyTab(ctx, params)
+}
+
+func (g *guildDebugLoggerMiddleware) BankSetTabInfo(ctx context.Context, params *pb.BankSetTabInfoParams) (*pb.BankSetTabInfoResponse, error) {
+	return g.realService.BankSetTabInfo(ctx, params)
+}
+
+func (g *guildDebugLoggerMiddleware) BankSetTabText(ctx context.Context, params *pb.BankSetTabTextParams) (*pb.BankSetTabTextResponse, error) {
+	return g.realService.BankSetTabText(ctx, params)
+}
+
+func (g *guildDebugLoggerMiddleware) GetBankLog(ctx context.Context, params *pb.GetBankLogParams) (*pb.GetBankLogResponse, error) {
+	return g.realService.GetBankLog(ctx, params)
+}
+
 func (g *guildDebugLoggerMiddleware) GetGuildInfo(ctx context.Context, params *pb.GetInfoParams) (res *pb.GetInfoResponse, err error) {
 	defer func(t time.Time) {
 		g.logger.Debug().
@@ -232,5 +277,17 @@ func (g *guildDebugLoggerMiddleware) SendGuildMessage(ctx context.Context, param
 	}(time.Now())
 
 	res, err = g.realService.SendGuildMessage(ctx, params)
+	return
+}
+
+func (g *guildDebugLoggerMiddleware) CreateGuild(ctx context.Context, params *pb.CreateGuildParams) (res *pb.CreateGuildResponse, err error) {
+	defer func(t time.Time) {
+		g.logger.Debug().
+			Uint64("leaderGUID", params.LeaderGUID).
+			Err(err).
+			Msgf("Handled CreateGuild for %v.", time.Since(t))
+	}(time.Now())
+
+	res, err = g.realService.CreateGuild(ctx, params)
 	return
 }

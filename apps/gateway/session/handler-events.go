@@ -10,6 +10,7 @@ var EventsHandleMap = map[eBroadcaster.EventType]EventsHandlersQueue{
 	eBroadcaster.EventTypeIncomingWhisper: NewEventHandler("IncomingWhisper", (*GameSession).HandleEventIncomingWhisperMessage),
 
 	// Guild
+	eBroadcaster.EventTypeGuildCreated:        NewEventHandler("GuildCreated", (*GameSession).HandleEventGuildCreated),
 	eBroadcaster.EventTypeGuildInviteCreated:  NewEventHandler("GuildInviteCreated", (*GameSession).HandleEventGuildInviteCreated),
 	eBroadcaster.EventTypeGuildMemberPromoted: NewEventHandler("GuildMemberPromoted", (*GameSession).HandleEventGuildMemberPromoted),
 	eBroadcaster.EventTypeGuildMemberDemoted:  NewEventHandler("GuildMemberDemoted", (*GameSession).HandleEventGuildMemberDemoted),
@@ -21,6 +22,10 @@ var EventsHandleMap = map[eBroadcaster.EventType]EventsHandlersQueue{
 	eBroadcaster.EventTypeGuildRankUpdated:    NewEventHandler("GuildRankUpdated", (*GameSession).HandleEventGuildRankUpdated),
 	eBroadcaster.EventTypeGuildRankDeleted:    NewEventHandler("GuildRankDeleted", (*GameSession).HandleEventGuildRankDeleted),
 	eBroadcaster.EventTypeGuildNewMessage:     NewEventHandler("GuildNewMessage", (*GameSession).HandleEventGuildNewMessage),
+	eBroadcaster.EventTypeGuildBankMoneyUpdated: NewEventHandler("GuildBankMoneyUpdated", (*GameSession).HandleEventGuildBankMoneyUpdated),
+	eBroadcaster.EventTypeGuildBankTabUpdated:   NewEventHandler("GuildBankTabUpdated", (*GameSession).HandleEventGuildBankTabUpdated),
+	eBroadcaster.EventTypeGuildBankTabsChanged:  NewEventHandler("GuildBankTabsChanged", (*GameSession).HandleEventGuildBankTabsChanged),
+	eBroadcaster.EventTypeGuildBankTextUpdated:  NewEventHandler("GuildBankTextUpdated", (*GameSession).HandleEventGuildBankTextUpdated),
 
 	// Mail
 	eBroadcaster.EventTypeIncomingMail: NewEventHandler("IncomingMail", (*GameSession).HandleEventIncomingMail),

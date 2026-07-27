@@ -23,6 +23,7 @@ import (
 	"github.com/walkline/ToCloud9/apps/guildserver/repo"
 	"github.com/walkline/ToCloud9/apps/guildserver/server"
 	"github.com/walkline/ToCloud9/apps/guildserver/service"
+	pbChar "github.com/walkline/ToCloud9/gen/characters/pb"
 	"github.com/walkline/ToCloud9/gen/guilds/pb"
 	"github.com/walkline/ToCloud9/shared/events"
 	shrepo "github.com/walkline/ToCloud9/shared/repo"
@@ -61,7 +62,8 @@ func main() {
 	}
 
 	grpcServer := grpc.NewServer()
-	guildServer := server.NewGuildServer(createGuildService(cfg, nc))
+	guildsService, bankService := createGuildService(cfg, nc)
+	guildServer := server.NewGuildServer(guildsService, bankService)
 	if cfg.LogLevel == zerolog.DebugLevel {
 		guildServer = server.NewGuildsDebugLoggerMiddleware(guildServer, log.Logger)
 	}
@@ -91,7 +93,7 @@ func main() {
 	log.Info().Msg("👍 Server successfully stopped.")
 }
 
-func createGuildService(cfg *config.Config, natsCon *nats.Conn) service.GuildService {
+func createGuildService(cfg *config.Config, natsCon *nats.Conn) (service.GuildService, service.GuildBankService) {
 	charDB := shrepo.NewCharactersDB()
 	for realmID, connStr := range cfg.CharDBConnection {
 		cdb, err := sql.Open("mysql", connStr)
@@ -129,7 +131,72 @@ func createGuildService(cfg *config.Config, natsCon *nats.Conn) service.GuildSer
 		log.Fatal().Err(err).Msg("can't listen to characters service events")
 	}
 
-	return service.NewGuildService(cache, events.NewGuildServiceProducerNatsJSON(natsCon, guildserver.Ver))
+	for realmID := range cfg.CharDBConnection {
+		seedOnlineChars(cfg, cache, realmID)
+	}
+
+	producer := events.NewGuildServiceProducerNatsJSON(natsCon, guildserver.Ver)
+
+	bankRepo := repo.NewGuildBankMySQLRepo(charDB)
+	bankService := service.NewGuildBankService(bankRepo, cache, producer)
+	startBankWithdrawalsReset(cfg, bankRepo)
+
+	return service.NewGuildService(cache, producer), bankService
+}
+
+// startBankWithdrawalsReset zeroes the daily guild bank withdrawal counters
+// of every realm once a day at 06:00 UTC (AC "Guild Daily Cap reset").
+func startBankWithdrawalsReset(cfg *config.Config, bankRepo repo.GuildBankRepo) {
+	go func() {
+		for {
+			now := time.Now().UTC()
+			next := time.Date(now.Year(), now.Month(), now.Day(), 6, 0, 0, 0, time.UTC)
+			if !next.After(now) {
+				next = next.Add(24 * time.Hour)
+			}
+			time.Sleep(next.Sub(now))
+
+			for realmID := range cfg.CharDBConnection {
+				if err := bankRepo.ResetDailyWithdrawals(context.Background(), realmID); err != nil {
+					log.Error().Err(err).Uint32("realmID", realmID).Msg("can't reset guild bank withdrawals")
+				} else {
+					log.Info().Uint32("realmID", realmID).Msg("guild bank daily withdrawals reset")
+				}
+			}
+		}
+	}()
+}
+
+// seedOnlineChars recovers the online state of characters from the characters
+// service. Login events observed before this process started are gone, so
+// without it every member hydrated from the DB stays offline until it relogs.
+// Best effort: on failure the roster still works, only statuses degrade.
+func seedOnlineChars(cfg *config.Config, cache service.GuildsCache, realmID uint32) {
+	if cfg.CharServiceAddress == "" {
+		return
+	}
+
+	conn, err := grpc.Dial(cfg.CharServiceAddress, grpc.WithInsecure())
+	if err != nil {
+		log.Warn().Err(err).Msg("can't connect to characters service, skipping online state recovery")
+		return
+	}
+	defer conn.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+	defer cancel()
+
+	resp, err := pbChar.NewCharactersServiceClient(conn).GetOnlineCharacters(ctx, &pbChar.GetOnlineCharactersRequest{
+		Api:     guildserver.Ver,
+		RealmID: realmID,
+	})
+	if err != nil {
+		log.Warn().Err(err).Msg("can't fetch online characters, skipping online state recovery")
+		return
+	}
+
+	cache.SeedOnlineChars(realmID, resp.CharacterGUIDs)
+	log.Info().Int("count", len(resp.CharacterGUIDs)).Msg("recovered online state from characters service")
 }
 
 func configureDBConn(db *sql.DB) {

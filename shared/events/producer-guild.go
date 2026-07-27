@@ -28,6 +28,13 @@ type GuildServiceProducer interface {
 	GuildInfoUpdated(payload *GuildEventGuildInfoUpdatedPayload) error
 
 	NewMessage(payload *GuildEventNewMessagePayload) error
+
+	GuildCreated(payload *GuildEventGuildCreatedPayload) error
+
+	BankMoneyUpdated(payload *GuildEventBankMoneyUpdatedPayload) error
+	BankTabUpdated(payload *GuildEventBankTabUpdatedPayload) error
+	BankTabsChanged(payload *GuildEventBankTabsChangedPayload) error
+	BankTextUpdated(payload *GuildEventBankTextUpdatedPayload) error
 }
 
 type guildServiceProducerNatsJSON struct {
@@ -111,4 +118,24 @@ func (s *guildServiceProducerNatsJSON) publish(e GuildServiceEvent, payload inte
 	}
 
 	return s.conn.Publish(e.SubjectName(), d)
+}
+
+func (s *guildServiceProducerNatsJSON) GuildCreated(payload *GuildEventGuildCreatedPayload) error {
+	return s.publish(GuildEventGuildCreated, payload)
+}
+
+func (s *guildServiceProducerNatsJSON) BankMoneyUpdated(payload *GuildEventBankMoneyUpdatedPayload) error {
+	return s.publish(GuildEventBankMoneyUpdated, payload)
+}
+
+func (s *guildServiceProducerNatsJSON) BankTabUpdated(payload *GuildEventBankTabUpdatedPayload) error {
+	return s.publish(GuildEventBankTabUpdated, payload)
+}
+
+func (s *guildServiceProducerNatsJSON) BankTabsChanged(payload *GuildEventBankTabsChangedPayload) error {
+	return s.publish(GuildEventBankTabsChanged, payload)
+}
+
+func (s *guildServiceProducerNatsJSON) BankTextUpdated(payload *GuildEventBankTextUpdatedPayload) error {
+	return s.publish(GuildEventBankTextUpdated, payload)
 }

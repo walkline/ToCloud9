@@ -16,7 +16,9 @@ import (
 	"github.com/walkline/ToCloud9/apps/gateway/packet"
 	pbChar "github.com/walkline/ToCloud9/gen/characters/pb"
 	pbGuild "github.com/walkline/ToCloud9/gen/guilds/pb"
+	pbGameServ "github.com/walkline/ToCloud9/gen/worldserver/pb"
 	"github.com/walkline/ToCloud9/shared/events"
+	"github.com/walkline/ToCloud9/shared/wow"
 )
 
 type GuildEventType uint8
@@ -69,10 +71,17 @@ func (s *GameSession) HandleGuildRoster(ctx context.Context, p *packet.Packet) e
 		resp.Uint32(rank.Flags)
 		resp.Uint32(rank.GoldLimit)
 
-		// TODO: guild bank
 		for i := 0; i < 6; i++ {
-			resp.Uint32(0) // tab flags
-			resp.Uint32(0) // tab withdraw limit
+			if i < len(rank.BankTabRights) {
+				resp.Uint32(rank.BankTabRights[i])
+			} else {
+				resp.Uint32(0)
+			}
+			if i < len(rank.BankTabSlotsPerDay) {
+				resp.Uint32(rank.BankTabSlotsPerDay[i])
+			} else {
+				resp.Uint32(0)
+			}
 		}
 	}
 
@@ -175,6 +184,7 @@ const (
 	guildErrPermissions      = 8  // ERR_GUILD_PERMISSIONS
 	guildErrPlayerNotInGuild = 9  // ERR_GUILD_PLAYER_NOT_IN_GUILD
 	guildErrPlayerNotFoundS  = 11 // ERR_GUILD_PLAYER_NOT_FOUND_S
+	guildErrNotAllied        = 12 // ERR_GUILD_NOT_ALLIED
 )
 
 // sendGuildCommandResult sends SMSG_GUILD_COMMAND_RESULT so the client renders
@@ -202,7 +212,13 @@ func (s *GameSession) HandleGuildInvite(ctx context.Context, p *packet.Packet) e
 		return nil
 	}
 
-	// TODO: check fraction.
+	// Guilds are faction locked, like the world server does before handing the
+	// invite over. The realm can opt out, the same way the core config
+	// AllowTwoSide.Interaction.Guild does.
+	if !s.allowCrossFactionGuilds && isCrossFaction(s.character.Race, uint8(resp.Character.CharRace)) {
+		s.sendGuildCommandResult(guildCommandInvite, resp.Character.CharName, guildErrNotAllied)
+		return nil
+	}
 
 	_, err = s.guildServiceClient.InviteMember(ctx, &pbGuild.InviteMemberParams{
 		Api:         root.Ver,
@@ -255,10 +271,7 @@ func (s *GameSession) HandleEventGuildMemberPromoted(ctx context.Context, e *eBr
 	))
 
 	if eventData.MemberGUID == s.character.GUID {
-		// Best effort: a failed push must not abort the remaining event handlers.
-		if err := s.sendGuildPermissions(ctx); err != nil {
-			log.Warn().Err(err).Msg("can't push guild permissions after rank change")
-		}
+		s.refreshGuildFieldsAndUI(ctx, uint32(eventData.RankID))
 	}
 
 	return nil
@@ -275,13 +288,37 @@ func (s *GameSession) HandleEventGuildMemberDemoted(ctx context.Context, e *eBro
 	))
 
 	if eventData.MemberGUID == s.character.GUID {
-		// Best effort: a failed push must not abort the remaining event handlers.
-		if err := s.sendGuildPermissions(ctx); err != nil {
-			log.Warn().Err(err).Msg("can't push guild permissions after rank change")
-		}
+		s.refreshGuildFieldsAndUI(ctx, uint32(eventData.RankID))
 	}
 
 	return nil
+}
+
+// refreshGuildFieldsAndUI re-arms the guild UI of the member whose rank just
+// changed. The client gates the guild control buttons (invite, promote, ...)
+// on the PLAYER_GUILDRANK unit field, which no longer follows the rank in
+// cluster mode: the guild service owns the change and the worldserver never
+// calls SetRank on the live player object, so the buttons keep the old state
+// until the player relogs. Push the new rank onto the object first, then
+// refresh the permissions and the roster.
+func (s *GameSession) refreshGuildFieldsAndUI(ctx context.Context, rank uint32) {
+	// Best effort throughout: a failed push must not abort the remaining
+	// event handlers.
+	if _, err := s.gameServerGRPCClient.SetPlayerGuildFields(ctx, &pbGameServ.SetPlayerGuildFieldsRequest{
+		Api:        root.Ver,
+		PlayerGuid: s.character.GUID,
+		GuildID:    s.character.GuildID,
+		Rank:       rank,
+	}); err != nil {
+		log.Warn().Err(err).Msg("can't refresh player guild fields after rank change")
+	}
+
+	if err := s.sendGuildPermissions(ctx); err != nil {
+		log.Warn().Err(err).Msg("can't push guild permissions after rank change")
+	}
+	if err := s.HandleGuildRoster(ctx, nil); err != nil {
+		log.Warn().Err(err).Msg("can't push guild roster after rank change")
+	}
 }
 
 func (s *GameSession) HandleEventGuildMOTDUpdated(_ context.Context, e *eBroadcaster.Event) error {
@@ -291,6 +328,18 @@ func (s *GameSession) HandleEventGuildMOTDUpdated(_ context.Context, e *eBroadca
 		GuildEventTypeMessageOfTheDay, 0,
 		eventData.NewMessageOfTheDay,
 	))
+
+	return nil
+}
+
+// HandleEventGuildCreated links the session to the freshly created guild so
+// gateway-side guild features (roster, permissions) work for the petition
+// signatories without a relog. The leader's session is updated synchronously in
+// HandleTurnInPetition; for it this event is a no-op.
+func (s *GameSession) HandleEventGuildCreated(_ context.Context, e *eBroadcaster.Event) error {
+	eventData := e.Payload.(*events.GuildEventGuildCreatedPayload)
+
+	s.character.GuildID = uint32(eventData.GuildID)
 
 	return nil
 }
@@ -545,14 +594,24 @@ func (s *GameSession) HandleGuildRankUpdate(ctx context.Context, p *packet.Packe
 	name := reader.String()
 	withdrawGoldLimit := reader.Uint32()
 
+	// CMSG_GUILD_RANK carries the bank rights of all six tabs.
+	bankTabRights := make([]uint32, 0, 6)
+	bankTabSlots := make([]uint32, 0, 6)
+	for i := 0; i < 6; i++ {
+		bankTabRights = append(bankTabRights, reader.Uint32())
+		bankTabSlots = append(bankTabSlots, reader.Uint32())
+	}
+
 	_, err := s.guildServiceClient.UpdateRank(ctx, &pbGuild.RankUpdateParams{
-		Api:         root.Ver,
-		RealmID:     root.RealmID,
-		ChangerGUID: s.character.GUID,
-		Rank:        rankID,
-		RankName:    name,
-		Rights:      rights,
-		MoneyPerDay: withdrawGoldLimit,
+		Api:                root.Ver,
+		RealmID:            root.RealmID,
+		ChangerGUID:        s.character.GUID,
+		Rank:               rankID,
+		RankName:           name,
+		Rights:             rights,
+		MoneyPerDay:        withdrawGoldLimit,
+		BankTabRights:      bankTabRights,
+		BankTabSlotsPerDay: bankTabSlots,
 	})
 	if err != nil {
 		return err
@@ -683,34 +742,24 @@ func (s *GameSession) sendGuildPermissions(ctx context.Context) error {
 		return nil
 	}
 
-	guildResp, err := s.guildServiceClient.GetRosterInfo(ctx, &pbGuild.GetRosterInfoParams{
-		Api:     root.Ver,
-		RealmID: root.RealmID,
-		GuildID: uint64(s.character.GuildID),
-	})
+	state, err := s.guildBankState(ctx)
 	if err != nil {
 		return err
 	}
 
 	resp := packet.NewWriterWithSize(packet.MsgGuildPermissions, 0)
-	for _, member := range guildResp.Guild.Members {
-		if member.Guid == s.character.GUID {
-			for _, rank := range guildResp.Guild.Ranks {
-				if rank.Id == member.RankID {
-					resp.Uint32(rank.Id)
-					resp.Uint32(rank.Flags)
-					resp.Int32(int32(rank.GoldLimit))
-					resp.Uint8(6) // Tabs count.
+	resp.Uint32(state.RankID)
+	resp.Int32(int32(state.RankRights))
+	resp.Int32(int32(state.MoneyPerDay))
+	resp.Uint8(uint8(len(state.Tabs)))
 
-					for i := 0; i < 6; i++ {
-						resp.Uint32(0) // tab flags
-						resp.Uint32(0) // tab withdraw limit
-					}
-
-					break
-				}
-			}
-			break
+	for i := 0; i < 6; i++ {
+		if i < len(state.Tabs) {
+			resp.Int32(int32(state.Tabs[i].Rights))
+			resp.Int32(int32(state.Tabs[i].RemainingSlots))
+		} else {
+			resp.Int32(0)
+			resp.Int32(0)
 		}
 	}
 
@@ -719,9 +768,32 @@ func (s *GameSession) sendGuildPermissions(ctx context.Context) error {
 }
 
 func (s *GameSession) HandleGuildBankMoneyWithdrawn(ctx context.Context, p *packet.Packet) error {
-	resp := packet.NewWriterWithSize(packet.MsgGuildBankMoneyWithdrawn, 4)
-	resp.Uint32(0)
-	s.gameSocket.Send(resp)
+	return s.sendGuildBankMoneyInfo(ctx)
+}
+
+// HandleGuildDisband and HandleGuildLeaderChange intercept the two remaining
+// guild write opcodes that still reach the worldserver. In cluster mode the
+// in-worldserver guild code works on the state it loaded at boot, so letting
+// these through makes it write on stale data and desync the guild service.
+// Until the guild service supports both operations, refusing them cleanly is
+// the safe behavior.
+func (s *GameSession) HandleGuildDisband(_ context.Context, _ *packet.Packet) error {
+	if s.character == nil || s.character.GuildID == 0 {
+		return nil
+	}
+
+	s.SendSysMessage("Guild disband is not supported yet on this realm.")
+
+	return nil
+}
+
+func (s *GameSession) HandleGuildLeaderChange(_ context.Context, _ *packet.Packet) error {
+	if s.character == nil || s.character.GuildID == 0 {
+		return nil
+	}
+
+	s.SendSysMessage("Guild leader change is not supported yet on this realm.")
+
 	return nil
 }
 
@@ -737,4 +809,26 @@ func buildGuildEventPacket(t GuildEventType, guid uint64, args ...string) *packe
 	}
 
 	return resp
+}
+
+// isCrossFaction reports whether both races are known and belong to opposite
+// teams. An unknown race leaves the invite alone rather than refusing it, so a
+// missing race never turns into a rejected invite.
+func isCrossFaction(raceA, raceB uint8) bool {
+	teamA, okA := teamOfRace(raceA)
+	teamB, okB := teamOfRace(raceB)
+	return okA && okB && teamA != teamB
+}
+
+func teamOfRace(race uint8) (wow.Team, bool) {
+	if int(race) >= len(wow.DefaultRaces) {
+		return 0, false
+	}
+
+	r := wow.DefaultRaces[race]
+	if r.ID == 0 {
+		return 0, false
+	}
+
+	return r.Team, true
 }

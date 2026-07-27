@@ -44,6 +44,10 @@ type GameSession struct {
 	eventsChan        <-chan eBroadcaster.Event
 	sessionSafeFuChan chan func(*GameSession)
 
+	// guildBankOpen is set once the player activated a guild bank chest;
+	// sessions with it set receive live bank content refreshes.
+	guildBankOpen bool
+
 	charServiceClient             pbChar.CharactersServiceClient
 	serversRegistryClient         pbServ.ServersRegistryServiceClient
 	chatServiceClient             pbChat.ChatServiceClient
@@ -99,6 +103,10 @@ type GameSession struct {
 	// showGameserverConnChangeToClient when enabled sends chat system message
 	// to the player with information about connection change.
 	showGameserverConnChangeToClient bool
+
+	// allowCrossFactionGuilds mirrors the core config AllowTwoSide.Interaction.Guild:
+	// when disabled, a player cannot invite someone of the other faction.
+	allowCrossFactionGuilds bool
 }
 
 type GameSessionParams struct {
@@ -118,6 +126,7 @@ type GameSessionParams struct {
 	GameServerGRPCConnMgr            conn.GameServerGRPCConnMgr
 	PacketProcessTimeout             time.Duration
 	ShowGameserverConnChangeToClient bool
+	AllowCrossFactionGuilds          bool
 }
 
 func NewGameSession(
@@ -153,6 +162,7 @@ func NewGameSession(
 		realmNamesService:                params.RealmNamesService,
 		gameServerGRPCConnMgr:            params.GameServerGRPCConnMgr,
 		showGameserverConnChangeToClient: params.ShowGameserverConnChangeToClient,
+		allowCrossFactionGuilds:          params.AllowCrossFactionGuilds,
 
 		sessionSafeFuChan:        make(chan func(*GameSession), 100),
 		packetProcessTimeout:     packetProcessTimeout,

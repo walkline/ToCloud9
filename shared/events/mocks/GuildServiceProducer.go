@@ -222,3 +222,73 @@ func NewGuildServiceProducer(t mockConstructorTestingTNewGuildServiceProducer) *
 
 	return mock
 }
+
+// GuildCreated provides a mock function with given fields: payload
+func (_m *GuildServiceProducer) GuildCreated(payload *events.GuildEventGuildCreatedPayload) error {
+	ret := _m.Called(payload)
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(*events.GuildEventGuildCreatedPayload) error); ok {
+		r0 = rf(payload)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// BankMoneyUpdated provides a mock function with given fields: payload
+func (_m *GuildServiceProducer) BankMoneyUpdated(payload *events.GuildEventBankMoneyUpdatedPayload) error {
+	ret := _m.Called(payload)
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(*events.GuildEventBankMoneyUpdatedPayload) error); ok {
+		r0 = rf(payload)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// BankTabUpdated provides a mock function with given fields: payload
+func (_m *GuildServiceProducer) BankTabUpdated(payload *events.GuildEventBankTabUpdatedPayload) error {
+	ret := _m.Called(payload)
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(*events.GuildEventBankTabUpdatedPayload) error); ok {
+		r0 = rf(payload)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// BankTabsChanged provides a mock function with given fields: payload
+func (_m *GuildServiceProducer) BankTabsChanged(payload *events.GuildEventBankTabsChangedPayload) error {
+	ret := _m.Called(payload)
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(*events.GuildEventBankTabsChangedPayload) error); ok {
+		r0 = rf(payload)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// BankTextUpdated provides a mock function with given fields: payload
+func (_m *GuildServiceProducer) BankTextUpdated(payload *events.GuildEventBankTextUpdatedPayload) error {
+	ret := _m.Called(payload)
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(*events.GuildEventBankTextUpdatedPayload) error); ok {
+		r0 = rf(payload)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}

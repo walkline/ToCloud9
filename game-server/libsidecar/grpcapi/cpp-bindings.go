@@ -50,6 +50,10 @@ type BattlegroundAddPlayersRequest struct {
 
 type GetPlayerItemsByGuidsHandler func(player uint64, items []uint64) ([]PlayerItem, error)
 
+// GetPlayerItemByPosHandler resolves an item by its live inventory position.
+// A nil item without error means nothing sits at this position.
+type GetPlayerItemByPosHandler func(player uint64, bag, slot uint8) (*PlayerItem, error)
+
 type RemoveItemsWithGuidsFromPlayerHandler func(player uint64, items []uint64, assignToPlayer uint64) ([]uint64, error)
 
 type AddExistingItemToPlayerHandler func(player uint64, item *ItemToAdd) error
@@ -57,6 +61,9 @@ type AddExistingItemToPlayerHandler func(player uint64, item *ItemToAdd) error
 type GetMoneyForPlayerHandler func(player uint64) (uint32, error)
 
 type ModifyMoneyForPlayerHandler func(player uint64, value int32) (uint32, error)
+
+// SetPlayerGuildFieldsHandler refreshes a player's guild id/rank unit fields.
+type SetPlayerGuildFieldsHandler func(player uint64, guildID, rank uint32) (bool, error)
 
 type CanPlayerInteractWithNPCWithFlagsHandler func(player, npc uint64, flag uint32) (bool, error)
 
@@ -70,16 +77,40 @@ type CanPlayerJoinBattlegroundQueueHandler func(player uint64) error
 
 type CanPlayerTeleportToBattlegroundHandler func(player uint64) error
 
+// GuildPetitionCheckStatus mirrors the statuses of the C petition-api.
+type GuildPetitionCheckStatus int
+
+const (
+	GuildPetitionCheckStatusOk                 GuildPetitionCheckStatus = 0
+	GuildPetitionCheckStatusPlayerNotFound     GuildPetitionCheckStatus = 2
+	GuildPetitionCheckStatusPetitionNotFound   GuildPetitionCheckStatus = 3
+	GuildPetitionCheckStatusNotPetitionOwner   GuildPetitionCheckStatus = 4
+	GuildPetitionCheckStatusNotGuildPetition   GuildPetitionCheckStatus = 5
+	GuildPetitionCheckStatusAlreadyInGuild     GuildPetitionCheckStatus = 6
+	GuildPetitionCheckStatusNeedMoreSignatures GuildPetitionCheckStatus = 7
+)
+
+type GuildPetitionCheckResult struct {
+	Status         GuildPetitionCheckStatus
+	GuildName      string
+	SignatoryGUIDs []uint64
+}
+
+type CanTurnInGuildPetitionHandler func(playerGUID, petitionItemGUID uint64) (*GuildPetitionCheckResult, error)
+
 type CppBindings struct {
 	GetPlayerItemsByGuids           GetPlayerItemsByGuidsHandler
+	GetPlayerItemByPos              GetPlayerItemByPosHandler
 	RemoveItemsWithGuidsFromPlayer  RemoveItemsWithGuidsFromPlayerHandler
 	AddExistingItemToPlayer         AddExistingItemToPlayerHandler
 	GetMoneyForPlayer               GetMoneyForPlayerHandler
 	ModifyMoneyForPlayer            ModifyMoneyForPlayerHandler
+	SetPlayerGuildFields            SetPlayerGuildFieldsHandler
 	CanPlayerInteractWithNPC        CanPlayerInteractWithNPCWithFlagsHandler
 	CanPlayerInteractWithGO         CanPlayerInteractWithGOWithTypeHandler
 	StartBattleground               StartBattlegroundHandler
 	AddPlayersToBattleground        AddPlayersToBattlegroundHandler
 	CanPlayerJoinBattlegroundQueue  CanPlayerJoinBattlegroundQueueHandler
 	CanPlayerTeleportToBattleground CanPlayerTeleportToBattlegroundHandler
+	CanTurnInGuildPetition          CanTurnInGuildPetitionHandler
 }

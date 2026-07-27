@@ -25,6 +25,7 @@ const (
 	EventTypeGuildRankCreated
 	EventTypeGuildRankDeleted
 	EventTypeGuildNewMessage
+	EventTypeGuildCreated
 	EventTypeGroupInviteCreated
 	EventTypeGroupCreated
 	EventTypeGroupMemberOnlineStatusChanged
@@ -49,6 +50,10 @@ const (
 	EventTypeChannelJoined
 	EventTypeChannelLeft
 	EventTypeChannelNotification
+	EventTypeGuildBankMoneyUpdated
+	EventTypeGuildBankTabUpdated
+	EventTypeGuildBankTabsChanged
+	EventTypeGuildBankTextUpdated
 )
 
 type IncomingWhisperPayload struct {
@@ -138,6 +143,11 @@ type Broadcaster interface {
 	NewGuildRankCreatedEvent(payload *events.GuildEventRankCreatedPayload)
 	NewGuildRankDeletedEvent(payload *events.GuildEventRankDeletedPayload)
 	NewGuildMessageEvent(payload *events.GuildEventNewMessagePayload)
+	NewGuildBankMoneyUpdatedEvent(payload *events.GuildEventBankMoneyUpdatedPayload)
+	NewGuildBankTabUpdatedEvent(payload *events.GuildEventBankTabUpdatedPayload)
+	NewGuildBankTabsChangedEvent(payload *events.GuildEventBankTabsChangedPayload)
+	NewGuildBankTextUpdatedEvent(payload *events.GuildEventBankTextUpdatedPayload)
+	NewGuildCreatedEvent(payload *events.GuildEventGuildCreatedPayload)
 	NewGroupInviteCreatedEvent(payload *events.GroupEventInviteCreatedPayload)
 	NewGroupCreatedEvent(payload *events.GroupEventGroupCreatedPayload)
 	NewGroupMemberOnlineStatusChangedEvent(payload *events.GroupEventGroupMemberOnlineStatusChangedPayload)
@@ -244,6 +254,42 @@ func (b *broadcasterImpl) NewGuildInviteCreatedEvent(payload *GuildInviteCreated
 	}
 }
 
+func (b *broadcasterImpl) NewGuildBankMoneyUpdatedEvent(payload *events.GuildEventBankMoneyUpdatedPayload) {
+	for _, ch := range b.channelsForGUIDs(payload.MembersOnline) {
+		ch <- Event{
+			Type:    EventTypeGuildBankMoneyUpdated,
+			Payload: payload,
+		}
+	}
+}
+
+func (b *broadcasterImpl) NewGuildBankTabUpdatedEvent(payload *events.GuildEventBankTabUpdatedPayload) {
+	for _, ch := range b.channelsForGUIDs(payload.MembersOnline) {
+		ch <- Event{
+			Type:    EventTypeGuildBankTabUpdated,
+			Payload: payload,
+		}
+	}
+}
+
+func (b *broadcasterImpl) NewGuildBankTabsChangedEvent(payload *events.GuildEventBankTabsChangedPayload) {
+	for _, ch := range b.channelsForGUIDs(payload.MembersOnline) {
+		ch <- Event{
+			Type:    EventTypeGuildBankTabsChanged,
+			Payload: payload,
+		}
+	}
+}
+
+func (b *broadcasterImpl) NewGuildBankTextUpdatedEvent(payload *events.GuildEventBankTextUpdatedPayload) {
+	for _, ch := range b.channelsForGUIDs(payload.MembersOnline) {
+		ch <- Event{
+			Type:    EventTypeGuildBankTextUpdated,
+			Payload: payload,
+		}
+	}
+}
+
 func (b *broadcasterImpl) NewGuildMemberPromoteEvent(payload *events.GuildEventMemberPromotePayload) {
 	for _, ch := range b.channelsForGUIDs(payload.MembersOnline) {
 		ch <- Event{
@@ -329,6 +375,18 @@ func (b *broadcasterImpl) NewGuildMessageEvent(payload *events.GuildEventNewMess
 	for _, ch := range b.channelsForGUIDs(payload.Receivers) {
 		ch <- Event{
 			Type:    EventTypeGuildNewMessage,
+			Payload: payload,
+		}
+	}
+}
+
+func (b *broadcasterImpl) NewGuildCreatedEvent(payload *events.GuildEventGuildCreatedPayload) {
+	guids := make([]uint64, 0, len(payload.MemberGUIDs)+1)
+	guids = append(guids, payload.LeaderGUID)
+	guids = append(guids, payload.MemberGUIDs...)
+	for _, ch := range b.channelsForGUIDs(guids) {
+		ch <- Event{
+			Type:    EventTypeGuildCreated,
 			Payload: payload,
 		}
 	}
