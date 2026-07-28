@@ -46,6 +46,7 @@ struct TC9State {
     tc9::CppBindings bindings;
 
     bool initialized = false;
+    uint32_t realm_id = 0;
     std::string assigned_server_id;
 };
 
@@ -107,6 +108,12 @@ TC9_API void TC9InitLib(
             config.matchmaking_address()
         );
 
+        // In cross-realm mode this server hosts several realms and player GUIDs
+        // carry their true realm ID, so there is no single realm to pin.
+        if (isCrossRealm == 0) {
+            g_state.realm_id = realmID;
+        }
+
         // Start NATS consumer
         g_state.nats_consumer->SetEventQueue(g_state.event_queue.get());
         g_state.nats_consumer->SetRealmID(realmID);
@@ -143,6 +150,7 @@ TC9_API void TC9InitLib(
         }
 
         g_state.assigned_server_id = server_id;
+        g_state.nats_consumer->SetServerID(server_id);
 
         // Initialize GUID manager
         auto& guid_mgr = tc9::GuidManager::Instance();
@@ -338,6 +346,12 @@ TC9_API void TC9PlayerLeftBattleground(
         return;
     }
 
+    // Local players carry realm 0 in their GUID; the matchmaking looks the
+    // battleground up by (instanceID, realmID), so 0 would never match.
+    if (realmID == 0) {
+        realmID = g_state.realm_id;
+    }
+
     try {
         g_state.grpc_clients->PlayerLeftBattleground(realmID, playerGUID, instanceID, false);
     } catch (const std::exception& e) {
@@ -351,11 +365,7 @@ TC9_API void TC9BattlegroundStatusChanged(uint32_t instanceID, uint8_t status) {
     }
 
     try {
-        // Realm ID is stored in config
-        auto& config = tc9::Config::Instance();
-        // Note: We'd need to pass realm ID to this function or store it globally
-        // For now, using 0 as placeholder - this should be fixed in the API
-        g_state.grpc_clients->BattlegroundStatusChanged(0, instanceID, false, status);
+        g_state.grpc_clients->BattlegroundStatusChanged(g_state.realm_id, instanceID, false, status);
     } catch (const std::exception& e) {
         spdlog::error("Error notifying BG status changed: {}", e.what());
     }
@@ -687,11 +697,11 @@ TC9_API void TC9SetOnGroupCreatedHook(OnGroupCreatedHook hook) {
             group.leader = event.leaderGuid;
             group.lootMethod = event.lootMethod;
             group.looterGuid = event.looterGuid;
-            group.lootThreshold = 0;
-            group.groupType = 0;
-            group.difficulty = 0;
-            group.raidDifficulty = 0;
-            group.masterLooterGuid = 0;
+            group.lootThreshold = event.lootThreshold;
+            group.groupType = event.groupType;
+            group.difficulty = event.difficulty;
+            group.raidDifficulty = event.raidDifficulty;
+            group.masterLooterGuid = event.masterLooterGuid;
             group.members = event.memberGuids;
             group.membersSize = static_cast<uint8_t>(event.memberCount);
             stored_hook(&group);
@@ -738,7 +748,7 @@ TC9_API void TC9SetOnGroupLootTypeChangedHook(OnGroupLootTypeChangedHook hook) {
 
     tc9::EventHooks::Instance().RegisterGroupLootTypeChanged([](TC9EventGroupLootTypeChanged event) {
         if (stored_hook) {
-            stored_hook(event.groupGuid, event.lootMethod, event.looterGuid, 0);
+            stored_hook(event.groupGuid, event.lootMethod, event.looterGuid, event.lootThreshold);
         }
     });
 }
@@ -815,7 +825,7 @@ TC9_API void TC9SetOnMapsReassignedHook(OnMapsReassignedHook hook) {
 
     tc9::EventHooks::Instance().RegisterMapsReassigned([](TC9EventMapsReassigned event) {
         if (stored_hook) {
-            stored_hook(event.assignedMaps, event.assignedMapsCount, nullptr, 0);
+            stored_hook(event.assignedMaps, event.assignedMapsCount, event.removedMaps, event.removedMapsCount);
         }
     });
 }

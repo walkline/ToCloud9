@@ -5,6 +5,7 @@ option go_package = "gen/guilds/pb";
 
 service GuildService {
   rpc GetGuildInfo(GetInfoParams) returns (GetInfoResponse);
+  rpc GetGuildNamesByIDs(GetGuildNamesByIDsParams) returns (GetGuildNamesByIDsResponse);
 
   rpc GetRosterInfo(GetRosterInfoParams) returns (GetRosterInfoResponse);
 
@@ -35,6 +36,19 @@ message GetInfoParams {
 
   uint32 realmID = 2;
   uint64 guildID = 3;
+}
+
+message GetGuildNamesByIDsParams {
+  string api = 1;
+
+  uint32 realmID = 2;
+  repeated uint64 guildIDs = 3;
+}
+
+message GetGuildNamesByIDsResponse {
+  string api = 1;
+
+  map<uint64, string> guildNames = 2;
 }
 
 message GetInfoResponse {

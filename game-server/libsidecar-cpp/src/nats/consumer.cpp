@@ -214,7 +214,7 @@ void NatsConsumer::OnMessage(natsConnection* /*nc*/, natsSubscription* /*sub*/,
     }
     // Registry events
     else if (subject_str == "sr.gs.maps.reassigned") {
-        handler = CreateMapsReassignedHandler(event_data);
+        handler = CreateMapsReassignedHandler(event_data, consumer->GetServerID());
     } else {
         spdlog::debug("Unhandled NATS subject: {}", subject_str);
     }

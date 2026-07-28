@@ -14,6 +14,7 @@ var (
 	ErrNotEnoughRight  = errors.New("not enough rights")
 	ErrGuildNotFound   = errors.New("guild not found")
 	ErrLeaderCantLeave = errors.New("leader can't leave")
+	ErrAlreadyInGuild  = errors.New("already in guild")
 )
 
 // InviteAcceptedParams represents parameters for InviteAcceptedParams.InviteAccepted function.
@@ -40,6 +41,10 @@ type GuildRank struct {
 type GuildService interface {
 	// GuildByRealmAndID returns guild by realmID and guildID.
 	GuildByRealmAndID(ctx context.Context, realmID uint32, guildID uint64) (*repo.Guild, error)
+
+	// GuildNamesByIDs returns the names of the given guilds keyed by guild id.
+	// Unknown guild ids are absent from the result.
+	GuildNamesByIDs(ctx context.Context, realmID uint32, guildIDs []uint64) (map[uint64]string, error)
 
 	// InviteMember creates invite to the guild.
 	InviteMember(ctx context.Context, realmID uint32, inviterGUID uint64, inviteeGUID uint64, inviteeName string) error
@@ -98,6 +103,28 @@ func NewGuildService(guildsRepo repo.GuildsRepo, eventsProducer events.GuildServ
 	}
 }
 
+// GuildNamesByIDs returns the names of the given guilds keyed by guild id.
+// Unknown guild ids are absent from the result. Served from the guilds cache,
+// so a batch costs no database round trip.
+func (g *guildServiceImpl) GuildNamesByIDs(ctx context.Context, realmID uint32, guildIDs []uint64) (map[uint64]string, error) {
+	names := make(map[uint64]string, len(guildIDs))
+	for _, id := range guildIDs {
+		if _, ok := names[id]; ok {
+			continue
+		}
+
+		guild, err := g.guildsRepo.GuildByRealmAndID(ctx, realmID, id)
+		if err != nil {
+			return nil, err
+		}
+
+		if guild != nil {
+			names[id] = guild.Name
+		}
+	}
+	return names, nil
+}
+
 // GuildByRealmAndID returns guild by realmID and guildID.
 func (g *guildServiceImpl) GuildByRealmAndID(ctx context.Context, realmID uint32, guildID uint64) (*repo.Guild, error) {
 	guild, err := g.guildsRepo.GuildByRealmAndID(ctx, realmID, guildID)
@@ -129,7 +156,7 @@ func (g *guildServiceImpl) InviteMember(ctx context.Context, realmID uint32, inv
 	}
 
 	if inviteeGuildID != 0 {
-		return errors.New("invitee already in guild")
+		return ErrAlreadyInGuild
 	}
 
 	guild, err := g.guildsRepo.GuildByRealmAndID(ctx, realmID, guildID)
@@ -416,17 +443,20 @@ func (g *guildServiceImpl) SetMemberPublicNote(ctx context.Context, realmID uint
 	}
 
 	rank := g.rankForMember(guild, updaterGUID)
-	if !rank.HasRight(repo.RightEditPublicNote) {
+	if rank == nil || !rank.HasRight(repo.RightEditPublicNote) {
 		return ErrNotEnoughRight
+	}
+
+	target := g.guildMemberForMemberGuid(guild, targetGUID)
+	updater := g.guildMemberForMemberGuid(guild, updaterGUID)
+	if target == nil || updater == nil {
+		return ErrGuildNotFound
 	}
 
 	err = g.guildsRepo.SetMemberPublicNote(ctx, realmID, targetGUID, note)
 	if err != nil {
 		return err
 	}
-
-	target := g.guildMemberForMemberGuid(guild, targetGUID)
-	updater := g.guildMemberForMemberGuid(guild, updaterGUID)
 
 	err = g.eventsProducer.MemberNoteUpdated(&events.GuildEventMembersNoteUpdatedPayload{
 		GenericGuildEvent: *g.buildGenericEventPayload(guild),
@@ -472,18 +502,21 @@ func (g *guildServiceImpl) SetMemberOfficerNote(ctx context.Context, realmID uin
 		return err
 	}
 
-	rank := g.rankForMember(guild, updaterGuildID)
-	if !rank.HasRight(repo.RightEditOfficersNote) {
+	rank := g.rankForMember(guild, updaterGUID)
+	if rank == nil || !rank.HasRight(repo.RightEditOfficersNote) {
 		return ErrNotEnoughRight
+	}
+
+	target := g.guildMemberForMemberGuid(guild, targetGUID)
+	updater := g.guildMemberForMemberGuid(guild, updaterGUID)
+	if target == nil || updater == nil {
+		return ErrGuildNotFound
 	}
 
 	err = g.guildsRepo.SetMemberOfficerNote(ctx, realmID, targetGUID, note)
 	if err != nil {
 		return err
 	}
-
-	target := g.guildMemberForMemberGuid(guild, targetGUID)
-	updater := g.guildMemberForMemberGuid(guild, updaterGUID)
 
 	err = g.eventsProducer.MemberOfficerNoteUpdated(&events.GuildEventMembersOfficerNoteUpdatedPayload{
 		GenericGuildEvent: *g.buildGenericEventPayload(guild),

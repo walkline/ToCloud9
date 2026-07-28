@@ -168,8 +168,8 @@ worldserver.exe
 cd C:\dev\azerothcore-wotlk\bin\RelWithDebInfo
 set AC_CLUSTER_ENABLED=1
 set AC_WORLD_SERVER_PORT=9602
-set GRPC_PORT=9603
-set HEALTH_CHECK_PORT=9604
+set TC9_GRPC_PORT=9603
+set TC9_HEALTH_CHECK_PORT=9604
 worldserver.exe
 
 # Worldserver for specific map (Icecrown Citadel)
@@ -177,8 +177,8 @@ cd C:\dev\azerothcore-wotlk\bin\RelWithDebInfo
 set AC_CLUSTER_AVAILABLE_MAPS=631
 set AC_CLUSTER_ENABLED=1
 set AC_WORLD_SERVER_PORT=9605
-set GRPC_PORT=9606
-set HEALTH_CHECK_PORT=9607
+set TC9_GRPC_PORT=9606
+set TC9_HEALTH_CHECK_PORT=9607
 worldserver.exe
 ```
 

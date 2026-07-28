@@ -1,9 +1,13 @@
 package service
 
 import (
+	"sync"
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/walkline/ToCloud9/apps/matchmakingserver/battleground"
+	"github.com/walkline/ToCloud9/apps/matchmakingserver/repo"
 	"github.com/walkline/ToCloud9/shared/wow/guid"
 )
 
@@ -133,4 +137,71 @@ func TestRemoveQueueForGroupMembers(t *testing.T) {
 			LowGUID: guid.LowType(leader),
 		},
 	}][0].Queue)
+}
+
+func TestAddQueueForGroupMembersIfFreeConcurrent(t *testing.T) {
+	s := &battleGroundService{
+		playersQueueOrBattleground: make(map[QueuesByRealmAndPlayerKey][]QueueOrBattlegroundLink),
+	}
+	queue := &GenericBattlegroundQueue{}
+
+	makeGroup := func() *QueuedGroup {
+		return &QueuedGroup{
+			LeaderGUID: guid.PlayerUnwrapped{RealmID: 1, LowGUID: 1},
+			Members:    []guid.PlayerUnwrapped{{RealmID: 1, LowGUID: 2}},
+		}
+	}
+
+	const attempts = 16
+	errs := make(chan error, attempts)
+	var wg sync.WaitGroup
+	for i := 0; i < attempts; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			_, err := s.addQueueForGroupMembersIfFree(queue, makeGroup())
+			errs <- err
+		}()
+	}
+	wg.Wait()
+	close(errs)
+
+	succeeded := 0
+	for err := range errs {
+		if err == nil {
+			succeeded++
+		} else {
+			assert.ErrorIs(t, err, ErrAlreadyInQueue)
+		}
+	}
+	assert.Equal(t, 1, succeeded, "exactly one concurrent enqueue must win")
+}
+  
+func TestBattlegroundStatusChangedEndedPurgesInvitedLinks(t *testing.T) {
+	bgRepo := repo.NewBattlegroundInMemRepo()
+
+	activePlayer := guid.PlayerUnwrapped{RealmID: 1, LowGUID: 100}
+	invitedPlayer := guid.PlayerUnwrapped{RealmID: 1, LowGUID: 200}
+
+	bg := &battleground.Battleground{
+		InstanceID: 42,
+		RealmID:    1,
+		Status:     battleground.StatusInProgress,
+	}
+	bg.ActivePlayersPerTeam[battleground.TeamAlliance] = []guid.PlayerUnwrapped{activePlayer}
+	bg.InvitedPlayersPerTeam[battleground.TeamHorde] = []battleground.InvitedPlayer{{GUID: invitedPlayer}}
+	assert.NoError(t, bgRepo.SaveBattleground(context.Background(), bg))
+
+	s := &battleGroundService{
+		playersQueueOrBattleground: make(map[QueuesByRealmAndPlayerKey][]QueueOrBattlegroundLink),
+		battlegroundsRepo:          bgRepo,
+	}
+	bgKey := BattlegroundKey{RealmID: 1, InstanceID: 42}
+	s.playersQueueOrBattleground[QueuesByRealmAndPlayerKey{activePlayer}] = []QueueOrBattlegroundLink{{BattlegroundKey: &bgKey}}
+	s.playersQueueOrBattleground[QueuesByRealmAndPlayerKey{invitedPlayer}] = []QueueOrBattlegroundLink{{BattlegroundKey: &bgKey}}
+
+	assert.NoError(t, s.BattlegroundStatusChanged(context.Background(), battleground.StatusEnded, 1, 42, false))
+
+	assert.Empty(t, s.GetQueueOrBattlegroundLinkForPlayer(QueuesByRealmAndPlayerKey{activePlayer}))
+	assert.Empty(t, s.GetQueueOrBattlegroundLinkForPlayer(QueuesByRealmAndPlayerKey{invitedPlayer}))
 }

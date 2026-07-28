@@ -2,6 +2,7 @@
 #include "../events/event_hooks.h"
 #include <nlohmann/json.hpp>
 #include <spdlog/spdlog.h>
+#include <algorithm>
 #include <vector>
 #include <memory>
 #include <cstring>
@@ -48,13 +49,25 @@ std::unique_ptr<Handler> CreateGroupCreatedHandler(const std::string& data, uint
         uint64_t leader_guid = j.value("LeaderGUID", 0ull);
         uint8_t loot_method = j.value("LootMethod", uint8_t(0));
         uint64_t looter_guid = j.value("LooterGUID", 0ull);
+        uint8_t loot_threshold = j.value("LootThreshold", uint8_t(0));
+        uint8_t group_type = j.value("GroupType", uint8_t(0));
+        uint8_t difficulty = j.value("Difficulty", uint8_t(0));
+        uint8_t raid_difficulty = j.value("RaidDifficulty", uint8_t(0));
+        uint64_t master_looter_guid = j.value("MasterLooterGuid", 0ull);
 
-        return std::make_unique<FunctionHandler>([members, group_guid, leader_guid, loot_method, looter_guid]() {
+        return std::make_unique<FunctionHandler>([members, group_guid, leader_guid, loot_method, looter_guid,
+                                                  loot_threshold, group_type, difficulty, raid_difficulty,
+                                                  master_looter_guid]() {
             TC9EventGroupCreated event{};
             event.groupGuid = group_guid;
             event.leaderGuid = leader_guid;
             event.lootMethod = loot_method;
             event.looterGuid = looter_guid;
+            event.lootThreshold = loot_threshold;
+            event.groupType = group_type;
+            event.difficulty = difficulty;
+            event.raidDifficulty = raid_difficulty;
+            event.masterLooterGuid = master_looter_guid;
             event.memberGuids = members->empty() ? nullptr : members->data();
             event.memberCount = static_cast<int>(members->size());
 
@@ -138,6 +151,7 @@ std::unique_ptr<Handler> CreateGroupLootTypeChangedHandler(const std::string& da
             event.groupGuid = j.value("GroupID", 0u);
             event.lootMethod = j.value("NewLootType", uint8_t(0));
             event.looterGuid = j.value("NewLooterGUID", 0ull);
+            event.lootThreshold = j.value("NewLooterThreshold", uint8_t(0));
 
             EventHooks::Instance().DispatchGroupLootTypeChanged(event);
         } catch (const std::exception& e) {
@@ -279,27 +293,65 @@ std::unique_ptr<Handler> CreateGuildMemberRemovedHandler(const std::string& data
 
 // Registry event handlers
 
-std::unique_ptr<Handler> CreateMapsReassignedHandler(const std::string& data) {
+std::unique_ptr<Handler> CreateMapsReassignedHandler(const std::string& data, const std::string& own_server_id) {
     try {
         auto j = ParseEventPayload(data);
 
-        // Parse Servers array and find assigned maps
-        auto assigned_maps = std::make_shared<std::vector<uint32_t>>();
+        // The payload carries every server's assignment: apply only our own
+        // entry's old->new diff. A server that applies foreign maps believes
+        // it owns the whole cluster and breaks the maps partition.
+        auto added = std::make_shared<std::vector<uint32_t>>();
+        auto removed = std::make_shared<std::vector<uint32_t>>();
 
-        if (j.contains("Servers")) {
+        if (!own_server_id.empty() && j.contains("Servers")) {
             for (const auto& server : j["Servers"]) {
-                if (server.contains("NewAssignedMapsToHandle")) {
-                    for (const auto& map_id : server["NewAssignedMapsToHandle"]) {
-                        assigned_maps->push_back(map_id.get<uint32_t>());
+                if (server.value("ID", std::string()) != own_server_id) {
+                    continue;
+                }
+
+                std::vector<uint32_t> old_maps;
+                std::vector<uint32_t> new_maps;
+                if (server.contains("OldAssignedMapsToHandle") && server["OldAssignedMapsToHandle"].is_array()) {
+                    for (const auto& map_id : server["OldAssignedMapsToHandle"]) {
+                        old_maps.push_back(map_id.get<uint32_t>());
                     }
                 }
+                if (server.contains("NewAssignedMapsToHandle") && server["NewAssignedMapsToHandle"].is_array()) {
+                    for (const auto& map_id : server["NewAssignedMapsToHandle"]) {
+                        new_maps.push_back(map_id.get<uint32_t>());
+                    }
+                }
+
+                // Startup assignment already comes from the registration
+                // response (same rule as the Go libsidecar handler).
+                if (old_maps.empty()) {
+                    break;
+                }
+
+                for (uint32_t map_id : new_maps) {
+                    if (std::find(old_maps.begin(), old_maps.end(), map_id) == old_maps.end()) {
+                        added->push_back(map_id);
+                    }
+                }
+                for (uint32_t map_id : old_maps) {
+                    if (std::find(new_maps.begin(), new_maps.end(), map_id) == new_maps.end()) {
+                        removed->push_back(map_id);
+                    }
+                }
+                break;
             }
         }
 
-        return std::make_unique<FunctionHandler>([assigned_maps]() {
+        if (added->empty() && removed->empty()) {
+            return std::make_unique<FunctionHandler>([]() {});
+        }
+
+        return std::make_unique<FunctionHandler>([added, removed]() {
             TC9EventMapsReassigned event{};
-            event.assignedMaps = assigned_maps->empty() ? nullptr : assigned_maps->data();
-            event.assignedMapsCount = static_cast<int>(assigned_maps->size());
+            event.assignedMaps = added->empty() ? nullptr : added->data();
+            event.assignedMapsCount = static_cast<int>(added->size());
+            event.removedMaps = removed->empty() ? nullptr : removed->data();
+            event.removedMapsCount = static_cast<int>(removed->size());
 
             EventHooks::Instance().DispatchMapsReassigned(event);
         });

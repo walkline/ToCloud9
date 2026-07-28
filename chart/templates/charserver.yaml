@@ -23,6 +23,8 @@ spec:
           value: "{{ .Values.charserver.service.internalPort | int }}"
         - name: NATS_URL
           value: nats://{{ .Release.Name }}-nats:4222
+        - name: GUILDS_SERVICE_ADDRESS
+          value: {{ .Release.Name }}-guildserver:{{ .Values.guildserver.service.externalPort}}
         - name: CHAR_DB_CONNECTION
           valueFrom:
             secretKeyRef:

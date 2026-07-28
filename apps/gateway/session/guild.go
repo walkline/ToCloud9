@@ -4,7 +4,12 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
+
+  "github.com/rs/zerolog/log"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	root "github.com/walkline/ToCloud9/apps/gateway"
 	eBroadcaster "github.com/walkline/ToCloud9/apps/gateway/events-broadcaster"
@@ -130,6 +135,58 @@ func (s *GameSession) GuildLoginCommand(ctx context.Context) error {
 	return nil
 }
 
+// guildMemberGUIDByName resolves a member of the current character's guild by
+// name from the guild roster. Unlike the online characters lookup, it also
+// resolves offline members: guild management commands (promote, demote, kick,
+// notes) work on offline members too.
+func (s *GameSession) guildMemberGUIDByName(ctx context.Context, name string) (uint64, error) {
+	if s.character.GuildID == 0 {
+		return 0, nil
+	}
+
+	guildResp, err := s.guildServiceClient.GetRosterInfo(ctx, &pbGuild.GetRosterInfoParams{
+		Api:     root.Ver,
+		RealmID: root.RealmID,
+		GuildID: uint64(s.character.GuildID),
+	})
+	if err != nil {
+		return 0, err
+	}
+
+	for _, member := range guildResp.Guild.Members {
+		if strings.EqualFold(member.Name, name) {
+			return member.Guid, nil
+		}
+	}
+
+	return 0, nil
+}
+
+// Guild command and result codes carried by SMSG_GUILD_COMMAND_RESULT. The
+// client localizes the displayed message from these codes, so no server-side
+// translation is needed.
+const (
+	guildCommandCreate       = 0  // GUILD_COMMAND_CREATE
+	guildCommandInvite       = 1  // GUILD_COMMAND_INVITE
+	guildErrCommandSuccess   = 0  // ERR_GUILD_COMMAND_SUCCESS
+	guildErrAlreadyInGuildS  = 3  // ERR_ALREADY_IN_GUILD_S
+	guildErrNameInvalid      = 6  // ERR_GUILD_NAME_INVALID
+	guildErrNameExistsS      = 7  // ERR_GUILD_NAME_EXISTS_S
+	guildErrPermissions      = 8  // ERR_GUILD_PERMISSIONS
+	guildErrPlayerNotInGuild = 9  // ERR_GUILD_PLAYER_NOT_IN_GUILD
+	guildErrPlayerNotFoundS  = 11 // ERR_GUILD_PLAYER_NOT_FOUND_S
+)
+
+// sendGuildCommandResult sends SMSG_GUILD_COMMAND_RESULT so the client renders
+// the localized guild feedback (e.g. "You have invited X into your guild").
+func (s *GameSession) sendGuildCommandResult(command uint32, param string, result uint32) {
+	w := packet.NewWriterWithSize(packet.SMsgGuildCommandResult, 0)
+	w.Uint32(command)
+	w.String(param)
+	w.Uint32(result)
+	s.gameSocket.Send(w)
+}
+
 func (s *GameSession) HandleGuildInvite(ctx context.Context, p *packet.Packet) error {
 	resp, err := s.charServiceClient.CharacterOnlineByName(ctx, &pbChar.CharacterOnlineByNameRequest{
 		Api:           root.Ver,
@@ -154,6 +211,24 @@ func (s *GameSession) HandleGuildInvite(ctx context.Context, p *packet.Packet) e
 		Invitee:     resp.Character.CharGUID,
 		InviteeName: resp.Character.CharName,
 	})
+	if err != nil {
+		// Business failures come back as gRPC status codes (see guildserver
+		// server layer); surface them to the client instead of a silent log.
+		switch status.Code(err) {
+		case codes.FailedPrecondition:
+			s.sendGuildCommandResult(guildCommandInvite, resp.Character.CharName, guildErrAlreadyInGuildS)
+			return nil
+		case codes.PermissionDenied:
+			s.sendGuildCommandResult(guildCommandInvite, "", guildErrPermissions)
+			return nil
+		case codes.NotFound:
+			s.sendGuildCommandResult(guildCommandInvite, "", guildErrPlayerNotInGuild)
+			return nil
+		}
+		return fmt.Errorf("can't invite member to guild: %w", err)
+	}
+
+	s.sendGuildCommandResult(guildCommandInvite, resp.Character.CharName, guildErrCommandSuccess)
 
 	return nil
 }
@@ -179,6 +254,13 @@ func (s *GameSession) HandleEventGuildMemberPromoted(ctx context.Context, e *eBr
 		eventData.RankName,
 	))
 
+	if eventData.MemberGUID == s.character.GUID {
+		// Best effort: a failed push must not abort the remaining event handlers.
+		if err := s.sendGuildPermissions(ctx); err != nil {
+			log.Warn().Err(err).Msg("can't push guild permissions after rank change")
+		}
+	}
+
 	return nil
 }
 
@@ -191,6 +273,13 @@ func (s *GameSession) HandleEventGuildMemberDemoted(ctx context.Context, e *eBro
 		eventData.MemberName,
 		eventData.RankName,
 	))
+
+	if eventData.MemberGUID == s.character.GUID {
+		// Best effort: a failed push must not abort the remaining event handlers.
+		if err := s.sendGuildPermissions(ctx); err != nil {
+			log.Warn().Err(err).Msg("can't push guild permissions after rank change")
+		}
+	}
 
 	return nil
 }
@@ -340,16 +429,12 @@ func (s *GameSession) HandleGuildLeave(ctx context.Context, p *packet.Packet) er
 }
 
 func (s *GameSession) HandleGuildKick(ctx context.Context, p *packet.Packet) error {
-	resp, err := s.charServiceClient.CharacterOnlineByName(ctx, &pbChar.CharacterOnlineByNameRequest{
-		Api:           root.Ver,
-		RealmID:       root.RealmID,
-		CharacterName: p.Reader().String(),
-	})
+	targetGUID, err := s.guildMemberGUIDByName(ctx, p.Reader().String())
 	if err != nil {
 		return err
 	}
 
-	if resp.Character == nil {
+	if targetGUID == 0 {
 		s.SendSysMessage("Player not found")
 		return nil
 	}
@@ -358,7 +443,7 @@ func (s *GameSession) HandleGuildKick(ctx context.Context, p *packet.Packet) err
 		Api:     root.Ver,
 		RealmID: root.RealmID,
 		Kicker:  s.character.GUID,
-		Target:  resp.Character.CharGUID,
+		Target:  targetGUID,
 	})
 	if err != nil {
 		return fmt.Errorf("can't kick player from the guild, err: %w", err)
@@ -386,16 +471,12 @@ func (s *GameSession) HandleGuildSetPublicNote(ctx context.Context, p *packet.Pa
 	targetName := reader.String()
 	note := reader.String()
 
-	resp, err := s.charServiceClient.CharacterOnlineByName(ctx, &pbChar.CharacterOnlineByNameRequest{
-		Api:           root.Ver,
-		RealmID:       root.RealmID,
-		CharacterName: targetName,
-	})
+	targetGUID, err := s.guildMemberGUIDByName(ctx, targetName)
 	if err != nil {
 		return err
 	}
 
-	if resp.Character == nil {
+	if targetGUID == 0 {
 		s.SendSysMessage("Player not found")
 		return nil
 	}
@@ -404,7 +485,7 @@ func (s *GameSession) HandleGuildSetPublicNote(ctx context.Context, p *packet.Pa
 		Api:         root.Ver,
 		RealmID:     root.RealmID,
 		ChangerGUID: s.character.GUID,
-		TargetGUID:  resp.Character.CharGUID,
+		TargetGUID:  targetGUID,
 		Note:        note,
 	})
 	if err != nil {
@@ -419,16 +500,12 @@ func (s *GameSession) HandleGuildSetOfficerNote(ctx context.Context, p *packet.P
 	targetName := reader.String()
 	note := reader.String()
 
-	resp, err := s.charServiceClient.CharacterOnlineByName(ctx, &pbChar.CharacterOnlineByNameRequest{
-		Api:           root.Ver,
-		RealmID:       root.RealmID,
-		CharacterName: targetName,
-	})
+	targetGUID, err := s.guildMemberGUIDByName(ctx, targetName)
 	if err != nil {
 		return err
 	}
 
-	if resp.Character == nil {
+	if targetGUID == 0 {
 		s.SendSysMessage("Player not found")
 		return nil
 	}
@@ -437,7 +514,7 @@ func (s *GameSession) HandleGuildSetOfficerNote(ctx context.Context, p *packet.P
 		Api:         root.Ver,
 		RealmID:     root.RealmID,
 		ChangerGUID: s.character.GUID,
-		TargetGUID:  resp.Character.CharGUID,
+		TargetGUID:  targetGUID,
 		Note:        note,
 	})
 	if err != nil {
@@ -515,16 +592,12 @@ func (s *GameSession) HandleGuildRankDelete(ctx context.Context, p *packet.Packe
 }
 
 func (s *GameSession) HandleGuildPromote(ctx context.Context, p *packet.Packet) error {
-	resp, err := s.charServiceClient.CharacterOnlineByName(ctx, &pbChar.CharacterOnlineByNameRequest{
-		Api:           root.Ver,
-		RealmID:       root.RealmID,
-		CharacterName: p.Reader().String(),
-	})
+	targetGUID, err := s.guildMemberGUIDByName(ctx, p.Reader().String())
 	if err != nil {
 		return err
 	}
 
-	if resp.Character == nil {
+	if targetGUID == 0 {
 		s.SendSysMessage("Player not found")
 		return nil
 	}
@@ -533,7 +606,7 @@ func (s *GameSession) HandleGuildPromote(ctx context.Context, p *packet.Packet) 
 		Api:         root.Ver,
 		RealmID:     root.RealmID,
 		ChangerGUID: s.character.GUID,
-		TargetGUID:  resp.Character.CharGUID,
+		TargetGUID:  targetGUID,
 	})
 	if err != nil {
 		return err
@@ -543,16 +616,12 @@ func (s *GameSession) HandleGuildPromote(ctx context.Context, p *packet.Packet) 
 }
 
 func (s *GameSession) HandleGuildDemote(ctx context.Context, p *packet.Packet) error {
-	resp, err := s.charServiceClient.CharacterOnlineByName(ctx, &pbChar.CharacterOnlineByNameRequest{
-		Api:           root.Ver,
-		RealmID:       root.RealmID,
-		CharacterName: p.Reader().String(),
-	})
+	targetGUID, err := s.guildMemberGUIDByName(ctx, p.Reader().String())
 	if err != nil {
 		return err
 	}
 
-	if resp.Character == nil {
+	if targetGUID == 0 {
 		s.SendSysMessage("Player not found")
 		return nil
 	}
@@ -561,7 +630,7 @@ func (s *GameSession) HandleGuildDemote(ctx context.Context, p *packet.Packet) e
 		Api:         root.Ver,
 		RealmID:     root.RealmID,
 		ChangerGUID: s.character.GUID,
-		TargetGUID:  resp.Character.CharGUID,
+		TargetGUID:  targetGUID,
 	})
 	if err != nil {
 		return err
@@ -600,6 +669,15 @@ func (s *GameSession) HandleGuildQuery(ctx context.Context, p *packet.Packet) er
 }
 
 func (s *GameSession) HandleGuildPermissions(ctx context.Context, p *packet.Packet) error {
+	return s.sendGuildPermissions(ctx)
+}
+
+// sendGuildPermissions pushes the MSG_GUILD_PERMISSIONS response with the
+// member's current rank rights. Besides answering the client query, it is
+// pushed unsolicited after a promotion/demotion since the client doesn't
+// re-query permissions on its own (same trick as the core SendPermissions
+// call on guild bank tab purchase).
+func (s *GameSession) sendGuildPermissions(ctx context.Context) error {
 	if s.character.GuildID == 0 {
 		// TODO: send proper message to the client
 		return nil
@@ -620,7 +698,7 @@ func (s *GameSession) HandleGuildPermissions(ctx context.Context, p *packet.Pack
 			for _, rank := range guildResp.Guild.Ranks {
 				if rank.Id == member.RankID {
 					resp.Uint32(rank.Id)
-					resp.Int32(int32(rank.Flags))
+					resp.Uint32(rank.Flags)
 					resp.Int32(int32(rank.GoldLimit))
 					resp.Uint8(6) // Tabs count.
 
