@@ -271,15 +271,15 @@ func (s *GameSession) handleCommandMsgSwitchGameServer(ctx context.Context, args
 		return nil
 	}
 	if len(args) != 1 {
-		s.SendSysMessage("Usage: .tc9 ws switch <gameserver-alias>")
+		s.SendSysMessage("Usage: .tc9 ws switch <gameserver-alias-or-address>")
 		return nil
 	}
-	alias := strings.ToLower(args[0])
-	if alias == "" {
-		s.SendSysMessage("Gameserver alias is required.")
+	target := strings.TrimSpace(args[0])
+	if target == "" {
+		s.SendSysMessage("Gameserver alias or address is required.")
 		return nil
 	}
-	server, err := s.selectLayerGameServer(ctx, 0, alias)
+	server, err := s.selectLayerGameServer(ctx, 0, target)
 	if err != nil {
 		return err
 	}
@@ -287,11 +287,15 @@ func (s *GameSession) handleCommandMsgSwitchGameServer(ctx context.Context, args
 		s.SendSysMessage("That gameserver is not assigned to this map.")
 		return nil
 	}
+	label := server.Alias
+	if label == "" {
+		label = server.Address
+	}
 	if server.ID == s.currentGameServerID {
-		s.SendSysMessage(fmt.Sprintf("You are already on %s.", alias))
+		s.SendSysMessage(fmt.Sprintf("You are already on %s.", label))
 		return nil
 	}
-	s.SendSysMessage(fmt.Sprintf("Switching to %s.", alias))
+	s.SendSysMessage(fmt.Sprintf("Switching to %s.", label))
 	if err := s.redirectToSelectedLayer(ctx, server); err != nil {
 		return err
 	}
@@ -329,6 +333,9 @@ func (s *GameSession) sendLayerConfiguration(ctx context.Context) error {
 			s.SendSysMessage("  Layer unavailable: approximately 0 players")
 		}
 	}
+
+	s.SendSysMessage(" ")
+
 	return nil
 }
 
@@ -371,7 +378,11 @@ func (s *GameSession) handleCommandMsgListGameServers(ctx context.Context) error
 			isCurrentlyUsing = true
 		}
 
-		s.SendSysMessage(fmt.Sprintf("> Node address: %s.", server.Address))
+		if server.Alias != "" {
+			s.SendSysMessage(fmt.Sprintf("> Node address: %s (%s).", server.Address, server.Alias))
+		} else {
+			s.SendSysMessage(fmt.Sprintf("> Node address: %s.", server.Address))
+		}
 		s.SendSysMessage(fmt.Sprintf("  Available maps: %s.", mapsAvailable))
 		s.SendSysMessage(fmt.Sprintf("  Assigned maps: %s.", assignedMaps))
 		s.SendSysMessage(fmt.Sprintf("  Active connections: %d.", server.ActiveConnections))

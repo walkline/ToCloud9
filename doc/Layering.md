@@ -1,95 +1,109 @@
 # Layering
 
-Layering is a map-placement policy owned by the servers registry. It does not
-introduce portal handling, area-trigger routing, an instance coordinator, or a
-new player-state service.
+Layering splits a busy map across several worldservers so the realm can hold more
+players without everyone sharing one overcrowded core.
 
-The gateway supplies the player's realm, destination map and group ID through
-the normal map-selection request. Existing `InterceptNewWorld` and
-`InterceptMoveWorldPortAck` processing performs any required worldserver
-redirect.
+To a player it still looks like the same zone (for example Kalimdor or Outland).
+Under the hood you may be on a different copy of that map than someone else who
+logged in around the same time.
 
-## Configuration and map assignment
+## What players notice
 
-Configure the number of copies required for individual maps at registry
-startup:
+Most of the time, nothing. You log in, travel, and play as usual.
+
+You might notice that:
+
+- A friend standing in the same place is not visible to you, or you cannot
+  interact with them, until you are on the same layer.
+- Joining a party or raid can move you to the layer your group already uses for
+  that map, so you can see and play with them.
+- Switching layers is a short world transition (similar to recovering after a
+  worldserver restart), not a special UI or portal.
+
+Battlegrounds and other instance content keep their normal behavior. Layering
+is about open-world maps that you chose to run in multiple copies.
+
+## Who ends up on which layer
+
+**Solo players** go to the least loaded copy of the map they need.
+
+**Grouped players** stay together on the same copy of each map. When the group
+forms or someone joins, members are pulled onto that shared layer for the map
+they are on. Login also respects the group, so party members do not log into
+different copies of the same zone by accident.
+
+If a layer’s worldserver goes away, the group is moved to another healthy copy
+of that map when someone needs it again.
+
+## Turning layers on
+
+By default every map has a single layer. You only add more for maps that need
+the capacity.
+
+In the servers-registry config:
 
 ```yaml
 servers-registry:
   layering:
-    # map ID: layer count
+    # map ID: how many copies
     maps:
-      1: 2
-      531: 2
+      1: 2    # Kalimdor, two layers
+      530: 2  # Outland, two layers
 ```
 
-The equivalent environment variable is `LAYER_MAPS=1:2;531:2`. The example
-configuration defaults every map to one layer; operators opt into additional
-layers explicitly. Startup values are stored in Redis.
-`UpdateMapLayerConfiguration` replaces the configuration at runtime and
-triggers the existing map-redistribution workflow.
-
-For a map configured with N copies, the registry assigns that map to N distinct
-compatible gameservers. Compatibility still comes from
-`AC_CLUSTER_AVAILABLE_MAPS`. A gameserver can host copies of several different
-maps, but can host at most one copy of any particular map.
-
-Gameservers do not register a global layer ID. Their normal gameserver ID is
-the routing identity. The registry derives a deterministic, display-only alias
-from two raid-boss names and a short base-36 ID, such as
-`illidan-vashj-z4`. Aliases never replace the
-gameserver ID in Redis bindings.
-
-## Player and group placement
-
-An ungrouped player is sent to the available gameserver for the requested map
-with the fewest active connections. A grouped player uses this Redis binding:
+Or with the environment variable:
 
 ```text
-(realm ID, group ID, map ID) -> gameserver ID
+LAYER_MAPS=1:2;530:2
 ```
 
-The binding is created atomically, shared by every registry replica and
-refreshed while active. If the owning gameserver is no longer available for the
-map, an atomic compare-and-set moves the binding to the least-loaded eligible
-server. A pending group invite records the leader's current map and gameserver.
-When the invite creates a group, the groupserver binds the allocated group ID
-to that gameserver before publishing `GroupCreated`. Gateways therefore cannot
-race to create a different binding while processing the event.
+You still need worldservers that advertise those maps (same as today with
+`AC_CLUSTER_AVAILABLE_MAPS`). Each extra layer for a map needs another
+worldserver that can host it. One worldserver never runs two layers of the same
+map at once, but it can host different maps.
 
-Population is deliberately approximate and uses existing gameserver connection
-metrics. The registry does not maintain an in-memory player directory.
+Friendly names like `red-onyxia-7k` are only for people and GM commands. They
+do not change how the system stores or routes players.
 
-## Instance binding ownership
+## Checking and testing in game
 
-Instances use the same existing TC9 map-transition flow; layering adds no
-instance-specific RPC or Redis state. Dedicated instance cores are configured
-by advertising the desired instance map IDs through
-`AC_CLUSTER_AVAILABLE_MAPS`.
+With a character online:
 
-The AzerothCore image applies one narrowly scoped patch in
-`game-server/azerothcore/patches`: `PlayerBindToInstance` persists a character
-instance binding only when cluster mode is disabled or the current worldserver
-owns the instance map. The in-memory bind is still created so the owning core's
-normal gameplay logic is unchanged. The pinned TC9 AzerothCore fork already
-applies the same ownership rule to instance saves and instance-script data.
+- `.tc9 ws ls` lists the layer setup and each worldserver (address with alias).
+- `.tc9 ws switch <alias-or-address>` moves your character to another layer of
+  the current map (handy when testing group visibility or capacity).
 
-This prevents a source worldserver from writing a binding while TC9 redirects
-the player to the worldserver that actually owns the destination map. Native
-AzerothCore remains responsible for instance IDs, saves, resets and lockouts.
+## Adjusting layers at runtime (gRPC)
 
-## Test commands
+You can change how many layers a map has without restarting, through the
+servers-registry service:
 
-- `.tc9 ws ls` shows the layer configuration followed by all gameservers and
-  their friendly aliases.
-- `.tc9 ws switch <gameserver-alias>` forces the current character to another
-  gameserver assigned to the current map for testing.
+- **`GetMapLayerConfiguration`** — returns the current map → layer-count
+  settings for a realm.
+- **`UpdateMapLayerConfiguration`** — replaces those settings for a realm.
+  After a successful update the registry reassigns maps across worldservers so
+  the new counts take effect.
 
-Layer changes use a dedicated worldserver handoff. After the destination has
-accepted the character, the gateway sends `SMSG_NEW_WORLD` with the current map
-and position before it starts forwarding destination packets. This makes the
-client clear objects from the previous layer through its ordinary world-loading
-flow. Battleground redirects remain unchanged.
+Request shape (proto field names):
 
-There is no visibility cache, transition state machine, movement preservation,
-special recovery flow, portal catalog or reset handoff.
+```text
+GetMapLayerConfiguration(api, realmID)
+  → maps: [{ mapID, layerCount }, ...]
+
+UpdateMapLayerConfiguration(api, realmID, maps: [{ mapID, layerCount }, ...])
+```
+
+Pass every map you want configured. Maps omitted from the update are no longer
+treated as multi-layer (they fall back to a single copy). Layer counts must be
+greater than zero. You still need enough worldservers advertising each map for
+the new count to be satisfied.
+
+To inspect load after a change, use **`GetLayerStats`** with a realm and map ID.
+It returns how many layers are configured and, for each live copy, player count
+and worldserver alias.
+
+## What layering does not do
+
+It is not a visibility filter, a second realm, or a new way to enter instances.
+It only decides which worldserver runs each copy of a configured map and keeps
+parties on the same copy when they share that map.

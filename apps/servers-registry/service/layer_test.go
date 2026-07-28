@@ -148,3 +148,17 @@ func TestPreferredGameServerSelectionDoesNotChangeGroupBinding(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "layer-1", bound)
 }
+
+func TestPreferredGameServerSelectionAcceptsAddress(t *testing.T) {
+	store := newLayerStoreStub()
+	require.NoError(t, store.SetConfiguration(context.Background(), 1, map[uint32]uint32{1: 2}))
+	layers := NewLayer(&layerServersStub{servers: []repo.GameServer{
+		{ID: "layer-1", Alias: "thrall-onyxia-a", Address: "10.0.0.1:8085"},
+		{ID: "layer-2", Alias: "jaina-arthas-b", Address: "10.0.0.2:8085"},
+	}}, store)
+
+	selection, err := layers.Select(context.Background(), 1, 1, 0, "10.0.0.2:8085")
+	require.NoError(t, err)
+	require.Equal(t, LayerSelectionOK, selection.Status)
+	require.Equal(t, "layer-2", selection.Server.ID)
+}

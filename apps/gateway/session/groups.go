@@ -497,23 +497,33 @@ func (s *GameSession) groupUninviteWithGUID(ctx context.Context, player uint64, 
 	return nil
 }
 
-func (s *GameSession) LoadGroupForPlayer(ctx context.Context) error {
+// resolveGroupIDForPlayer loads the player's current group ID from the group
+// service. Used before gameserver selection so layer binding sees the group.
+func (s *GameSession) resolveGroupIDForPlayer(ctx context.Context, playerGUID uint64) (uint32, error) {
 	res, err := s.groupServiceClient.GetGroupIDByPlayer(ctx, &pb.GetGroupIDByPlayerRequest{
 		Api:     root.SupportedGroupServiceVer,
 		RealmID: root.RealmID,
-		Player:  s.character.GUID,
+		Player:  playerGUID,
 	})
 	if err != nil {
-		return NewGroupServiceUnavailableErr(err)
+		return 0, NewGroupServiceUnavailableErr(err)
+	}
+	return res.GroupID, nil
+}
+
+func (s *GameSession) LoadGroupForPlayer(ctx context.Context) error {
+	groupID, err := s.resolveGroupIDForPlayer(ctx, s.character.GUID)
+	if err != nil {
+		return err
 	}
 
-	if res.GroupID == 0 {
+	if groupID == 0 {
 		s.currentGroupID = 0
 		return nil
 	}
-	s.currentGroupID = res.GroupID
+	s.currentGroupID = groupID
 
-	return s.SendGroupUpdate(ctx, uint(res.GroupID))
+	return s.SendGroupUpdate(ctx, uint(groupID))
 }
 
 func (s *GameSession) SendGroupUpdate(ctx context.Context, groupID uint) error {

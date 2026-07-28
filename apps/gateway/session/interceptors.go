@@ -177,14 +177,6 @@ func (s *GameSession) InterceptMoveWorldPortAck(ctx context.Context, p *packet.P
 		return errors.New("can't handle InterceptMoveWorldPortAck, worldSocket is nil")
 	}
 	s.worldSocket.SendPacket(p)
-	if s.layerWorldAckPending {
-		s.layerWorldAckPending = false
-		pendingPackets := s.layerPendingPackets
-		s.layerPendingPackets = nil
-		for _, pendingPacket := range pendingPackets {
-			s.gameSocket.SendPacket(pendingPacket)
-		}
-	}
 
 	if s.teleportingToNewMap != nil && s.character.GroupMangedByGameServer {
 		s.character.GroupMangedByGameServer = false

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"strings"
 
 	"github.com/walkline/ToCloud9/apps/servers-registry/repo"
 )
@@ -51,9 +52,11 @@ func (l *layerService) Select(ctx context.Context, realmID, mapID, groupID uint3
 	if len(servers) == 0 {
 		return LayerSelection{Status: LayerSelectionNoServer}, nil
 	}
-	if preferredAlias != "" {
+	if preferred := strings.TrimSpace(preferredAlias); preferred != "" {
+		// Preferred target may be a display alias or a worldserver address
+		// (used by .tc9 ws switch).
 		for i := range servers {
-			if servers[i].Alias == preferredAlias {
+			if strings.EqualFold(servers[i].Alias, preferred) || strings.EqualFold(servers[i].Address, preferred) {
 				return LayerSelection{Status: LayerSelectionOK, Server: &servers[i]}, nil
 			}
 		}

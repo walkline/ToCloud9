@@ -82,10 +82,6 @@ type GameSession struct {
 	// world server drops STATUS_LOGGEDIN opcodes, so the gateway answers name
 	// queries itself (see HandleNameQuery).
 	worldEntryPending bool
-	// layerWorldAckPending holds destination initialization packets after a
-	// same-map layer redirect until the client acknowledges SMSG_NEW_WORLD.
-	layerWorldAckPending bool
-	layerPendingPackets  []*packet.Packet
 
 	packetSendingControl PacketSendingControl
 
@@ -232,11 +228,6 @@ func (s *GameSession) HandlePackets(ctx context.Context) {
 				break
 			}
 
-			if s.layerWorldAckPending {
-				s.layerPendingPackets = append(s.layerPendingPackets, p)
-				break
-			}
-
 			// Check if this opcode should be dropped (blacklisted)
 			if OpcodeBlacklist[p.Opcode] {
 				s.logger.Debug().Msgf("Dropped blacklisted opcode from worldserver: %d", p.Opcode)
@@ -353,8 +344,12 @@ func (s *GameSession) Login(ctx context.Context, p *packet.Packet) error {
 		return err
 	}
 
-	if err = s.LoadGroupForPlayer(ctx); err != nil {
-		return err
+	// Group ID was already resolved in connectToGameServer for layer selection.
+	// Only fetch the group payload for the party UI when the player is grouped.
+	if s.currentGroupID != 0 {
+		if err = s.SendGroupUpdate(ctx, uint(s.currentGroupID)); err != nil {
+			return err
+		}
 	}
 
 	s.channelMembership = NewChannelMembership(char.GUID, s.chatChannelsEventsBroadcaster)
@@ -451,6 +446,15 @@ func (s *GameSession) connectToGameServer(ctx context.Context, characterGUID uin
 	if mapID != nil {
 		mapIDToLogin = *mapID
 	}
+
+	// Group membership must be resolved before map/layer selection. Login used
+	// to load the group only after connectToGameServer, so every member was
+	// treated as ungrouped (groupID 0) and could land on different layers.
+	groupID, err := s.resolveGroupIDForPlayer(ctx, characterGUID)
+	if err != nil {
+		return nil, nil, fmt.Errorf("resolve group for world select: %w", err)
+	}
+	s.currentGroupID = groupID
 
 	selected, err := s.selectGameServerForMap(ctx, mapIDToLogin)
 

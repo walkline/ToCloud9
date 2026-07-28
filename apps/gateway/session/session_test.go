@@ -368,8 +368,12 @@ func TestGameSessionLogin(t *testing.T) {
 		Character: &pbChar.LogInCharacter{GUID: charID, Map: 1},
 	}, nil)
 
+	const groupID = uint32(77)
+
 	servRegistryMock := &regMock.ServersRegistryServiceClient{}
-	servRegistryMock.On("AvailableGameServersForMapAndRealm", mock.Anything, mock.Anything).Return(&pbServ.AvailableGameServersForMapAndRealmResponse{
+	servRegistryMock.On("AvailableGameServersForMapAndRealm", mock.Anything, mock.MatchedBy(func(req *pbServ.AvailableGameServersForMapAndRealmRequest) bool {
+		return req.MapID == 1 && req.GroupID == groupID
+	})).Return(&pbServ.AvailableGameServersForMapAndRealmResponse{
 		GameServers: []*pbServ.Server{{
 			ID:      "world-1",
 			Address: "127.0.0.1:8000",
@@ -381,9 +385,16 @@ func TestGameSessionLogin(t *testing.T) {
 	mailServiceMock.On("MailsForPlayer", mock.Anything, mock.Anything).Return(&pbMail.MailsForPlayerResponse{}, nil)
 
 	groupServiceMock := &groupMocks.GroupServiceClient{}
-	groupServiceMock.On("GetGroupIDByPlayer", mock.Anything, mock.Anything).Return(&pbGroup.GetGroupIDByPlayerResponse{
-		GroupID: 0,
+	groupServiceMock.On("GetGroupIDByPlayer", mock.Anything, mock.MatchedBy(func(req *pbGroup.GetGroupIDByPlayerRequest) bool {
+		return req.Player == charID
+	})).Once().Return(&pbGroup.GetGroupIDByPlayerResponse{
+		GroupID: groupID,
 	}, nil)
+	// Group payload is intentionally nil: this test only asserts that group ID
+	// is resolved once before gameserver selection, then reused for the UI update.
+	groupServiceMock.On("GetGroup", mock.Anything, mock.MatchedBy(func(req *pbGroup.GetGroupRequest) bool {
+		return req.GroupID == groupID
+	})).Once().Return(&pbGroup.GetGroupResponse{}, nil)
 
 	producer := &gwProducerMock.GatewayProducer{}
 	producer.On("CharacterLoggedIn", mock.MatchedBy(func(p *events.GWEventCharacterLoggedInPayload) bool {
