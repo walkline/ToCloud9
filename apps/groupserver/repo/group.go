@@ -116,7 +116,9 @@ type GroupInvite struct {
 	Invitee     uint64
 	InviteeName string
 
-	GroupID uint
+	GroupID             uint
+	InviterMapID        uint32
+	InviterGameServerID string
 }
 
 type GroupsRepo interface {

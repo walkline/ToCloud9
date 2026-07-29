@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -16,20 +17,22 @@ import (
 
 const ver = "0.0.1"
 
-type serversRegistry struct {
+type serversRegistryService struct {
 	pb.UnimplementedServersRegistryServiceServer
 	gService  service.GameServer
 	lbService service.Gateway
+	lService  service.Layer
 }
 
-func NewServersRegistry(gService service.GameServer, lbService service.Gateway) pb.ServersRegistryServiceServer {
-	return &serversRegistry{
+func NewServersRegistry(gService service.GameServer, lbService service.Gateway, lService service.Layer) pb.ServersRegistryServiceServer {
+	return &serversRegistryService{
 		gService:  gService,
 		lbService: lbService,
+		lService:  lService,
 	}
 }
 
-func (s *serversRegistry) RegisterGameServer(ctx context.Context, request *pb.RegisterGameServerRequest) (*pb.RegisterGameServerResponse, error) {
+func (s *serversRegistryService) RegisterGameServer(ctx context.Context, request *pb.RegisterGameServerRequest) (*pb.RegisterGameServerResponse, error) {
 	p, _ := peer.FromContext(ctx)
 
 	log.Info().Interface("request", request).Msg("New request to add game server")
@@ -57,10 +60,26 @@ func (s *serversRegistry) RegisterGameServer(ctx context.Context, request *pb.Re
 		Api:          ver,
 		Id:           gameServer.ID,
 		AssignedMaps: gameServer.AssignedMapsToHandle,
+		Alias:        gameServer.Alias,
 	}, nil
 }
 
-func (s *serversRegistry) AvailableGameServersForMapAndRealm(ctx context.Context, request *pb.AvailableGameServersForMapAndRealmRequest) (*pb.AvailableGameServersForMapAndRealmResponse, error) {
+func (s *serversRegistryService) AvailableGameServersForMapAndRealm(ctx context.Context, request *pb.AvailableGameServersForMapAndRealmRequest) (*pb.AvailableGameServersForMapAndRealmResponse, error) {
+	if !request.IsCrossRealm {
+		selection, err := s.lService.Select(ctx, request.RealmID, request.MapID, request.GroupID, request.PreferredGameServerAlias)
+		if err != nil {
+			return nil, err
+		}
+		response := &pb.AvailableGameServersForMapAndRealmResponse{Api: ver}
+		if selection.Status == service.LayerSelectionOK && selection.Server != nil {
+			response.GameServers = []*pb.Server{{
+				ID: selection.Server.ID, Address: selection.Server.Address, RealmID: selection.Server.RealmID,
+				GrpcAddress: selection.Server.GRPCAddress, Alias: selection.Server.Alias,
+			}}
+		}
+		return response, nil
+	}
+
 	servers, err := s.gService.AvailableForMapAndRealm(ctx, request.MapID, request.RealmID, request.IsCrossRealm)
 	if err != nil {
 		return nil, err
@@ -69,10 +88,12 @@ func (s *serversRegistry) AvailableGameServersForMapAndRealm(ctx context.Context
 	resultServers := make([]*pb.Server, 0, len(servers))
 	for i := range servers {
 		resultServers = append(resultServers, &pb.Server{
+			ID:           servers[i].ID,
 			Address:      servers[i].Address,
 			RealmID:      servers[i].RealmID,
 			IsCrossRealm: servers[i].IsCrossRealm,
 			GrpcAddress:  servers[i].GRPCAddress,
+			Alias:        servers[i].Alias,
 		})
 	}
 
@@ -82,7 +103,7 @@ func (s *serversRegistry) AvailableGameServersForMapAndRealm(ctx context.Context
 	}, nil
 }
 
-func (s *serversRegistry) ListGameServersForRealm(ctx context.Context, request *pb.ListGameServersForRealmRequest) (*pb.ListGameServersResponse, error) {
+func (s *serversRegistryService) ListGameServersForRealm(ctx context.Context, request *pb.ListGameServersForRealmRequest) (*pb.ListGameServersResponse, error) {
 	var (
 		servers []repo.GameServer
 		err     error
@@ -109,6 +130,7 @@ func (s *serversRegistry) ListGameServersForRealm(ctx context.Context, request *
 			ActiveConnections: servers[i].ActiveConnections,
 			AvailableMaps:     servers[i].AvailableMaps,
 			AssignedMaps:      servers[i].AssignedMapsToHandle,
+			Alias:             servers[i].Alias,
 			Diff: &pb.GameServerDetailed_Diff{
 				Mean:         servers[i].Diff.Mean,
 				Median:       servers[i].Diff.Median,
@@ -124,7 +146,7 @@ func (s *serversRegistry) ListGameServersForRealm(ctx context.Context, request *
 		GameServers: respServers,
 	}, nil
 }
-func (s *serversRegistry) ListAllGameServers(ctx context.Context, request *pb.ListAllGameServersRequest) (*pb.ListGameServersResponse, error) {
+func (s *serversRegistryService) ListAllGameServers(ctx context.Context, request *pb.ListAllGameServersRequest) (*pb.ListGameServersResponse, error) {
 	servers, err := s.gService.ListAll(ctx)
 	if err != nil {
 		return nil, err
@@ -142,6 +164,7 @@ func (s *serversRegistry) ListAllGameServers(ctx context.Context, request *pb.Li
 			ActiveConnections: servers[i].ActiveConnections,
 			AvailableMaps:     servers[i].AvailableMaps,
 			AssignedMaps:      servers[i].AssignedMapsToHandle,
+			Alias:             servers[i].Alias,
 			Diff: &pb.GameServerDetailed_Diff{
 				Mean:         servers[i].Diff.Mean,
 				Median:       servers[i].Diff.Median,
@@ -158,7 +181,7 @@ func (s *serversRegistry) ListAllGameServers(ctx context.Context, request *pb.Li
 	}, nil
 }
 
-func (s *serversRegistry) RandomGameServerForRealm(ctx context.Context, request *pb.RandomGameServerForRealmRequest) (*pb.RandomGameServerForRealmResponse, error) {
+func (s *serversRegistryService) RandomGameServerForRealm(ctx context.Context, request *pb.RandomGameServerForRealmRequest) (*pb.RandomGameServerForRealmResponse, error) {
 	server, err := s.gService.RandomServerForRealm(ctx, request.RealmID)
 	if err != nil {
 		return nil, err
@@ -180,7 +203,7 @@ func (s *serversRegistry) RandomGameServerForRealm(ctx context.Context, request 
 	}, nil
 }
 
-func (s *serversRegistry) GameServerMapsLoaded(ctx context.Context, request *pb.GameServerMapsLoadedRequest) (*pb.GameServerMapsLoadedResponse, error) {
+func (s *serversRegistryService) GameServerMapsLoaded(ctx context.Context, request *pb.GameServerMapsLoadedRequest) (*pb.GameServerMapsLoadedResponse, error) {
 	_, err := s.gService.MapsLoadedForServer(ctx, request.GameServerID, request.MapsLoaded)
 	if err != nil {
 		return nil, err
@@ -191,7 +214,7 @@ func (s *serversRegistry) GameServerMapsLoaded(ctx context.Context, request *pb.
 	}, nil
 }
 
-func (s *serversRegistry) RegisterGateway(ctx context.Context, request *pb.RegisterGatewayRequest) (*pb.RegisterGatewayResponse, error) {
+func (s *serversRegistryService) RegisterGateway(ctx context.Context, request *pb.RegisterGatewayRequest) (*pb.RegisterGatewayResponse, error) {
 	p, _ := peer.FromContext(ctx)
 
 	log.Info().Interface("request", request).Msg("New request to add gateway")
@@ -214,7 +237,7 @@ func (s *serversRegistry) RegisterGateway(ctx context.Context, request *pb.Regis
 	}, nil
 }
 
-func (s *serversRegistry) GatewaysForRealms(ctx context.Context, request *pb.GatewaysForRealmsRequest) (*pb.GatewaysForRealmsResponse, error) {
+func (s *serversRegistryService) GatewaysForRealms(ctx context.Context, request *pb.GatewaysForRealmsRequest) (*pb.GatewaysForRealmsResponse, error) {
 	servers := make([]*pb.Server, 0, len(request.RealmIDs))
 
 	for _, realmID := range request.RealmIDs {
@@ -238,7 +261,7 @@ func (s *serversRegistry) GatewaysForRealms(ctx context.Context, request *pb.Gat
 	}, nil
 }
 
-func (s *serversRegistry) ListGatewaysForRealm(ctx context.Context, request *pb.ListGatewaysForRealmRequest) (*pb.ListGatewaysForRealmResponse, error) {
+func (s *serversRegistryService) ListGatewaysForRealm(ctx context.Context, request *pb.ListGatewaysForRealmRequest) (*pb.ListGatewaysForRealmResponse, error) {
 	servers, err := s.lbService.GatewaysForRealm(ctx, request.RealmID)
 	if err != nil {
 		return nil, err
@@ -259,6 +282,53 @@ func (s *serversRegistry) ListGatewaysForRealm(ctx context.Context, request *pb.
 		Api:      ver,
 		Gateways: result,
 	}, nil
+}
+
+func (s *serversRegistryService) BindGroupToGameServer(ctx context.Context, request *pb.BindGroupToGameServerRequest) (*pb.BindGroupToGameServerResponse, error) {
+	if err := s.lService.BindGroup(ctx, request.RealmID, request.GroupID, request.MapID, request.GameServerID); err != nil {
+		return nil, err
+	}
+	return &pb.BindGroupToGameServerResponse{Api: ver}, nil
+}
+
+func (s *serversRegistryService) GetMapLayerConfiguration(ctx context.Context, request *pb.GetMapLayerConfigurationRequest) (*pb.GetMapLayerConfigurationResponse, error) {
+	config, err := s.lService.Configuration(ctx, request.RealmID)
+	if err != nil {
+		return nil, err
+	}
+	mapIDs := make([]uint32, 0, len(config))
+	for mapID := range config {
+		mapIDs = append(mapIDs, mapID)
+	}
+	sort.Slice(mapIDs, func(i, j int) bool { return mapIDs[i] < mapIDs[j] })
+	response := &pb.GetMapLayerConfigurationResponse{Api: ver}
+	for _, mapID := range mapIDs {
+		response.Maps = append(response.Maps, &pb.MapLayerConfiguration{MapID: mapID, LayerCount: config[mapID]})
+	}
+	return response, nil
+}
+
+func (s *serversRegistryService) UpdateMapLayerConfiguration(ctx context.Context, request *pb.UpdateMapLayerConfigurationRequest) (*pb.UpdateMapLayerConfigurationResponse, error) {
+	config := make(map[uint32]uint32, len(request.Maps))
+	for _, item := range request.Maps {
+		config[item.MapID] = item.LayerCount
+	}
+	if err := s.lService.UpdateConfiguration(ctx, request.RealmID, config); err != nil {
+		return nil, err
+	}
+	return &pb.UpdateMapLayerConfigurationResponse{Api: ver}, nil
+}
+
+func (s *serversRegistryService) GetLayerStats(ctx context.Context, request *pb.GetLayerStatsRequest) (*pb.GetLayerStatsResponse, error) {
+	configured, stats, err := s.lService.Stats(ctx, request.RealmID, request.MapID)
+	if err != nil {
+		return nil, err
+	}
+	response := &pb.GetLayerStatsResponse{Api: ver, ConfiguredLayers: configured}
+	for _, stat := range stats {
+		response.Layers = append(response.Layers, &pb.GetLayerStatsResponse_Layer{Players: stat.Players, GameServerID: stat.Server.ID, Address: stat.Server.Address, GameServerAlias: stat.Server.Alias})
+	}
+	return response, nil
 }
 
 func removePortFromAddress(address string) string {

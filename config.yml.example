@@ -91,6 +91,7 @@ group:
   natsUrl: *defaultNatsUrl
   charactersDB: *defaultCharactersDB
   charactersServiceAddress: "localhost:8991"
+  serversRegistryServiceAddress: "localhost:8999"
   logging: *defaultLogging
 
 auctionhouse:
@@ -109,6 +110,12 @@ servers-registry:
   logging: *defaultLogging
   realmsID:
     - 1
+  layering:
+    # Each entry maps a map ID to its desired layer count.
+    # Increase a value to enable multiple layers, for example: "1: 2".
+    maps:
+      1: 1
+      531: 1
 
 matchmakingserver:
   port: 8994

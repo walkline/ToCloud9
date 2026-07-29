@@ -73,6 +73,7 @@ func main() {
 	go metricsConsumer.Start()
 
 	supportedRealms := conf.RealmsID
+	layerStore := repo.NewLayerRedisStore(rdb)
 	gameServersService, err := service.NewGameServer(
 		mainContext,
 		repo.NewGameServerRedisRepo(rdb),
@@ -80,6 +81,7 @@ func main() {
 		metricsConsumer,
 		binpack.NewBinPackBalancer(binpack.DefaultMapsWeight), // TODO: implement providing custom maps weight list.
 		events.NewServerRegistryProducerNatsJSON(nc, "0.0.1"),
+		layerStore,
 		supportedRealms,
 	)
 	if err != nil {
@@ -98,7 +100,17 @@ func main() {
 		log.Fatal().Err(err).Msg("can't create gateway service")
 	}
 
-	registryService := server.NewServersRegistry(gameServersService, gatewayService)
+	layerService := service.NewLayer(gameServersService, layerStore)
+	startupLayers := conf.Layering.Maps
+	if len(startupLayers) > 0 {
+		for _, realmID := range supportedRealms {
+			if err := layerService.UpdateConfiguration(mainContext, realmID, startupLayers); err != nil {
+				log.Fatal().Err(err).Uint32("realmID", realmID).Msg("can't apply layer configuration")
+			}
+		}
+	}
+
+	registryService := server.NewServersRegistry(gameServersService, gatewayService, layerService)
 	if conf.LogLevel == zerolog.DebugLevel {
 		registryService = server.NewServersRegistryDebugLoggerMiddleware(registryService, log.Logger)
 	}

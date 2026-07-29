@@ -25,6 +25,8 @@ spec:
           value: redis://{{ .Release.Name }}-redis-headless:6379/0
         - name: NATS_URL
           value: nats://{{ .Release.Name }}-nats:4222
+        - name: LAYER_MAPS
+          value: "{{- range $index, $map := .Values.servers_registry.layering.maps }}{{ if $index }},{{ end }}{{ $map.mapID }}:{{ $map.layers }}{{- end }}"
         ports:
         - containerPort: {{ .Values.servers_registry.service.internalPort | int  }}
         # livenessProbe:
