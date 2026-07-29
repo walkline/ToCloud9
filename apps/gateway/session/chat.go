@@ -318,24 +318,26 @@ func (s *GameSession) sendLayerConfiguration(ctx context.Context) error {
 			return statsErr
 		}
 		marker := ""
-		if configuredMap.MapID == s.character.Map {
+		if s.character != nil && configuredMap.MapID == s.character.Map {
 			marker = " (current map)"
 		}
 		s.SendSysMessage(fmt.Sprintf("Map %d: %d configured layers%s", configuredMap.MapID, configuredMap.LayerCount, marker))
 		for _, layer := range stats.Layers {
 			layerMarker := ""
-			if configuredMap.MapID == s.character.Map && layer.GameServerAlias == s.currentGameServerAlias {
+			if s.character != nil && configuredMap.MapID == s.character.Map && layer.GameServerAlias == s.currentGameServerAlias {
 				layerMarker = " (you)"
 			}
-			s.SendSysMessage(fmt.Sprintf("  Layer %s: approximately %d players%s", layer.GameServerAlias, layer.Players, layerMarker))
+			alias := layer.GameServerAlias
+			if alias == "" {
+				alias = layer.Address
+			}
+			s.SendSysMessage(fmt.Sprintf("  %s%s", alias, layerMarker))
 		}
 		for unavailable := len(stats.Layers); unavailable < int(configuredMap.LayerCount); unavailable++ {
-			s.SendSysMessage("  Layer unavailable: approximately 0 players")
+			s.SendSysMessage("  (unavailable)")
 		}
 	}
-
 	s.SendSysMessage(" ")
-
 	return nil
 }
 

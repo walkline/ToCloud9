@@ -453,12 +453,12 @@ func (s *GameSession) connectToGameServer(ctx context.Context, characterGUID uin
 		mapIDToLogin = *mapID
 	}
 
-	// Group membership must be resolved before map/layer selection. Login used
-	// to load the group only after connectToGameServer, so every member was
-	// treated as ungrouped (groupID 0) and could land on different layers.
+	// Prefer group-aware layer selection; if groupserver is down, fall back to
+	// ungrouped placement (groupID 0) so login still works.
 	groupID, err := s.resolveGroupIDForPlayer(ctx, characterGUID)
 	if err != nil {
-		return nil, nil, fmt.Errorf("resolve group for world select: %w", err)
+		s.logger.Warn().Err(err).Uint64("char", characterGUID).Msg("group resolve failed, selecting world without group")
+		groupID = 0
 	}
 	s.currentGroupID = groupID
 
