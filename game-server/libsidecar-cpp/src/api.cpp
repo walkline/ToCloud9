@@ -56,6 +56,34 @@ TC9State g_state;
 
 extern "C" {
 
+TC9_API void TC9GetVersion(int* major, int* minor, int* patch) {
+    if (major) {
+        *major = TC9_VERSION_MAJOR;
+    }
+    if (minor) {
+        *minor = TC9_VERSION_MINOR;
+    }
+    if (patch) {
+        *patch = TC9_VERSION_PATCH;
+    }
+}
+
+TC9_API const char* TC9GetVersionString(void) {
+    return TC9_VERSION_STRING;
+}
+
+TC9_API int TC9CheckAbiCompatible(int required_major, int required_minor) {
+    // Caller's headers require this major and at least this minor.
+    // Library may be newer (higher minor) but not a different major.
+    if (TC9_VERSION_MAJOR != required_major) {
+        return 1;
+    }
+    if (TC9_VERSION_MINOR < required_minor) {
+        return 2;
+    }
+    return 0;
+}
+
 TC9_API void TC9InitLib(
     uint16_t port,
     uint32_t realmID,
@@ -70,7 +98,7 @@ TC9_API void TC9InitLib(
 
         // Initialize logger
         tc9::InitLogger(config.log_level());
-        spdlog::info("🚀 Initializing libsidecar v0.0.1");
+        spdlog::info("🚀 Initializing libsidecar v{}", TC9_VERSION_STRING);
         spdlog::info("Realm ID: {}, Cross-realm: {}, Port: {}",
                      realmID, isCrossRealm, port);
         spdlog::info("Available maps: {}", availableMaps ? availableMaps : "");

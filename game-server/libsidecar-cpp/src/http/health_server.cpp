@@ -46,8 +46,6 @@ void HealthServer::Start() {
         res.set_content(R"({"status":"OK"})", "application/json");
     });
 
-        printf("!!!!!!\n");
-
     // GET /metrics endpoint (Prometheus format)
     impl_->server.Get("/metrics", [this](const httplib::Request& /*req*/, httplib::Response& res) {
         auto& registry = MetricsRegistry::Instance();

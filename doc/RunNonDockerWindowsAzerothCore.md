@@ -37,9 +37,11 @@ go build -o bin\mailserver.exe apps\mailserver\cmd\mailserver\main.go
 
 #### Option 1: Download Pre-built Binary (Recommended)
 
-1. Download the appropriate version from the [GitHub releases page](https://github.com/walkline/ToCloud9/releases):
-   - **Visual Studio 2022**: Download `libsidecar-cpp-windows-x64-v143.zip`
-   - **Visual Studio 2019**: Download `libsidecar-cpp-windows-x64-v142.zip`
+1. Download the appropriate build from a **libsidecar** release (tag `libsidecar-v*`, not a full `v*` product release) on the [GitHub releases page](https://github.com/walkline/ToCloud9/releases?q=libsidecar):
+   - **Visual Studio 2022**: Download `libsidecar-cpp-<version>-windows-x64-v143.zip`
+   - **Visual Studio 2019**: Download `libsidecar-cpp-<version>-windows-x64-v142.zip`
+
+   `<version>` is the libsidecar ABI/package version (e.g. `1.0.0` from tag `libsidecar-v1.0.0`). Match it to what your AzerothCore tree expects (`deps/libsidecar/include/tc9_version.h`).
 
    **Important**: Choose the version matching your Visual Studio installation. Using the wrong version will cause linking errors or runtime crashes.
 
@@ -73,7 +75,8 @@ cmake --build . --config Release -j %NUMBER_OF_PROCESSORS%
 4. The built artifacts will be in:
    - `build\Release\libsidecar.dll` - the shared library
    - `build\Release\libsidecar.lib` - the import library
-   - `..\include\*.h` - header files
+   - `..\include\*.h` - hand-written public headers
+   - `build\generated\include\tc9_version.h` - generated version header (required)
 
 ### Build AzerothCore with libsidecar-cpp
 
@@ -84,7 +87,7 @@ git clone --branch cluster-mode https://github.com/walkline/azerothcore-wotlk.gi
 cd azerothcore-wotlk
 ```
 
-2. Copy libsidecar-cpp files to AzerothCore:
+2. Copy libsidecar-cpp files to AzerothCore (headers **and** library from the same version):
 
 **If using pre-built binary:**
 ```cmd
@@ -98,6 +101,7 @@ xcopy /E /I C:\libsidecar-cpp\include deps\libsidecar\include
 copy C:\path\to\ToCloud9\game-server\libsidecar-cpp\build\Release\libsidecar.dll deps\libsidecar\
 copy C:\path\to\ToCloud9\game-server\libsidecar-cpp\build\Release\libsidecar.lib deps\libsidecar\
 xcopy /E /I C:\path\to\ToCloud9\game-server\libsidecar-cpp\include deps\libsidecar\include
+copy C:\path\to\ToCloud9\game-server\libsidecar-cpp\build\generated\include\tc9_version.h deps\libsidecar\include\
 ```
 
 3. Build AzerothCore using the standard Windows build process with the additional CMake flag:
