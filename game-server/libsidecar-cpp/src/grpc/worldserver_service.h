@@ -4,9 +4,11 @@
 #include "worldserver/worldserver.grpc.pb.h"
 #include "worldserver/worldserver.pb.h"
 #include "libsidecar/tc9_types.h"
+#include "tc9_version.h"
 #include "../queue/handlers_queue.h"
 #include <memory>
 #include <chrono>
+#include <string>
 
 namespace tc9 {
 
@@ -99,7 +101,7 @@ private:
     std::chrono::milliseconds timeout_;
     HandlersQueue& read_queue_;
     HandlersQueue& write_queue_;
-    std::string lib_version_{"0.0.1"};
+    std::string lib_version_{TC9_VERSION_STRING};
 };
 
 }  // namespace tc9

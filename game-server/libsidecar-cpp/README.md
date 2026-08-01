@@ -8,7 +8,7 @@ The Go version works but has CGO overhead and complex build requirements. This C
 - Native C++ library, no CGO
 - 100% API-compatible with Go version
 - Same metric names, same behavior
-- Zero code changes required in AzerothCore
+- Zero code changes required in AzerothCore (beyond linking)
 
 ## Build
 
@@ -18,7 +18,7 @@ cmake ..
 cmake --build .
 ```
 
-Output: `build/libsidecar.dylib` (or `.so` on Linux)
+Output: `build/libsidecar.dylib` (or `.so` on Linux).
 
 ## Requirements
 
@@ -26,12 +26,21 @@ Output: `build/libsidecar.dylib` (or `.so` on Linux)
 - C++17 compiler
 - Dependencies fetched automatically: gRPC, Prometheus, NATS, spdlog
 
+## Version & release
+
+Bump the version only in `CMakeLists.txt` (`project(libsidecar VERSION x.y.z)`). That drives generated `tc9_version.h`, the shared library soname, and runtime `TC9GetVersion` / `TC9CheckAbiCompatible`.
+
+Ship with tag `libsidecar-vX.Y.Z` (must match CMake version). Product tags `v*` do not include this library — see `.github/workflows/release-libsidecar.yml`.
+
+Copy headers and library from the **same** build or release into AzerothCore (include `build/generated/include/tc9_version.h`).
+
 ## Integration with AzerothCore
 
 1. **Copy library and headers:**
 ```bash
-cp build/libsidecar.dylib /path/to/azerothcore/deps/libsidecar/lib/
+cp build/libsidecar.dylib /path/to/azerothcore/deps/libsidecar/   # or .so / .dll
 cp include/*.h /path/to/azerothcore/deps/libsidecar/include/
+cp build/generated/include/tc9_version.h /path/to/azerothcore/deps/libsidecar/include/
 ```
 
 2. **Set environment variables:**
@@ -44,7 +53,7 @@ TC9_GRPC_PORT=57559
 TC9_HEALTH_CHECK_PORT=57556
 ```
 
-3. **Rebuild AzerothCore** - it will link against the C++ library instead of Go.
+3. **Rebuild AzerothCore** with `-DUSE_REAL_LIBSIDECAR=ON`.
 
 ## API
 
@@ -65,7 +74,7 @@ uint64_t TC9GetNextAvailableInstanceGuid(int realmID);
 // Handler registration - call during initialization
 void TC9SetCanPlayerInteractWithGOAndTypeHandler(CanPlayerInteractWithGOAndTypeHandler h);
 void TC9SetMonitoringDataCollectorHandler(MonitoringDataCollectorHandler h);
-// ... and 9 more handler setters
+// ... and more handler setters
 ```
 
 ## Monitoring
