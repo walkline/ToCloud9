@@ -24,6 +24,9 @@ service WorldServerService {
   rpc AddPlayersToBattleground(AddPlayersToBattlegroundRequest) returns (AddPlayersToBattlegroundResponse);
   rpc CanPlayerJoinBattlegroundQueue(CanPlayerJoinBattlegroundQueueRequest) returns (CanPlayerJoinBattlegroundQueueResponse);
   rpc CanPlayerTeleportToBattleground(CanPlayerTeleportToBattlegroundRequest) returns (CanPlayerTeleportToBattlegroundResponse);
+
+  // Petitions
+  rpc CanTurnInGuildPetition(CanTurnInGuildPetitionRequest) returns (CanTurnInGuildPetitionResponse);
 }
 
 // GetPlayerItemsByGuids
@@ -240,4 +243,30 @@ message CanPlayerTeleportToBattlegroundResponse {
   }
 
   Status status = 2;
+}
+
+// CanTurnInGuildPetition
+message CanTurnInGuildPetitionRequest {
+  string api = 1;
+
+  uint64 playerGUID = 2;
+  uint64 petitionItemGUID = 3;
+}
+
+message CanTurnInGuildPetitionResponse {
+  string api = 1;
+
+  enum Status {
+    Ok = 0;
+    PlayerNotFound = 1;
+    PetitionNotFound = 2;
+    NotPetitionOwner = 3;
+    NotGuildPetition = 4;
+    AlreadyInGuild = 5;
+    NeedMoreSignatures = 6;
+  }
+
+  Status status = 2;
+  string guildName = 3;
+  repeated uint64 signatoryGUIDs = 4;
 }

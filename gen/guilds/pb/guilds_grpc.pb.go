@@ -36,6 +36,7 @@ const (
 	GuildService_PromoteMember_FullMethodName        = "/v1.GuildService/PromoteMember"
 	GuildService_DemoteMember_FullMethodName         = "/v1.GuildService/DemoteMember"
 	GuildService_SendGuildMessage_FullMethodName     = "/v1.GuildService/SendGuildMessage"
+	GuildService_CreateGuild_FullMethodName          = "/v1.GuildService/CreateGuild"
 )
 
 // GuildServiceClient is the client API for GuildService service.
@@ -59,6 +60,7 @@ type GuildServiceClient interface {
 	PromoteMember(ctx context.Context, in *PromoteDemoteParams, opts ...grpc.CallOption) (*PromoteDemoteResponse, error)
 	DemoteMember(ctx context.Context, in *PromoteDemoteParams, opts ...grpc.CallOption) (*PromoteDemoteResponse, error)
 	SendGuildMessage(ctx context.Context, in *SendGuildMessageParams, opts ...grpc.CallOption) (*SendGuildMessageResponse, error)
+	CreateGuild(ctx context.Context, in *CreateGuildParams, opts ...grpc.CallOption) (*CreateGuildResponse, error)
 }
 
 type guildServiceClient struct {
@@ -222,6 +224,15 @@ func (c *guildServiceClient) SendGuildMessage(ctx context.Context, in *SendGuild
 	return out, nil
 }
 
+func (c *guildServiceClient) CreateGuild(ctx context.Context, in *CreateGuildParams, opts ...grpc.CallOption) (*CreateGuildResponse, error) {
+	out := new(CreateGuildResponse)
+	err := c.cc.Invoke(ctx, GuildService_CreateGuild_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // GuildServiceServer is the server API for GuildService service.
 // All implementations must embed UnimplementedGuildServiceServer
 // for forward compatibility
@@ -243,6 +254,7 @@ type GuildServiceServer interface {
 	PromoteMember(context.Context, *PromoteDemoteParams) (*PromoteDemoteResponse, error)
 	DemoteMember(context.Context, *PromoteDemoteParams) (*PromoteDemoteResponse, error)
 	SendGuildMessage(context.Context, *SendGuildMessageParams) (*SendGuildMessageResponse, error)
+	CreateGuild(context.Context, *CreateGuildParams) (*CreateGuildResponse, error)
 	mustEmbedUnimplementedGuildServiceServer()
 }
 
@@ -300,6 +312,9 @@ func (UnimplementedGuildServiceServer) DemoteMember(context.Context, *PromoteDem
 }
 func (UnimplementedGuildServiceServer) SendGuildMessage(context.Context, *SendGuildMessageParams) (*SendGuildMessageResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method SendGuildMessage not implemented")
+}
+func (UnimplementedGuildServiceServer) CreateGuild(context.Context, *CreateGuildParams) (*CreateGuildResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CreateGuild not implemented")
 }
 func (UnimplementedGuildServiceServer) mustEmbedUnimplementedGuildServiceServer() {}
 
@@ -620,6 +635,24 @@ func _GuildService_SendGuildMessage_Handler(srv interface{}, ctx context.Context
 	return interceptor(ctx, in, info, handler)
 }
 
+func _GuildService_CreateGuild_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateGuildParams)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(GuildServiceServer).CreateGuild(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: GuildService_CreateGuild_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(GuildServiceServer).CreateGuild(ctx, req.(*CreateGuildParams))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // GuildService_ServiceDesc is the grpc.ServiceDesc for GuildService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -694,6 +727,10 @@ var GuildService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "SendGuildMessage",
 			Handler:    _GuildService_SendGuildMessage_Handler,
+		},
+		{
+			MethodName: "CreateGuild",
+			Handler:    _GuildService_CreateGuild_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

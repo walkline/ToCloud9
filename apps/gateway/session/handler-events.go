@@ -10,6 +10,7 @@ var EventsHandleMap = map[eBroadcaster.EventType]EventsHandlersQueue{
 	eBroadcaster.EventTypeIncomingWhisper: NewEventHandler("IncomingWhisper", (*GameSession).HandleEventIncomingWhisperMessage),
 
 	// Guild
+	eBroadcaster.EventTypeGuildCreated:        NewEventHandler("GuildCreated", (*GameSession).HandleEventGuildCreated),
 	eBroadcaster.EventTypeGuildInviteCreated:  NewEventHandler("GuildInviteCreated", (*GameSession).HandleEventGuildInviteCreated),
 	eBroadcaster.EventTypeGuildMemberPromoted: NewEventHandler("GuildMemberPromoted", (*GameSession).HandleEventGuildMemberPromoted),
 	eBroadcaster.EventTypeGuildMemberDemoted:  NewEventHandler("GuildMemberDemoted", (*GameSession).HandleEventGuildMemberDemoted),

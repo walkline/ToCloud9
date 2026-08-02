@@ -75,6 +75,7 @@ void NatsConsumer::Start() {
         "guild.member.added",
         "guild.member.left",
         "guild.member.kicked",
+        "guild.created",
         // Registry events
         "sr.gs.maps.reassigned"
     };
@@ -211,6 +212,8 @@ void NatsConsumer::OnMessage(natsConnection* /*nc*/, natsSubscription* /*sub*/,
         handler = CreateGuildMemberLeftHandler(event_data, consumer->realm_id_);
     } else if (subject_str == "guild.member.kicked") {
         handler = CreateGuildMemberRemovedHandler(event_data, consumer->realm_id_);
+    } else if (subject_str == "guild.created") {
+        handler = CreateGuildCreatedHandler(event_data, consumer->realm_id_);
     }
     // Registry events
     else if (subject_str == "sr.gs.maps.reassigned") {

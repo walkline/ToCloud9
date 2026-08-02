@@ -17,6 +17,7 @@ import (
 	pbChar "github.com/walkline/ToCloud9/gen/characters/pb"
 	pbGuild "github.com/walkline/ToCloud9/gen/guilds/pb"
 	"github.com/walkline/ToCloud9/shared/events"
+	"github.com/walkline/ToCloud9/shared/wow"
 )
 
 type GuildEventType uint8
@@ -175,6 +176,7 @@ const (
 	guildErrPermissions      = 8  // ERR_GUILD_PERMISSIONS
 	guildErrPlayerNotInGuild = 9  // ERR_GUILD_PLAYER_NOT_IN_GUILD
 	guildErrPlayerNotFoundS  = 11 // ERR_GUILD_PLAYER_NOT_FOUND_S
+	guildErrNotAllied        = 12 // ERR_GUILD_NOT_ALLIED
 )
 
 // sendGuildCommandResult sends SMSG_GUILD_COMMAND_RESULT so the client renders
@@ -202,7 +204,13 @@ func (s *GameSession) HandleGuildInvite(ctx context.Context, p *packet.Packet) e
 		return nil
 	}
 
-	// TODO: check fraction.
+	// Guilds are faction locked, like the world server does before handing the
+	// invite over. The realm can opt out, the same way the core config
+	// AllowTwoSide.Interaction.Guild does.
+	if !s.allowCrossFactionGuilds && isCrossFaction(s.character.Race, uint8(resp.Character.CharRace)) {
+		s.sendGuildCommandResult(guildCommandInvite, resp.Character.CharName, guildErrNotAllied)
+		return nil
+	}
 
 	_, err = s.guildServiceClient.InviteMember(ctx, &pbGuild.InviteMemberParams{
 		Api:         root.Ver,
@@ -291,6 +299,18 @@ func (s *GameSession) HandleEventGuildMOTDUpdated(_ context.Context, e *eBroadca
 		GuildEventTypeMessageOfTheDay, 0,
 		eventData.NewMessageOfTheDay,
 	))
+
+	return nil
+}
+
+// HandleEventGuildCreated links the session to the freshly created guild so
+// gateway-side guild features (roster, permissions) work for the petition
+// signatories without a relog. The leader's session is updated synchronously in
+// HandleTurnInPetition; for it this event is a no-op.
+func (s *GameSession) HandleEventGuildCreated(_ context.Context, e *eBroadcaster.Event) error {
+	eventData := e.Payload.(*events.GuildEventGuildCreatedPayload)
+
+	s.character.GuildID = uint32(eventData.GuildID)
 
 	return nil
 }
@@ -737,4 +757,26 @@ func buildGuildEventPacket(t GuildEventType, guid uint64, args ...string) *packe
 	}
 
 	return resp
+}
+
+// isCrossFaction reports whether both races are known and belong to opposite
+// teams. An unknown race leaves the invite alone rather than refusing it, so a
+// missing race never turns into a rejected invite.
+func isCrossFaction(raceA, raceB uint8) bool {
+	teamA, okA := teamOfRace(raceA)
+	teamB, okB := teamOfRace(raceB)
+	return okA && okB && teamA != teamB
+}
+
+func teamOfRace(race uint8) (wow.Team, bool) {
+	if int(race) >= len(wow.DefaultRaces) {
+		return 0, false
+	}
+
+	r := wow.DefaultRaces[race]
+	if r.ID == 0 {
+		return 0, false
+	}
+
+	return r.Team, true
 }

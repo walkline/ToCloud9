@@ -28,6 +28,8 @@ type GuildServiceProducer interface {
 	GuildInfoUpdated(payload *GuildEventGuildInfoUpdatedPayload) error
 
 	NewMessage(payload *GuildEventNewMessagePayload) error
+
+	GuildCreated(payload *GuildEventGuildCreatedPayload) error
 }
 
 type guildServiceProducerNatsJSON struct {
@@ -111,4 +113,8 @@ func (s *guildServiceProducerNatsJSON) publish(e GuildServiceEvent, payload inte
 	}
 
 	return s.conn.Publish(e.SubjectName(), d)
+}
+
+func (s *guildServiceProducerNatsJSON) GuildCreated(payload *GuildEventGuildCreatedPayload) error {
+	return s.publish(GuildEventGuildCreated, payload)
 }
