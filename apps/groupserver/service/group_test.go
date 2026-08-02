@@ -6,8 +6,12 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 
 	"github.com/walkline/ToCloud9/apps/groupserver/repo"
+	pbServ "github.com/walkline/ToCloud9/gen/servers-registry/pb"
+	pbServMocks "github.com/walkline/ToCloud9/gen/servers-registry/pb/mocks"
+	"github.com/walkline/ToCloud9/shared/events"
 )
 
 // Concurrent leaves on the same group raced: both goroutines could take the
@@ -22,7 +26,7 @@ func TestGroupsServiceConcurrentLeaves(t *testing.T) {
 		assert.NoError(t, cache.Create(ctx, 1, newTwoMembersGroup()))
 		assert.NoError(t, cache.AddMember(ctx, 1, &repo.GroupMember{GroupID: 1, MemberGUID: 3, MemberName: "Third", IsOnline: true}))
 
-		s := NewGroupsService(cache, nil, noopGroupProducer{})
+		s := NewGroupsService(cache, nil, noopGroupLayerBinder{}, noopGroupProducer{})
 
 		var wg sync.WaitGroup
 		start := make(chan struct{})
@@ -63,7 +67,65 @@ func TestGroupsServiceAcceptStaleInvite(t *testing.T) {
 	cache := NewInMemGroupsCache(staleInviteRepo{})
 	assert.NoError(t, cache.Warmup(context.Background(), 1))
 
-	s := NewGroupsService(cache, nil, noopGroupProducer{})
+	s := NewGroupsService(cache, nil, noopGroupLayerBinder{}, noopGroupProducer{})
 
 	assert.ErrorIs(t, s.AcceptInvite(context.Background(), 1, 2), ErrGroupNotFound)
+}
+
+type newGroupInviteRepo struct{ noopGroupsRepo }
+
+func (newGroupInviteRepo) GetInviteByInvitedPlayer(context.Context, uint32, uint64) (*repo.GroupInvite, error) {
+	return &repo.GroupInvite{
+		Inviter:             1,
+		InviterName:         "Leader",
+		Invitee:             2,
+		InviteeName:         "Member",
+		InviterMapID:        1,
+		InviterGameServerID: "leader-server",
+	}, nil
+}
+
+func (newGroupInviteRepo) Create(_ context.Context, _ uint32, group *repo.Group) error {
+	group.ID = 42
+	return nil
+}
+
+type recordingGroupProducer struct {
+	noopGroupProducer
+	onGroupCreated func()
+}
+
+func (p recordingGroupProducer) GroupCreated(*events.GroupEventGroupCreatedPayload) error {
+	p.onGroupCreated()
+	return nil
+}
+
+func TestGroupsServiceBindsNewGroupBeforePublishingCreatedEvent(t *testing.T) {
+	cache := NewInMemGroupsCache(newGroupInviteRepo{})
+	assert.NoError(t, cache.Warmup(context.Background(), 1))
+
+	bound := false
+	registry := pbServMocks.NewServersRegistryServiceClient(t)
+	registry.On(
+		"BindGroupToGameServer",
+		mock.Anything,
+		mock.MatchedBy(func(request *pbServ.BindGroupToGameServerRequest) bool {
+			return request.RealmID == 1 &&
+				request.GroupID == 42 &&
+				request.MapID == 1 &&
+				request.GameServerID == "leader-server"
+		}),
+	).Run(func(mock.Arguments) {
+		bound = true
+	}).Return(&pbServ.BindGroupToGameServerResponse{}, nil).Once()
+
+	producer := recordingGroupProducer{
+		onGroupCreated: func() {
+			assert.True(t, bound, "group binding must exist before GroupCreated is published")
+		},
+	}
+	s := NewGroupsService(cache, nil, registry, producer)
+
+	assert.NoError(t, s.AcceptInvite(context.Background(), 1, 2))
+	assert.True(t, bound)
 }

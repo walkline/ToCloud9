@@ -67,7 +67,16 @@ func (g GroupServer) GetGroupIDByPlayer(ctx context.Context, request *pb.GetGrou
 
 func (g GroupServer) Invite(ctx context.Context, params *pb.InviteParams) (*pb.InviteResponse, error) {
 	status := pb.InviteResponse_Ok
-	err := g.groupService.Invite(ctx, params.RealmID, params.Inviter, params.Invited, params.InviterName, params.InvitedName)
+	err := g.groupService.Invite(
+		ctx,
+		params.RealmID,
+		params.Inviter,
+		params.Invited,
+		params.InviterName,
+		params.InvitedName,
+		params.InviterMapID,
+		params.InviterGameServerID,
+	)
 	if err != nil {
 		switch {
 		case errors.Is(err, service.ErrAlreadyInGroup):

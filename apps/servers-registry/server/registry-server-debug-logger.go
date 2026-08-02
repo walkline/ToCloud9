@@ -29,6 +29,19 @@ func (s *serversRegistryDebugLoggerMiddleware) RegisterGameServer(ctx context.Co
 	return s.realService.RegisterGameServer(ctx, request)
 }
 
+func (s *serversRegistryDebugLoggerMiddleware) BindGroupToGameServer(ctx context.Context, request *pb.BindGroupToGameServerRequest) (*pb.BindGroupToGameServerResponse, error) {
+	return s.realService.BindGroupToGameServer(ctx, request)
+}
+func (s *serversRegistryDebugLoggerMiddleware) GetMapLayerConfiguration(ctx context.Context, request *pb.GetMapLayerConfigurationRequest) (*pb.GetMapLayerConfigurationResponse, error) {
+	return s.realService.GetMapLayerConfiguration(ctx, request)
+}
+func (s *serversRegistryDebugLoggerMiddleware) UpdateMapLayerConfiguration(ctx context.Context, request *pb.UpdateMapLayerConfigurationRequest) (*pb.UpdateMapLayerConfigurationResponse, error) {
+	return s.realService.UpdateMapLayerConfiguration(ctx, request)
+}
+func (s *serversRegistryDebugLoggerMiddleware) GetLayerStats(ctx context.Context, request *pb.GetLayerStatsRequest) (*pb.GetLayerStatsResponse, error) {
+	return s.realService.GetLayerStats(ctx, request)
+}
+
 func (s *serversRegistryDebugLoggerMiddleware) AvailableGameServersForMapAndRealm(ctx context.Context, request *pb.AvailableGameServersForMapAndRealmRequest) (resp *pb.AvailableGameServersForMapAndRealmResponse, err error) {
 	defer func(t time.Time) {
 		event := s.logger.Debug().

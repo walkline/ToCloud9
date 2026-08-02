@@ -74,6 +74,7 @@ type AuthSession struct {
 	srp            *srp6.SRP6
 	status         Status
 	account        *repo.Account
+	locale         uint8
 	reconnectProof []byte
 }
 
@@ -282,6 +283,8 @@ func (s *AuthSession) HandleLogonChallenge() error {
 	s.logger = s.logger.With().Str("login", username).Logger()
 	s.logger.Debug().Interface("payload", &d).Msg("Received login challenge")
 
+	s.locale = localeFromChallengeCountry(d.Country)
+
 	s.account, err = s.accountRepo.AccountByUserName(context.TODO(), username)
 	if err != nil {
 		return err
@@ -339,6 +342,7 @@ func (s *AuthSession) HandleLogonProof() error {
 	}
 
 	s.account.SessionKeyAuth = K
+	s.account.Locale = s.locale
 	err = s.accountRepo.UpdateAccount(context.TODO(), s.account)
 	if err != nil {
 		return err

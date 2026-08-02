@@ -23,9 +23,9 @@ RUN apt-get update && \
 COPY api/proto /api/proto
 COPY game-server/libsidecar-cpp /build/libsidecar-cpp
 
-# Build libsidecar-cpp
+# Build libsidecar-cpp (clean tree — never reuse a host CMake cache)
 WORKDIR /build/libsidecar-cpp
-RUN mkdir -p build && cd build && \
+RUN rm -rf build && mkdir build && cd build && \
     cmake .. \
         -DCMAKE_BUILD_TYPE=Release \
         -DBUILD_TESTS=OFF \
@@ -54,7 +54,15 @@ RUN cd repo && git init && \
     git fetch --depth 1 origin dbfeb1d45daf1f09bf2bdb43f86e0009da2fbcf2  && \
     git checkout FETCH_HEAD
 
+COPY game-server/azerothcore/patches /tmp/azerothcore-patches
+RUN cd /repo && \
+    git apply --check /tmp/azerothcore-patches/*.patch && \
+    git apply /tmp/azerothcore-patches/*.patch
+
+# Shared library (unversioned name; ABI is in tc9_version.h / TC9GetVersion)
 COPY --from=build-sidecar /build/libsidecar-cpp/build/libsidecar.so ./repo/deps/libsidecar/libsidecar.so
+
+# Public C API headers + generated version header (same build as the .so)
 COPY --from=build-sidecar /build/libsidecar-cpp/include/libsidecar.h ./repo/deps/libsidecar/include/libsidecar.h
 COPY --from=build-sidecar /build/libsidecar-cpp/include/events-guild.h ./repo/deps/libsidecar/include/events-guild.h
 COPY --from=build-sidecar /build/libsidecar-cpp/include/events-group.h ./repo/deps/libsidecar/include/events-group.h
@@ -64,6 +72,7 @@ COPY --from=build-sidecar /build/libsidecar-cpp/include/player-money-api.h ./rep
 COPY --from=build-sidecar /build/libsidecar-cpp/include/player-interactions-api.h ./repo/deps/libsidecar/include/player-interactions-api.h
 COPY --from=build-sidecar /build/libsidecar-cpp/include/battleground-api.h ./repo/deps/libsidecar/include/battleground-api.h
 COPY --from=build-sidecar /build/libsidecar-cpp/include/monitoring.h ./repo/deps/libsidecar/include/monitoring.h
+COPY --from=build-sidecar /build/libsidecar-cpp/build/generated/include/tc9_version.h ./repo/deps/libsidecar/include/tc9_version.h
 
 WORKDIR /repo
 
@@ -97,7 +106,7 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/*
 
 
-COPY --from=build-sidecar /build/libsidecar-cpp/build/libsidecar.so* /usr/lib/
+COPY --from=build-sidecar /build/libsidecar-cpp/build/libsidecar.so /usr/lib/libsidecar.so
 
 # The paths are hardcoded in the binary
 COPY --from=build-core /repo/data /repo/data
@@ -119,7 +128,7 @@ RUN apt-get update && \
       gettext-base default-mysql-client && \
     rm -rf /var/lib/apt/lists/*
 
-COPY --from=build-sidecar /build/libsidecar-cpp/build/libsidecar.so* /usr/lib/
+COPY --from=build-sidecar /build/libsidecar-cpp/build/libsidecar.so /usr/lib/libsidecar.so
 
 COPY --from=build-core /repo/bin/etc/worldserver.conf.dist /repo/bin/etc/worldserver.conf
 COPY --from=build-core /repo/bin/bin/worldserver /repo/bin/worldserver

@@ -242,6 +242,8 @@ func (s *GameSession) handleCommandMsgIfNeeded(ctx context.Context, msg string) 
 		switch strings.ToLower(args[1]) {
 		case "list", "ls":
 			return true, s.handleCommandMsgListGameServers(ctx)
+		case "switch":
+			return true, s.handleCommandMsgSwitchGameServer(ctx, args[2:])
 		default:
 			s.SendSysMessage("unk subcommand")
 		}
@@ -264,7 +266,86 @@ func (s *GameSession) handleCommandMsgIfNeeded(ctx context.Context, msg string) 
 	return true, nil
 }
 
+func (s *GameSession) handleCommandMsgSwitchGameServer(ctx context.Context, args []string) error {
+	if s.character == nil {
+		return nil
+	}
+	if len(args) != 1 {
+		s.SendSysMessage("Usage: .tc9 ws switch <gameserver-alias-or-address>")
+		return nil
+	}
+	target := strings.TrimSpace(args[0])
+	if target == "" {
+		s.SendSysMessage("Gameserver alias or address is required.")
+		return nil
+	}
+	server, err := s.selectLayerGameServer(ctx, 0, target)
+	if err != nil {
+		return err
+	}
+	if server == nil {
+		s.SendSysMessage("That gameserver is not assigned to this map.")
+		return nil
+	}
+	label := server.Alias
+	if label == "" {
+		label = server.Address
+	}
+	if server.ID == s.currentGameServerID {
+		s.SendSysMessage(fmt.Sprintf("You are already on %s.", label))
+		return nil
+	}
+	s.SendSysMessage(fmt.Sprintf("Switching to %s.", label))
+	if err := s.redirectToSelectedLayer(ctx, server); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *GameSession) sendLayerConfiguration(ctx context.Context) error {
+	configuration, err := s.serversRegistryClient.GetMapLayerConfiguration(ctx, &pbServ.GetMapLayerConfigurationRequest{
+		Api: root.SupportedServerRegistryVer, RealmID: root.RealmID,
+	})
+	if err != nil {
+		return err
+	}
+	s.SendSysMessage(fmt.Sprintf("Layering configuration: %d configured maps.", len(configuration.Maps)))
+	for _, configuredMap := range configuration.Maps {
+		stats, statsErr := s.serversRegistryClient.GetLayerStats(ctx, &pbServ.GetLayerStatsRequest{
+			Api: root.SupportedServerRegistryVer, RealmID: root.RealmID, MapID: configuredMap.MapID,
+		})
+		if statsErr != nil {
+			return statsErr
+		}
+		marker := ""
+		if s.character != nil && configuredMap.MapID == s.character.Map {
+			marker = " (current map)"
+		}
+		s.SendSysMessage(fmt.Sprintf("Map %d: %d configured layers%s", configuredMap.MapID, configuredMap.LayerCount, marker))
+		for _, layer := range stats.Layers {
+			layerMarker := ""
+			if s.character != nil && configuredMap.MapID == s.character.Map && layer.GameServerAlias == s.currentGameServerAlias {
+				layerMarker = " (you)"
+			}
+			alias := layer.GameServerAlias
+			if alias == "" {
+				alias = layer.Address
+			}
+			s.SendSysMessage(fmt.Sprintf("  %s%s", alias, layerMarker))
+		}
+		for unavailable := len(stats.Layers); unavailable < int(configuredMap.LayerCount); unavailable++ {
+			s.SendSysMessage("  (unavailable)")
+		}
+	}
+	s.SendSysMessage(" ")
+	return nil
+}
+
 func (s *GameSession) handleCommandMsgListGameServers(ctx context.Context) error {
+	if err := s.sendLayerConfiguration(ctx); err != nil {
+		return err
+	}
+
 	resp, err := s.serversRegistryClient.ListAllGameServers(ctx, &pbServ.ListAllGameServersRequest{
 		Api: root.SupportedServerRegistryVer,
 	})
@@ -299,7 +380,11 @@ func (s *GameSession) handleCommandMsgListGameServers(ctx context.Context) error
 			isCurrentlyUsing = true
 		}
 
-		s.SendSysMessage(fmt.Sprintf("> Node address: %s.", server.Address))
+		if server.Alias != "" {
+			s.SendSysMessage(fmt.Sprintf("> Node address: %s (%s).", server.Address, server.Alias))
+		} else {
+			s.SendSysMessage(fmt.Sprintf("> Node address: %s.", server.Address))
+		}
 		s.SendSysMessage(fmt.Sprintf("  Available maps: %s.", mapsAvailable))
 		s.SendSysMessage(fmt.Sprintf("  Assigned maps: %s.", assignedMaps))
 		s.SendSysMessage(fmt.Sprintf("  Active connections: %d.", server.ActiveConnections))
