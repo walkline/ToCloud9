@@ -36,6 +36,9 @@ const (
 	// StmtUpdateGuildInfo updates guilds info message.
 	StmtUpdateGuildInfo
 
+	// StmtUpdateGuildEmblem updates guild tabard emblem fields.
+	StmtUpdateGuildEmblem
+
 	// StmtUpdateGuildRank updates guilds rank.
 	StmtUpdateGuildRank
 
@@ -80,6 +83,8 @@ func (s CharsPreparedStatements) Stmt() string {
 		return "UPDATE guild_member SET `rank` = ? WHERE guid = ?"
 	case StmtUpdateGuildInfo:
 		return "UPDATE guild SET info = ? WHERE guildid = ?"
+	case StmtUpdateGuildEmblem:
+		return "UPDATE guild SET EmblemStyle = ?, EmblemColor = ?, BorderStyle = ?, BorderColor = ?, BackgroundColor = ? WHERE guildid = ?"
 	case StmtUpdateGuildRank:
 		return "UPDATE guild_rank SET rname = ?, rights = ?, BankMoneyPerDay = ? WHERE rid = ? AND guildid = ?"
 	case StmtAddGuildRank:

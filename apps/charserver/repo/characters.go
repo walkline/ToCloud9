@@ -26,7 +26,8 @@ type LogInCharacter struct {
 	PositionY float32
 	PositionZ float32
 
-	GuildID uint32
+	GuildID   uint32
+	GuildRank uint8
 
 	PlayerFlags  uint32
 	AtLoginFlags uint16

@@ -65,6 +65,10 @@ type Config struct {
 	// AllowCrossFactionGuilds mirrors the world server config AllowTwoSide.Interaction.Guild.
 	// Keep it in sync with the game servers, the gateway cannot read their config.
 	AllowCrossFactionGuilds bool `yaml:"allowCrossFactionGuilds" env:"ALLOW_CROSS_FACTION_GUILDS" env-default:"false"`
+
+	// GuildCharterCost is the guild charter buy price in copper. Mirror world
+	// CONFIG_CHARTER_COST_GUILD / CharterCost.Guild (default 1000).
+	GuildCharterCost uint32 `yaml:"guildCharterCost" env:"GUILD_CHARTER_COST" env-default:"1000"`
 }
 
 func (c Config) PortInt() (p int) {

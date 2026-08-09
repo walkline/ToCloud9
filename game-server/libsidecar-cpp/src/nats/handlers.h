@@ -19,9 +19,10 @@ std::unique_ptr<Handler> CreateGroupConvertedToRaidHandler(const std::string& da
 
 // Guild event handler factories
 std::unique_ptr<Handler> CreateGuildMemberAddedHandler(const std::string& data, uint32_t realm_id);
-std::unique_ptr<Handler> CreateGuildCreatedHandler(const std::string& data, uint32_t realm_id);
 std::unique_ptr<Handler> CreateGuildMemberLeftHandler(const std::string& data, uint32_t realm_id);
 std::unique_ptr<Handler> CreateGuildMemberRemovedHandler(const std::string& data, uint32_t realm_id);
+// Dispatches OnGuildCreated only; does not mirror into sGuildMgr.
+std::unique_ptr<Handler> CreateGuildCreatedHandler(const std::string& data, uint32_t realm_id);
 
 // Registry event handler factory
 std::unique_ptr<Handler> CreateMapsReassignedHandler(const std::string& data, const std::string& own_server_id);

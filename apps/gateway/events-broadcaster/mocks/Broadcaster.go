@@ -203,6 +203,21 @@ func (_m *Broadcaster) NewMatchmakingJoinedPVPQueueEvent(payload *events.Matchma
 	_m.Called(payload)
 }
 
+// NewPetitionDeclinedEvent provides a mock function with given fields: payload
+func (_m *Broadcaster) NewPetitionDeclinedEvent(payload *events_broadcaster.PetitionDeclinedPayload) {
+	_m.Called(payload)
+}
+
+// NewPetitionOfferedEvent provides a mock function with given fields: payload
+func (_m *Broadcaster) NewPetitionOfferedEvent(payload *events_broadcaster.PetitionOfferedPayload) {
+	_m.Called(payload)
+}
+
+// NewPetitionSignResultEvent provides a mock function with given fields: payload
+func (_m *Broadcaster) NewPetitionSignResultEvent(payload *events_broadcaster.PetitionSignResultPayload) {
+	_m.Called(payload)
+}
+
 // RegisterCharacter provides a mock function with given fields: charGUID
 func (_m *Broadcaster) RegisterCharacter(charGUID uint64) <-chan events_broadcaster.Event {
 	ret := _m.Called(charGUID)

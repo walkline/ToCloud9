@@ -268,6 +268,20 @@ func (_m *GuildsRepo) SetMessageOfTheDay(ctx context.Context, realmID uint32, gu
 	return r0
 }
 
+// SetGuildEmblem provides a mock function with given fields: ctx, realmID, guildID, emblem
+func (_m *GuildsRepo) SetGuildEmblem(ctx context.Context, realmID uint32, guildID uint64, emblem repo.GuildEmblem) error {
+	ret := _m.Called(ctx, realmID, guildID, emblem)
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, uint32, uint64, repo.GuildEmblem) error); ok {
+		r0 = rf(ctx, realmID, guildID, emblem)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
 // UpdateGuildRank provides a mock function with given fields: ctx, realmID, guildID, rank, name, rights, moneyPerDay
 func (_m *GuildsRepo) UpdateGuildRank(ctx context.Context, realmID uint32, guildID uint64, rank uint8, name string, rights uint32, moneyPerDay uint32) error {
 	ret := _m.Called(ctx, realmID, guildID, rank, name, rights, moneyPerDay)

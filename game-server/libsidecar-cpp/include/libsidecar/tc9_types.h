@@ -19,6 +19,7 @@ typedef enum TC9ErrorCode {
     TC9_ERROR_UNKNOWN_TEMPLATE = 5,
     TC9_ERROR_FAILED_TO_CREATE_ITEM = 6,
     TC9_ERROR_CONNECTION_FAILED = 7,
+    TC9_ERROR_ITEM_NOT_FOUND = 8,
     TC9_ERROR_UNKNOWN = 99
 } TC9ErrorCode;
 
@@ -107,7 +108,7 @@ typedef TC9GetPlayerItemsResponse (*TC9GetPlayerItemsByGuidsHandler)(
     int itemGuidsSize
 );
 
-/* Remove items from player */
+/* Remove items from player (reassign owner; does not permanently destroy) */
 typedef TC9RemoveItemsResponse (*TC9RemoveItemsWithGuidsFromPlayerHandler)(
     uint64_t playerGuid,
     uint64_t* itemGuids,
@@ -115,11 +116,55 @@ typedef TC9RemoveItemsResponse (*TC9RemoveItemsWithGuidsFromPlayerHandler)(
     uint64_t assignToPlayerGuid
 );
 
+/* Destroy items permanently (inventory + item_instance) */
+typedef struct TC9DestroyItemsResponse {
+    int errorCode;
+    uint64_t* destroyedItems;  /* Array of destroyed item GUIDs, caller must free */
+    int destroyedItemsSize;
+} TC9DestroyItemsResponse;
+
+typedef TC9DestroyItemsResponse (*TC9DestroyItemsWithGuidsFromPlayerHandler)(
+    uint64_t playerGuid,
+    uint64_t* itemGuids,
+    int itemGuidsSize
+);
+
 /* Add existing item to player */
 typedef TC9ErrorCode (*TC9AddExistingItemToPlayerHandler)(
     uint64_t playerGuid,
     TC9ItemToAdd* item
 );
+
+/* StoreNewItem request/response (create template item + optional enchantments). */
+typedef struct TC9StoreNewItemRequest {
+    uint64_t playerGuid;
+    uint32_t itemEntry;
+    uint32_t count;
+    uint32_t* enchantmentIDs; /* slot i → ITEM_FIELD_ENCHANTMENT_1_1 + i*3; caller owns; 0 skips slot */
+    int enchantmentIDsSize;
+} TC9StoreNewItemRequest;
+
+typedef struct TC9StoreNewItemResponse {
+    int errorCode;
+    uint64_t itemGuid;
+} TC9StoreNewItemResponse;
+
+typedef TC9StoreNewItemResponse (*TC9StoreNewItemHandler)(TC9StoreNewItemRequest* request);
+
+/* Set permanent enchantment on a player-owned item. */
+typedef struct TC9SetItemPermanentEnchantmentRequest {
+    uint64_t playerGuid;
+    uint64_t itemGuid;
+    uint32_t slot;
+    uint32_t enchantmentId;
+} TC9SetItemPermanentEnchantmentRequest;
+
+typedef struct TC9SetItemPermanentEnchantmentResponse {
+    int errorCode;
+} TC9SetItemPermanentEnchantmentResponse;
+
+typedef TC9SetItemPermanentEnchantmentResponse (*TC9SetItemPermanentEnchantmentHandler)(
+    TC9SetItemPermanentEnchantmentRequest* request);
 
 /* Get money for player */
 typedef uint32_t (*TC9GetMoneyForPlayerHandler)(
@@ -169,33 +214,6 @@ typedef TC9ErrorCode (*TC9CanPlayerJoinBattlegroundQueueHandler)(
 /* Can player teleport to battleground */
 typedef TC9ErrorCode (*TC9CanPlayerTeleportToBattlegroundHandler)(
     uint64_t playerGuid
-);
-
-/* Guild petition validation statuses, mirrors GuildPetitionCheckStatus of petition-api.h */
-typedef enum TC9GuildPetitionCheckStatus {
-    TC9GuildPetitionCheckStatusOk                 = 0,
-    TC9GuildPetitionCheckStatusNoHandler          = 1,
-    TC9GuildPetitionCheckStatusPlayerNotFound     = 2,
-    TC9GuildPetitionCheckStatusPetitionNotFound   = 3,
-    TC9GuildPetitionCheckStatusNotPetitionOwner   = 4,
-    TC9GuildPetitionCheckStatusNotGuildPetition   = 5,
-    TC9GuildPetitionCheckStatusAlreadyInGuild     = 6,
-    TC9GuildPetitionCheckStatusNeedMoreSignatures = 7,
-} TC9GuildPetitionCheckStatus;
-
-typedef struct {
-    int status;
-    /* Allocated with malloc by the handler, freed by the caller. */
-    char* guildName;
-    /* Allocated with malloc by the handler, freed by the caller. */
-    uint64_t* signatoryGUIDs;
-    int signatoryGUIDsSize;
-} TC9GuildPetitionValidationResult;
-
-/* Validate a guild petition turn-in on the worldserver side */
-typedef TC9GuildPetitionValidationResult (*TC9CanTurnInGuildPetitionHandler)(
-    uint64_t playerGuid,
-    uint64_t petitionItemGuid
 );
 
 /* Monitoring error codes */

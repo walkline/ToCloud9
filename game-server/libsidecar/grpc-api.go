@@ -34,7 +34,10 @@ func SetupGRPCService(conf *config.Config) (net.Listener, *grpc.Server) {
 			grpcapi.CppBindings{
 				GetPlayerItemsByGuids:           GetPlayerItemsByGuidHandler,
 				RemoveItemsWithGuidsFromPlayer:  RemoveItemsWithGuidsFromPlayerHandler,
+				DestroyItemsWithGuidsFromPlayer: DestroyItemsWithGuidsFromPlayerHandler,
 				AddExistingItemToPlayer:         AddExistingItemToPlayerHandler,
+				StoreNewItem:                    StoreNewItemHandler,
+				SetItemPermanentEnchantment:     SetItemPermanentEnchantmentHandler,
 				GetMoneyForPlayer:               GetMoneyForPlayerHandler,
 				ModifyMoneyForPlayer:            ModifyMoneyForPlayerHandler,
 				CanPlayerInteractWithNPC:        CanPlayerInteractWithNPCAndFlagsHandler,
@@ -43,7 +46,6 @@ func SetupGRPCService(conf *config.Config) (net.Listener, *grpc.Server) {
 				AddPlayersToBattleground:        BattlegroundAddPlayersHandler,
 				CanPlayerJoinBattlegroundQueue:  CanPlayerJoinBattlegroundQueueHandler,
 				CanPlayerTeleportToBattleground: CanPlayerTeleportToBattlegroundHandler,
-				CanTurnInGuildPetition:          CanTurnInGuildPetitionHandler,
 			},
 			time.Second*5,
 			readRequestsQueue,

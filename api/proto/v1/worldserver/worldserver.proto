@@ -8,8 +8,15 @@ option go_package = "gen/worldserver/pb";
 service WorldServerService {
   // Items
   rpc GetPlayerItemsByGuids(GetPlayerItemsByGuidsRequest) returns (GetPlayerItemsByGuidsResponse);
+  // RemoveItems reassigns inventory ownership (mail/AH). AssignToPlayerGuid=0 does not destroy item_instance — use DestroyItems.
   rpc RemoveItemsWithGuidsFromPlayer(RemoveItemsWithGuidsFromPlayerRequest) returns (RemoveItemsWithGuidsFromPlayerResponse);
+  // DestroyItems permanently destroys items (Player::DestroyItem).
+  rpc DestroyItemsWithGuidsFromPlayer(DestroyItemsWithGuidsFromPlayerRequest) returns (DestroyItemsWithGuidsFromPlayerResponse);
   rpc AddExistingItemToPlayer(AddExistingItemToPlayerRequest) returns (AddExistingItemToPlayerResponse);
+  // StoreNewItem creates a template item (optional literal permanent enchantment ids).
+  rpc StoreNewItem(StoreNewItemRequest) returns (StoreNewItemResponse);
+  // SetItemPermanentEnchantment sets ITEM_FIELD_ENCHANTMENT_1_1 + slot*3 on a player-owned item.
+  rpc SetItemPermanentEnchantment(SetItemPermanentEnchantmentRequest) returns (SetItemPermanentEnchantmentResponse);
 
   // Money
   rpc GetMoneyForPlayer(GetMoneyForPlayerRequest) returns (GetMoneyForPlayerResponse);
@@ -24,9 +31,6 @@ service WorldServerService {
   rpc AddPlayersToBattleground(AddPlayersToBattlegroundRequest) returns (AddPlayersToBattlegroundResponse);
   rpc CanPlayerJoinBattlegroundQueue(CanPlayerJoinBattlegroundQueueRequest) returns (CanPlayerJoinBattlegroundQueueResponse);
   rpc CanPlayerTeleportToBattleground(CanPlayerTeleportToBattlegroundRequest) returns (CanPlayerTeleportToBattlegroundResponse);
-
-  // Petitions
-  rpc CanTurnInGuildPetition(CanTurnInGuildPetitionRequest) returns (CanTurnInGuildPetitionResponse);
 }
 
 // GetPlayerItemsByGuids
@@ -72,6 +76,21 @@ message RemoveItemsWithGuidsFromPlayerResponse {
   repeated uint64 updatedItemsGuids = 2;
 }
 
+// DestroyItemsWithGuidsFromPlayer
+message DestroyItemsWithGuidsFromPlayerRequest {
+  string api = 1;
+
+  uint64 playerGuid = 2;
+  repeated uint64 guids = 3;
+}
+
+message DestroyItemsWithGuidsFromPlayerResponse {
+  string api = 1;
+
+  // GUIDs that were found on the player and destroyed.
+  repeated uint64 destroyedItemsGuids = 2;
+}
+
 // AddExistingItemToPlayer
 message AddExistingItemToPlayerRequest {
   string api = 1;
@@ -96,6 +115,54 @@ message AddExistingItemToPlayerResponse {
   enum Status {
     Success = 0;
     NoSpace = 1;
+  }
+
+  Status status = 2;
+}
+
+// StoreNewItem
+message StoreNewItemRequest {
+  string api = 1;
+  uint64 playerGuid = 2;
+  uint32 itemEntry = 3;
+  uint32 count = 4;
+  // Permanent enchantment ids by slot (0 = ITEM_FIELD_ENCHANTMENT_1_1). Applied as-is; 0 skips the slot.
+  repeated uint32 enchantmentIDs = 5;
+}
+
+message StoreNewItemResponse {
+  string api = 1;
+
+  enum Status {
+    Ok = 0;
+    PlayerNotFound = 1;
+    NoSpace = 2;
+    UnknownTemplate = 3;
+    Failed = 4;
+  }
+
+  Status status = 2;
+  uint64 itemGuid = 3;
+}
+
+// SetItemPermanentEnchantment
+message SetItemPermanentEnchantmentRequest {
+  string api = 1;
+  uint64 playerGuid = 2;
+  uint64 itemGuid = 3;
+  // Enchantment slot index (0 = ITEM_FIELD_ENCHANTMENT_1_1).
+  uint32 slot = 4;
+  uint32 enchantmentId = 5;
+}
+
+message SetItemPermanentEnchantmentResponse {
+  string api = 1;
+
+  enum Status {
+    Ok = 0;
+    PlayerNotFound = 1;
+    ItemNotFound = 2;
+    Failed = 3;
   }
 
   Status status = 2;
@@ -245,28 +312,3 @@ message CanPlayerTeleportToBattlegroundResponse {
   Status status = 2;
 }
 
-// CanTurnInGuildPetition
-message CanTurnInGuildPetitionRequest {
-  string api = 1;
-
-  uint64 playerGUID = 2;
-  uint64 petitionItemGUID = 3;
-}
-
-message CanTurnInGuildPetitionResponse {
-  string api = 1;
-
-  enum Status {
-    Ok = 0;
-    PlayerNotFound = 1;
-    PetitionNotFound = 2;
-    NotPetitionOwner = 3;
-    NotGuildPetition = 4;
-    AlreadyInGuild = 5;
-    NeedMoreSignatures = 6;
-  }
-
-  Status status = 2;
-  string guildName = 3;
-  repeated uint64 signatoryGUIDs = 4;
-}

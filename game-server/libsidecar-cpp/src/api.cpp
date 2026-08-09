@@ -27,6 +27,7 @@
 #include <spdlog/spdlog.h>
 #include <memory>
 #include <cstring>
+#include <cstdlib>
 
 namespace {
 
@@ -476,6 +477,41 @@ TC9_API void TC9SetRemoveItemsWithGuidsFromPlayerHandler(RemoveItemsWithGuidsFro
     spdlog::debug("RemoveItemsWithGuidsFromPlayer handler registered");
 }
 
+TC9_API void TC9SetDestroyItemsWithGuidsFromPlayerHandler(DestroyItemsWithGuidsFromPlayerHandler handler) {
+    static DestroyItemsWithGuidsFromPlayerHandler stored_handler = nullptr;
+    stored_handler = handler;
+
+    g_state.bindings.destroy_items = [](uint64_t playerGuid, uint64_t* itemGuids, int itemGuidsSize) -> TC9DestroyItemsResponse {
+        if (stored_handler) {
+            DestroyItemsWithGuidsFromPlayerResponse old_resp = stored_handler(playerGuid, itemGuids, itemGuidsSize);
+
+            TC9DestroyItemsResponse resp;
+            resp.errorCode = old_resp.errorCode;
+            resp.destroyedItemsSize = old_resp.destroyedItemsSize;
+
+            if (old_resp.destroyedItemsSize > 0 && old_resp.destroyedItems) {
+                // worldserver_service frees with free()
+                resp.destroyedItems = static_cast<uint64_t*>(std::malloc(
+                    static_cast<size_t>(old_resp.destroyedItemsSize) * sizeof(uint64_t)));
+                std::memcpy(resp.destroyedItems, old_resp.destroyedItems,
+                            static_cast<size_t>(old_resp.destroyedItemsSize) * sizeof(uint64_t));
+                // Handler may have malloc'd; free if it did
+                free(old_resp.destroyedItems);
+            } else {
+                resp.destroyedItems = nullptr;
+            }
+
+            return resp;
+        }
+
+        TC9DestroyItemsResponse resp{};
+        resp.errorCode = TC9_ERROR_NO_HANDLER;
+        return resp;
+    };
+
+    spdlog::debug("DestroyItemsWithGuidsFromPlayer handler registered");
+}
+
 TC9_API void TC9SetAddExistingItemToPlayerHandler(AddExistingItemToPlayerHandler handler) {
     static AddExistingItemToPlayerHandler stored_handler = nullptr;
     stored_handler = handler;
@@ -498,6 +534,96 @@ TC9_API void TC9SetAddExistingItemToPlayerHandler(AddExistingItemToPlayerHandler
     };
 
     spdlog::debug("AddExistingItemToPlayer handler registered");
+}
+
+TC9_API void TC9SetStoreNewItemHandler(StoreNewItemHandler handler) {
+    static StoreNewItemHandler stored_handler = nullptr;
+    stored_handler = handler;
+
+    g_state.bindings.store_new_item = [](TC9StoreNewItemRequest* request) -> TC9StoreNewItemResponse {
+        if (stored_handler && request) {
+            StoreNewItemRequest old_req;
+            old_req.playerGuid = request->playerGuid;
+            old_req.itemEntry = request->itemEntry;
+            old_req.count = request->count;
+            old_req.enchantmentIDs = request->enchantmentIDs;
+            old_req.enchantmentIDsSize = request->enchantmentIDsSize;
+
+            StoreNewItemResponse old_resp = stored_handler(&old_req);
+            TC9StoreNewItemResponse resp;
+            resp.itemGuid = old_resp.itemGuid;
+            switch (old_resp.errorCode) {
+                case PlayerItemErrorCodeNoError:
+                    resp.errorCode = TC9_ERROR_SUCCESS;
+                    break;
+                case PlayerItemErrorCodeNoHandler:
+                    resp.errorCode = TC9_ERROR_NO_HANDLER;
+                    break;
+                case PlayerItemErrorCodePlayerNotFound:
+                    resp.errorCode = TC9_ERROR_PLAYER_NOT_FOUND;
+                    break;
+                case PlayerItemErrorNoInventorySpace:
+                    resp.errorCode = TC9_ERROR_NO_INVENTORY_SPACE;
+                    break;
+                case PlayerItemErrorUnknownTemplate:
+                    resp.errorCode = TC9_ERROR_UNKNOWN_TEMPLATE;
+                    break;
+                case PlayerItemErrorFailedToCreateItem:
+                default:
+                    resp.errorCode = TC9_ERROR_FAILED_TO_CREATE_ITEM;
+                    break;
+            }
+            return resp;
+        }
+
+        TC9StoreNewItemResponse resp{};
+        resp.errorCode = TC9_ERROR_NO_HANDLER;
+        resp.itemGuid = 0;
+        return resp;
+    };
+
+    spdlog::debug("StoreNewItem handler registered");
+}
+
+TC9_API void TC9SetSetItemPermanentEnchantmentHandler(SetItemPermanentEnchantmentHandler handler) {
+    static SetItemPermanentEnchantmentHandler stored_handler = nullptr;
+    stored_handler = handler;
+
+    g_state.bindings.set_item_permanent_enchantment = [](TC9SetItemPermanentEnchantmentRequest* request) -> TC9SetItemPermanentEnchantmentResponse {
+        TC9SetItemPermanentEnchantmentResponse resp{};
+        if (!stored_handler || !request) {
+            resp.errorCode = TC9_ERROR_NO_HANDLER;
+            return resp;
+        }
+
+        SetItemPermanentEnchantmentRequest old_req;
+        old_req.playerGuid = request->playerGuid;
+        old_req.itemGuid = request->itemGuid;
+        old_req.slot = request->slot;
+        old_req.enchantmentId = request->enchantmentId;
+
+        SetItemPermanentEnchantmentResponse old_resp = stored_handler(&old_req);
+        switch (old_resp.errorCode) {
+            case PlayerItemErrorCodeNoError:
+                resp.errorCode = TC9_ERROR_SUCCESS;
+                break;
+            case PlayerItemErrorCodeNoHandler:
+                resp.errorCode = TC9_ERROR_NO_HANDLER;
+                break;
+            case PlayerItemErrorCodePlayerNotFound:
+                resp.errorCode = TC9_ERROR_PLAYER_NOT_FOUND;
+                break;
+            case PlayerItemErrorItemNotFound:
+                resp.errorCode = TC9_ERROR_ITEM_NOT_FOUND;
+                break;
+            default:
+                resp.errorCode = TC9_ERROR_UNKNOWN;
+                break;
+        }
+        return resp;
+    };
+
+    spdlog::debug("SetItemPermanentEnchantment handler registered");
 }
 
 TC9_API void TC9SetGetMoneyForPlayerHandler(GetMoneyForPlayerHandler handler) {
@@ -663,28 +789,6 @@ TC9_API void TC9SetCanPlayerTeleportToBattlegroundHandler(CanPlayerTeleportToBat
     };
 
     spdlog::debug("CanPlayerTeleportToBattleground handler registered");
-}
-
-TC9_API void TC9SetCanTurnInGuildPetitionHandler(CanTurnInGuildPetitionHandler handler) {
-    static CanTurnInGuildPetitionHandler stored_handler = nullptr;
-    stored_handler = handler;
-
-    g_state.bindings.can_turn_in_guild_petition = [](uint64_t playerGuid, uint64_t petitionItemGuid) -> TC9GuildPetitionValidationResult {
-        TC9GuildPetitionValidationResult out{};
-        if (stored_handler) {
-            GuildPetitionValidationResult r = stored_handler(playerGuid, petitionItemGuid);
-            out.status = r.status;
-            out.guildName = r.guildName;
-            out.signatoryGUIDs = r.signatoryGUIDs;
-            out.signatoryGUIDsSize = r.signatoryGUIDsSize;
-            return out;
-        }
-
-        out.status = TC9GuildPetitionCheckStatusNoHandler;
-        return out;
-    };
-
-    spdlog::debug("CanTurnInGuildPetition handler registered");
 }
 
 // GUID generation functions

@@ -109,6 +109,9 @@ func (c *natsConsumer) Start() error {
 
 	c.subs = append(c.subs, sub)
 
+	// guild.created: dispatch OnGuildCreated for custom world hooks. Product
+	// guild state (roster/UI) stays on gateway + guildserver — do not mirror
+	// into sGuildMgr from this path.
 	sub, err = c.nc.Subscribe(events.GuildEventGuildCreated.SubjectName(), func(msg *nats.Msg) {
 		p := events.GuildEventGuildCreatedPayload{}
 		_, err := events.Unmarshal(msg.Data, &p)
@@ -121,8 +124,7 @@ func (c *natsConsumer) Start() error {
 			return
 		}
 
-		handler := c.guildHandlersFabric.GuildCreatedHandler(&p)
-		c.queue.Push(handler)
+		c.queue.Push(c.guildHandlersFabric.GuildCreatedHandler(&p))
 	})
 	if err != nil {
 		return err

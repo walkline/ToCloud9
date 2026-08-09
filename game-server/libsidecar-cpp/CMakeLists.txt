@@ -19,7 +19,7 @@ if(DEFINED VCPKG_TARGET_TRIPLET)
     endif()
 endif()
 
-project(libsidecar VERSION 1.0.0 LANGUAGES C CXX)
+project(libsidecar VERSION 1.1.0 LANGUAGES C CXX)
 
 # C++ Standard
 set(CMAKE_CXX_STANDARD 17)

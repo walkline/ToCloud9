@@ -50,6 +50,9 @@ const (
 	EventTypeChannelJoined
 	EventTypeChannelLeft
 	EventTypeChannelNotification
+	EventTypePetitionSignResult
+	EventTypePetitionOffered
+	EventTypePetitionDeclined
 )
 
 type IncomingWhisperPayload struct {
@@ -116,6 +119,29 @@ type GuildInviteCreatedPayload struct {
 	InviteeName string
 }
 
+type PetitionSignResultPayload struct {
+	RealmID          uint32
+	PetitionItemGUID uint64
+	OwnerGUID        uint64
+	SignerGUID       uint64
+	Result           uint32
+}
+
+type PetitionOfferedPayload struct {
+	RealmID          uint32
+	PetitionItemGUID uint64
+	OwnerGUID        uint64
+	PetitionID       uint32
+	TargetGUID       uint64
+	SignatoryGUIDs   []uint64
+}
+
+type PetitionDeclinedPayload struct {
+	RealmID    uint32
+	OwnerGUID  uint64
+	SignerGUID uint64
+}
+
 type Event struct {
 	Type    EventType
 	Payload interface{}
@@ -167,6 +193,10 @@ type Broadcaster interface {
 	NewChannelJoinedEvent(payload *ChannelJoinedPayload)
 	NewChannelLeftEvent(payload *ChannelLeftPayload)
 	NewChannelNotificationEvent(payload *ChannelNotificationPayload)
+
+	NewPetitionSignResultEvent(payload *PetitionSignResultPayload)
+	NewPetitionOfferedEvent(payload *PetitionOfferedPayload)
+	NewPetitionDeclinedEvent(payload *PetitionDeclinedPayload)
 }
 
 type broadcasterImpl struct {
@@ -610,6 +640,45 @@ func (b *broadcasterImpl) NewChannelNotificationEvent(payload *ChannelNotificati
 		Type:    EventTypeChannelNotification,
 		Payload: payload,
 	})
+}
+
+func (b *broadcasterImpl) NewPetitionSignResultEvent(payload *PetitionSignResultPayload) {
+	b.channelsMu.RLock()
+	ch, ok := b.channels[payload.OwnerGUID]
+	b.channelsMu.RUnlock()
+	if !ok {
+		return
+	}
+	ch <- Event{
+		Type:    EventTypePetitionSignResult,
+		Payload: payload,
+	}
+}
+
+func (b *broadcasterImpl) NewPetitionOfferedEvent(payload *PetitionOfferedPayload) {
+	b.channelsMu.RLock()
+	ch, ok := b.channels[payload.TargetGUID]
+	b.channelsMu.RUnlock()
+	if !ok {
+		return
+	}
+	ch <- Event{
+		Type:    EventTypePetitionOffered,
+		Payload: payload,
+	}
+}
+
+func (b *broadcasterImpl) NewPetitionDeclinedEvent(payload *PetitionDeclinedPayload) {
+	b.channelsMu.RLock()
+	ch, ok := b.channels[payload.OwnerGUID]
+	b.channelsMu.RUnlock()
+	if !ok {
+		return
+	}
+	ch <- Event{
+		Type:    EventTypePetitionDeclined,
+		Payload: payload,
+	}
 }
 
 func (b *broadcasterImpl) channelsForGUIDs(guids []uint64) []chan Event {

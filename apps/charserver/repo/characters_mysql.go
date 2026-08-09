@@ -16,12 +16,12 @@ func (s CharactersPreparedStatements) Stmt() string {
 	switch s {
 	case StmtListCharactersToLogin:
 		return `SELECT c.guid, c.account, c.name, c.race, c.class, c.gender, c.skin, c.face, c.hairStyle, c.hairColor, c.facialStyle, c.level, c.zone, c.map, c.position_x, c.position_y, c.position_z, 
-		IFNULL(gm.guildid, 0), c.playerFlags, c.at_login, IFNULL(cp.entry, 0), IFNULL(cp.modelid, 0), IFNULL(cp.level, 0), c.equipmentCache, IFNULL(cb.guid, 0) 
+		IFNULL(gm.guildid, 0), IFNULL(gm.` + "`rank`" + `, 0), c.playerFlags, c.at_login, IFNULL(cp.entry, 0), IFNULL(cp.modelid, 0), IFNULL(cp.level, 0), c.equipmentCache, IFNULL(cb.guid, 0) 
 		FROM characters AS c LEFT JOIN character_pet AS cp ON c.guid = cp.owner AND cp.slot = ? LEFT JOIN guild_member AS gm ON c.guid = gm.guid 
 		LEFT JOIN character_banned AS cb ON c.guid = cb.guid AND cb.active = 1 WHERE c.account = ? AND c.deleteInfos_Name IS NULL ORDER BY c.guid`
 	case StmtCharacterToLogin:
 		return `SELECT c.guid, c.account, c.name, c.race, c.class, c.gender, c.skin, c.face, c.hairStyle, c.hairColor, c.facialStyle, c.level, c.zone, c.map, c.position_x, c.position_y, c.position_z, 
-		IFNULL(gm.guildid, 0), c.playerFlags, c.at_login, IFNULL(cp.entry, 0), IFNULL(cp.modelid, 0), IFNULL(cp.level, 0), c.equipmentCache, IFNULL(cb.guid, 0) 
+		IFNULL(gm.guildid, 0), IFNULL(gm.` + "`rank`" + `, 0), c.playerFlags, c.at_login, IFNULL(cp.entry, 0), IFNULL(cp.modelid, 0), IFNULL(cp.level, 0), c.equipmentCache, IFNULL(cb.guid, 0) 
 		FROM characters AS c LEFT JOIN character_pet AS cp ON c.guid = cp.owner AND cp.slot = ? LEFT JOIN guild_member AS gm ON c.guid = gm.guid 
 		LEFT JOIN character_banned AS cb ON c.guid = cb.guid AND cb.active = 1 WHERE c.guid = ? AND c.deleteInfos_Name IS NULL`
 	case StmtSelectAccountData:
@@ -108,7 +108,7 @@ func (c CharactersMYSQL) ListCharactersToLogIn(ctx context.Context, realmID, acc
 		err = rows.Scan(
 			&item.GUID, &item.AccountID, &item.Name, &item.Race, &item.Class, &item.Gender, &item.Skin, &item.Face, &item.HairStyle,
 			&item.HairColor, &item.FacialStyle, &item.Level, &item.Zone, &item.Map, &item.PositionX, &item.PositionY, &item.PositionZ,
-			&item.GuildID, &item.PlayerFlags, &item.AtLoginFlags, &item.PetEntry, &item.PetModelID, &item.PetLevel,
+			&item.GuildID, &item.GuildRank, &item.PlayerFlags, &item.AtLoginFlags, &item.PetEntry, &item.PetModelID, &item.PetLevel,
 			&equipmentCache, &bannedGuid,
 		)
 		if err != nil {
@@ -156,7 +156,7 @@ func (c CharactersMYSQL) CharacterToLogInByGUID(ctx context.Context, realmID uin
 		err = rows.Scan(
 			&item.GUID, &item.AccountID, &item.Name, &item.Race, &item.Class, &item.Gender, &item.Skin, &item.Face, &item.HairStyle,
 			&item.HairColor, &item.FacialStyle, &item.Level, &item.Zone, &item.Map, &item.PositionX, &item.PositionY, &item.PositionZ,
-			&item.GuildID, &item.PlayerFlags, &item.AtLoginFlags, &item.PetEntry, &item.PetModelID, &item.PetLevel,
+			&item.GuildID, &item.GuildRank, &item.PlayerFlags, &item.AtLoginFlags, &item.PetEntry, &item.PetModelID, &item.PetLevel,
 			&equipmentCache, &bannedGuid,
 		)
 		if err != nil {

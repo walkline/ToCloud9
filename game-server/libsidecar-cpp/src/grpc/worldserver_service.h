@@ -16,7 +16,10 @@ namespace tc9 {
 struct CppBindings {
     TC9GetPlayerItemsByGuidsHandler get_player_items = nullptr;
     TC9RemoveItemsWithGuidsFromPlayerHandler remove_items = nullptr;
+    TC9DestroyItemsWithGuidsFromPlayerHandler destroy_items = nullptr;
     TC9AddExistingItemToPlayerHandler add_item = nullptr;
+    TC9StoreNewItemHandler store_new_item = nullptr;
+    TC9SetItemPermanentEnchantmentHandler set_item_permanent_enchantment = nullptr;
     TC9GetMoneyForPlayerHandler get_money = nullptr;
     TC9ModifyMoneyForPlayerHandler modify_money = nullptr;
     TC9CanPlayerInteractWithNPCHandler interact_npc = nullptr;
@@ -25,7 +28,6 @@ struct CppBindings {
     TC9AddPlayersToBattlegroundHandler add_players_bg = nullptr;
     TC9CanPlayerJoinBattlegroundQueueHandler can_join_bg_queue = nullptr;
     TC9CanPlayerTeleportToBattlegroundHandler can_teleport_bg = nullptr;
-    TC9CanTurnInGuildPetitionHandler can_turn_in_guild_petition = nullptr;
     TC9MonitoringDataCollectorHandler monitoring_data_collector = nullptr;
 };
 
@@ -49,10 +51,25 @@ public:
         const v1::RemoveItemsWithGuidsFromPlayerRequest* request,
         v1::RemoveItemsWithGuidsFromPlayerResponse* response) override;
 
+    grpc::Status DestroyItemsWithGuidsFromPlayer(
+        grpc::ServerContext* context,
+        const v1::DestroyItemsWithGuidsFromPlayerRequest* request,
+        v1::DestroyItemsWithGuidsFromPlayerResponse* response) override;
+
     grpc::Status AddExistingItemToPlayer(
         grpc::ServerContext* context,
         const v1::AddExistingItemToPlayerRequest* request,
         v1::AddExistingItemToPlayerResponse* response) override;
+
+    grpc::Status StoreNewItem(
+        grpc::ServerContext* context,
+        const v1::StoreNewItemRequest* request,
+        v1::StoreNewItemResponse* response) override;
+
+    grpc::Status SetItemPermanentEnchantment(
+        grpc::ServerContext* context,
+        const v1::SetItemPermanentEnchantmentRequest* request,
+        v1::SetItemPermanentEnchantmentResponse* response) override;
 
     // Money
     grpc::Status GetMoneyForPlayer(
@@ -96,12 +113,6 @@ public:
         grpc::ServerContext* context,
         const v1::CanPlayerTeleportToBattlegroundRequest* request,
         v1::CanPlayerTeleportToBattlegroundResponse* response) override;
-
-    // Petitions
-    grpc::Status CanTurnInGuildPetition(
-        grpc::ServerContext* context,
-        const v1::CanTurnInGuildPetitionRequest* request,
-        v1::CanTurnInGuildPetitionResponse* response) override;
 
 private:
     const CppBindings& bindings_;

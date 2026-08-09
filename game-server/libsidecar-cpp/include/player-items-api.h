@@ -15,7 +15,8 @@ typedef enum PlayerItemErrorCode {
     PlayerItemErrorCodePlayerNotFound = 2,
     PlayerItemErrorNoInventorySpace   = 3,
     PlayerItemErrorUnknownTemplate    = 4,
-    PlayerItemErrorFailedToCreateItem = 5
+    PlayerItemErrorFailedToCreateItem = 5,
+    PlayerItemErrorItemNotFound       = 6
 } PlayerItemErrorCode;
 
 // GetPlayerItemsByGuids request.
@@ -54,6 +55,18 @@ typedef RemoveItemsWithGuidsFromPlayerResponse (*RemoveItemsWithGuidsFromPlayerH
 void SetRemoveItemsWithGuidsFromPlayerHandler(RemoveItemsWithGuidsFromPlayerHandler h);
 RemoveItemsWithGuidsFromPlayerResponse CallRemoveItemsWithGuidsFromPlayerHandler(uint64_t player_guid, uint64_t* items_guids, int items_guids_size, uint64_t assign_player_guid);
 
+// DestroyItemsWithGuidsFromPlayer: permanently destroy items (Player::DestroyItem).
+// Do not use RemoveItemsWith assign=0 for this — that orphans item_instance rows.
+typedef struct {
+    int errorCode;
+    uint64_t* destroyedItems;
+    int destroyedItemsSize;
+} DestroyItemsWithGuidsFromPlayerResponse;
+
+typedef DestroyItemsWithGuidsFromPlayerResponse (*DestroyItemsWithGuidsFromPlayerHandler) (uint64_t /*player_guid*/, uint64_t* /*items_guids*/, int /*items_guids_size*/);
+void SetDestroyItemsWithGuidsFromPlayerHandler(DestroyItemsWithGuidsFromPlayerHandler h);
+DestroyItemsWithGuidsFromPlayerResponse CallDestroyItemsWithGuidsFromPlayerHandler(uint64_t player_guid, uint64_t* items_guids, int items_guids_size);
+
 // AddExistingItemToPlayer request.
 typedef struct {
     uint64_t playerGuid;
@@ -68,6 +81,41 @@ typedef struct {
 typedef PlayerItemErrorCode (*AddExistingItemToPlayerHandler) (AddExistingItemToPlayerRequest*);
 void SetAddExistingItemToPlayerHandler(AddExistingItemToPlayerHandler h);
 PlayerItemErrorCode CallAddExistingItemToPlayerHandler(AddExistingItemToPlayerRequest*);
+
+// StoreNewItem: create item from template into player inventory.
+typedef struct {
+    uint64_t playerGuid;
+    uint32_t itemEntry;
+    uint32_t count;
+    /* Permanent enchantment ids (slot i → ITEM_FIELD_ENCHANTMENT_1_1 + i*3). 0 skips the slot. */
+    uint32_t* enchantmentIDs;
+    int enchantmentIDsSize;
+} StoreNewItemRequest;
+
+typedef struct {
+    int errorCode;
+    uint64_t itemGuid;
+} StoreNewItemResponse;
+
+typedef StoreNewItemResponse (*StoreNewItemHandler) (StoreNewItemRequest*);
+void SetStoreNewItemHandler(StoreNewItemHandler h);
+StoreNewItemResponse CallStoreNewItemHandler(StoreNewItemRequest*);
+
+// SetItemPermanentEnchantment: set permanent enchantment on a player-owned item.
+typedef struct {
+    uint64_t playerGuid;
+    uint64_t itemGuid;
+    uint32_t slot;
+    uint32_t enchantmentId;
+} SetItemPermanentEnchantmentRequest;
+
+typedef struct {
+    int errorCode;
+} SetItemPermanentEnchantmentResponse;
+
+typedef SetItemPermanentEnchantmentResponse (*SetItemPermanentEnchantmentHandler)(SetItemPermanentEnchantmentRequest*);
+void SetSetItemPermanentEnchantmentHandler(SetItemPermanentEnchantmentHandler h);
+SetItemPermanentEnchantmentResponse CallSetItemPermanentEnchantmentHandler(SetItemPermanentEnchantmentRequest*);
 
 #ifdef __cplusplus
 }

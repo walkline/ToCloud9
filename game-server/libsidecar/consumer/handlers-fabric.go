@@ -9,6 +9,8 @@ type GuildHandlersFabric interface {
 	GuildMemberAddedHandler(guildID, characterGUID uint64) queue.Handler
 	GuildMemberRemovedHandler(guildID, characterGUID uint64) queue.Handler
 	GuildMemberLeftHandler(guildID, characterGUID uint64) queue.Handler
+	// GuildCreatedHandler dispatches OnGuildCreated for world/custom hooks.
+	// Product guild state stays on gateway + guildserver (no sGuildMgr mirror).
 	GuildCreatedHandler(payload *events.GuildEventGuildCreatedPayload) queue.Handler
 }
 

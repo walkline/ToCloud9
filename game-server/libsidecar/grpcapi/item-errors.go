@@ -10,6 +10,7 @@ const (
 	ItemErrorNoInventorySpace
 	ItemErrorUnknownTemplate
 	ItemErrorFailedToCreateItem
+	ItemErrorItemNotFound
 )
 
 func (e ItemError) Error() string {
@@ -24,6 +25,8 @@ func (e ItemError) Error() string {
 		return "unknown item template"
 	case ItemErrorFailedToCreateItem:
 		return "failed to create item"
+	case ItemErrorItemNotFound:
+		return "item not found on player"
 	default:
 		return fmt.Sprintf("unk item error %d", e)
 	}

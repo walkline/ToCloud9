@@ -334,6 +334,18 @@ RemoveItemsWithGuidsFromPlayerResponse CallRemoveItemsWithGuidsFromPlayerHandler
     return resp;
 }
 
+void SetDestroyItemsWithGuidsFromPlayerHandler(DestroyItemsWithGuidsFromPlayerHandler /*h*/) {
+    spdlog::warn("SetDestroyItemsWithGuidsFromPlayerHandler: Bridging not yet implemented");
+}
+
+DestroyItemsWithGuidsFromPlayerResponse CallDestroyItemsWithGuidsFromPlayerHandler(uint64_t /*player_guid*/, uint64_t* /*items_guids*/, int /*items_guids_size*/) {
+    DestroyItemsWithGuidsFromPlayerResponse resp{};
+    resp.errorCode = PlayerItemErrorCodeNoHandler;
+    resp.destroyedItems = nullptr;
+    resp.destroyedItemsSize = 0;
+    return resp;
+}
+
 void SetAddExistingItemToPlayerHandler(AddExistingItemToPlayerHandler h) {
     g_compat_handlers.add_item = h;
     spdlog::warn("SetAddExistingItemToPlayerHandler: Bridging not yet implemented");
@@ -341,6 +353,27 @@ void SetAddExistingItemToPlayerHandler(AddExistingItemToPlayerHandler h) {
 
 PlayerItemErrorCode CallAddExistingItemToPlayerHandler(AddExistingItemToPlayerRequest* /*request*/) {
     return PlayerItemErrorCodeNoHandler;
+}
+
+void SetStoreNewItemHandler(StoreNewItemHandler /*h*/) {
+    spdlog::warn("SetStoreNewItemHandler: Bridging not yet implemented");
+}
+
+StoreNewItemResponse CallStoreNewItemHandler(StoreNewItemRequest* /*request*/) {
+    StoreNewItemResponse resp{};
+    resp.errorCode = PlayerItemErrorCodeNoHandler;
+    resp.itemGuid = 0;
+    return resp;
+}
+
+void SetSetItemPermanentEnchantmentHandler(SetItemPermanentEnchantmentHandler /*h*/) {
+    spdlog::warn("SetSetItemPermanentEnchantmentHandler: Bridging not yet implemented");
+}
+
+SetItemPermanentEnchantmentResponse CallSetItemPermanentEnchantmentHandler(SetItemPermanentEnchantmentRequest* /*request*/) {
+    SetItemPermanentEnchantmentResponse resp{};
+    resp.errorCode = PlayerItemErrorCodeNoHandler;
+    return resp;
 }
 
 // ============================================================================

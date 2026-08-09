@@ -28,7 +28,6 @@
 #include "events-guild.h"
 #include "events-servers-registry.h"
 #include "monitoring.h"
-#include "petition-api.h"
 #include "player-interactions-api.h"
 #include "player-items-api.h"
 #include "player-money-api.h"
@@ -108,7 +107,6 @@ TC9_API void TC9SetBattlegroundStartHandler(BattlegroundStartHandler h);
 TC9_API void TC9SetBattlegroundAddPlayersHandler(BattlegroundAddPlayersHandler h);
 TC9_API void TC9SetCanPlayerJoinBattlegroundQueueHandler(CanPlayerJoinBattlegroundQueueHandler h);
 TC9_API void TC9SetCanPlayerTeleportToBattlegroundHandler(CanPlayerTeleportToBattlegroundHandler h);
-TC9_API void TC9SetCanTurnInGuildPetitionHandler(CanTurnInGuildPetitionHandler h);
 
 TC9_API void TC9SetMonitoringDataCollectorHandler(MonitoringDataCollectorHandler h);
 
@@ -117,7 +115,10 @@ TC9_API void TC9SetCanPlayerInteractWithGOAndTypeHandler(CanPlayerInteractWithGO
 
 TC9_API void TC9SetGetPlayerItemsByGuidsHandler(GetPlayerItemsByGuidsHandler h);
 TC9_API void TC9SetRemoveItemsWithGuidsFromPlayerHandler(RemoveItemsWithGuidsFromPlayerHandler h);
+TC9_API void TC9SetDestroyItemsWithGuidsFromPlayerHandler(DestroyItemsWithGuidsFromPlayerHandler h);
 TC9_API void TC9SetAddExistingItemToPlayerHandler(AddExistingItemToPlayerHandler h);
+TC9_API void TC9SetStoreNewItemHandler(StoreNewItemHandler h);
+TC9_API void TC9SetSetItemPermanentEnchantmentHandler(SetItemPermanentEnchantmentHandler h);
 
 TC9_API void TC9SetGetMoneyForPlayerHandler(GetMoneyForPlayerHandler h);
 TC9_API void TC9SetModifyMoneyForPlayerHandler(ModifyMoneyForPlayerHandler h);

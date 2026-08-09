@@ -25,11 +25,28 @@ func TC9SetRemoveItemsWithGuidsFromPlayerHandler(h C.RemoveItemsWithGuidsFromPla
 	C.SetRemoveItemsWithGuidsFromPlayerHandler(h)
 }
 
+// TC9SetDestroyItemsWithGuidsFromPlayerHandler sets handler for permanently destroying items.
+//
+//export TC9SetDestroyItemsWithGuidsFromPlayerHandler
+func TC9SetDestroyItemsWithGuidsFromPlayerHandler(h C.DestroyItemsWithGuidsFromPlayerHandler) {
+	C.SetDestroyItemsWithGuidsFromPlayerHandler(h)
+}
+
 // TC9SetAddExistingItemToPlayerHandler sets handler for adding item to player request.
 //
 //export TC9SetAddExistingItemToPlayerHandler
 func TC9SetAddExistingItemToPlayerHandler(h C.AddExistingItemToPlayerHandler) {
 	C.SetAddExistingItemToPlayerHandler(h)
+}
+
+//export TC9SetStoreNewItemHandler
+func TC9SetStoreNewItemHandler(h C.StoreNewItemHandler) {
+	C.SetStoreNewItemHandler(h)
+}
+
+//export TC9SetSetItemPermanentEnchantmentHandler
+func TC9SetSetItemPermanentEnchantmentHandler(h C.SetItemPermanentEnchantmentHandler) {
+	C.SetSetItemPermanentEnchantmentHandler(h)
 }
 
 // GetPlayerItemsByGuidHandler calls C++ GetPlayerItemsByGuidHandler implementation and makes Go<->C conversions of in/out params.
@@ -84,6 +101,29 @@ func RemoveItemsWithGuidsFromPlayerHandler(player uint64, items []uint64, assign
 	return itemsResult, nil
 }
 
+// DestroyItemsWithGuidsFromPlayerHandler permanently destroys items (inventory + DB).
+func DestroyItemsWithGuidsFromPlayerHandler(player uint64, items []uint64) ([]uint64, error) {
+	res := C.CallDestroyItemsWithGuidsFromPlayerHandler(
+		C.uint64_t(player),
+		(*C.uint64_t)(&items[0]),
+		C.int(len(items)),
+	)
+	if res.errorCode != C.PlayerItemErrorCodeNoError {
+		return nil, grpcapi.ItemError(res.errorCode)
+	}
+
+	itemsResult := make([]uint64, int(res.destroyedItemsSize))
+	if res.destroyedItemsSize > 0 && res.destroyedItems != nil {
+		returnedItems := unsafe.Slice(res.destroyedItems, int(res.destroyedItemsSize))
+		for i := range returnedItems {
+			itemsResult[i] = uint64(returnedItems[i])
+		}
+		C.free((unsafe.Pointer)(res.destroyedItems))
+	}
+
+	return itemsResult, nil
+}
+
 // AddExistingItemToPlayerHandler calls C++ AddExistingItemToPlayerHandler implementation and makes Go<->C conversions of in/out params.
 func AddExistingItemToPlayerHandler(player uint64, item *grpcapi.ItemToAdd) error {
 	var request C.AddExistingItemToPlayerRequest
@@ -99,6 +139,36 @@ func AddExistingItemToPlayerHandler(player uint64, item *grpcapi.ItemToAdd) erro
 	if res != C.PlayerItemErrorCodeNoError {
 		return grpcapi.ItemError(res)
 	}
+	return nil
+}
 
+// StoreNewItemHandler creates a template item on the player with optional enchantment permanent-ids.
+func StoreNewItemHandler(player uint64, entry, count uint32, enchantmentIDs []uint32) (uint64, error) {
+	var request C.StoreNewItemRequest
+	request.playerGuid = C.uint64_t(player)
+	request.itemEntry = C.uint32_t(entry)
+	request.count = C.uint32_t(count)
+	if len(enchantmentIDs) > 0 {
+		request.enchantmentIDs = (*C.uint32_t)(unsafe.Pointer(&enchantmentIDs[0]))
+		request.enchantmentIDsSize = C.int(len(enchantmentIDs))
+	}
+	res := C.CallStoreNewItemHandler(&request)
+	if res.errorCode != C.PlayerItemErrorCodeNoError {
+		return 0, grpcapi.ItemError(res.errorCode)
+	}
+	return uint64(res.itemGuid), nil
+}
+
+// SetItemPermanentEnchantmentHandler sets a permanent enchantment on a player-owned item.
+func SetItemPermanentEnchantmentHandler(player, item uint64, slot, enchantmentID uint32) error {
+	var request C.SetItemPermanentEnchantmentRequest
+	request.playerGuid = C.uint64_t(player)
+	request.itemGuid = C.uint64_t(item)
+	request.slot = C.uint32_t(slot)
+	request.enchantmentId = C.uint32_t(enchantmentID)
+	res := C.CallSetItemPermanentEnchantmentHandler(&request)
+	if res.errorCode != C.PlayerItemErrorCodeNoError {
+		return grpcapi.ItemError(res.errorCode)
+	}
 	return nil
 }

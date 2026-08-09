@@ -135,6 +135,18 @@ func (g *guildDebugLoggerMiddleware) SetGuildInfo(ctx context.Context, params *p
 	return
 }
 
+func (g *guildDebugLoggerMiddleware) SetGuildEmblem(ctx context.Context, params *pb.SetGuildEmblemParams) (res *pb.SetGuildEmblemResponse, err error) {
+	defer func(t time.Time) {
+		g.logger.Debug().
+			Uint64("updater", params.ChangerGUID).
+			Err(err).
+			Msgf("Handled SetGuildEmblem for %v.", time.Since(t))
+	}(time.Now())
+
+	res, err = g.realService.SetGuildEmblem(ctx, params)
+	return
+}
+
 func (g *guildDebugLoggerMiddleware) SetMemberPublicNote(ctx context.Context, params *pb.SetNoteParams) (res *pb.SetNoteResponse, err error) {
 	defer func(t time.Time) {
 		g.logger.Debug().

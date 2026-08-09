@@ -54,6 +54,7 @@ type GameSession struct {
 	matchmakingServiceClient      pbMatchmaking.MatchmakingServiceClient
 	auctionHouseServiceClient     pbAH.AuctionHouseServiceClient
 	eventsProducer                events.GatewayProducer
+	petitionEventsProducer        events.PetitionServiceProducer
 	eventsBroadcaster             eBroadcaster.Broadcaster
 	chatChannelsEventsBroadcaster *eBroadcaster.ChatChannelsService
 	charsUpdsBarrier              *service.CharactersUpdatesBarrier
@@ -96,9 +97,12 @@ type GameSession struct {
 	worldserverChannelBufferMu sync.Mutex
 	worldserverChannelTimer    *time.Timer
 
-  // allowCrossFactionGuilds mirrors the core config AllowTwoSide.Interaction.Guild:
+	// allowCrossFactionGuilds mirrors the core config AllowTwoSide.Interaction.Guild:
 	// when disabled, a player cannot invite someone of the other faction.
 	allowCrossFactionGuilds bool
+
+	// guildCharterCost is the guild charter buy price in copper.
+	guildCharterCost uint32
 
 	// showGameserverConnChangeToClient when enabled sends chat system message
 	// to the player with information about connection change.
@@ -118,6 +122,7 @@ type GameSessionParams struct {
 	AuctionHouseServiceClient        pbAH.AuctionHouseServiceClient
 	GroupServiceClient               pbGroup.GroupServiceClient
 	EventsProducer                   events.GatewayProducer
+	PetitionEventsProducer           events.PetitionServiceProducer
 	CharsUpdsBarrier                 *service.CharactersUpdatesBarrier
 	RealmNamesService                *service.RealmNamesService
 	EventsBroadcaster                eBroadcaster.Broadcaster
@@ -126,6 +131,8 @@ type GameSessionParams struct {
 	PacketProcessTimeout             time.Duration
 	ShowGameserverConnChangeToClient bool
 	AllowCrossFactionGuilds          bool
+	// GuildCharterCost is copper cost of a guild charter (default 1000).
+	GuildCharterCost uint32
 }
 
 func NewGameSession(
@@ -155,6 +162,7 @@ func NewGameSession(
 		auctionHouseServiceClient:        params.AuctionHouseServiceClient,
 		groupServiceClient:               params.GroupServiceClient,
 		eventsProducer:                   params.EventsProducer,
+		petitionEventsProducer:           params.PetitionEventsProducer,
 		eventsBroadcaster:                params.EventsBroadcaster,
 		chatChannelsEventsBroadcaster:    params.ChatChannelsEventBroadcaster,
 		charsUpdsBarrier:                 params.CharsUpdsBarrier,
@@ -162,11 +170,15 @@ func NewGameSession(
 		gameServerGRPCConnMgr:            params.GameServerGRPCConnMgr,
 		showGameserverConnChangeToClient: params.ShowGameserverConnChangeToClient,
 		allowCrossFactionGuilds:          params.AllowCrossFactionGuilds,
+		guildCharterCost:                 params.GuildCharterCost,
 
 		sessionSafeFuChan:        make(chan func(*GameSession), 100),
 		packetProcessTimeout:     packetProcessTimeout,
 		channelMembership:        NewChannelMembership(0, params.ChatChannelsEventBroadcaster),
 		worldserverChannelBuffer: make([]WorldserverChannelInfo, 0),
+	}
+	if s.guildCharterCost == 0 {
+		s.guildCharterCost = 1000
 	}
 	return s
 }
@@ -310,6 +322,7 @@ func (s *GameSession) Login(ctx context.Context, p *packet.Packet) error {
 		PositionY:               char.PositionY,
 		PositionZ:               char.PositionZ,
 		GuildID:                 char.GuildID,
+		GuildRank:               uint8(char.GuildRank),
 		PlayerFlags:             char.PlayerFlags,
 		AtLogin:                 char.AtLogin,
 		PetEntry:                char.PetEntry,
@@ -485,7 +498,7 @@ func (s *GameSession) connectToGameServer(ctx context.Context, characterGUID uin
 		return nil, nil, fmt.Errorf("can't get game server grpc client, err: %w", err)
 	}
 
-	socket, err := s.connectToGameServerWithAddress(ctx, characterGUID, selected.Address, preLoginHook)
+	socket, err := s.connectToGameServerWithAddress(ctx, characterGUID, selected.Address, preLoginHook, r.Character.GuildID, uint8(r.Character.GuildRank))
 	if err == nil {
 		s.currentGameServerID = selected.ID
 		s.currentGameServerAlias = selected.Alias
@@ -503,7 +516,11 @@ func (s *GameSession) selectGameServerForMap(ctx context.Context, mapID uint32) 
 	return response.GameServers[0], nil
 }
 
-func (s *GameSession) connectToGameServerWithAddress(ctx context.Context, characterGUID uint64, gameserverAddress string, preLoginHook func(sockets.Socket)) (sockets.Socket, error) {
+// connectToGameServerWithAddress authenticates to a worldserver and sends CMSG_PLAYER_LOGIN.
+// Cluster extension (gateway→world only): after player GUID we append guildID + guildRank
+// so the worldserver can stamp PLAYER_GUILDID/PLAYER_GUILDRANK without GuildMgr.
+// Clients never send this extension.
+func (s *GameSession) connectToGameServerWithAddress(ctx context.Context, characterGUID uint64, gameserverAddress string, preLoginHook func(sockets.Socket), guildID uint32, guildRank uint8) (sockets.Socket, error) {
 	s.logger.Debug().
 		Str("address", gameserverAddress).
 		Msg("Connecting to the world server")
@@ -536,8 +553,11 @@ func (s *GameSession) connectToGameServerWithAddress(ctx context.Context, charac
 		preLoginHook(socket)
 	}
 
-	resp := packet.NewWriterWithSize(packet.CMsgPlayerLogin, 8)
+	// 8 (guid) + 4 (guild id) + 1 (rank)
+	resp := packet.NewWriterWithSize(packet.CMsgPlayerLogin, 13)
 	resp.Uint64(characterGUID)
+	resp.Uint32(guildID)
+	resp.Uint8(guildRank)
 	socket.Send(resp)
 
 	return socket, nil
@@ -701,6 +721,7 @@ type LoggedInCharacter struct {
 	PositionZ   float32
 	PositionO   float32
 	GuildID     uint32
+	GuildRank   uint8
 	PlayerFlags uint32
 	AtLogin     uint32
 	PetEntry    uint32

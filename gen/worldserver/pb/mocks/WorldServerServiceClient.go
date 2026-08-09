@@ -215,39 +215,6 @@ func (_m *WorldServerServiceClient) CanPlayerTeleportToBattleground(ctx context.
 	return r0, r1
 }
 
-// CanTurnInGuildPetition provides a mock function with given fields: ctx, in, opts
-func (_m *WorldServerServiceClient) CanTurnInGuildPetition(ctx context.Context, in *pb.CanTurnInGuildPetitionRequest, opts ...grpc.CallOption) (*pb.CanTurnInGuildPetitionResponse, error) {
-	_va := make([]interface{}, len(opts))
-	for _i := range opts {
-		_va[_i] = opts[_i]
-	}
-	var _ca []interface{}
-	_ca = append(_ca, ctx, in)
-	_ca = append(_ca, _va...)
-	ret := _m.Called(_ca...)
-
-	var r0 *pb.CanTurnInGuildPetitionResponse
-	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, *pb.CanTurnInGuildPetitionRequest, ...grpc.CallOption) (*pb.CanTurnInGuildPetitionResponse, error)); ok {
-		return rf(ctx, in, opts...)
-	}
-	if rf, ok := ret.Get(0).(func(context.Context, *pb.CanTurnInGuildPetitionRequest, ...grpc.CallOption) *pb.CanTurnInGuildPetitionResponse); ok {
-		r0 = rf(ctx, in, opts...)
-	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*pb.CanTurnInGuildPetitionResponse)
-		}
-	}
-
-	if rf, ok := ret.Get(1).(func(context.Context, *pb.CanTurnInGuildPetitionRequest, ...grpc.CallOption) error); ok {
-		r1 = rf(ctx, in, opts...)
-	} else {
-		r1 = ret.Error(1)
-	}
-
-	return r0, r1
-}
-
 // GetMoneyForPlayer provides a mock function with given fields: ctx, in, opts
 func (_m *WorldServerServiceClient) GetMoneyForPlayer(ctx context.Context, in *pb.GetMoneyForPlayerRequest, opts ...grpc.CallOption) (*pb.GetMoneyForPlayerResponse, error) {
 	_va := make([]interface{}, len(opts))
@@ -372,6 +339,105 @@ func (_m *WorldServerServiceClient) RemoveItemsWithGuidsFromPlayer(ctx context.C
 	}
 
 	if rf, ok := ret.Get(1).(func(context.Context, *pb.RemoveItemsWithGuidsFromPlayerRequest, ...grpc.CallOption) error); ok {
+		r1 = rf(ctx, in, opts...)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// DestroyItemsWithGuidsFromPlayer provides a mock function with given fields: ctx, in, opts
+func (_m *WorldServerServiceClient) DestroyItemsWithGuidsFromPlayer(ctx context.Context, in *pb.DestroyItemsWithGuidsFromPlayerRequest, opts ...grpc.CallOption) (*pb.DestroyItemsWithGuidsFromPlayerResponse, error) {
+	_va := make([]interface{}, len(opts))
+	for _i := range opts {
+		_va[_i] = opts[_i]
+	}
+	var _ca []interface{}
+	_ca = append(_ca, ctx, in)
+	_ca = append(_ca, _va...)
+	ret := _m.Called(_ca...)
+
+	var r0 *pb.DestroyItemsWithGuidsFromPlayerResponse
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, *pb.DestroyItemsWithGuidsFromPlayerRequest, ...grpc.CallOption) (*pb.DestroyItemsWithGuidsFromPlayerResponse, error)); ok {
+		return rf(ctx, in, opts...)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, *pb.DestroyItemsWithGuidsFromPlayerRequest, ...grpc.CallOption) *pb.DestroyItemsWithGuidsFromPlayerResponse); ok {
+		r0 = rf(ctx, in, opts...)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*pb.DestroyItemsWithGuidsFromPlayerResponse)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, *pb.DestroyItemsWithGuidsFromPlayerRequest, ...grpc.CallOption) error); ok {
+		r1 = rf(ctx, in, opts...)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// StoreNewItem provides a mock function with given fields: ctx, in, opts
+func (_m *WorldServerServiceClient) StoreNewItem(ctx context.Context, in *pb.StoreNewItemRequest, opts ...grpc.CallOption) (*pb.StoreNewItemResponse, error) {
+	_va := make([]interface{}, len(opts))
+	for _i := range opts {
+		_va[_i] = opts[_i]
+	}
+	var _ca []interface{}
+	_ca = append(_ca, ctx, in)
+	_ca = append(_ca, _va...)
+	ret := _m.Called(_ca...)
+
+	var r0 *pb.StoreNewItemResponse
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, *pb.StoreNewItemRequest, ...grpc.CallOption) (*pb.StoreNewItemResponse, error)); ok {
+		return rf(ctx, in, opts...)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, *pb.StoreNewItemRequest, ...grpc.CallOption) *pb.StoreNewItemResponse); ok {
+		r0 = rf(ctx, in, opts...)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*pb.StoreNewItemResponse)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, *pb.StoreNewItemRequest, ...grpc.CallOption) error); ok {
+		r1 = rf(ctx, in, opts...)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// SetItemPermanentEnchantment provides a mock function with given fields: ctx, in, opts
+func (_m *WorldServerServiceClient) SetItemPermanentEnchantment(ctx context.Context, in *pb.SetItemPermanentEnchantmentRequest, opts ...grpc.CallOption) (*pb.SetItemPermanentEnchantmentResponse, error) {
+	_va := make([]interface{}, len(opts))
+	for _i := range opts {
+		_va[_i] = opts[_i]
+	}
+	var _ca []interface{}
+	_ca = append(_ca, ctx, in)
+	_ca = append(_ca, _va...)
+	ret := _m.Called(_ca...)
+
+	var r0 *pb.SetItemPermanentEnchantmentResponse
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, *pb.SetItemPermanentEnchantmentRequest, ...grpc.CallOption) (*pb.SetItemPermanentEnchantmentResponse, error)); ok {
+		return rf(ctx, in, opts...)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, *pb.SetItemPermanentEnchantmentRequest, ...grpc.CallOption) *pb.SetItemPermanentEnchantmentResponse); ok {
+		r0 = rf(ctx, in, opts...)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*pb.SetItemPermanentEnchantmentResponse)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, *pb.SetItemPermanentEnchantmentRequest, ...grpc.CallOption) error); ok {
 		r1 = rf(ctx, in, opts...)
 	} else {
 		r1 = ret.Error(1)

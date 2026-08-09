@@ -16,6 +16,7 @@ import (
 	"github.com/walkline/ToCloud9/apps/gateway/packet"
 	pbChar "github.com/walkline/ToCloud9/gen/characters/pb"
 	pbGuild "github.com/walkline/ToCloud9/gen/guilds/pb"
+	pbWorld "github.com/walkline/ToCloud9/gen/worldserver/pb"
 	"github.com/walkline/ToCloud9/shared/events"
 	"github.com/walkline/ToCloud9/shared/wow"
 )
@@ -303,15 +304,20 @@ func (s *GameSession) HandleEventGuildMOTDUpdated(_ context.Context, e *eBroadca
 	return nil
 }
 
-// HandleEventGuildCreated links the session to the freshly created guild so
-// gateway-side guild features (roster, permissions) work for the petition
-// signatories without a relog. The leader's session is updated synchronously in
-// HandleTurnInPetition; for it this event is a no-op.
 func (s *GameSession) HandleEventGuildCreated(_ context.Context, e *eBroadcaster.Event) error {
 	eventData := e.Payload.(*events.GuildEventGuildCreatedPayload)
 
 	s.character.GuildID = uint32(eventData.GuildID)
 
+	// Leader is already set to rank 0 in HandleTurnInPetition; keep them guild master.
+	leaderLow := uint32(eventData.LeaderGUID)
+	charLow := uint32(s.character.GUID)
+	if s.character.GUID == eventData.LeaderGUID || charLow == leaderLow {
+		s.character.GuildRank = 0 // GR_GUILDMASTER
+		return nil
+	}
+
+	s.character.GuildRank = 4 // GR_INITIATE
 	return nil
 }
 
@@ -336,6 +342,13 @@ func (s *GameSession) HandleEventGuildMemberLeft(_ context.Context, e *eBroadcas
 		eventData.MemberName,
 	))
 
+	memberLow := uint32(eventData.MemberGUID)
+	charLow := uint32(s.character.GUID)
+	if s.character.GUID == eventData.MemberGUID || charLow == memberLow {
+		s.character.GuildID = 0
+		s.character.GuildRank = 0
+	}
+
 	return nil
 }
 
@@ -350,6 +363,7 @@ func (s *GameSession) HandleEventGuildMemberKicked(_ context.Context, e *eBroadc
 
 	if s.character.GUID == eventData.MemberGUID {
 		s.character.GuildID = 0
+		s.character.GuildRank = 0
 	}
 
 	return nil
@@ -429,6 +443,7 @@ func (s *GameSession) HandleGuildInviteAccept(ctx context.Context, _ *packet.Pac
 	}
 
 	s.character.GuildID = uint32(inviteResp.GuildID)
+	s.character.GuildRank = 4 // GR_INITIATE
 
 	return nil
 }
@@ -444,6 +459,7 @@ func (s *GameSession) HandleGuildLeave(ctx context.Context, p *packet.Packet) er
 	}
 
 	s.character.GuildID = 0
+	s.character.GuildRank = 0
 
 	return nil
 }
@@ -484,6 +500,125 @@ func (s *GameSession) HandleGuildSetMessageOfTheDay(ctx context.Context, p *pack
 	}
 
 	return nil
+}
+
+// Guild emblem save result codes (MSG_SAVE_GUILD_EMBLEM response).
+const (
+	guildEmblemSuccess        uint32 = 0 // ERR_GUILDEMBLEM_SUCCESS
+	guildEmblemNoGuild        uint32 = 2 // ERR_GUILDEMBLEM_NOGUILD
+	guildEmblemNotGuildMaster uint32 = 3 // ERR_GUILDEMBLEM_NOTGUILDMASTER
+	guildEmblemNotEnoughMoney uint32 = 4 // ERR_GUILDEMBLEM_NOTENOUGHMONEY
+	guildEmblemInvalidVendor  uint32 = 5 // ERR_GUILDEMBLEM_INVALIDVENDOR
+	// AC EMBLEM_PRICE = 10 * GOLD.
+	guildEmblemPriceCopper uint32 = 10 * 10000
+)
+
+func (s *GameSession) sendGuildEmblemResult(code uint32) {
+	w := packet.NewWriterWithSize(packet.MsgSaveGuildEmblem, 4)
+	w.Uint32(code)
+	s.gameSocket.Send(w)
+}
+
+// HandleSaveGuildEmblem handles MSG_SAVE_GUILD_EMBLEM (tabard designer).
+// Emblem state is owned by guildserver; worldserver is used for vendor interact + gold only.
+func (s *GameSession) HandleSaveGuildEmblem(ctx context.Context, p *packet.Packet) error {
+	r := p.Reader()
+	vendorGUID := r.Uint64()
+	emblemStyle := r.Uint32()
+	emblemColor := r.Uint32()
+	borderStyle := r.Uint32()
+	borderColor := r.Uint32()
+	backgroundColor := r.Uint32()
+
+	if s.character.GuildID == 0 {
+		s.sendGuildEmblemResult(guildEmblemNoGuild)
+		return nil
+	}
+
+	gameClient, err := s.gameServerGRPCConnMgr.GRPCConnByGameServerAddress(s.worldSocket.Address())
+	if err != nil {
+		return fmt.Errorf("guild emblem: game client: %w", err)
+	}
+
+	interact, err := gameClient.CanPlayerInteractWithNPC(ctx, &pbWorld.CanPlayerInteractWithNPCRequest{
+		Api:        root.SupportedGameServerVer,
+		PlayerGuid: s.character.GUID,
+		NpcGuid:    vendorGUID,
+		NpcFlags:   npcFlagTabardDesigner,
+	})
+	if err != nil {
+		return fmt.Errorf("guild emblem: can interact tabard designer: %w", err)
+	}
+	if !interact.CanInteract {
+		s.sendGuildEmblemResult(guildEmblemInvalidVendor)
+		return nil
+	}
+
+	money, err := gameClient.GetMoneyForPlayer(ctx, &pbWorld.GetMoneyForPlayerRequest{
+		Api:        root.SupportedGameServerVer,
+		PlayerGuid: s.character.GUID,
+	})
+	if err != nil {
+		return fmt.Errorf("guild emblem: get money: %w", err)
+	}
+	if money.Money < guildEmblemPriceCopper {
+		s.sendGuildEmblemResult(guildEmblemNotEnoughMoney)
+		return nil
+	}
+
+	// Take gold first; refund on guildservice failure after money was taken.
+	if _, err := gameClient.ModifyMoneyForPlayer(ctx, &pbWorld.ModifyMoneyForPlayerRequest{
+		Api:        root.SupportedGameServerVer,
+		PlayerGuid: s.character.GUID,
+		Value:      -int32(guildEmblemPriceCopper),
+	}); err != nil {
+		return fmt.Errorf("guild emblem: take money: %w", err)
+	}
+
+	setResp, err := s.guildServiceClient.SetGuildEmblem(ctx, &pbGuild.SetGuildEmblemParams{
+		Api:             root.Ver,
+		RealmID:         root.RealmID,
+		ChangerGUID:     s.character.GUID,
+		EmblemStyle:     emblemStyle,
+		EmblemColor:     emblemColor,
+		BorderStyle:     borderStyle,
+		BorderColor:     borderColor,
+		BackgroundColor: backgroundColor,
+	})
+	if err != nil {
+		_, _ = gameClient.ModifyMoneyForPlayer(ctx, &pbWorld.ModifyMoneyForPlayerRequest{
+			Api:        root.SupportedGameServerVer,
+			PlayerGuid: s.character.GUID,
+			Value:      int32(guildEmblemPriceCopper),
+		})
+		return fmt.Errorf("guild emblem: set emblem: %w", err)
+	}
+
+	switch setResp.Status {
+	case pbGuild.SetGuildEmblemResponse_Ok:
+		s.sendGuildEmblemResult(guildEmblemSuccess)
+		s.gameSocket.Send(buildGuildEventPacket(GuildEventTypeTabardChanged, 0))
+		// Push updated guild query so the client refreshes the tabard immediately.
+		q := packet.NewWriterWithSize(packet.CMsgGuildQuery, 4)
+		q.Uint32(uint32(setResp.GuildID))
+		return s.HandleGuildQuery(ctx, q.ToPacket())
+	case pbGuild.SetGuildEmblemResponse_NotGuildMaster:
+		_, _ = gameClient.ModifyMoneyForPlayer(ctx, &pbWorld.ModifyMoneyForPlayerRequest{
+			Api:        root.SupportedGameServerVer,
+			PlayerGuid: s.character.GUID,
+			Value:      int32(guildEmblemPriceCopper),
+		})
+		s.sendGuildEmblemResult(guildEmblemNotGuildMaster)
+		return nil
+	default:
+		_, _ = gameClient.ModifyMoneyForPlayer(ctx, &pbWorld.ModifyMoneyForPlayerRequest{
+			Api:        root.SupportedGameServerVer,
+			PlayerGuid: s.character.GUID,
+			Value:      int32(guildEmblemPriceCopper),
+		})
+		s.sendGuildEmblemResult(guildEmblemNoGuild)
+		return nil
+	}
 }
 
 func (s *GameSession) HandleGuildSetPublicNote(ctx context.Context, p *packet.Packet) error {
@@ -659,6 +794,11 @@ func (s *GameSession) HandleGuildDemote(ctx context.Context, p *packet.Packet) e
 	return nil
 }
 
+// guildRanksMaxCount matches AC GUILD_RANKS_MAX_COUNT. SMSG_GUILD_QUERY_RESPONSE
+// always writes this many rank-name strings (empty-padded); sending fewer shifts
+// the emblem fields and the client shows a broken tabard.
+const guildRanksMaxCount = 10
+
 func (s *GameSession) HandleGuildQuery(ctx context.Context, p *packet.Packet) error {
 	guildID := p.Reader().Uint32()
 	guildResp, err := s.guildServiceClient.GetGuildInfo(ctx, &pbGuild.GetInfoParams{
@@ -673,8 +813,17 @@ func (s *GameSession) HandleGuildQuery(ctx context.Context, p *packet.Packet) er
 	resp := packet.NewWriterWithSize(packet.SMsgGuildQueryResponse, 0)
 	resp.Uint32(guildID)
 	resp.String(guildResp.GuildName)
-	for _, name := range guildResp.RankNames {
-		resp.String(name)
+
+	rankCount := len(guildResp.RankNames)
+	if rankCount > guildRanksMaxCount {
+		rankCount = guildRanksMaxCount
+	}
+	for i := 0; i < guildRanksMaxCount; i++ {
+		if i < rankCount {
+			resp.String(guildResp.RankNames[i])
+		} else {
+			resp.String("")
+		}
 	}
 
 	resp.Uint32(guildResp.EmblemStyle)
@@ -682,7 +831,7 @@ func (s *GameSession) HandleGuildQuery(ctx context.Context, p *packet.Packet) er
 	resp.Uint32(guildResp.BorderStyle)
 	resp.Uint32(guildResp.BorderColor)
 	resp.Uint32(guildResp.BackgroundColor)
-	resp.Uint32(uint32(len(guildResp.RankNames)))
+	resp.Uint32(uint32(rankCount))
 
 	s.gameSocket.Send(resp)
 	return nil

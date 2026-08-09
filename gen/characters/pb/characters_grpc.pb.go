@@ -35,6 +35,14 @@ const (
 	CharactersService_RemoveIgnore_FullMethodName                     = "/v1.CharactersService/RemoveIgnore"
 	CharactersService_NotifyStatusChange_FullMethodName               = "/v1.CharactersService/NotifyStatusChange"
 	CharactersService_GetOnlineCharacters_FullMethodName              = "/v1.CharactersService/GetOnlineCharacters"
+	CharactersService_GetGuildPetition_FullMethodName                 = "/v1.CharactersService/GetGuildPetition"
+	CharactersService_GetGuildPetitionSignatures_FullMethodName       = "/v1.CharactersService/GetGuildPetitionSignatures"
+	CharactersService_AddGuildPetitionSignature_FullMethodName        = "/v1.CharactersService/AddGuildPetitionSignature"
+	CharactersService_RenameGuildPetition_FullMethodName              = "/v1.CharactersService/RenameGuildPetition"
+	CharactersService_DeleteGuildPetition_FullMethodName              = "/v1.CharactersService/DeleteGuildPetition"
+	CharactersService_ValidateGuildPetitionTurnIn_FullMethodName      = "/v1.CharactersService/ValidateGuildPetitionTurnIn"
+	CharactersService_UpsertGuildPetition_FullMethodName              = "/v1.CharactersService/UpsertGuildPetition"
+	CharactersService_GuildNameExists_FullMethodName                  = "/v1.CharactersService/GuildNameExists"
 )
 
 // CharactersServiceClient is the client API for CharactersService service.
@@ -60,6 +68,18 @@ type CharactersServiceClient interface {
 	NotifyStatusChange(ctx context.Context, in *NotifyStatusChangeRequest, opts ...grpc.CallOption) (*NotifyStatusChangeResponse, error)
 	// Get all online character GUIDs for a realm
 	GetOnlineCharacters(ctx context.Context, in *GetOnlineCharactersRequest, opts ...grpc.CallOption) (*GetOnlineCharactersResponse, error)
+	// Guild petition signature state (source of truth for cluster-safe charters)
+	GetGuildPetition(ctx context.Context, in *GetGuildPetitionRequest, opts ...grpc.CallOption) (*GetGuildPetitionResponse, error)
+	GetGuildPetitionSignatures(ctx context.Context, in *GetGuildPetitionSignaturesRequest, opts ...grpc.CallOption) (*GetGuildPetitionSignaturesResponse, error)
+	AddGuildPetitionSignature(ctx context.Context, in *AddGuildPetitionSignatureRequest, opts ...grpc.CallOption) (*AddGuildPetitionSignatureResponse, error)
+	RenameGuildPetition(ctx context.Context, in *RenameGuildPetitionRequest, opts ...grpc.CallOption) (*RenameGuildPetitionResponse, error)
+	DeleteGuildPetition(ctx context.Context, in *DeleteGuildPetitionRequest, opts ...grpc.CallOption) (*DeleteGuildPetitionResponse, error)
+	ValidateGuildPetitionTurnIn(ctx context.Context, in *ValidateGuildPetitionTurnInRequest, opts ...grpc.CallOption) (*ValidateGuildPetitionTurnInResponse, error)
+	// Insert/replace guild petition row after the charter item exists.
+	// Identity is stock petitionguid (= item low); no pre-allocated petition_id.
+	UpsertGuildPetition(ctx context.Context, in *UpsertGuildPetitionRequest, opts ...grpc.CallOption) (*UpsertGuildPetitionResponse, error)
+	// GuildNameExists checks whether a guild with the given name already exists (buy/rename pre-check).
+	GuildNameExists(ctx context.Context, in *GuildNameExistsRequest, opts ...grpc.CallOption) (*GuildNameExistsResponse, error)
 }
 
 type charactersServiceClient struct {
@@ -214,6 +234,78 @@ func (c *charactersServiceClient) GetOnlineCharacters(ctx context.Context, in *G
 	return out, nil
 }
 
+func (c *charactersServiceClient) GetGuildPetition(ctx context.Context, in *GetGuildPetitionRequest, opts ...grpc.CallOption) (*GetGuildPetitionResponse, error) {
+	out := new(GetGuildPetitionResponse)
+	err := c.cc.Invoke(ctx, CharactersService_GetGuildPetition_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *charactersServiceClient) GetGuildPetitionSignatures(ctx context.Context, in *GetGuildPetitionSignaturesRequest, opts ...grpc.CallOption) (*GetGuildPetitionSignaturesResponse, error) {
+	out := new(GetGuildPetitionSignaturesResponse)
+	err := c.cc.Invoke(ctx, CharactersService_GetGuildPetitionSignatures_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *charactersServiceClient) AddGuildPetitionSignature(ctx context.Context, in *AddGuildPetitionSignatureRequest, opts ...grpc.CallOption) (*AddGuildPetitionSignatureResponse, error) {
+	out := new(AddGuildPetitionSignatureResponse)
+	err := c.cc.Invoke(ctx, CharactersService_AddGuildPetitionSignature_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *charactersServiceClient) RenameGuildPetition(ctx context.Context, in *RenameGuildPetitionRequest, opts ...grpc.CallOption) (*RenameGuildPetitionResponse, error) {
+	out := new(RenameGuildPetitionResponse)
+	err := c.cc.Invoke(ctx, CharactersService_RenameGuildPetition_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *charactersServiceClient) DeleteGuildPetition(ctx context.Context, in *DeleteGuildPetitionRequest, opts ...grpc.CallOption) (*DeleteGuildPetitionResponse, error) {
+	out := new(DeleteGuildPetitionResponse)
+	err := c.cc.Invoke(ctx, CharactersService_DeleteGuildPetition_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *charactersServiceClient) ValidateGuildPetitionTurnIn(ctx context.Context, in *ValidateGuildPetitionTurnInRequest, opts ...grpc.CallOption) (*ValidateGuildPetitionTurnInResponse, error) {
+	out := new(ValidateGuildPetitionTurnInResponse)
+	err := c.cc.Invoke(ctx, CharactersService_ValidateGuildPetitionTurnIn_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *charactersServiceClient) UpsertGuildPetition(ctx context.Context, in *UpsertGuildPetitionRequest, opts ...grpc.CallOption) (*UpsertGuildPetitionResponse, error) {
+	out := new(UpsertGuildPetitionResponse)
+	err := c.cc.Invoke(ctx, CharactersService_UpsertGuildPetition_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *charactersServiceClient) GuildNameExists(ctx context.Context, in *GuildNameExistsRequest, opts ...grpc.CallOption) (*GuildNameExistsResponse, error) {
+	out := new(GuildNameExistsResponse)
+	err := c.cc.Invoke(ctx, CharactersService_GuildNameExists_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // CharactersServiceServer is the server API for CharactersService service.
 // All implementations must embed UnimplementedCharactersServiceServer
 // for forward compatibility
@@ -237,6 +329,18 @@ type CharactersServiceServer interface {
 	NotifyStatusChange(context.Context, *NotifyStatusChangeRequest) (*NotifyStatusChangeResponse, error)
 	// Get all online character GUIDs for a realm
 	GetOnlineCharacters(context.Context, *GetOnlineCharactersRequest) (*GetOnlineCharactersResponse, error)
+	// Guild petition signature state (source of truth for cluster-safe charters)
+	GetGuildPetition(context.Context, *GetGuildPetitionRequest) (*GetGuildPetitionResponse, error)
+	GetGuildPetitionSignatures(context.Context, *GetGuildPetitionSignaturesRequest) (*GetGuildPetitionSignaturesResponse, error)
+	AddGuildPetitionSignature(context.Context, *AddGuildPetitionSignatureRequest) (*AddGuildPetitionSignatureResponse, error)
+	RenameGuildPetition(context.Context, *RenameGuildPetitionRequest) (*RenameGuildPetitionResponse, error)
+	DeleteGuildPetition(context.Context, *DeleteGuildPetitionRequest) (*DeleteGuildPetitionResponse, error)
+	ValidateGuildPetitionTurnIn(context.Context, *ValidateGuildPetitionTurnInRequest) (*ValidateGuildPetitionTurnInResponse, error)
+	// Insert/replace guild petition row after the charter item exists.
+	// Identity is stock petitionguid (= item low); no pre-allocated petition_id.
+	UpsertGuildPetition(context.Context, *UpsertGuildPetitionRequest) (*UpsertGuildPetitionResponse, error)
+	// GuildNameExists checks whether a guild with the given name already exists (buy/rename pre-check).
+	GuildNameExists(context.Context, *GuildNameExistsRequest) (*GuildNameExistsResponse, error)
 	mustEmbedUnimplementedCharactersServiceServer()
 }
 
@@ -291,6 +395,30 @@ func (UnimplementedCharactersServiceServer) NotifyStatusChange(context.Context, 
 }
 func (UnimplementedCharactersServiceServer) GetOnlineCharacters(context.Context, *GetOnlineCharactersRequest) (*GetOnlineCharactersResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetOnlineCharacters not implemented")
+}
+func (UnimplementedCharactersServiceServer) GetGuildPetition(context.Context, *GetGuildPetitionRequest) (*GetGuildPetitionResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetGuildPetition not implemented")
+}
+func (UnimplementedCharactersServiceServer) GetGuildPetitionSignatures(context.Context, *GetGuildPetitionSignaturesRequest) (*GetGuildPetitionSignaturesResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetGuildPetitionSignatures not implemented")
+}
+func (UnimplementedCharactersServiceServer) AddGuildPetitionSignature(context.Context, *AddGuildPetitionSignatureRequest) (*AddGuildPetitionSignatureResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method AddGuildPetitionSignature not implemented")
+}
+func (UnimplementedCharactersServiceServer) RenameGuildPetition(context.Context, *RenameGuildPetitionRequest) (*RenameGuildPetitionResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method RenameGuildPetition not implemented")
+}
+func (UnimplementedCharactersServiceServer) DeleteGuildPetition(context.Context, *DeleteGuildPetitionRequest) (*DeleteGuildPetitionResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DeleteGuildPetition not implemented")
+}
+func (UnimplementedCharactersServiceServer) ValidateGuildPetitionTurnIn(context.Context, *ValidateGuildPetitionTurnInRequest) (*ValidateGuildPetitionTurnInResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ValidateGuildPetitionTurnIn not implemented")
+}
+func (UnimplementedCharactersServiceServer) UpsertGuildPetition(context.Context, *UpsertGuildPetitionRequest) (*UpsertGuildPetitionResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpsertGuildPetition not implemented")
+}
+func (UnimplementedCharactersServiceServer) GuildNameExists(context.Context, *GuildNameExistsRequest) (*GuildNameExistsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GuildNameExists not implemented")
 }
 func (UnimplementedCharactersServiceServer) mustEmbedUnimplementedCharactersServiceServer() {}
 
@@ -593,6 +721,150 @@ func _CharactersService_GetOnlineCharacters_Handler(srv interface{}, ctx context
 	return interceptor(ctx, in, info, handler)
 }
 
+func _CharactersService_GetGuildPetition_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetGuildPetitionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CharactersServiceServer).GetGuildPetition(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: CharactersService_GetGuildPetition_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CharactersServiceServer).GetGuildPetition(ctx, req.(*GetGuildPetitionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _CharactersService_GetGuildPetitionSignatures_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetGuildPetitionSignaturesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CharactersServiceServer).GetGuildPetitionSignatures(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: CharactersService_GetGuildPetitionSignatures_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CharactersServiceServer).GetGuildPetitionSignatures(ctx, req.(*GetGuildPetitionSignaturesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _CharactersService_AddGuildPetitionSignature_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AddGuildPetitionSignatureRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CharactersServiceServer).AddGuildPetitionSignature(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: CharactersService_AddGuildPetitionSignature_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CharactersServiceServer).AddGuildPetitionSignature(ctx, req.(*AddGuildPetitionSignatureRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _CharactersService_RenameGuildPetition_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RenameGuildPetitionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CharactersServiceServer).RenameGuildPetition(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: CharactersService_RenameGuildPetition_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CharactersServiceServer).RenameGuildPetition(ctx, req.(*RenameGuildPetitionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _CharactersService_DeleteGuildPetition_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteGuildPetitionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CharactersServiceServer).DeleteGuildPetition(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: CharactersService_DeleteGuildPetition_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CharactersServiceServer).DeleteGuildPetition(ctx, req.(*DeleteGuildPetitionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _CharactersService_ValidateGuildPetitionTurnIn_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ValidateGuildPetitionTurnInRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CharactersServiceServer).ValidateGuildPetitionTurnIn(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: CharactersService_ValidateGuildPetitionTurnIn_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CharactersServiceServer).ValidateGuildPetitionTurnIn(ctx, req.(*ValidateGuildPetitionTurnInRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _CharactersService_UpsertGuildPetition_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpsertGuildPetitionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CharactersServiceServer).UpsertGuildPetition(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: CharactersService_UpsertGuildPetition_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CharactersServiceServer).UpsertGuildPetition(ctx, req.(*UpsertGuildPetitionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _CharactersService_GuildNameExists_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GuildNameExistsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CharactersServiceServer).GuildNameExists(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: CharactersService_GuildNameExists_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CharactersServiceServer).GuildNameExists(ctx, req.(*GuildNameExistsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // CharactersService_ServiceDesc is the grpc.ServiceDesc for CharactersService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -663,6 +935,38 @@ var CharactersService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetOnlineCharacters",
 			Handler:    _CharactersService_GetOnlineCharacters_Handler,
+		},
+		{
+			MethodName: "GetGuildPetition",
+			Handler:    _CharactersService_GetGuildPetition_Handler,
+		},
+		{
+			MethodName: "GetGuildPetitionSignatures",
+			Handler:    _CharactersService_GetGuildPetitionSignatures_Handler,
+		},
+		{
+			MethodName: "AddGuildPetitionSignature",
+			Handler:    _CharactersService_AddGuildPetitionSignature_Handler,
+		},
+		{
+			MethodName: "RenameGuildPetition",
+			Handler:    _CharactersService_RenameGuildPetition_Handler,
+		},
+		{
+			MethodName: "DeleteGuildPetition",
+			Handler:    _CharactersService_DeleteGuildPetition_Handler,
+		},
+		{
+			MethodName: "ValidateGuildPetitionTurnIn",
+			Handler:    _CharactersService_ValidateGuildPetitionTurnIn_Handler,
+		},
+		{
+			MethodName: "UpsertGuildPetition",
+			Handler:    _CharactersService_UpsertGuildPetition_Handler,
+		},
+		{
+			MethodName: "GuildNameExists",
+			Handler:    _CharactersService_GuildNameExists_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

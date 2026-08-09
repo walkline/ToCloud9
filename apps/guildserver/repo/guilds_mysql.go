@@ -28,6 +28,7 @@ func NewGuildsMySQLRepo(db shrepo.CharactersDB) (GuildsRepo, error) {
 	db.SetPreparedStatement(StmtUpdateGuildMemberOfficersNote)
 	db.SetPreparedStatement(StmtUpdateGuildMemberRank)
 	db.SetPreparedStatement(StmtUpdateGuildInfo)
+	db.SetPreparedStatement(StmtUpdateGuildEmblem)
 	db.SetPreparedStatement(StmtUpdateGuildRank)
 	db.SetPreparedStatement(StmtAddGuildRank)
 	db.SetPreparedStatement(StmtDeleteGuildRank)
@@ -280,6 +281,13 @@ func (g *guildsMySQLRepo) SetMemberRank(ctx context.Context, realmID uint32, mem
 // SetGuildInfo updates guild info text of the guild.
 func (g *guildsMySQLRepo) SetGuildInfo(ctx context.Context, realmID uint32, guildID uint64, info string) error {
 	_, err := g.db.PreparedStatement(realmID, StmtUpdateGuildInfo).ExecContext(ctx, info, guildID)
+	return err
+}
+
+// SetGuildEmblem updates the guild tabard emblem fields.
+func (g *guildsMySQLRepo) SetGuildEmblem(ctx context.Context, realmID uint32, guildID uint64, emblem GuildEmblem) error {
+	_, err := g.db.PreparedStatement(realmID, StmtUpdateGuildEmblem).ExecContext(ctx,
+		emblem.Style, emblem.Color, emblem.BorderStyle, emblem.BorderColor, emblem.BackgroundColor, guildID)
 	return err
 }
 

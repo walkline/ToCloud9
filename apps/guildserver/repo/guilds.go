@@ -156,6 +156,9 @@ type GuildsRepo interface {
 	// SetGuildInfo updates guild info text of the guild.
 	SetGuildInfo(ctx context.Context, realmID uint32, guildID uint64, info string) error
 
+	// SetGuildEmblem updates the guild tabard emblem fields.
+	SetGuildEmblem(ctx context.Context, realmID uint32, guildID uint64, emblem GuildEmblem) error
+
 	// UpdateGuildRank updates guild rank.
 	UpdateGuildRank(ctx context.Context, realmID uint32, guildID uint64, rank uint8, name string, rights, moneyPerDay uint32) error
 

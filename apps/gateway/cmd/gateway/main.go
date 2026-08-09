@@ -141,7 +141,14 @@ func main() {
 		log.Fatal().Err(err).Msg("can't listen to friends events-broadcaster")
 	}
 
+	petitionListener := service.NewPetitionNatsListener(nc, root.RealmID, broadcaster)
+	err = petitionListener.Listen()
+	if err != nil {
+		log.Fatal().Err(err).Msg("can't listen to petition events-broadcaster")
+	}
+
 	producer := events.NewGatewayProducerNatsJSON(nc, root.Ver, root.RealmID, root.RetrievedGatewayID)
+	petitionEventsProducer := events.NewPetitionServiceProducerNatsJSON(nc, root.Ver)
 	charsUpdsBarrier := service.NewCharactersUpdatesBarrier(&log.Logger, producer, time.Second)
 	go charsUpdsBarrier.Run(context.TODO())
 
@@ -172,6 +179,7 @@ func main() {
 			AuctionHouseServiceClient:        auctionHouseClient,
 			GroupServiceClient:               groupClient,
 			EventsProducer:                   producer,
+			PetitionEventsProducer:           petitionEventsProducer,
 			EventsBroadcaster:                broadcaster,
 			ChatChannelsEventBroadcaster:     chatChannelsBroadcasterService,
 			CharsUpdsBarrier:                 charsUpdsBarrier,
@@ -180,6 +188,7 @@ func main() {
 			PacketProcessTimeout:             time.Second * time.Duration(conf.PacketProcessTimeoutSecs),
 			ShowGameserverConnChangeToClient: conf.ShowGameserverConnChangeToClient,
 			AllowCrossFactionGuilds:          conf.AllowCrossFactionGuilds,
+			GuildCharterCost:                 conf.GuildCharterCost,
 		})
 		go func() {
 			healthandmetrics.ActiveConnectionsMetrics.Inc()

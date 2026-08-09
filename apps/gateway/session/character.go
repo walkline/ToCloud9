@@ -5,9 +5,13 @@ import (
 	"fmt"
 	"time"
 
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+
 	root "github.com/walkline/ToCloud9/apps/gateway"
 	"github.com/walkline/ToCloud9/apps/gateway/packet"
 	pbChar "github.com/walkline/ToCloud9/gen/characters/pb"
+	pbGuild "github.com/walkline/ToCloud9/gen/guilds/pb"
 	pbServ "github.com/walkline/ToCloud9/gen/servers-registry/pb"
 )
 
@@ -155,12 +159,39 @@ func (s *GameSession) CreateCharacter(ctx context.Context, p *packet.Packet) err
 	return nil
 }
 
+// Character delete result codes (3.3.5 ResponseCodes).
+const (
+	charDeleteFailed            = uint8(0x48) // CHAR_DELETE_FAILED
+	charDeleteFailedGuildLeader = uint8(0x4A) // CHAR_DELETE_FAILED_GUILD_LEADER
+)
+
 func (s *GameSession) DeleteCharacter(ctx context.Context, p *packet.Packet) error {
-	sendDelFailed := func() {
-		const deleteFailedCode = uint8(0x48)
+	sendDelResult := func(code uint8) {
 		resp := packet.NewWriterWithSize(packet.SMsgCharDelete, 1)
-		resp.Uint8(deleteFailedCode)
+		resp.Uint8(code)
 		s.gameSocket.Send(resp)
+	}
+
+	charGUID := p.Reader().Uint64()
+
+	// Gateway owns guild leader check + membership cleanup (world may lack sGuildMgr).
+	_, err := s.guildServiceClient.Leave(ctx, &pbGuild.LeaveParams{
+		Api:     root.Ver,
+		RealmID: root.RealmID,
+		Leaver:  charGUID,
+	})
+	if err != nil {
+		switch status.Code(err) {
+		case codes.FailedPrecondition:
+			// Guild master cannot be deleted while still leading the guild.
+			sendDelResult(charDeleteFailedGuildLeader)
+			return nil
+		case codes.NotFound:
+			// Character is not in a guild — continue with world delete.
+		default:
+			sendDelResult(charDeleteFailed)
+			return fmt.Errorf("guild cleanup before character delete failed for guid %d: %w", charGUID, err)
+		}
 	}
 
 	serverResult, err := s.serversRegistryClient.RandomGameServerForRealm(ctx, &pbServ.RandomGameServerForRealmRequest{
@@ -168,18 +199,18 @@ func (s *GameSession) DeleteCharacter(ctx context.Context, p *packet.Packet) err
 		RealmID: root.RealmID,
 	})
 	if err != nil {
-		sendDelFailed()
+		sendDelResult(charDeleteFailed)
 		return err
 	}
 
 	if serverResult.GameServer == nil {
-		sendDelFailed()
+		sendDelResult(charDeleteFailed)
 		return fmt.Errorf("no available game servers to handle 0x%X packet", uint16(p.Opcode))
 	}
 
 	socket, err := WorldSocketCreator(s.logger, serverResult.GameServer.Address)
 	if err != nil {
-		sendDelFailed()
+		sendDelResult(charDeleteFailed)
 		return fmt.Errorf("can't connect to the world server, err: %w", err)
 	}
 
@@ -223,7 +254,7 @@ func (s *GameSession) DeleteCharacter(ctx context.Context, p *packet.Packet) err
 
 	select {
 	case <-newCtx.Done():
-		sendDelFailed()
+		sendDelResult(charDeleteFailed)
 		return fmt.Errorf("character deletion timeouted, gameserver: %s", serverResult.GameServer.Address)
 	default:
 	}

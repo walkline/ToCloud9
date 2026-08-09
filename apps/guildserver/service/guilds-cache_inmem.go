@@ -235,6 +235,25 @@ func (g *guildsInMemCache) SetMessageOfTheDay(ctx context.Context, realmID uint3
 	return nil
 }
 
+// SetGuildEmblem updates the guild tabard emblem and the in-memory cache.
+func (g *guildsInMemCache) SetGuildEmblem(ctx context.Context, realmID uint32, guildID uint64, emblem repo.GuildEmblem) error {
+	err := g.r.SetGuildEmblem(ctx, realmID, guildID, emblem)
+	if err != nil {
+		return err
+	}
+
+	g.cacheMutex.Lock()
+	defer g.cacheMutex.Unlock()
+
+	guild := g.cache[realmID][guildID]
+	if guild == nil {
+		return nil
+	}
+
+	guild.Emblem = emblem
+	return nil
+}
+
 // SetMemberPublicNote sets public not for guild member.
 func (g *guildsInMemCache) SetMemberPublicNote(ctx context.Context, realmID uint32, memberGUID uint64, note string) error {
 	err := g.r.SetMemberPublicNote(ctx, realmID, memberGUID, note)
@@ -513,18 +532,15 @@ func (g *guildsInMemCache) CreateGuild(ctx context.Context, realmID uint32, name
 		g.guildMembersCache[realmID] = map[uint64]*repo.GuildMember{}
 	}
 	g.cache[realmID][id] = guild
+	if g.onlineChars[realmID] == nil {
+		g.onlineChars[realmID] = map[uint64]struct{}{}
+	}
 	for _, member := range guild.GuildMembers {
-		if member.PlayerGUID == leaderGUID {
-			// Guild creation is always driven by a live session of the leader,
-			// but the world may not have flushed the online flag to the
-			// characters table yet, so the hydration can miss it. Track it in
-			// onlineChars too so later roster refreshes keep the status.
-			member.Status = repo.GuildMemberStatusOnline
-			if g.onlineChars[realmID] == nil {
-				g.onlineChars[realmID] = map[uint64]struct{}{}
-			}
-			g.onlineChars[realmID][leaderGUID] = struct{}{}
-		}
+		// Founding members just joined (leader turn-in + live signatories).
+		// characters.online is often stale in cluster, so hydration would mark
+		// them offline and MembersOnline / join events would miss them.
+		member.Status = repo.GuildMemberStatusOnline
+		g.onlineChars[realmID][member.PlayerGUID] = struct{}{}
 		g.guildMembersCache[realmID][member.PlayerGUID] = member
 	}
 	g.cacheMutex.Unlock()

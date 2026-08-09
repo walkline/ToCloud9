@@ -254,7 +254,11 @@ func (s *GameSession) InterceptMoveWorldPortAck(ctx context.Context, p *packet.P
 		if clientErr != nil {
 			err = clientErr
 		} else {
-			socket, err = s.connectToGameServerWithAddress(context.Background(), charGUID, desiredServer.Address, nil)
+			guildID, guildRank := uint32(0), uint8(0)
+			if s.character != nil {
+				guildID, guildRank = s.character.GuildID, s.character.GuildRank
+			}
+			socket, err = s.connectToGameServerWithAddress(context.Background(), charGUID, desiredServer.Address, nil, guildID, guildRank)
 		}
 		if err != nil {
 			s.logger.Error().Err(err).Msg("failed to reconnect player to the world")

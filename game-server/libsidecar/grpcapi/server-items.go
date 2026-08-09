@@ -110,6 +110,49 @@ func (w *WorldServerGRPCAPI) RemoveItemsWithGuidsFromPlayer(ctx context.Context,
 	}, nil
 }
 
+func (w *WorldServerGRPCAPI) DestroyItemsWithGuidsFromPlayer(ctx context.Context, request *pb.DestroyItemsWithGuidsFromPlayerRequest) (*pb.DestroyItemsWithGuidsFromPlayerResponse, error) {
+	if request.PlayerGuid == 0 || len(request.Guids) == 0 {
+		return &pb.DestroyItemsWithGuidsFromPlayerResponse{
+			Api: LibVer,
+		}, nil
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, w.timeout)
+	defer cancel()
+
+	type respType struct {
+		items []uint64
+		err   error
+	}
+	var resp respType
+
+	respChan := make(chan respType, 1)
+
+	w.writeQueue.Push(queue.HandlerFunc(func() {
+		items, err := w.bindings.DestroyItemsWithGuidsFromPlayer(request.PlayerGuid, request.Guids)
+		respChan <- respType{
+			items: items,
+			err:   err,
+		}
+		close(respChan)
+	}))
+
+	select {
+	case <-ctx.Done():
+		return nil, ErrTimeout
+	case resp = <-respChan:
+	}
+
+	if resp.err != nil {
+		return nil, resp.err
+	}
+
+	return &pb.DestroyItemsWithGuidsFromPlayerResponse{
+		Api:                  LibVer,
+		DestroyedItemsGuids:  resp.items,
+	}, nil
+}
+
 func (w *WorldServerGRPCAPI) AddExistingItemToPlayer(ctx context.Context, request *pb.AddExistingItemToPlayerRequest) (*pb.AddExistingItemToPlayerResponse, error) {
 	if request.PlayerGuid == 0 {
 		return &pb.AddExistingItemToPlayerResponse{
@@ -156,4 +199,102 @@ func (w *WorldServerGRPCAPI) AddExistingItemToPlayer(ctx context.Context, reques
 		Api:    LibVer,
 		Status: pb.AddExistingItemToPlayerResponse_Success,
 	}, nil
+}
+
+func (w *WorldServerGRPCAPI) StoreNewItem(ctx context.Context, request *pb.StoreNewItemRequest) (*pb.StoreNewItemResponse, error) {
+	if request.PlayerGuid == 0 || request.ItemEntry == 0 {
+		return &pb.StoreNewItemResponse{Api: LibVer, Status: pb.StoreNewItemResponse_Failed}, nil
+	}
+	count := request.Count
+	if count == 0 {
+		count = 1
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, w.timeout)
+	defer cancel()
+
+	type respType struct {
+		guid uint64
+		err  error
+	}
+	respChan := make(chan respType, 1)
+	w.writeQueue.Push(queue.HandlerFunc(func() {
+		g, err := w.bindings.StoreNewItem(request.PlayerGuid, request.ItemEntry, count, request.EnchantmentIDs)
+		respChan <- respType{guid: g, err: err}
+		close(respChan)
+	}))
+
+	var resp respType
+	select {
+	case <-ctx.Done():
+		return nil, ErrTimeout
+	case resp = <-respChan:
+	}
+
+	if resp.err != nil {
+		if itemErr, ok := resp.err.(ItemError); ok {
+			switch itemErr {
+			case ItemErrorNoPlayer:
+				return &pb.StoreNewItemResponse{Api: LibVer, Status: pb.StoreNewItemResponse_PlayerNotFound}, nil
+			case ItemErrorNoInventorySpace:
+				return &pb.StoreNewItemResponse{Api: LibVer, Status: pb.StoreNewItemResponse_NoSpace}, nil
+			case ItemErrorUnknownTemplate:
+				return &pb.StoreNewItemResponse{Api: LibVer, Status: pb.StoreNewItemResponse_UnknownTemplate}, nil
+			case ItemErrorFailedToCreateItem:
+				return &pb.StoreNewItemResponse{Api: LibVer, Status: pb.StoreNewItemResponse_Failed}, nil
+			}
+		}
+		return nil, resp.err
+	}
+
+	return &pb.StoreNewItemResponse{
+		Api:      LibVer,
+		Status:   pb.StoreNewItemResponse_Ok,
+		ItemGuid: resp.guid,
+	}, nil
+}
+
+func (w *WorldServerGRPCAPI) SetItemPermanentEnchantment(ctx context.Context, request *pb.SetItemPermanentEnchantmentRequest) (*pb.SetItemPermanentEnchantmentResponse, error) {
+	if request.PlayerGuid == 0 || request.ItemGuid == 0 {
+		return &pb.SetItemPermanentEnchantmentResponse{Api: LibVer, Status: pb.SetItemPermanentEnchantmentResponse_Failed}, nil
+	}
+	if w.bindings.SetItemPermanentEnchantment == nil {
+		return &pb.SetItemPermanentEnchantmentResponse{Api: LibVer, Status: pb.SetItemPermanentEnchantmentResponse_Failed}, nil
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, w.timeout)
+	defer cancel()
+
+	type respType struct {
+		err error
+	}
+	respChan := make(chan respType, 1)
+	w.writeQueue.Push(queue.HandlerFunc(func() {
+		err := w.bindings.SetItemPermanentEnchantment(request.PlayerGuid, request.ItemGuid, request.Slot, request.EnchantmentId)
+		respChan <- respType{err: err}
+		close(respChan)
+	}))
+
+	var resp respType
+	select {
+	case <-ctx.Done():
+		return nil, ErrTimeout
+	case resp = <-respChan:
+	}
+
+	if resp.err != nil {
+		if itemErr, ok := resp.err.(ItemError); ok {
+			switch itemErr {
+			case ItemErrorNoPlayer:
+				return &pb.SetItemPermanentEnchantmentResponse{Api: LibVer, Status: pb.SetItemPermanentEnchantmentResponse_PlayerNotFound}, nil
+			case ItemErrorItemNotFound:
+				return &pb.SetItemPermanentEnchantmentResponse{Api: LibVer, Status: pb.SetItemPermanentEnchantmentResponse_ItemNotFound}, nil
+			default:
+				return &pb.SetItemPermanentEnchantmentResponse{Api: LibVer, Status: pb.SetItemPermanentEnchantmentResponse_Failed}, nil
+			}
+		}
+		return nil, resp.err
+	}
+
+	return &pb.SetItemPermanentEnchantmentResponse{Api: LibVer, Status: pb.SetItemPermanentEnchantmentResponse_Ok}, nil
 }

@@ -28,6 +28,7 @@ var HandleMap = map[packet.Opcode]HandlersQueue{
 	packet.CMsgReadyForAccountDataTimes: NewHandler("CMsgReadyForAccountDataTimes", (*GameSession).ReadyForAccountDataTimes),
 	packet.CMsgMessageChat:              NewHandler("CMsgMessageChat", (*GameSession).HandleChatMessage),
 	packet.CMsgGuildQuery:               NewHandler("CMsgGuildQuery", (*GameSession).HandleGuildQuery),
+	packet.MsgSaveGuildEmblem:           NewHandler("MsgSaveGuildEmblem", (*GameSession).HandleSaveGuildEmblem),
 	packet.CMsgWho:                      NewHandler("CMsgWho", (*GameSession).HandleWho),
 
 	// Friends
@@ -57,6 +58,14 @@ var HandleMap = map[packet.Opcode]HandlersQueue{
 	packet.CMsgChannelAnnouncements: NewHandler("CMsgChannelAnnouncements", (*GameSession).HandleChannelAnnouncements),
 	packet.CMsgChannelModerate:      NewHandler("CMsgChannelModerate", (*GameSession).HandleChannelModerate),
 
+	// Guild petitions (signatures + buy registration centralized in charserver)
+	packet.CMsgPetitionBuy:            NewHandler("CMsgPetitionBuy", (*GameSession).HandlePetitionBuy),
+	packet.CMsgPetitionShowSignatures: NewHandler("CMsgPetitionShowSignatures", (*GameSession).HandlePetitionShowSignatures),
+	packet.CMsgPetitionSign:           NewHandler("CMsgPetitionSign", (*GameSession).HandlePetitionSign),
+	packet.CMsgOfferPetition:          NewHandler("CMsgOfferPetition", (*GameSession).HandleOfferPetition),
+	packet.CMsgPetitionQuery:          NewHandler("CMsgPetitionQuery", (*GameSession).HandlePetitionQuery),
+	packet.MsgPetitionRename:          NewHandler("MsgPetitionRename", (*GameSession).HandlePetitionRename),
+	packet.MsgPetitionDecline:         NewHandler("MsgPetitionDecline", (*GameSession).HandlePetitionDecline),
 	packet.CMsgTurnInPetition:         NewHandler("CMsgTurnInPetition", (*GameSession).HandleTurnInPetition),
 	packet.CMsgGuildInvite:            NewHandler("CMsgGuildInvite", (*GameSession).HandleGuildInvite),
 	packet.CMsgGuildInviteAccept:      NewHandler("CMsgGuildInviteAccept", (*GameSession).HandleGuildInviteAccept),

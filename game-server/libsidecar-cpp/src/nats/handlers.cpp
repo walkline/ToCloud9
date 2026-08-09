@@ -251,6 +251,9 @@ std::unique_ptr<Handler> CreateGuildMemberAddedHandler(const std::string& data, 
     });
 }
 
+// Dispatches OnGuildCreated for world/custom hooks. Product guild state
+// (roster, UI, leader rules) still lives on gateway + guildserver — do not
+// use this path to mirror new guilds into sGuildMgr.
 std::unique_ptr<Handler> CreateGuildCreatedHandler(const std::string& data, uint32_t realm_id) {
     return std::make_unique<FunctionHandler>([data, realm_id]() {
         try {
@@ -273,7 +276,7 @@ std::unique_ptr<Handler> CreateGuildCreatedHandler(const std::string& data, uint
             event.memberGuids = memberGuids.empty() ? nullptr : memberGuids.data();
             event.memberGuidsCount = static_cast<int>(memberGuids.size());
 
-            // Dispatch is synchronous, the hook must copy name/members.
+            // Dispatch is synchronous; the hook must copy name/members.
             EventHooks::Instance().DispatchGuildCreated(event);
         } catch (const std::exception& e) {
             spdlog::error("Failed to parse GuildCreated event: {}", e.what());

@@ -57,6 +57,11 @@ var EventsHandleMap = map[eBroadcaster.EventType]EventsHandlersQueue{
 	eBroadcaster.EventTypeChannelJoined:       NewEventHandler("ChannelJoined", (*GameSession).HandleEventChannelJoined),
 	eBroadcaster.EventTypeChannelLeft:         NewEventHandler("ChannelLeft", (*GameSession).HandleEventChannelLeft),
 	eBroadcaster.EventTypeChannelNotification: NewEventHandler("ChannelNotification", (*GameSession).HandleEventChannelNotification),
+
+	// Petitions
+	eBroadcaster.EventTypePetitionSignResult: NewEventHandler("PetitionSignResult", (*GameSession).HandleEventPetitionSignResult),
+	eBroadcaster.EventTypePetitionOffered:    NewEventHandler("PetitionOffered", (*GameSession).HandleEventPetitionOffered),
+	eBroadcaster.EventTypePetitionDeclined:   NewEventHandler("PetitionDeclined", (*GameSession).HandleEventPetitionDeclined),
 }
 
 type EventHandler func(*GameSession, context.Context, *eBroadcaster.Event) error

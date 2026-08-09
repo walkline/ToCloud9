@@ -545,6 +545,249 @@ func (_m *CharactersServiceClient) WhoQuery(ctx context.Context, in *pb.WhoQuery
 	return r0, r1
 }
 
+// AddGuildPetitionSignature provides a mock function with given fields: ctx, in, opts
+func (_m *CharactersServiceClient) AddGuildPetitionSignature(ctx context.Context, in *pb.AddGuildPetitionSignatureRequest, opts ...grpc.CallOption) (*pb.AddGuildPetitionSignatureResponse, error) {
+	_va := make([]interface{}, len(opts))
+	for _i := range opts {
+		_va[_i] = opts[_i]
+	}
+	var _ca []interface{}
+	_ca = append(_ca, ctx, in)
+	_ca = append(_ca, _va...)
+	ret := _m.Called(_ca...)
+
+	var r0 *pb.AddGuildPetitionSignatureResponse
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, *pb.AddGuildPetitionSignatureRequest, ...grpc.CallOption) (*pb.AddGuildPetitionSignatureResponse, error)); ok {
+		return rf(ctx, in, opts...)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, *pb.AddGuildPetitionSignatureRequest, ...grpc.CallOption) *pb.AddGuildPetitionSignatureResponse); ok {
+		r0 = rf(ctx, in, opts...)
+	} else if ret.Get(0) != nil {
+		r0 = ret.Get(0).(*pb.AddGuildPetitionSignatureResponse)
+	}
+	if rf, ok := ret.Get(1).(func(context.Context, *pb.AddGuildPetitionSignatureRequest, ...grpc.CallOption) error); ok {
+		r1 = rf(ctx, in, opts...)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// DeleteGuildPetition provides a mock function with given fields: ctx, in, opts
+func (_m *CharactersServiceClient) DeleteGuildPetition(ctx context.Context, in *pb.DeleteGuildPetitionRequest, opts ...grpc.CallOption) (*pb.DeleteGuildPetitionResponse, error) {
+	_va := make([]interface{}, len(opts))
+	for _i := range opts {
+		_va[_i] = opts[_i]
+	}
+	var _ca []interface{}
+	_ca = append(_ca, ctx, in)
+	_ca = append(_ca, _va...)
+	ret := _m.Called(_ca...)
+
+	var r0 *pb.DeleteGuildPetitionResponse
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, *pb.DeleteGuildPetitionRequest, ...grpc.CallOption) (*pb.DeleteGuildPetitionResponse, error)); ok {
+		return rf(ctx, in, opts...)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, *pb.DeleteGuildPetitionRequest, ...grpc.CallOption) *pb.DeleteGuildPetitionResponse); ok {
+		r0 = rf(ctx, in, opts...)
+	} else if ret.Get(0) != nil {
+		r0 = ret.Get(0).(*pb.DeleteGuildPetitionResponse)
+	}
+	if rf, ok := ret.Get(1).(func(context.Context, *pb.DeleteGuildPetitionRequest, ...grpc.CallOption) error); ok {
+		r1 = rf(ctx, in, opts...)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// GetGuildPetition provides a mock function with given fields: ctx, in, opts
+func (_m *CharactersServiceClient) GetGuildPetition(ctx context.Context, in *pb.GetGuildPetitionRequest, opts ...grpc.CallOption) (*pb.GetGuildPetitionResponse, error) {
+	_va := make([]interface{}, len(opts))
+	for _i := range opts {
+		_va[_i] = opts[_i]
+	}
+	var _ca []interface{}
+	_ca = append(_ca, ctx, in)
+	_ca = append(_ca, _va...)
+	ret := _m.Called(_ca...)
+
+	var r0 *pb.GetGuildPetitionResponse
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, *pb.GetGuildPetitionRequest, ...grpc.CallOption) (*pb.GetGuildPetitionResponse, error)); ok {
+		return rf(ctx, in, opts...)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, *pb.GetGuildPetitionRequest, ...grpc.CallOption) *pb.GetGuildPetitionResponse); ok {
+		r0 = rf(ctx, in, opts...)
+	} else if ret.Get(0) != nil {
+		r0 = ret.Get(0).(*pb.GetGuildPetitionResponse)
+	}
+	if rf, ok := ret.Get(1).(func(context.Context, *pb.GetGuildPetitionRequest, ...grpc.CallOption) error); ok {
+		r1 = rf(ctx, in, opts...)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// GetGuildPetitionSignatures provides a mock function with given fields: ctx, in, opts
+func (_m *CharactersServiceClient) GetGuildPetitionSignatures(ctx context.Context, in *pb.GetGuildPetitionSignaturesRequest, opts ...grpc.CallOption) (*pb.GetGuildPetitionSignaturesResponse, error) {
+	_va := make([]interface{}, len(opts))
+	for _i := range opts {
+		_va[_i] = opts[_i]
+	}
+	var _ca []interface{}
+	_ca = append(_ca, ctx, in)
+	_ca = append(_ca, _va...)
+	ret := _m.Called(_ca...)
+
+	var r0 *pb.GetGuildPetitionSignaturesResponse
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, *pb.GetGuildPetitionSignaturesRequest, ...grpc.CallOption) (*pb.GetGuildPetitionSignaturesResponse, error)); ok {
+		return rf(ctx, in, opts...)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, *pb.GetGuildPetitionSignaturesRequest, ...grpc.CallOption) *pb.GetGuildPetitionSignaturesResponse); ok {
+		r0 = rf(ctx, in, opts...)
+	} else if ret.Get(0) != nil {
+		r0 = ret.Get(0).(*pb.GetGuildPetitionSignaturesResponse)
+	}
+	if rf, ok := ret.Get(1).(func(context.Context, *pb.GetGuildPetitionSignaturesRequest, ...grpc.CallOption) error); ok {
+		r1 = rf(ctx, in, opts...)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// RenameGuildPetition provides a mock function with given fields: ctx, in, opts
+func (_m *CharactersServiceClient) RenameGuildPetition(ctx context.Context, in *pb.RenameGuildPetitionRequest, opts ...grpc.CallOption) (*pb.RenameGuildPetitionResponse, error) {
+	_va := make([]interface{}, len(opts))
+	for _i := range opts {
+		_va[_i] = opts[_i]
+	}
+	var _ca []interface{}
+	_ca = append(_ca, ctx, in)
+	_ca = append(_ca, _va...)
+	ret := _m.Called(_ca...)
+
+	var r0 *pb.RenameGuildPetitionResponse
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, *pb.RenameGuildPetitionRequest, ...grpc.CallOption) (*pb.RenameGuildPetitionResponse, error)); ok {
+		return rf(ctx, in, opts...)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, *pb.RenameGuildPetitionRequest, ...grpc.CallOption) *pb.RenameGuildPetitionResponse); ok {
+		r0 = rf(ctx, in, opts...)
+	} else if ret.Get(0) != nil {
+		r0 = ret.Get(0).(*pb.RenameGuildPetitionResponse)
+	}
+	if rf, ok := ret.Get(1).(func(context.Context, *pb.RenameGuildPetitionRequest, ...grpc.CallOption) error); ok {
+		r1 = rf(ctx, in, opts...)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// ValidateGuildPetitionTurnIn provides a mock function with given fields: ctx, in, opts
+func (_m *CharactersServiceClient) ValidateGuildPetitionTurnIn(ctx context.Context, in *pb.ValidateGuildPetitionTurnInRequest, opts ...grpc.CallOption) (*pb.ValidateGuildPetitionTurnInResponse, error) {
+	_va := make([]interface{}, len(opts))
+	for _i := range opts {
+		_va[_i] = opts[_i]
+	}
+	var _ca []interface{}
+	_ca = append(_ca, ctx, in)
+	_ca = append(_ca, _va...)
+	ret := _m.Called(_ca...)
+
+	var r0 *pb.ValidateGuildPetitionTurnInResponse
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, *pb.ValidateGuildPetitionTurnInRequest, ...grpc.CallOption) (*pb.ValidateGuildPetitionTurnInResponse, error)); ok {
+		return rf(ctx, in, opts...)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, *pb.ValidateGuildPetitionTurnInRequest, ...grpc.CallOption) *pb.ValidateGuildPetitionTurnInResponse); ok {
+		r0 = rf(ctx, in, opts...)
+	} else if ret.Get(0) != nil {
+		r0 = ret.Get(0).(*pb.ValidateGuildPetitionTurnInResponse)
+	}
+	if rf, ok := ret.Get(1).(func(context.Context, *pb.ValidateGuildPetitionTurnInRequest, ...grpc.CallOption) error); ok {
+		r1 = rf(ctx, in, opts...)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+
+
+// UpsertGuildPetition provides a mock function with given fields: ctx, in, opts
+
+// GuildNameExists provides a mock function with given fields: ctx, in, opts
+
+
+
+
+func (_m *CharactersServiceClient) GuildNameExists(ctx context.Context, in *pb.GuildNameExistsRequest, opts ...grpc.CallOption) (*pb.GuildNameExistsResponse, error) {
+	_va := make([]interface{}, len(opts))
+	for _i := range opts {
+		_va[_i] = opts[_i]
+	}
+	var _ca []interface{}
+	_ca = append(_ca, ctx, in)
+	_ca = append(_ca, _va...)
+	ret := _m.Called(_ca...)
+
+	var r0 *pb.GuildNameExistsResponse
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, *pb.GuildNameExistsRequest, ...grpc.CallOption) (*pb.GuildNameExistsResponse, error)); ok {
+		return rf(ctx, in, opts...)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, *pb.GuildNameExistsRequest, ...grpc.CallOption) *pb.GuildNameExistsResponse); ok {
+		r0 = rf(ctx, in, opts...)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*pb.GuildNameExistsResponse)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, *pb.GuildNameExistsRequest, ...grpc.CallOption) error); ok {
+		r1 = rf(ctx, in, opts...)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+func (_m *CharactersServiceClient) UpsertGuildPetition(ctx context.Context, in *pb.UpsertGuildPetitionRequest, opts ...grpc.CallOption) (*pb.UpsertGuildPetitionResponse, error) {
+	_va := make([]interface{}, len(opts))
+	for _i := range opts {
+		_va[_i] = opts[_i]
+	}
+	var _ca []interface{}
+	_ca = append(_ca, ctx, in)
+	_ca = append(_ca, _va...)
+	ret := _m.Called(_ca...)
+
+	var r0 *pb.UpsertGuildPetitionResponse
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, *pb.UpsertGuildPetitionRequest, ...grpc.CallOption) (*pb.UpsertGuildPetitionResponse, error)); ok {
+		return rf(ctx, in, opts...)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, *pb.UpsertGuildPetitionRequest, ...grpc.CallOption) *pb.UpsertGuildPetitionResponse); ok {
+		r0 = rf(ctx, in, opts...)
+	} else if ret.Get(0) != nil {
+		r0 = ret.Get(0).(*pb.UpsertGuildPetitionResponse)
+	}
+	if rf, ok := ret.Get(1).(func(context.Context, *pb.UpsertGuildPetitionRequest, ...grpc.CallOption) error); ok {
+		r1 = rf(ctx, in, opts...)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
 type mockConstructorTestingTNewCharactersServiceClient interface {
 	mock.TestingT
 	Cleanup(func())

@@ -52,7 +52,16 @@ type GetPlayerItemsByGuidsHandler func(player uint64, items []uint64) ([]PlayerI
 
 type RemoveItemsWithGuidsFromPlayerHandler func(player uint64, items []uint64, assignToPlayer uint64) ([]uint64, error)
 
+// DestroyItemsWithGuidsFromPlayerHandler permanently destroys items (not reassign/orphan).
+type DestroyItemsWithGuidsFromPlayerHandler func(player uint64, items []uint64) ([]uint64, error)
+
 type AddExistingItemToPlayerHandler func(player uint64, item *ItemToAdd) error
+
+// StoreNewItemHandler creates item from template; returns item GUID.
+type StoreNewItemHandler func(player uint64, entry, count uint32, enchantmentIDs []uint32) (itemGUID uint64, err error)
+
+// SetItemPermanentEnchantmentHandler sets permanent enchantment slot on a player-owned item.
+type SetItemPermanentEnchantmentHandler func(player, item uint64, slot, enchantmentID uint32) error
 
 type GetMoneyForPlayerHandler func(player uint64) (uint32, error)
 
@@ -70,38 +79,19 @@ type CanPlayerJoinBattlegroundQueueHandler func(player uint64) error
 
 type CanPlayerTeleportToBattlegroundHandler func(player uint64) error
 
-// GuildPetitionCheckStatus mirrors the statuses of the C petition-api.
-type GuildPetitionCheckStatus int
-
-const (
-	GuildPetitionCheckStatusOk                 GuildPetitionCheckStatus = 0
-	GuildPetitionCheckStatusPlayerNotFound     GuildPetitionCheckStatus = 2
-	GuildPetitionCheckStatusPetitionNotFound   GuildPetitionCheckStatus = 3
-	GuildPetitionCheckStatusNotPetitionOwner   GuildPetitionCheckStatus = 4
-	GuildPetitionCheckStatusNotGuildPetition   GuildPetitionCheckStatus = 5
-	GuildPetitionCheckStatusAlreadyInGuild     GuildPetitionCheckStatus = 6
-	GuildPetitionCheckStatusNeedMoreSignatures GuildPetitionCheckStatus = 7
-)
-
-type GuildPetitionCheckResult struct {
-	Status         GuildPetitionCheckStatus
-	GuildName      string
-	SignatoryGUIDs []uint64
-}
-
-type CanTurnInGuildPetitionHandler func(playerGUID, petitionItemGUID uint64) (*GuildPetitionCheckResult, error)
-
 type CppBindings struct {
-	GetPlayerItemsByGuids           GetPlayerItemsByGuidsHandler
-	RemoveItemsWithGuidsFromPlayer  RemoveItemsWithGuidsFromPlayerHandler
-	AddExistingItemToPlayer         AddExistingItemToPlayerHandler
-	GetMoneyForPlayer               GetMoneyForPlayerHandler
-	ModifyMoneyForPlayer            ModifyMoneyForPlayerHandler
-	CanPlayerInteractWithNPC        CanPlayerInteractWithNPCWithFlagsHandler
-	CanPlayerInteractWithGO         CanPlayerInteractWithGOWithTypeHandler
-	StartBattleground               StartBattlegroundHandler
-	AddPlayersToBattleground        AddPlayersToBattlegroundHandler
-	CanPlayerJoinBattlegroundQueue  CanPlayerJoinBattlegroundQueueHandler
-	CanPlayerTeleportToBattleground CanPlayerTeleportToBattlegroundHandler
-	CanTurnInGuildPetition          CanTurnInGuildPetitionHandler
+	GetPlayerItemsByGuids            GetPlayerItemsByGuidsHandler
+	RemoveItemsWithGuidsFromPlayer   RemoveItemsWithGuidsFromPlayerHandler
+	DestroyItemsWithGuidsFromPlayer  DestroyItemsWithGuidsFromPlayerHandler
+	AddExistingItemToPlayer          AddExistingItemToPlayerHandler
+	StoreNewItem                     StoreNewItemHandler
+	SetItemPermanentEnchantment      SetItemPermanentEnchantmentHandler
+	GetMoneyForPlayer                GetMoneyForPlayerHandler
+	ModifyMoneyForPlayer             ModifyMoneyForPlayerHandler
+	CanPlayerInteractWithNPC         CanPlayerInteractWithNPCWithFlagsHandler
+	CanPlayerInteractWithGO          CanPlayerInteractWithGOWithTypeHandler
+	StartBattleground                StartBattlegroundHandler
+	AddPlayersToBattleground         AddPlayersToBattlegroundHandler
+	CanPlayerJoinBattlegroundQueue   CanPlayerJoinBattlegroundQueueHandler
+	CanPlayerTeleportToBattleground  CanPlayerTeleportToBattlegroundHandler
 }

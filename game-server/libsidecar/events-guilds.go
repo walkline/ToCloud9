@@ -37,7 +37,9 @@ func TC9SetOnGuildMemberLeftHook(h C.OnGuildMemberLeftHook) {
 	C.SetOnGuildMemberLeftHook(h)
 }
 
-// TC9SetOnGuildCreatedHook sets hook for guild created event.
+// TC9SetOnGuildCreatedHook sets hook for guild created event (custom world
+// actions). Product guild state stays on gateway + guildserver; do not use
+// this to mirror new guilds into sGuildMgr.
 //
 //export TC9SetOnGuildCreatedHook
 func TC9SetOnGuildCreatedHook(h C.OnGuildCreatedHook) {

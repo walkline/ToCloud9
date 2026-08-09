@@ -80,6 +80,11 @@ func main() {
 	friendsService := service.NewFriendsService(charRepo, friendsOnlineCache, friendsEventsProducer)
 	friendsOnlineCache.SetFriendsService(friendsService)
 
+	// Guild petition signatures (cluster authority)
+	petitionsRepo := repo.NewPetitionsMYSQL(charDB)
+	petitionEventsProducer := events.NewPetitionServiceProducerNatsJSON(nc, charserver.Ver)
+	petitionService := service.NewPetitionService(petitionsRepo, conf.MinPetitionSigns, petitionEventsProducer)
+
 	// Composite handlers to call both onlineCharsRepo and friendsOnlineCache
 	compositeLoggedInHandler := &compositeLoggedInHandler{
 		handlers: []events.GWCharacterLoggedInHandler{onlineCharsRepo, friendsOnlineCache},
@@ -113,7 +118,7 @@ func main() {
 	guildNames := service.NewGuildNamesService(guildServiceClient(conf))
 
 	grpcServer := grpc.NewServer()
-	pb.RegisterCharactersServiceServer(grpcServer, server.NewCharServer(charRepo, onlineCharsRepo, onlineCharsRepo, itemsTemplate, friendsService, guildNames))
+	pb.RegisterCharactersServiceServer(grpcServer, server.NewCharServer(charRepo, onlineCharsRepo, onlineCharsRepo, itemsTemplate, friendsService, petitionService, guildNames))
 
 	log.Info().Str("address", lis.Addr().String()).Msg("🚀 Characters Server Started!")
 

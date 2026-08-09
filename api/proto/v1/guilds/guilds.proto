@@ -17,6 +17,8 @@ service GuildService {
 
   rpc SetMessageOfTheDay(SetMessageOfTheDayParams) returns (SetMessageOfTheDayResponse);
   rpc SetGuildInfo(SetGuildInfoParams) returns (SetGuildInfoResponse);
+  // SetGuildEmblem updates the guild tabard (leader only). Gateway owns money + vendor checks.
+  rpc SetGuildEmblem(SetGuildEmblemParams) returns (SetGuildEmblemResponse);
 
   rpc SetMemberPublicNote(SetNoteParams) returns (SetNoteResponse);
   rpc SetMemberOfficerNote(SetNoteParams) returns (SetNoteResponse);
@@ -192,6 +194,30 @@ message SetGuildInfoParams {
 
 message SetGuildInfoResponse {
   string api = 1;
+}
+
+message SetGuildEmblemParams {
+  string api = 1;
+  uint32 realmID = 2;
+  uint64 changerGUID = 3;
+  uint32 emblemStyle = 4;
+  uint32 emblemColor = 5;
+  uint32 borderStyle = 6;
+  uint32 borderColor = 7;
+  uint32 backgroundColor = 8;
+}
+
+message SetGuildEmblemResponse {
+  string api = 1;
+
+  enum Status {
+    Ok = 0;
+    NoGuild = 1;
+    NotGuildMaster = 2;
+  }
+
+  Status status = 2;
+  uint64 guildID = 3;
 }
 
 message SetNoteParams {

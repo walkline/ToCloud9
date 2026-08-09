@@ -213,6 +213,7 @@ void NatsConsumer::OnMessage(natsConnection* /*nc*/, natsSubscription* /*sub*/,
     } else if (subject_str == "guild.member.kicked") {
         handler = CreateGuildMemberRemovedHandler(event_data, consumer->realm_id_);
     } else if (subject_str == "guild.created") {
+        // Hook dispatch only (custom create-side effects). Not for sGuildMgr mirror.
         handler = CreateGuildCreatedHandler(event_data, consumer->realm_id_);
     }
     // Registry events

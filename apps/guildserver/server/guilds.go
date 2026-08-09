@@ -153,10 +153,18 @@ func (g *GuildServer) InviteAccepted(ctx context.Context, params *pb.InviteAccep
 	}, nil
 }
 
-// Leave handles players leave from the guild.
+// Leave handles players leave from the guild. Business failures are mapped to
+// gRPC status codes so callers (including character-delete cleanup) can branch
+// without matching error strings.
 func (g *GuildServer) Leave(ctx context.Context, params *pb.LeaveParams) (*pb.LeaveResponse, error) {
 	err := g.guildsService.Leave(ctx, params.RealmID, params.Leaver)
 	if err != nil {
+		switch {
+		case errors.Is(err, service.ErrLeaderCantLeave):
+			return nil, status.Error(codes.FailedPrecondition, err.Error())
+		case errors.Is(err, service.ErrGuildNotFound):
+			return nil, status.Error(codes.NotFound, err.Error())
+		}
 		return nil, err
 	}
 	return &pb.LeaveResponse{
@@ -205,6 +213,32 @@ func (g *GuildServer) SetMemberOfficerNote(ctx context.Context, params *pb.SetNo
 	}
 	return &pb.SetNoteResponse{
 		Api: guildserver.Ver,
+	}, nil
+}
+
+// SetGuildEmblem updates the guild tabard for the guild master.
+func (g *GuildServer) SetGuildEmblem(ctx context.Context, params *pb.SetGuildEmblemParams) (*pb.SetGuildEmblemResponse, error) {
+	guildID, err := g.guildsService.SetGuildEmblem(ctx, params.RealmID, params.ChangerGUID, repo.GuildEmblem{
+		Style:           uint8(params.EmblemStyle),
+		Color:           uint8(params.EmblemColor),
+		BorderStyle:     uint8(params.BorderStyle),
+		BorderColor:     uint8(params.BorderColor),
+		BackgroundColor: uint8(params.BackgroundColor),
+	})
+	if err != nil {
+		switch {
+		case errors.Is(err, service.ErrGuildNotFound):
+			return &pb.SetGuildEmblemResponse{Api: guildserver.Ver, Status: pb.SetGuildEmblemResponse_NoGuild}, nil
+		case errors.Is(err, service.ErrNotEnoughRight):
+			return &pb.SetGuildEmblemResponse{Api: guildserver.Ver, Status: pb.SetGuildEmblemResponse_NotGuildMaster}, nil
+		default:
+			return nil, err
+		}
+	}
+	return &pb.SetGuildEmblemResponse{
+		Api:     guildserver.Ver,
+		Status:  pb.SetGuildEmblemResponse_Ok,
+		GuildID: guildID,
 	}, nil
 }
 

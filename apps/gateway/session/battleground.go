@@ -281,7 +281,11 @@ func (s *GameSession) battlegroundPlayerRedirect(ctx context.Context, playerGuid
 	s.worldSocket.Close()
 	s.worldSocket = nil
 
-	newSocket, err := s.connectToGameServerWithAddress(ctx, playerGuid, desiredGameServerAddress, nil)
+	guildID, guildRank := uint32(0), uint8(0)
+	if s.character != nil {
+		guildID, guildRank = s.character.GuildID, s.character.GuildRank
+	}
+	newSocket, err := s.connectToGameServerWithAddress(ctx, playerGuid, desiredGameServerAddress, nil, guildID, guildRank)
 	if err != nil {
 		return fmt.Errorf("connectToGameServerWithAddress failed: %w, address: %s", err, desiredGameServerAddress)
 	}

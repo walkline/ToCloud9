@@ -57,11 +57,13 @@ func TestGuildServiceCreateGuild(t *testing.T) {
 
 		producerMock := &eventsMocks.GuildServiceProducer{}
 		producerMock.On("GuildCreated", mock.Anything).Return(nil)
+		producerMock.On("MemberAdded", mock.Anything).Return(nil)
 
 		id, err := newService(repoMock, producerMock).CreateGuild(context.Background(), realmID, leaderGUID, " TestGuild ", nil)
 		assert.NoError(t, err)
 		assert.Equal(t, uint64(7), id)
 		producerMock.AssertCalled(t, "GuildCreated", mock.Anything)
+		producerMock.AssertCalled(t, "MemberAdded", mock.Anything)
 	})
 
 	t.Run("adds sanitized signatories and reports added members in the event", func(t *testing.T) {
@@ -80,6 +82,7 @@ func TestGuildServiceCreateGuild(t *testing.T) {
 		producerMock.On("GuildCreated", mock.MatchedBy(func(p *events.GuildEventGuildCreatedPayload) bool {
 			return p.LeaderGUID == leaderGUID && assert.ObjectsAreEqual([]uint64{101, 102}, p.MemberGUIDs)
 		})).Return(nil)
+		producerMock.On("MemberAdded", mock.Anything).Return(nil)
 
 		id, err := newService(repoMock, producerMock).CreateGuild(
 			context.Background(), realmID, leaderGUID, "TestGuild",
@@ -106,6 +109,7 @@ func TestGuildServiceCreateGuild(t *testing.T) {
 
 		producerMock := &eventsMocks.GuildServiceProducer{}
 		producerMock.On("GuildCreated", mock.Anything).Return(nil)
+		producerMock.On("MemberAdded", mock.Anything).Return(nil)
 
 		repoWithSource := &guildsRepoWithSourceMock{GuildsRepo: repoMock, sourceGuildID: 0}
 		id, err := NewGuildService(repoWithSource, producerMock).CreateGuild(context.Background(), realmID, leaderGUID, "TestGuild", nil)
@@ -129,8 +133,30 @@ func TestGuildServiceCreateGuild(t *testing.T) {
 		_, err := svc.CreateGuild(context.Background(), realmID, leaderGUID, "   ", nil)
 		assert.ErrorIs(t, err, ErrGuildNameInvalid)
 
+		_, err = svc.CreateGuild(context.Background(), realmID, leaderGUID, "A", nil)
+		assert.ErrorIs(t, err, ErrGuildNameInvalid)
+
 		_, err = svc.CreateGuild(context.Background(), realmID, leaderGUID, strings.Repeat("a", 25), nil)
 		assert.ErrorIs(t, err, ErrGuildNameInvalid)
+	})
+
+	t.Run("accepts multi-byte names by rune count not byte length", func(t *testing.T) {
+		name := strings.Repeat("Я", 13)
+		repoMock := &mocks.GuildsRepo{}
+		repoMock.On("GuildIDByRealmAndMemberGUID", mock.Anything, realmID, leaderGUID).Return(uint64(0), nil)
+		repoMock.On("CreateGuild", mock.Anything, realmID, name, leaderGUID, mock.Anything, mock.Anything).
+			Return(uint64(7), nil)
+		repoMock.On("GuildByRealmAndID", mock.Anything, realmID, uint64(7)).Return(&repo.Guild{
+			ID: 7, RealmID: realmID, Name: name,
+			GuildMembers: []*repo.GuildMember{{PlayerGUID: leaderGUID}},
+		}, nil)
+		producerMock := &eventsMocks.GuildServiceProducer{}
+		producerMock.On("GuildCreated", mock.Anything).Return(nil)
+		producerMock.On("MemberAdded", mock.Anything).Return(nil)
+
+		id, err := newService(repoMock, producerMock).CreateGuild(context.Background(), realmID, leaderGUID, name, nil)
+		assert.NoError(t, err)
+		assert.Equal(t, uint64(7), id)
 	})
 
 	t.Run("passes name taken error through", func(t *testing.T) {

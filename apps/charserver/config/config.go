@@ -22,6 +22,10 @@ type Config struct {
 
 	// GuildsServiceAddress is address of guilds service
 	GuildsServiceAddress string `yaml:"guildsServiceAddress" env:"GUILDS_SERVICE_ADDRESS" env-default:"localhost:8995"`
+
+	// MinPetitionSigns is the number of signatures required to turn in a guild charter.
+	// Mirrors AC world config MinPetitionSigns (default 9, max 9).
+	MinPetitionSigns uint32 `yaml:"minPetitionSigns" env:"MIN_PETITION_SIGNS" env-default:"9"`
 }
 
 // LoadConfig loads config from env variables

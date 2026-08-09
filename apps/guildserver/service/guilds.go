@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/walkline/ToCloud9/apps/guildserver"
 	"github.com/walkline/ToCloud9/apps/guildserver/repo"
@@ -70,6 +71,10 @@ type GuildService interface {
 
 	// SetGuildInfo sets info text for the guild.
 	SetGuildInfo(ctx context.Context, realmID uint32, updaterGUID uint64, info string) error
+
+	// SetGuildEmblem updates the guild tabard. Only the guild master may call this.
+	// Money and tabard-vendor interaction are enforced by the gateway.
+	SetGuildEmblem(ctx context.Context, realmID uint32, updaterGUID uint64, emblem repo.GuildEmblem) (guildID uint64, err error)
 
 	// SetMemberPublicNote sets public note for the guild member.
 	SetMemberPublicNote(ctx context.Context, realmID uint32, updaterGUID, targetGUID uint64, note string) error
@@ -266,6 +271,8 @@ func (g *guildServiceImpl) InviteAccepted(ctx context.Context, realmID uint32, p
 }
 
 // Leave handles player leave command.
+// Also used by gateway character-delete cleanup: leaders cannot leave (or be
+// deleted while still guild master); non-members return ErrGuildNotFound.
 func (g *guildServiceImpl) Leave(ctx context.Context, realmID uint32, charGUID uint64) error {
 	guild, err := g.guildByMemberGUID(ctx, realmID, charGUID)
 	if err != nil {
@@ -276,12 +283,25 @@ func (g *guildServiceImpl) Leave(ctx context.Context, realmID uint32, charGUID u
 		return ErrGuildNotFound
 	}
 
+	// Match AC GetGuildByLeader: reject if this character is the stored leader.
+	// LeaderGUID in DB is characters.guid (counter); callers may pass full GUID.
+	leaderLow := uint64(uint32(guild.LeaderGUID))
+	charLow := uint64(uint32(charGUID))
+	if guild.LeaderGUID == charGUID || leaderLow == charLow || guild.LeaderGUID == charLow || leaderLow == charGUID {
+		return ErrLeaderCantLeave
+	}
+
 	rank := g.rankForMember(guild, charGUID)
-	if rank.Rank == uint8(repo.GuildRankGuildMaster) {
+	if rank != nil && rank.Rank == uint8(repo.GuildRankGuildMaster) {
 		return ErrLeaderCantLeave
 	}
 
 	member := g.guildMemberForMemberGuid(guild, charGUID)
+	if member == nil {
+		// Membership row exists for the lookup above but roster is missing the
+		// character — still remove the row so char-delete cannot leave orphans.
+		return g.guildsRepo.RemoveGuildMember(ctx, realmID, charGUID)
+	}
 
 	genericEventPayload := g.buildGenericEventPayload(guild)
 
@@ -386,6 +406,28 @@ func (g *guildServiceImpl) SetMessageOfTheDay(ctx context.Context, realmID uint3
 	}
 
 	return nil
+}
+
+// SetGuildEmblem updates the guild tabard. Only the guild master may change it.
+func (g *guildServiceImpl) SetGuildEmblem(ctx context.Context, realmID uint32, updaterGUID uint64, emblem repo.GuildEmblem) (uint64, error) {
+	guild, err := g.guildByMemberGUID(ctx, realmID, updaterGUID)
+	if err != nil {
+		return 0, err
+	}
+	if guild == nil {
+		return 0, ErrGuildNotFound
+	}
+	// LeaderGUID in DB is characters.guid (counter). Session may pass full GUID.
+	leaderLow := uint64(uint32(guild.LeaderGUID))
+	updaterLow := uint64(uint32(updaterGUID))
+	if guild.LeaderGUID != updaterGUID && leaderLow != updaterLow && leaderLow != updaterGUID && guild.LeaderGUID != updaterLow {
+		return 0, ErrNotEnoughRight
+	}
+
+	if err = g.guildsRepo.SetGuildEmblem(ctx, realmID, guild.ID, emblem); err != nil {
+		return 0, err
+	}
+	return guild.ID, nil
 }
 
 // SetGuildInfo sets info text for the guild.
@@ -888,8 +930,10 @@ func defaultGuildRanks() []repo.GuildRank {
 // CreateGuild creates a guild with default ranks, the leader as guild master and
 // the given petition signatories as members with the lowest rank.
 func (g *guildServiceImpl) CreateGuild(ctx context.Context, realmID uint32, leaderGUID uint64, name string, signatoryGUIDs []uint64) (uint64, error) {
+	// Same limits as gateway isValidCharterName / AC IsValidCharterName (runes, not bytes).
 	name = strings.TrimSpace(name)
-	if name == "" || len(name) > 24 {
+	runeCount := utf8.RuneCountInString(name)
+	if runeCount < 2 || runeCount > 24 {
 		return 0, ErrGuildNameInvalid
 	}
 
@@ -935,9 +979,13 @@ func (g *guildServiceImpl) CreateGuild(ctx context.Context, realmID uint32, lead
 	// Signatories already in a guild are skipped by the repo, so report the
 	// members that actually made it into the guild.
 	addedMembers := []uint64{}
-	if guild, err := g.guildsRepo.GuildByRealmAndID(ctx, realmID, guildID); err == nil && guild != nil {
+	guild, err := g.guildsRepo.GuildByRealmAndID(ctx, realmID, guildID)
+	if err != nil {
+		return guildID, fmt.Errorf("guild created, but can't reload guild, err: %w", err)
+	}
+	if guild != nil {
 		for _, member := range guild.GuildMembers {
-			if member.PlayerGUID != leaderGUID {
+			if member != nil && member.PlayerGUID != leaderGUID {
 				addedMembers = append(addedMembers, member.PlayerGUID)
 			}
 		}
@@ -952,6 +1000,23 @@ func (g *guildServiceImpl) CreateGuild(ctx context.Context, realmID uint32, lead
 	})
 	if err != nil {
 		return guildID, fmt.Errorf("guild created, but can't send guild created event, err: %w", err)
+	}
+
+	// Founding members need MemberAdded so worlds can SetInGuild.
+	if guild != nil {
+		generic := g.buildGenericEventPayload(guild)
+		for _, member := range guild.GuildMembers {
+			if member == nil {
+				continue
+			}
+			if err = g.eventsProducer.MemberAdded(&events.GuildEventMemberAddedPayload{
+				GenericGuildEvent: *generic,
+				MemberGUID:        member.PlayerGUID,
+				MemberName:        member.Name,
+			}); err != nil {
+				return guildID, fmt.Errorf("guild created, but can't send member added event, err: %w", err)
+			}
+		}
 	}
 
 	return guildID, nil

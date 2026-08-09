@@ -17,22 +17,24 @@ const (
 
 type CharServer struct {
 	pb.UnimplementedCharactersServiceServer
-	repo           repo.Characters
-	whoHandler     repo.WhoHandler
-	itemsTemplate  repo.ItemsTemplate
-	onlineChars    repo.CharactersOnline
-	friendsService service.FriendsService
-	guildNames     service.GuildNameResolver
+	repo            repo.Characters
+	whoHandler      repo.WhoHandler
+	itemsTemplate   repo.ItemsTemplate
+	onlineChars     repo.CharactersOnline
+	friendsService  service.FriendsService
+	petitionService service.PetitionService
+	guildNames      service.GuildNameResolver
 }
 
-func NewCharServer(repo repo.Characters, onlineChars repo.CharactersOnline, whoHandler repo.WhoHandler, itemsTemplate repo.ItemsTemplate, friendsService service.FriendsService, guildNames service.GuildNameResolver) pb.CharactersServiceServer {
+func NewCharServer(repo repo.Characters, onlineChars repo.CharactersOnline, whoHandler repo.WhoHandler, itemsTemplate repo.ItemsTemplate, friendsService service.FriendsService, petitionService service.PetitionService, guildNames service.GuildNameResolver) pb.CharactersServiceServer {
 	return &CharServer{
-		repo:           repo,
-		whoHandler:     whoHandler,
-		itemsTemplate:  itemsTemplate,
-		onlineChars:    onlineChars,
-		friendsService: friendsService,
-		guildNames:     guildNames,
+		repo:            repo,
+		whoHandler:      whoHandler,
+		itemsTemplate:   itemsTemplate,
+		onlineChars:     onlineChars,
+		friendsService:  friendsService,
+		petitionService: petitionService,
+		guildNames:      guildNames,
 	}
 }
 
@@ -89,6 +91,7 @@ func (c *CharServer) CharactersToLoginForAccount(ctx context.Context, request *p
 			PositionY:   char.PositionY,
 			PositionZ:   char.PositionZ,
 			GuildID:     char.GuildID,
+			GuildRank:   uint32(char.GuildRank),
 			PlayerFlags: char.PlayerFlags,
 			AtLogin:     uint32(char.AtLoginFlags),
 			PetEntry:    char.PetEntry,
@@ -188,6 +191,7 @@ func (c *CharServer) CharactersToLoginByGUID(ctx context.Context, request *pb.Ch
 			PositionY:   char.PositionY,
 			PositionZ:   char.PositionZ,
 			GuildID:     char.GuildID,
+			GuildRank:   uint32(char.GuildRank),
 			PlayerFlags: char.PlayerFlags,
 			AtLogin:     uint32(char.AtLoginFlags),
 			PetEntry:    char.PetEntry,
@@ -609,4 +613,152 @@ func (c *CharServer) GetOnlineCharacters(ctx context.Context, request *pb.GetOnl
 		CharacterGUIDs:  guids,
 		TotalCount:      uint32(len(guids)),
 	}, nil
+}
+
+func (c *CharServer) GetGuildPetition(ctx context.Context, request *pb.GetGuildPetitionRequest) (*pb.GetGuildPetitionResponse, error) {
+	p, err := c.petitionService.GetPetition(ctx, request.RealmID, request.PetitionItemGUID)
+	if err != nil {
+		return nil, err
+	}
+	if p == nil {
+		return &pb.GetGuildPetitionResponse{Api: ver, Status: pb.GetGuildPetitionResponse_NotFound}, nil
+	}
+	if p.Type != repo.GuildCharterType {
+		return &pb.GetGuildPetitionResponse{Api: ver, Status: pb.GetGuildPetitionResponse_NotGuildPetition}, nil
+	}
+	return &pb.GetGuildPetitionResponse{
+		Api:      ver,
+		Status:   pb.GetGuildPetitionResponse_Ok,
+		Petition: toPBPetition(request.PetitionItemGUID, p, 0),
+	}, nil
+}
+
+func (c *CharServer) GetGuildPetitionSignatures(ctx context.Context, request *pb.GetGuildPetitionSignaturesRequest) (*pb.GetGuildPetitionSignaturesResponse, error) {
+	p, sigs, err := c.petitionService.GetSignatures(ctx, request.RealmID, request.PetitionItemGUID)
+	if err != nil {
+		return nil, err
+	}
+	if p == nil {
+		return &pb.GetGuildPetitionSignaturesResponse{Api: ver, Status: pb.GetGuildPetitionSignaturesResponse_NotFound}, nil
+	}
+	if p.Type != repo.GuildCharterType {
+		return &pb.GetGuildPetitionSignaturesResponse{Api: ver, Status: pb.GetGuildPetitionSignaturesResponse_NotGuildPetition}, nil
+	}
+
+	pbSigs := make([]*pb.GuildPetitionSignature, 0, len(sigs))
+	for _, sig := range sigs {
+		pbSigs = append(pbSigs, &pb.GuildPetitionSignature{
+			PlayerGUID: sig.PlayerGUID,
+			AccountID:  sig.AccountID,
+		})
+	}
+	return &pb.GetGuildPetitionSignaturesResponse{
+		Api:        ver,
+		Status:     pb.GetGuildPetitionSignaturesResponse_Ok,
+		Petition:   toPBPetition(request.PetitionItemGUID, p, uint32(len(sigs))),
+		Signatures: pbSigs,
+	}, nil
+}
+
+func (c *CharServer) AddGuildPetitionSignature(ctx context.Context, request *pb.AddGuildPetitionSignatureRequest) (*pb.AddGuildPetitionSignatureResponse, error) {
+	result, ownerGUID, err := c.petitionService.AddSignature(ctx, request.RealmID, request.PetitionItemGUID, request.SignerGUID, request.SignerAccountID)
+	if err != nil {
+		return nil, err
+	}
+	return &pb.AddGuildPetitionSignatureResponse{
+		Api:              ver,
+		Result:           pb.AddGuildPetitionSignatureResponse_Result(result),
+		OwnerGUID:        ownerGUID,
+		PetitionItemGUID: request.PetitionItemGUID,
+		SignerGUID:       request.SignerGUID,
+	}, nil
+}
+
+func (c *CharServer) RenameGuildPetition(ctx context.Context, request *pb.RenameGuildPetitionRequest) (*pb.RenameGuildPetitionResponse, error) {
+	ok, notGuild, notOwner, err := c.petitionService.Rename(ctx, request.RealmID, request.PetitionItemGUID, request.OwnerGUID, request.NewName)
+	if err != nil {
+		return nil, err
+	}
+	status := pb.RenameGuildPetitionResponse_NotFound
+	switch {
+	case ok:
+		status = pb.RenameGuildPetitionResponse_Ok
+	case notGuild:
+		status = pb.RenameGuildPetitionResponse_NotGuildPetition
+	case notOwner:
+		status = pb.RenameGuildPetitionResponse_NotOwner
+	}
+	return &pb.RenameGuildPetitionResponse{Api: ver, Status: status}, nil
+}
+
+func (c *CharServer) DeleteGuildPetition(ctx context.Context, request *pb.DeleteGuildPetitionRequest) (*pb.DeleteGuildPetitionResponse, error) {
+	found, err := c.petitionService.Delete(ctx, request.RealmID, request.PetitionItemGUID)
+	if err != nil {
+		return nil, err
+	}
+	status := pb.DeleteGuildPetitionResponse_Ok
+	if !found {
+		status = pb.DeleteGuildPetitionResponse_NotFound
+	}
+	return &pb.DeleteGuildPetitionResponse{Api: ver, Status: status}, nil
+}
+
+func (c *CharServer) ValidateGuildPetitionTurnIn(ctx context.Context, request *pb.ValidateGuildPetitionTurnInRequest) (*pb.ValidateGuildPetitionTurnInResponse, error) {
+	status, name, signatories, err := c.petitionService.ValidateTurnIn(ctx, request.RealmID, request.PetitionItemGUID, request.PlayerGUID)
+	if err != nil {
+		return nil, err
+	}
+
+	var pbStatus pb.ValidateGuildPetitionTurnInResponse_Status
+	switch status {
+	case service.TurnInOK:
+		pbStatus = pb.ValidateGuildPetitionTurnInResponse_Ok
+	case service.TurnInNotFound:
+		pbStatus = pb.ValidateGuildPetitionTurnInResponse_NotFound
+	case service.TurnInNotOwner:
+		pbStatus = pb.ValidateGuildPetitionTurnInResponse_NotOwner
+	case service.TurnInNotGuild:
+		pbStatus = pb.ValidateGuildPetitionTurnInResponse_NotGuildPetition
+	case service.TurnInNeedMoreSignatures:
+		pbStatus = pb.ValidateGuildPetitionTurnInResponse_NeedMoreSignatures
+	case service.TurnInAlreadyInGuild:
+		pbStatus = pb.ValidateGuildPetitionTurnInResponse_AlreadyInGuild
+	default:
+		pbStatus = pb.ValidateGuildPetitionTurnInResponse_NotFound
+	}
+
+	return &pb.ValidateGuildPetitionTurnInResponse{
+		Api:            ver,
+		Status:         pbStatus,
+		GuildName:      name,
+		SignatoryGUIDs: signatories,
+	}, nil
+}
+
+func (c *CharServer) UpsertGuildPetition(ctx context.Context, request *pb.UpsertGuildPetitionRequest) (*pb.UpsertGuildPetitionResponse, error) {
+	err := c.petitionService.UpsertGuildPetition(ctx, request.RealmID, request.OwnerGUID, request.PetitionItemGUID, request.Name)
+	if err != nil {
+		return &pb.UpsertGuildPetitionResponse{Api: ver, Status: pb.UpsertGuildPetitionResponse_Failed}, err
+	}
+	return &pb.UpsertGuildPetitionResponse{Api: ver, Status: pb.UpsertGuildPetitionResponse_Ok}, nil
+}
+
+func (c *CharServer) GuildNameExists(ctx context.Context, request *pb.GuildNameExistsRequest) (*pb.GuildNameExistsResponse, error) {
+	exists, err := c.petitionService.GuildNameExists(ctx, request.RealmID, request.Name)
+	if err != nil {
+		return nil, err
+	}
+	return &pb.GuildNameExistsResponse{Api: ver, Exists: exists}, nil
+}
+
+func toPBPetition(itemGUID uint64, p *repo.Petition, signatureCount uint32) *pb.GuildPetition {
+	return &pb.GuildPetition{
+		PetitionItemGUID: itemGUID,
+		PetitionItemLow:  p.ItemLow,
+		PetitionID:       p.ItemLow,
+		OwnerGUID:        p.OwnerGUID,
+		Name:             p.Name,
+		Type:             uint32(p.Type),
+		SignatureCount:   signatureCount,
+	}
 }

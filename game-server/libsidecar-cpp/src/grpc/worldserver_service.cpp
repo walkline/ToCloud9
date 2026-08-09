@@ -175,6 +175,68 @@ grpc::Status WorldServerServiceImpl::RemoveItemsWithGuidsFromPlayer(
     }
 }
 
+grpc::Status WorldServerServiceImpl::DestroyItemsWithGuidsFromPlayer(
+    grpc::ServerContext* context,
+    const v1::DestroyItemsWithGuidsFromPlayerRequest* request,
+    v1::DestroyItemsWithGuidsFromPlayerResponse* response) {
+
+    response->set_api(lib_version_);
+
+    if (request->playerguid() == 0 || request->guids_size() == 0) {
+        return grpc::Status::OK;
+    }
+
+    if (!bindings_.destroy_items) {
+        return grpc::Status(grpc::StatusCode::UNIMPLEMENTED, "No handler registered");
+    }
+
+    auto promise = std::make_shared<std::promise<TC9DestroyItemsResponse>>();
+    auto future = promise->get_future();
+
+    std::vector<uint64_t> guids_vec;
+    guids_vec.reserve(request->guids_size());
+    for (const auto& guid : request->guids()) {
+        guids_vec.push_back(guid);
+    }
+
+    write_queue_.Push(MakeHandler([=]() {
+        try {
+            TC9DestroyItemsResponse resp = bindings_.destroy_items(
+                request->playerguid(),
+                const_cast<uint64_t*>(guids_vec.data()),
+                static_cast<int>(guids_vec.size())
+            );
+            promise->set_value(resp);
+        } catch (...) {
+            promise->set_exception(std::current_exception());
+        }
+    }));
+
+    if (future.wait_for(timeout_) == std::future_status::timeout) {
+        return grpc::Status(grpc::StatusCode::DEADLINE_EXCEEDED, "Request timeout");
+    }
+
+    try {
+        auto resp = future.get();
+
+        if (resp.errorCode != TC9_ERROR_SUCCESS) {
+            return grpc::Status(grpc::StatusCode::INTERNAL, "Handler returned error");
+        }
+
+        for (int i = 0; i < resp.destroyedItemsSize; ++i) {
+            response->add_destroyeditemsguids(resp.destroyedItems[i]);
+        }
+
+        if (resp.destroyedItems) {
+            free(resp.destroyedItems);
+        }
+
+        return grpc::Status::OK;
+    } catch (const std::exception& e) {
+        return grpc::Status(grpc::StatusCode::INTERNAL, e.what());
+    }
+}
+
 grpc::Status WorldServerServiceImpl::AddExistingItemToPlayer(
     grpc::ServerContext* context,
     const v1::AddExistingItemToPlayerRequest* request,
@@ -228,6 +290,139 @@ grpc::Status WorldServerServiceImpl::AddExistingItemToPlayer(
             return grpc::Status(grpc::StatusCode::INTERNAL, "Handler returned error");
         }
 
+        return grpc::Status::OK;
+    } catch (const std::exception& e) {
+        return grpc::Status(grpc::StatusCode::INTERNAL, e.what());
+    }
+}
+
+grpc::Status WorldServerServiceImpl::StoreNewItem(
+    grpc::ServerContext* context,
+    const v1::StoreNewItemRequest* request,
+    v1::StoreNewItemResponse* response) {
+
+    response->set_api(lib_version_);
+
+    if (request->playerguid() == 0 || request->itementry() == 0) {
+        response->set_status(v1::StoreNewItemResponse::Failed);
+        return grpc::Status::OK;
+    }
+
+    if (!bindings_.store_new_item) {
+        return grpc::Status(grpc::StatusCode::UNIMPLEMENTED, "No handler registered");
+    }
+
+    auto promise = std::make_shared<std::promise<TC9StoreNewItemResponse>>();
+    auto future = promise->get_future();
+
+    std::vector<uint32_t> ench_vec;
+    ench_vec.reserve(request->enchantmentids_size());
+    for (const auto& id : request->enchantmentids()) {
+        ench_vec.push_back(id);
+    }
+
+    TC9StoreNewItemRequest req{};
+    req.playerGuid = request->playerguid();
+    req.itemEntry = request->itementry();
+    req.count = request->count() ? request->count() : 1;
+    req.enchantmentIDs = ench_vec.empty() ? nullptr : ench_vec.data();
+    req.enchantmentIDsSize = static_cast<int>(ench_vec.size());
+
+    write_queue_.Push(MakeHandler([=]() mutable {
+        try {
+            // Re-bind pointers for the captured vector storage.
+            TC9StoreNewItemRequest call_req = req;
+            call_req.enchantmentIDs = ench_vec.empty() ? nullptr : ench_vec.data();
+            call_req.enchantmentIDsSize = static_cast<int>(ench_vec.size());
+            promise->set_value(bindings_.store_new_item(&call_req));
+        } catch (...) {
+            promise->set_exception(std::current_exception());
+        }
+    }));
+
+    if (future.wait_for(timeout_) == std::future_status::timeout) {
+        return grpc::Status(grpc::StatusCode::DEADLINE_EXCEEDED, "Request timeout");
+    }
+
+    try {
+        auto resp = future.get();
+        switch (resp.errorCode) {
+            case TC9_ERROR_SUCCESS:
+                response->set_status(v1::StoreNewItemResponse::Ok);
+                response->set_itemguid(resp.itemGuid);
+                break;
+            case TC9_ERROR_PLAYER_NOT_FOUND:
+                response->set_status(v1::StoreNewItemResponse::PlayerNotFound);
+                break;
+            case TC9_ERROR_NO_INVENTORY_SPACE:
+                response->set_status(v1::StoreNewItemResponse::NoSpace);
+                break;
+            case TC9_ERROR_UNKNOWN_TEMPLATE:
+                response->set_status(v1::StoreNewItemResponse::UnknownTemplate);
+                break;
+            default:
+                response->set_status(v1::StoreNewItemResponse::Failed);
+                break;
+        }
+        return grpc::Status::OK;
+    } catch (const std::exception& e) {
+        return grpc::Status(grpc::StatusCode::INTERNAL, e.what());
+    }
+}
+
+grpc::Status WorldServerServiceImpl::SetItemPermanentEnchantment(
+    grpc::ServerContext* context,
+    const v1::SetItemPermanentEnchantmentRequest* request,
+    v1::SetItemPermanentEnchantmentResponse* response) {
+
+    response->set_api(lib_version_);
+
+    if (request->playerguid() == 0 || request->itemguid() == 0) {
+        response->set_status(v1::SetItemPermanentEnchantmentResponse::Failed);
+        return grpc::Status::OK;
+    }
+
+    if (!bindings_.set_item_permanent_enchantment) {
+        return grpc::Status(grpc::StatusCode::UNIMPLEMENTED, "No handler registered");
+    }
+
+    auto promise = std::make_shared<std::promise<TC9SetItemPermanentEnchantmentResponse>>();
+    auto future = promise->get_future();
+
+    TC9SetItemPermanentEnchantmentRequest req{};
+    req.playerGuid = request->playerguid();
+    req.itemGuid = request->itemguid();
+    req.slot = request->slot();
+    req.enchantmentId = request->enchantmentid();
+
+    write_queue_.Push(MakeHandler([=]() mutable {
+        try {
+            promise->set_value(bindings_.set_item_permanent_enchantment(&req));
+        } catch (...) {
+            promise->set_exception(std::current_exception());
+        }
+    }));
+
+    if (future.wait_for(timeout_) == std::future_status::timeout) {
+        return grpc::Status(grpc::StatusCode::DEADLINE_EXCEEDED, "Request timeout");
+    }
+
+    try {
+        auto resp = future.get();
+        switch (resp.errorCode) {
+            case TC9_ERROR_SUCCESS:
+                response->set_status(v1::SetItemPermanentEnchantmentResponse::Ok);
+                break;
+            case TC9_ERROR_PLAYER_NOT_FOUND:
+                response->set_status(v1::SetItemPermanentEnchantmentResponse::PlayerNotFound);
+                break;
+            case TC9_ERROR_ITEM_NOT_FOUND:
+                response->set_status(v1::SetItemPermanentEnchantmentResponse::ItemNotFound);
+                break;
+            default:
+                response->set_status(v1::SetItemPermanentEnchantmentResponse::Failed);
+                break;
+        }
         return grpc::Status::OK;
     } catch (const std::exception& e) {
         return grpc::Status(grpc::StatusCode::INTERNAL, e.what());
@@ -617,81 +812,6 @@ grpc::Status WorldServerServiceImpl::CanPlayerTeleportToBattleground(
         }
 
         response->set_status(v1::CanPlayerTeleportToBattlegroundResponse::Success);
-        return grpc::Status::OK;
-    } catch (const std::exception& e) {
-        return grpc::Status(grpc::StatusCode::INTERNAL, e.what());
-    }
-}
-
-
-grpc::Status WorldServerServiceImpl::CanTurnInGuildPetition(
-    grpc::ServerContext* context,
-    const v1::CanTurnInGuildPetitionRequest* request,
-    v1::CanTurnInGuildPetitionResponse* response) {
-
-    response->set_api(lib_version_);
-
-    if (!bindings_.can_turn_in_guild_petition) {
-        return grpc::Status(grpc::StatusCode::UNIMPLEMENTED, "No handler registered");
-    }
-
-    auto promise = std::make_shared<std::promise<TC9GuildPetitionValidationResult>>();
-    auto future = promise->get_future();
-
-    read_queue_.Push(MakeHandler([=]() {
-        try {
-            TC9GuildPetitionValidationResult r = bindings_.can_turn_in_guild_petition(
-                request->playerguid(), request->petitionitemguid());
-            promise->set_value(r);
-        } catch (...) {
-            promise->set_exception(std::current_exception());
-        }
-    }));
-
-    if (future.wait_for(timeout_) == std::future_status::timeout) {
-        return grpc::Status(grpc::StatusCode::DEADLINE_EXCEEDED, "Request timeout");
-    }
-
-    try {
-        auto result = future.get();
-
-        switch (result.status) {
-            case TC9GuildPetitionCheckStatusOk:
-                response->set_status(v1::CanTurnInGuildPetitionResponse::Ok);
-                break;
-            case TC9GuildPetitionCheckStatusPlayerNotFound:
-                response->set_status(v1::CanTurnInGuildPetitionResponse::PlayerNotFound);
-                break;
-            case TC9GuildPetitionCheckStatusPetitionNotFound:
-                response->set_status(v1::CanTurnInGuildPetitionResponse::PetitionNotFound);
-                break;
-            case TC9GuildPetitionCheckStatusNotPetitionOwner:
-                response->set_status(v1::CanTurnInGuildPetitionResponse::NotPetitionOwner);
-                break;
-            case TC9GuildPetitionCheckStatusNotGuildPetition:
-                response->set_status(v1::CanTurnInGuildPetitionResponse::NotGuildPetition);
-                break;
-            case TC9GuildPetitionCheckStatusAlreadyInGuild:
-                response->set_status(v1::CanTurnInGuildPetitionResponse::AlreadyInGuild);
-                break;
-            case TC9GuildPetitionCheckStatusNeedMoreSignatures:
-                response->set_status(v1::CanTurnInGuildPetitionResponse::NeedMoreSignatures);
-                break;
-            default:
-                return grpc::Status(grpc::StatusCode::INTERNAL, "Handler returned error");
-        }
-
-        if (result.guildName) {
-            response->set_guildname(result.guildName);
-            free(result.guildName);
-        }
-        if (result.signatoryGUIDs) {
-            for (int i = 0; i < result.signatoryGUIDsSize; ++i) {
-                response->add_signatoryguids(result.signatoryGUIDs[i]);
-            }
-            free(result.signatoryGUIDs);
-        }
-
         return grpc::Status::OK;
     } catch (const std::exception& e) {
         return grpc::Status(grpc::StatusCode::INTERNAL, e.what());

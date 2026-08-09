@@ -31,6 +31,16 @@ service CharactersService {
 
   // Get all online character GUIDs for a realm
   rpc GetOnlineCharacters(GetOnlineCharactersRequest) returns (GetOnlineCharactersResponse);
+
+  // Guild petitions (characters.petition / petition_sign)
+  rpc GetGuildPetition(GetGuildPetitionRequest) returns (GetGuildPetitionResponse);
+  rpc GetGuildPetitionSignatures(GetGuildPetitionSignaturesRequest) returns (GetGuildPetitionSignaturesResponse);
+  rpc AddGuildPetitionSignature(AddGuildPetitionSignatureRequest) returns (AddGuildPetitionSignatureResponse);
+  rpc RenameGuildPetition(RenameGuildPetitionRequest) returns (RenameGuildPetitionResponse);
+  rpc DeleteGuildPetition(DeleteGuildPetitionRequest) returns (DeleteGuildPetitionResponse);
+  rpc ValidateGuildPetitionTurnIn(ValidateGuildPetitionTurnInRequest) returns (ValidateGuildPetitionTurnInResponse);
+  rpc UpsertGuildPetition(UpsertGuildPetitionRequest) returns (UpsertGuildPetitionResponse);
+  rpc GuildNameExists(GuildNameExistsRequest) returns (GuildNameExistsResponse);
 }
 
 // LogInCharacter is character that should be displayed on log in screen
@@ -60,6 +70,8 @@ message LogInCharacter {
   bool banned = 23;
   repeated EquipmentDisplay equipments = 24;
   uint32 accountID = 25;
+  // guild_member.rank (0 = guild master). 0 when not in a guild.
+  uint32 guildRank = 26;
 }
 
 message EquipmentDisplay {
@@ -369,4 +381,181 @@ message GetOnlineCharactersResponse {
   string api = 1;
   repeated uint64 characterGUIDs = 2;
   uint32 totalCount = 3;
+}
+
+// Guild petition messages
+
+message GuildPetition {
+  uint64 petitionItemGUID = 1;
+  uint32 petitionItemLow = 2; // petitionguid / client petition id
+  uint32 petitionID = 3;      // same as petitionItemLow
+  uint64 ownerGUID = 4;
+  string name = 5;
+  uint32 type = 6; // GUILD_CHARTER_TYPE = 9
+  uint32 signatureCount = 7;
+}
+
+message GuildPetitionSignature {
+  uint64 playerGUID = 1;
+  uint32 accountID = 2;
+}
+
+message GetGuildPetitionRequest {
+  string api = 1;
+  uint32 realmID = 2;
+  uint64 petitionItemGUID = 3;
+}
+
+message GetGuildPetitionResponse {
+  string api = 1;
+
+  enum Status {
+    Ok = 0;
+    NotFound = 1;
+    NotGuildPetition = 2;
+  }
+
+  Status status = 2;
+  GuildPetition petition = 3;
+}
+
+message GetGuildPetitionSignaturesRequest {
+  string api = 1;
+  uint32 realmID = 2;
+  uint64 petitionItemGUID = 3;
+}
+
+message GetGuildPetitionSignaturesResponse {
+  string api = 1;
+
+  enum Status {
+    Ok = 0;
+    NotFound = 1;
+    NotGuildPetition = 2;
+  }
+
+  Status status = 2;
+  GuildPetition petition = 3;
+  repeated GuildPetitionSignature signatures = 4;
+}
+
+message AddGuildPetitionSignatureRequest {
+  string api = 1;
+  uint32 realmID = 2;
+  uint64 petitionItemGUID = 3;
+  uint64 signerGUID = 4;
+  uint32 signerAccountID = 5;
+}
+
+message AddGuildPetitionSignatureResponse {
+  string api = 1;
+
+  // AC PetitionSigns + gateway-mapped guild command results.
+  enum Result {
+    Ok = 0;
+    AlreadySigned = 1;
+    AlreadyInGuild = 2;
+    CantSignOwn = 3;
+    NotFound = 4;
+    NotGuildPetition = 5;
+    MaxSignatures = 6;
+    AlreadyInvitedToGuild = 7;
+  }
+
+  Result result = 2;
+  uint64 ownerGUID = 3;
+  uint64 petitionItemGUID = 4;
+  uint64 signerGUID = 5;
+}
+
+message RenameGuildPetitionRequest {
+  string api = 1;
+  uint32 realmID = 2;
+  uint64 petitionItemGUID = 3;
+  uint64 ownerGUID = 4;
+  string newName = 5;
+}
+
+message RenameGuildPetitionResponse {
+  string api = 1;
+
+  enum Status {
+    Ok = 0;
+    NotFound = 1;
+    NotOwner = 2;
+    NotGuildPetition = 3;
+  }
+
+  Status status = 2;
+}
+
+message DeleteGuildPetitionRequest {
+  string api = 1;
+  uint32 realmID = 2;
+  uint64 petitionItemGUID = 3;
+}
+
+message DeleteGuildPetitionResponse {
+  string api = 1;
+
+  enum Status {
+    Ok = 0;
+    NotFound = 1;
+  }
+
+  Status status = 2;
+}
+
+message ValidateGuildPetitionTurnInRequest {
+  string api = 1;
+  uint32 realmID = 2;
+  uint64 petitionItemGUID = 3;
+  uint64 playerGUID = 4;
+}
+
+message ValidateGuildPetitionTurnInResponse {
+  string api = 1;
+
+  enum Status {
+    Ok = 0;
+    NotFound = 1;
+    NotOwner = 2;
+    NotGuildPetition = 3;
+    NeedMoreSignatures = 4;
+    AlreadyInGuild = 5;
+  }
+
+  Status status = 2;
+  string guildName = 3;
+  repeated uint64 signatoryGUIDs = 4;
+}
+
+message UpsertGuildPetitionRequest {
+  string api = 1;
+  uint32 realmID = 2;
+  uint64 ownerGUID = 3;
+  uint64 petitionItemGUID = 4;
+  string name = 5;
+}
+
+message UpsertGuildPetitionResponse {
+  string api = 1;
+
+  enum Status {
+    Ok = 0;
+    Failed = 1;
+  }
+
+  Status status = 2;
+}
+
+message GuildNameExistsRequest {
+  string api = 1;
+  uint32 realmID = 2;
+  string name = 3;
+}
+
+message GuildNameExistsResponse {
+  string api = 1;
+  bool exists = 2;
 }

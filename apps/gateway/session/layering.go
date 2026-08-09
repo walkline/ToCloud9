@@ -74,7 +74,11 @@ func (s *GameSession) layerPlayerRedirect(ctx context.Context, characterGUID uin
 	s.worldSocket = nil
 	s.worldEntryPending = true
 
-	newSocket, err := s.connectToGameServerWithAddress(ctx, characterGUID, address, nil)
+	guildID, guildRank := uint32(0), uint8(0)
+	if s.character != nil {
+		guildID, guildRank = s.character.GuildID, s.character.GuildRank
+	}
+	newSocket, err := s.connectToGameServerWithAddress(ctx, characterGUID, address, nil, guildID, guildRank)
 	if err != nil {
 		return fmt.Errorf("connect to layer gameserver %s: %w", address, err)
 	}
