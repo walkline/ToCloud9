@@ -31,6 +31,7 @@
 #include "player-interactions-api.h"
 #include "player-items-api.h"
 #include "player-money-api.h"
+#include "player-guild-api.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -114,6 +115,7 @@ TC9_API void TC9SetCanPlayerInteractWithNPCAndFlagsHandler(CanPlayerInteractWith
 TC9_API void TC9SetCanPlayerInteractWithGOAndTypeHandler(CanPlayerInteractWithGOAndTypeHandler h);
 
 TC9_API void TC9SetGetPlayerItemsByGuidsHandler(GetPlayerItemsByGuidsHandler h);
+TC9_API void TC9SetGetPlayerItemByPosHandler(GetPlayerItemByPosHandler h);
 TC9_API void TC9SetRemoveItemsWithGuidsFromPlayerHandler(RemoveItemsWithGuidsFromPlayerHandler h);
 TC9_API void TC9SetDestroyItemsWithGuidsFromPlayerHandler(DestroyItemsWithGuidsFromPlayerHandler h);
 TC9_API void TC9SetAddExistingItemToPlayerHandler(AddExistingItemToPlayerHandler h);
@@ -122,6 +124,8 @@ TC9_API void TC9SetSetItemPermanentEnchantmentHandler(SetItemPermanentEnchantmen
 
 TC9_API void TC9SetGetMoneyForPlayerHandler(GetMoneyForPlayerHandler h);
 TC9_API void TC9SetModifyMoneyForPlayerHandler(ModifyMoneyForPlayerHandler h);
+
+TC9_API void TC9SetSetPlayerGuildFieldsHandler(SetPlayerGuildFieldsHandler h);
 
 #ifdef __cplusplus
 }

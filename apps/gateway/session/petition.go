@@ -382,7 +382,8 @@ func (s *GameSession) HandlePetitionDecline(ctx context.Context, p *packet.Packe
 const (
 	npcFlagPetitioner     uint32 = 0x00040000 // UNIT_NPC_FLAG_PETITIONER
 	npcFlagTabardDesigner uint32 = 0x00080000 // UNIT_NPC_FLAG_TABARDDESIGNER
-	guildCharterItemEntry uint32 = 5863       // GUILD_CHARTER
+	npcFlagGuildCharter   uint32 = npcFlagPetitioner | npcFlagTabardDesigner
+	guildCharterItemEntry uint32 = 5863 // GUILD_CHARTER
 )
 
 // HandlePetitionBuy handles CMSG_PETITION_BUY for guild charters.
@@ -439,7 +440,7 @@ func (s *GameSession) HandlePetitionBuy(ctx context.Context, p *packet.Packet) e
 		Api:        root.SupportedGameServerVer,
 		PlayerGuid: s.character.GUID,
 		NpcGuid:    npcGUID,
-		NpcFlags:   npcFlagTabardDesigner,
+		NpcFlags:   npcFlagGuildCharter,
 	})
 	if err != nil {
 		if status.Code(err) == codes.Unimplemented {
@@ -449,6 +450,7 @@ func (s *GameSession) HandlePetitionBuy(ctx context.Context, p *packet.Packet) e
 		return fmt.Errorf("can interact tabard designer: %w", err)
 	}
 	if !tabard.CanInteract {
+		// Not a tabard designer in range (or arena petitioner) — world handles it.
 		s.worldSocket.SendPacket(p)
 		return nil
 	}

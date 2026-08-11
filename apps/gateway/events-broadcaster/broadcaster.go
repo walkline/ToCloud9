@@ -53,6 +53,10 @@ const (
 	EventTypePetitionSignResult
 	EventTypePetitionOffered
 	EventTypePetitionDeclined
+	EventTypeGuildBankMoneyUpdated
+	EventTypeGuildBankTabUpdated
+	EventTypeGuildBankTabsChanged
+	EventTypeGuildBankTextUpdated
 )
 
 type IncomingWhisperPayload struct {
@@ -165,6 +169,10 @@ type Broadcaster interface {
 	NewGuildRankCreatedEvent(payload *events.GuildEventRankCreatedPayload)
 	NewGuildRankDeletedEvent(payload *events.GuildEventRankDeletedPayload)
 	NewGuildMessageEvent(payload *events.GuildEventNewMessagePayload)
+	NewGuildBankMoneyUpdatedEvent(payload *events.GuildEventBankMoneyUpdatedPayload)
+	NewGuildBankTabUpdatedEvent(payload *events.GuildEventBankTabUpdatedPayload)
+	NewGuildBankTabsChangedEvent(payload *events.GuildEventBankTabsChangedPayload)
+	NewGuildBankTextUpdatedEvent(payload *events.GuildEventBankTextUpdatedPayload)
 	NewGuildCreatedEvent(payload *events.GuildEventGuildCreatedPayload)
 	NewGroupInviteCreatedEvent(payload *events.GroupEventInviteCreatedPayload)
 	NewGroupCreatedEvent(payload *events.GroupEventGroupCreatedPayload)
@@ -273,6 +281,42 @@ func (b *broadcasterImpl) NewGuildInviteCreatedEvent(payload *GuildInviteCreated
 	ch <- Event{
 		Type:    EventTypeGuildInviteCreated,
 		Payload: payload,
+	}
+}
+
+func (b *broadcasterImpl) NewGuildBankMoneyUpdatedEvent(payload *events.GuildEventBankMoneyUpdatedPayload) {
+	for _, ch := range b.channelsForGUIDs(payload.MembersOnline) {
+		ch <- Event{
+			Type:    EventTypeGuildBankMoneyUpdated,
+			Payload: payload,
+		}
+	}
+}
+
+func (b *broadcasterImpl) NewGuildBankTabUpdatedEvent(payload *events.GuildEventBankTabUpdatedPayload) {
+	for _, ch := range b.channelsForGUIDs(payload.MembersOnline) {
+		ch <- Event{
+			Type:    EventTypeGuildBankTabUpdated,
+			Payload: payload,
+		}
+	}
+}
+
+func (b *broadcasterImpl) NewGuildBankTabsChangedEvent(payload *events.GuildEventBankTabsChangedPayload) {
+	for _, ch := range b.channelsForGUIDs(payload.MembersOnline) {
+		ch <- Event{
+			Type:    EventTypeGuildBankTabsChanged,
+			Payload: payload,
+		}
+	}
+}
+
+func (b *broadcasterImpl) NewGuildBankTextUpdatedEvent(payload *events.GuildEventBankTextUpdatedPayload) {
+	for _, ch := range b.channelsForGUIDs(payload.MembersOnline) {
+		ch <- Event{
+			Type:    EventTypeGuildBankTextUpdated,
+			Payload: payload,
+		}
 	}
 }
 

@@ -50,6 +50,10 @@ type BattlegroundAddPlayersRequest struct {
 
 type GetPlayerItemsByGuidsHandler func(player uint64, items []uint64) ([]PlayerItem, error)
 
+// GetPlayerItemByPosHandler resolves an item by its live inventory position.
+// A nil item without error means nothing sits at this position.
+type GetPlayerItemByPosHandler func(player uint64, bag, slot uint8) (*PlayerItem, error)
+
 type RemoveItemsWithGuidsFromPlayerHandler func(player uint64, items []uint64, assignToPlayer uint64) ([]uint64, error)
 
 // DestroyItemsWithGuidsFromPlayerHandler permanently destroys items (not reassign/orphan).
@@ -67,6 +71,9 @@ type GetMoneyForPlayerHandler func(player uint64) (uint32, error)
 
 type ModifyMoneyForPlayerHandler func(player uint64, value int32) (uint32, error)
 
+// SetPlayerGuildFieldsHandler refreshes a player's guild id/rank unit fields.
+type SetPlayerGuildFieldsHandler func(player uint64, guildID, rank uint32) (bool, error)
+
 type CanPlayerInteractWithNPCWithFlagsHandler func(player, npc uint64, flag uint32) (bool, error)
 
 type CanPlayerInteractWithGOWithTypeHandler func(player, goGUID uint64, goType uint8) (bool, error)
@@ -81,6 +88,7 @@ type CanPlayerTeleportToBattlegroundHandler func(player uint64) error
 
 type CppBindings struct {
 	GetPlayerItemsByGuids            GetPlayerItemsByGuidsHandler
+	GetPlayerItemByPos               GetPlayerItemByPosHandler
 	RemoveItemsWithGuidsFromPlayer   RemoveItemsWithGuidsFromPlayerHandler
 	DestroyItemsWithGuidsFromPlayer  DestroyItemsWithGuidsFromPlayerHandler
 	AddExistingItemToPlayer          AddExistingItemToPlayerHandler
@@ -88,6 +96,7 @@ type CppBindings struct {
 	SetItemPermanentEnchantment      SetItemPermanentEnchantmentHandler
 	GetMoneyForPlayer                GetMoneyForPlayerHandler
 	ModifyMoneyForPlayer             ModifyMoneyForPlayerHandler
+	SetPlayerGuildFields             SetPlayerGuildFieldsHandler
 	CanPlayerInteractWithNPC         CanPlayerInteractWithNPCWithFlagsHandler
 	CanPlayerInteractWithGO          CanPlayerInteractWithGOWithTypeHandler
 	StartBattleground                StartBattlegroundHandler

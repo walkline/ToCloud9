@@ -62,7 +62,8 @@ func main() {
 	}
 
 	grpcServer := grpc.NewServer()
-	guildServer := server.NewGuildServer(createGuildService(cfg, nc))
+	guildsService, bankService := createGuildService(cfg, nc)
+	guildServer := server.NewGuildServer(guildsService, bankService)
 	if cfg.LogLevel == zerolog.DebugLevel {
 		guildServer = server.NewGuildsDebugLoggerMiddleware(guildServer, log.Logger)
 	}
@@ -92,7 +93,7 @@ func main() {
 	log.Info().Msg("👍 Server successfully stopped.")
 }
 
-func createGuildService(cfg *config.Config, natsCon *nats.Conn) service.GuildService {
+func createGuildService(cfg *config.Config, natsCon *nats.Conn) (service.GuildService, service.GuildBankService) {
 	charDB := shrepo.NewCharactersDB()
 	for realmID, connStr := range cfg.CharDBConnection {
 		cdb, err := sql.Open("mysql", connStr)
@@ -134,7 +135,36 @@ func createGuildService(cfg *config.Config, natsCon *nats.Conn) service.GuildSer
 		seedOnlineChars(cfg, cache, realmID)
 	}
 
-	return service.NewGuildService(cache, events.NewGuildServiceProducerNatsJSON(natsCon, guildserver.Ver))
+	producer := events.NewGuildServiceProducerNatsJSON(natsCon, guildserver.Ver)
+
+	bankRepo := repo.NewGuildBankMySQLRepo(charDB)
+	bankService := service.NewGuildBankService(bankRepo, cache, producer)
+	startBankWithdrawalsReset(cfg, bankRepo)
+
+	return service.NewGuildService(cache, producer), bankService
+}
+
+// startBankWithdrawalsReset zeroes the daily guild bank withdrawal counters
+// of every realm once a day at 06:00 UTC (AC "Guild Daily Cap reset").
+func startBankWithdrawalsReset(cfg *config.Config, bankRepo repo.GuildBankRepo) {
+	go func() {
+		for {
+			now := time.Now().UTC()
+			next := time.Date(now.Year(), now.Month(), now.Day(), 6, 0, 0, 0, time.UTC)
+			if !next.After(now) {
+				next = next.Add(24 * time.Hour)
+			}
+			time.Sleep(next.Sub(now))
+
+			for realmID := range cfg.CharDBConnection {
+				if err := bankRepo.ResetDailyWithdrawals(context.Background(), realmID); err != nil {
+					log.Error().Err(err).Uint32("realmID", realmID).Msg("can't reset guild bank withdrawals")
+				} else {
+					log.Info().Uint32("realmID", realmID).Msg("guild bank daily withdrawals reset")
+				}
+			}
+		}
+	}()
 }
 
 // seedOnlineChars recovers the online state of characters from the characters

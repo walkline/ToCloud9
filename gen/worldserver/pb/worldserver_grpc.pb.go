@@ -23,12 +23,14 @@ const (
 	WorldServerService_RemoveItemsWithGuidsFromPlayer_FullMethodName  = "/v1.WorldServerService/RemoveItemsWithGuidsFromPlayer"
 	WorldServerService_DestroyItemsWithGuidsFromPlayer_FullMethodName = "/v1.WorldServerService/DestroyItemsWithGuidsFromPlayer"
 	WorldServerService_AddExistingItemToPlayer_FullMethodName         = "/v1.WorldServerService/AddExistingItemToPlayer"
+	WorldServerService_GetPlayerItemByPos_FullMethodName              = "/v1.WorldServerService/GetPlayerItemByPos"
 	WorldServerService_StoreNewItem_FullMethodName                    = "/v1.WorldServerService/StoreNewItem"
 	WorldServerService_SetItemPermanentEnchantment_FullMethodName     = "/v1.WorldServerService/SetItemPermanentEnchantment"
 	WorldServerService_GetMoneyForPlayer_FullMethodName               = "/v1.WorldServerService/GetMoneyForPlayer"
 	WorldServerService_ModifyMoneyForPlayer_FullMethodName            = "/v1.WorldServerService/ModifyMoneyForPlayer"
 	WorldServerService_CanPlayerInteractWithNPC_FullMethodName        = "/v1.WorldServerService/CanPlayerInteractWithNPC"
 	WorldServerService_CanPlayerInteractWithGameObject_FullMethodName = "/v1.WorldServerService/CanPlayerInteractWithGameObject"
+	WorldServerService_SetPlayerGuildFields_FullMethodName            = "/v1.WorldServerService/SetPlayerGuildFields"
 	WorldServerService_StartBattleground_FullMethodName               = "/v1.WorldServerService/StartBattleground"
 	WorldServerService_AddPlayersToBattleground_FullMethodName        = "/v1.WorldServerService/AddPlayersToBattleground"
 	WorldServerService_CanPlayerJoinBattlegroundQueue_FullMethodName  = "/v1.WorldServerService/CanPlayerJoinBattlegroundQueue"
@@ -46,6 +48,9 @@ type WorldServerServiceClient interface {
 	// DestroyItems permanently destroys items (Player::DestroyItem).
 	DestroyItemsWithGuidsFromPlayer(ctx context.Context, in *DestroyItemsWithGuidsFromPlayerRequest, opts ...grpc.CallOption) (*DestroyItemsWithGuidsFromPlayerResponse, error)
 	AddExistingItemToPlayer(ctx context.Context, in *AddExistingItemToPlayerRequest, opts ...grpc.CallOption) (*AddExistingItemToPlayerResponse, error)
+	// Resolves an item by its live inventory position. Needed by packets that
+	// carry (bag, slot) instead of the item guid, e.g. CMSG_GUILD_BANK_SWAP_ITEMS.
+	GetPlayerItemByPos(ctx context.Context, in *GetPlayerItemByPosRequest, opts ...grpc.CallOption) (*GetPlayerItemByPosResponse, error)
 	// StoreNewItem creates a template item (optional literal permanent enchantment ids).
 	StoreNewItem(ctx context.Context, in *StoreNewItemRequest, opts ...grpc.CallOption) (*StoreNewItemResponse, error)
 	// SetItemPermanentEnchantment sets ITEM_FIELD_ENCHANTMENT_1_1 + slot*3 on a player-owned item.
@@ -56,6 +61,11 @@ type WorldServerServiceClient interface {
 	// Interactions
 	CanPlayerInteractWithNPC(ctx context.Context, in *CanPlayerInteractWithNPCRequest, opts ...grpc.CallOption) (*CanPlayerInteractWithNPCResponse, error)
 	CanPlayerInteractWithGameObject(ctx context.Context, in *CanPlayerInteractWithGameObjectRequest, opts ...grpc.CallOption) (*CanPlayerInteractWithGameObjectResponse, error)
+	// Refreshes the guild id/rank unit fields on a live player object. In
+	// cluster mode guild membership changes happen in the guild service, so the
+	// worldserver's PLAYER_GUILDID/PLAYER_GUILDRANK fields go stale until relog;
+	// the client gates the guild control buttons on those fields, not the roster.
+	SetPlayerGuildFields(ctx context.Context, in *SetPlayerGuildFieldsRequest, opts ...grpc.CallOption) (*SetPlayerGuildFieldsResponse, error)
 	// Battlegrounds
 	StartBattleground(ctx context.Context, in *StartBattlegroundRequest, opts ...grpc.CallOption) (*StartBattlegroundResponse, error)
 	AddPlayersToBattleground(ctx context.Context, in *AddPlayersToBattlegroundRequest, opts ...grpc.CallOption) (*AddPlayersToBattlegroundResponse, error)
@@ -101,6 +111,15 @@ func (c *worldServerServiceClient) DestroyItemsWithGuidsFromPlayer(ctx context.C
 func (c *worldServerServiceClient) AddExistingItemToPlayer(ctx context.Context, in *AddExistingItemToPlayerRequest, opts ...grpc.CallOption) (*AddExistingItemToPlayerResponse, error) {
 	out := new(AddExistingItemToPlayerResponse)
 	err := c.cc.Invoke(ctx, WorldServerService_AddExistingItemToPlayer_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *worldServerServiceClient) GetPlayerItemByPos(ctx context.Context, in *GetPlayerItemByPosRequest, opts ...grpc.CallOption) (*GetPlayerItemByPosResponse, error) {
+	out := new(GetPlayerItemByPosResponse)
+	err := c.cc.Invoke(ctx, WorldServerService_GetPlayerItemByPos_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -161,6 +180,15 @@ func (c *worldServerServiceClient) CanPlayerInteractWithGameObject(ctx context.C
 	return out, nil
 }
 
+func (c *worldServerServiceClient) SetPlayerGuildFields(ctx context.Context, in *SetPlayerGuildFieldsRequest, opts ...grpc.CallOption) (*SetPlayerGuildFieldsResponse, error) {
+	out := new(SetPlayerGuildFieldsResponse)
+	err := c.cc.Invoke(ctx, WorldServerService_SetPlayerGuildFields_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *worldServerServiceClient) StartBattleground(ctx context.Context, in *StartBattlegroundRequest, opts ...grpc.CallOption) (*StartBattlegroundResponse, error) {
 	out := new(StartBattlegroundResponse)
 	err := c.cc.Invoke(ctx, WorldServerService_StartBattleground_FullMethodName, in, out, opts...)
@@ -208,6 +236,9 @@ type WorldServerServiceServer interface {
 	// DestroyItems permanently destroys items (Player::DestroyItem).
 	DestroyItemsWithGuidsFromPlayer(context.Context, *DestroyItemsWithGuidsFromPlayerRequest) (*DestroyItemsWithGuidsFromPlayerResponse, error)
 	AddExistingItemToPlayer(context.Context, *AddExistingItemToPlayerRequest) (*AddExistingItemToPlayerResponse, error)
+	// Resolves an item by its live inventory position. Needed by packets that
+	// carry (bag, slot) instead of the item guid, e.g. CMSG_GUILD_BANK_SWAP_ITEMS.
+	GetPlayerItemByPos(context.Context, *GetPlayerItemByPosRequest) (*GetPlayerItemByPosResponse, error)
 	// StoreNewItem creates a template item (optional literal permanent enchantment ids).
 	StoreNewItem(context.Context, *StoreNewItemRequest) (*StoreNewItemResponse, error)
 	// SetItemPermanentEnchantment sets ITEM_FIELD_ENCHANTMENT_1_1 + slot*3 on a player-owned item.
@@ -218,6 +249,11 @@ type WorldServerServiceServer interface {
 	// Interactions
 	CanPlayerInteractWithNPC(context.Context, *CanPlayerInteractWithNPCRequest) (*CanPlayerInteractWithNPCResponse, error)
 	CanPlayerInteractWithGameObject(context.Context, *CanPlayerInteractWithGameObjectRequest) (*CanPlayerInteractWithGameObjectResponse, error)
+	// Refreshes the guild id/rank unit fields on a live player object. In
+	// cluster mode guild membership changes happen in the guild service, so the
+	// worldserver's PLAYER_GUILDID/PLAYER_GUILDRANK fields go stale until relog;
+	// the client gates the guild control buttons on those fields, not the roster.
+	SetPlayerGuildFields(context.Context, *SetPlayerGuildFieldsRequest) (*SetPlayerGuildFieldsResponse, error)
 	// Battlegrounds
 	StartBattleground(context.Context, *StartBattlegroundRequest) (*StartBattlegroundResponse, error)
 	AddPlayersToBattleground(context.Context, *AddPlayersToBattlegroundRequest) (*AddPlayersToBattlegroundResponse, error)
@@ -242,6 +278,9 @@ func (UnimplementedWorldServerServiceServer) DestroyItemsWithGuidsFromPlayer(con
 func (UnimplementedWorldServerServiceServer) AddExistingItemToPlayer(context.Context, *AddExistingItemToPlayerRequest) (*AddExistingItemToPlayerResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method AddExistingItemToPlayer not implemented")
 }
+func (UnimplementedWorldServerServiceServer) GetPlayerItemByPos(context.Context, *GetPlayerItemByPosRequest) (*GetPlayerItemByPosResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetPlayerItemByPos not implemented")
+}
 func (UnimplementedWorldServerServiceServer) StoreNewItem(context.Context, *StoreNewItemRequest) (*StoreNewItemResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method StoreNewItem not implemented")
 }
@@ -259,6 +298,9 @@ func (UnimplementedWorldServerServiceServer) CanPlayerInteractWithNPC(context.Co
 }
 func (UnimplementedWorldServerServiceServer) CanPlayerInteractWithGameObject(context.Context, *CanPlayerInteractWithGameObjectRequest) (*CanPlayerInteractWithGameObjectResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CanPlayerInteractWithGameObject not implemented")
+}
+func (UnimplementedWorldServerServiceServer) SetPlayerGuildFields(context.Context, *SetPlayerGuildFieldsRequest) (*SetPlayerGuildFieldsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method SetPlayerGuildFields not implemented")
 }
 func (UnimplementedWorldServerServiceServer) StartBattleground(context.Context, *StartBattlegroundRequest) (*StartBattlegroundResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method StartBattleground not implemented")
@@ -353,6 +395,24 @@ func _WorldServerService_AddExistingItemToPlayer_Handler(srv interface{}, ctx co
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(WorldServerServiceServer).AddExistingItemToPlayer(ctx, req.(*AddExistingItemToPlayerRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _WorldServerService_GetPlayerItemByPos_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetPlayerItemByPosRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WorldServerServiceServer).GetPlayerItemByPos(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: WorldServerService_GetPlayerItemByPos_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WorldServerServiceServer).GetPlayerItemByPos(ctx, req.(*GetPlayerItemByPosRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -465,6 +525,24 @@ func _WorldServerService_CanPlayerInteractWithGameObject_Handler(srv interface{}
 	return interceptor(ctx, in, info, handler)
 }
 
+func _WorldServerService_SetPlayerGuildFields_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SetPlayerGuildFieldsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WorldServerServiceServer).SetPlayerGuildFields(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: WorldServerService_SetPlayerGuildFields_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WorldServerServiceServer).SetPlayerGuildFields(ctx, req.(*SetPlayerGuildFieldsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _WorldServerService_StartBattleground_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(StartBattlegroundRequest)
 	if err := dec(in); err != nil {
@@ -561,6 +639,10 @@ var WorldServerService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _WorldServerService_AddExistingItemToPlayer_Handler,
 		},
 		{
+			MethodName: "GetPlayerItemByPos",
+			Handler:    _WorldServerService_GetPlayerItemByPos_Handler,
+		},
+		{
 			MethodName: "StoreNewItem",
 			Handler:    _WorldServerService_StoreNewItem_Handler,
 		},
@@ -583,6 +665,10 @@ var WorldServerService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "CanPlayerInteractWithGameObject",
 			Handler:    _WorldServerService_CanPlayerInteractWithGameObject_Handler,
+		},
+		{
+			MethodName: "SetPlayerGuildFields",
+			Handler:    _WorldServerService_SetPlayerGuildFields_Handler,
 		},
 		{
 			MethodName: "StartBattleground",

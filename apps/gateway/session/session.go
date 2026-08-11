@@ -44,6 +44,10 @@ type GameSession struct {
 	eventsChan        <-chan eBroadcaster.Event
 	sessionSafeFuChan chan func(*GameSession)
 
+	// guildBankOpen is set once the player activated a guild bank chest;
+	// sessions with it set receive live bank content refreshes.
+	guildBankOpen bool
+
 	charServiceClient             pbChar.CharactersServiceClient
 	serversRegistryClient         pbServ.ServersRegistryServiceClient
 	chatServiceClient             pbChat.ChatServiceClient
