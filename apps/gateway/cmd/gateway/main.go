@@ -4,6 +4,9 @@ import (
 	"context"
 	"database/sql"
 	"net"
+	"os/signal"
+	"sync"
+	"syscall"
 	"time"
 
 	_ "github.com/go-sql-driver/mysql"
@@ -154,9 +157,25 @@ func main() {
 		Str("address", l.Addr().String()).
 		Msg("🚀 Gateway started!")
 
+	// A killed gateway can't tell the other services that its players are
+	// gone: on SIGTERM stop accepting, cancel the sessions so their deferred
+	// logged-out events get published, and flush NATS before exiting.
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
+	defer stop()
+
+	go func() {
+		<-ctx.Done()
+		l.Close()
+	}()
+
+	var sessionsWG sync.WaitGroup
+
 	for {
 		conn, err := l.Accept()
 		if err != nil {
+			if ctx.Err() != nil {
+				break
+			}
 			log.Fatal().Err(err).Msg("can't accept connection")
 		}
 
@@ -180,13 +199,34 @@ func main() {
 			PacketProcessTimeout:             time.Second * time.Duration(conf.PacketProcessTimeoutSecs),
 			ShowGameserverConnChangeToClient: conf.ShowGameserverConnChangeToClient,
 		})
+		sessionsWG.Add(1)
 		go func() {
+			defer sessionsWG.Done()
+
 			healthandmetrics.ActiveConnectionsMetrics.Inc()
 			defer healthandmetrics.ActiveConnectionsMetrics.Dec()
 
 			// blocks until connection close
-			s.ListenAndProcess(context.Background())
+			s.ListenAndProcess(ctx)
 		}()
+	}
+
+	log.Info().Msg("shutting down, draining sessions...")
+
+	drained := make(chan struct{})
+	go func() {
+		sessionsWG.Wait()
+		close(drained)
+	}()
+
+	select {
+	case <-drained:
+	case <-time.After(10 * time.Second):
+		log.Warn().Msg("sessions drain timed out")
+	}
+
+	if err = nc.FlushTimeout(3 * time.Second); err != nil {
+		log.Warn().Err(err).Msg("can't flush nats connection on shutdown")
 	}
 }
 

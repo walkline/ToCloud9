@@ -8,6 +8,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"net"
+	"sync"
 
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
@@ -40,6 +41,7 @@ type GameSocket struct {
 
 	sessionParams session.GameSessionParams
 	session       *session.GameSession
+	sessionWG     sync.WaitGroup
 
 	authSeed  []byte
 	accountID uint32
@@ -88,9 +90,19 @@ func (s *GameSocket) Handshake() error {
 // BLOCKS WHILE CONNECTION IS OPEN
 func (s *GameSocket) ListenAndProcess(ctx context.Context) error {
 	newCtx, cancel := context.WithCancel(ctx)
+	// LIFO: cancel first to unblock the session goroutine, then wait for it,
+	// so callers get the logged-out event published before we return.
+	defer s.sessionWG.Wait()
 	defer cancel()
 
 	s.ctx = newCtx
+
+	// The read loop below blocks on the TCP read; close the connection when
+	// the context ends (gateway shutdown) so it can exit.
+	go func() {
+		<-newCtx.Done()
+		s.Close()
+	}()
 
 	go func() {
 		for {
@@ -245,7 +257,11 @@ func (s *GameSocket) AuthSession(p *packet.Packet) error {
 	s.Send(resp)
 
 	s.session = session.NewGameSession(s.ctx, &s.logger, s, s.accountID, p, s.sessionParams)
-	go s.session.HandlePackets(s.ctx)
+	s.sessionWG.Add(1)
+	go func() {
+		defer s.sessionWG.Done()
+		s.session.HandlePackets(s.ctx)
+	}()
 
 	return nil
 }
@@ -362,7 +378,12 @@ func (s *GameSocket) processPacket(p *packet.Packet) error {
 			return s.AuthSession(p)
 		}
 	default:
-		s.readChan <- p
+		// The session goroutine stops consuming readChan once the context
+		// ends; don't let a full buffer block the read loop on shutdown.
+		select {
+		case s.readChan <- p:
+		case <-s.ctx.Done():
+		}
 	}
 	return nil
 }
