@@ -4,8 +4,62 @@
 #include <spdlog/spdlog.h>
 #include <unordered_map>
 #include <functional>
+#include <string>
+#include <vector>
+#include <cstddef>
 
 namespace tc9 {
+
+namespace {
+
+// NATS subject matching for generic subscriptions: '*' matches exactly one
+// token, '>' matches one or more trailing tokens. natsConnection_Subscribe
+// already accepts wildcards, so a message published on
+// "chat.gw.42.income.whisper" is delivered for the pattern
+// "chat.gw.*.income.whisper" — but the callback lookup below is keyed by the
+// pattern, while the delivered message carries the concrete subject. Without
+// this helper every wildcard subscription registers, logs, and then silently
+// never fires.
+bool SubjectMatches(const std::string& pattern, const std::string& subject) {
+    if (pattern.find('*') == std::string::npos && pattern.find('>') == std::string::npos) {
+        return pattern == subject;
+    }
+
+    auto split = [](const std::string& s) {
+        std::vector<std::string> out;
+        std::string::size_type start = 0;
+        while (true) {
+            std::string::size_type dot = s.find('.', start);
+            if (dot == std::string::npos) {
+                out.push_back(s.substr(start));
+                break;
+            }
+            out.push_back(s.substr(start, dot - start));
+            start = dot + 1;
+        }
+        return out;
+    };
+
+    const std::vector<std::string> pat = split(pattern);
+    const std::vector<std::string> sub = split(subject);
+
+    for (std::size_t i = 0; i < pat.size(); ++i) {
+        if (pat[i] == ">") {
+            // Trailing wildcard: matches the rest, but needs at least one token.
+            return i + 1 == pat.size() && sub.size() > i;
+        }
+        if (i >= sub.size()) {
+            return false;
+        }
+        if (pat[i] != "*" && pat[i] != sub[i]) {
+            return false;
+        }
+    }
+
+    return pat.size() == sub.size();
+}
+
+}  // namespace
 
 NatsConsumer::NatsConsumer(const std::string& url) : url_(url) {
     spdlog::debug("NATS consumer created for URL: {}", url);
@@ -231,6 +285,16 @@ void NatsConsumer::OnMessage(natsConnection* /*nc*/, natsSubscription* /*sub*/,
         auto it = consumer->generic_callbacks_.find(subject_str);
         if (it != consumer->generic_callbacks_.end()) {
             generic = it->second;
+        }
+        // Wildcard patterns are stored under the pattern itself, so the exact
+        // lookup above cannot find them — match them explicitly.
+        for (const auto& entry : consumer->generic_callbacks_) {
+            if (entry.first == subject_str) {
+                continue;  // already collected
+            }
+            if (SubjectMatches(entry.first, subject_str)) {
+                generic.insert(generic.end(), entry.second.begin(), entry.second.end());
+            }
         }
     }
     if (!generic.empty() && consumer->event_queue_) {
