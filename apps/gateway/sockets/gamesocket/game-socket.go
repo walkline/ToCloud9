@@ -8,6 +8,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"net"
+	"time"
 
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
@@ -137,6 +138,10 @@ func (s *GameSocket) ListenAndProcess(ctx context.Context) error {
 				Msg("Failed to process packet")
 		}
 	}
+	cancel()
+	if s.session != nil {
+		<-s.session.Done()
+	}
 
 	return nil
 }
@@ -224,6 +229,16 @@ func (s *GameSocket) AuthSession(p *packet.Packet) error {
 	}
 
 	s.packetsReader.EnableEncryption(s.encryption)
+	s.session = session.NewGameSession(s.ctx, &s.logger, s, s.accountID, p, s.sessionParams)
+	claimCtx, claimCancel := context.WithTimeout(s.ctx, 30*time.Second)
+	err = s.session.ClaimAccountOwnership(claimCtx)
+	claimCancel()
+	if err != nil {
+		s.session = nil
+		s.Close()
+		return fmt.Errorf("can't claim account session ownership: %w", err)
+	}
+	go s.session.HandlePackets(s.ctx)
 
 	resp := packet.NewWriterWithSize(packet.SMsgAuthResponse, 1+4+1+4+1)
 	resp.Uint8(12)
@@ -235,6 +250,7 @@ func (s *GameSocket) AuthSession(p *packet.Packet) error {
 
 	err = s.handleAddons(addonInfo)
 	if err != nil {
+		s.Close()
 		return fmt.Errorf("can't handle addons, err: %w", err)
 	}
 
@@ -243,9 +259,6 @@ func (s *GameSocket) AuthSession(p *packet.Packet) error {
 		resp.Uint32(0xFFFFFFFF)
 	}
 	s.Send(resp)
-
-	s.session = session.NewGameSession(s.ctx, &s.logger, s, s.accountID, p, s.sessionParams)
-	go s.session.HandlePackets(s.ctx)
 
 	return nil
 }

@@ -4,6 +4,10 @@ import (
 	"context"
 	"database/sql"
 	"net"
+	"os"
+	"os/signal"
+	"sync"
+	"syscall"
 	"time"
 
 	_ "github.com/go-sql-driver/mysql"
@@ -18,12 +22,13 @@ import (
 	"github.com/walkline/ToCloud9/apps/gateway/repo"
 	"github.com/walkline/ToCloud9/apps/gateway/service"
 	"github.com/walkline/ToCloud9/apps/gateway/session"
+	"github.com/walkline/ToCloud9/apps/gateway/sockets"
 	"github.com/walkline/ToCloud9/apps/gateway/sockets/gamesocket"
+	pbAH "github.com/walkline/ToCloud9/gen/auctionhouse/pb"
 	pbChar "github.com/walkline/ToCloud9/gen/characters/pb"
 	pbChat "github.com/walkline/ToCloud9/gen/chat/pb"
 	pbGroup "github.com/walkline/ToCloud9/gen/group/pb"
 	pbGuild "github.com/walkline/ToCloud9/gen/guilds/pb"
-	pbAH "github.com/walkline/ToCloud9/gen/auctionhouse/pb"
 	pbMail "github.com/walkline/ToCloud9/gen/mail/pb"
 	pbMM "github.com/walkline/ToCloud9/gen/matchmaking/pb"
 	pbServ "github.com/walkline/ToCloud9/gen/servers-registry/pb"
@@ -68,6 +73,12 @@ func main() {
 		log.Fatal().Err(err).Msg("can't start listening")
 	}
 	defer l.Close()
+	gatewayCtx, stopGateway := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stopGateway()
+	go func() {
+		<-gatewayCtx.Done()
+		_ = l.Close()
+	}()
 
 	charClient := charService(conf)
 	chatClient := chatService(conf)
@@ -101,6 +112,15 @@ func main() {
 		log.Fatal().Err(err).Msg("can't connect to nats")
 	}
 	defer nc.Close()
+	accountSessions := session.NewNATSAccountSessionOwnership(nc, root.RetrievedGatewayID, root.RealmID)
+	if err = accountSessions.Listen(); err != nil {
+		log.Fatal().Err(err).Msg("can't listen for account session ownership requests")
+	}
+	defer accountSessions.Close()
+	go func() {
+		<-accountSessions.Done()
+		log.Fatal().Msg("NATS session fencing was lost; terminating gateway")
+	}()
 
 	chatChannelsBroadcasterService := eventsBroadcaster.NewChatChannelsService()
 	broadcaster := eventsBroadcaster.NewBroadcaster(chatChannelsBroadcasterService)
@@ -154,9 +174,13 @@ func main() {
 		Str("address", l.Addr().String()).
 		Msg("🚀 Gateway started!")
 
-	for {
+	activeConnections := &activeGatewayConnections{}
+	for gatewayCtx.Err() == nil {
 		conn, err := l.Accept()
 		if err != nil {
+			if gatewayCtx.Err() != nil {
+				break
+			}
 			log.Fatal().Err(err).Msg("can't accept connection")
 		}
 
@@ -179,15 +203,43 @@ func main() {
 			GameServerGRPCConnMgr:            gameserverconn.DefaultGameServerGRPCConnMgr,
 			PacketProcessTimeout:             time.Second * time.Duration(conf.PacketProcessTimeoutSecs),
 			ShowGameserverConnChangeToClient: conf.ShowGameserverConnChangeToClient,
+			AccountSessionOwnership:          accountSessions,
 		})
+		activeConnections.Track(s)
 		go func() {
+			defer activeConnections.Done(s)
 			healthandmetrics.ActiveConnectionsMetrics.Inc()
 			defer healthandmetrics.ActiveConnectionsMetrics.Dec()
 
 			// blocks until connection close
-			s.ListenAndProcess(context.Background())
+			s.ListenAndProcess(gatewayCtx)
 		}()
 	}
+	activeConnections.CloseAndWait()
+	log.Info().Msg("gateway sessions drained")
+}
+
+type activeGatewayConnections struct {
+	connections sync.Map
+	wg          sync.WaitGroup
+}
+
+func (c *activeGatewayConnections) Track(socket sockets.Socket) {
+	c.connections.Store(socket, struct{}{})
+	c.wg.Add(1)
+}
+
+func (c *activeGatewayConnections) Done(socket sockets.Socket) {
+	c.connections.Delete(socket)
+	c.wg.Done()
+}
+
+func (c *activeGatewayConnections) CloseAndWait() {
+	c.connections.Range(func(socket, _ any) bool {
+		socket.(sockets.Socket).Close()
+		return true
+	})
+	c.wg.Wait()
 }
 
 func charService(cnf *config.Config) pbChar.CharactersServiceClient {

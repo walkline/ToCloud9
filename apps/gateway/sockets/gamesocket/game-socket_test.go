@@ -3,6 +3,7 @@ package gamesocket
 import (
 	"context"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"os"
 	"runtime"
@@ -30,6 +31,54 @@ import (
 	regMock "github.com/walkline/ToCloud9/gen/servers-registry/pb/mocks"
 	gwProducerMock "github.com/walkline/ToCloud9/shared/events/mocks"
 )
+
+type authAccountOwnershipStub struct {
+	claimErr error
+}
+
+func (*authAccountOwnershipStub) Register(string, func(context.Context) bool) func() {
+	return func() {}
+}
+func (s *authAccountOwnershipStub) Claim(context.Context, uint32, string) error {
+	return s.claimErr
+}
+func (*authAccountOwnershipStub) Release(context.Context, uint32, string) error { return nil }
+
+func authSessionPacketForOwnershipTest(account string) *packet.Packet {
+	return packet.NewWriter(packet.CMsgAuthSession).
+		Uint32(0).
+		Uint32(0).
+		String(account).
+		Uint32(0).
+		Bytes(make([]byte, 4)).
+		Uint32(0).
+		Uint32(0).
+		Uint32(0).
+		Uint64(0).
+		Bytes(make([]byte, 20)).
+		Uint32(0).
+		ToPacket()
+}
+
+func TestAuthSessionFailsBeforeSuccessWhenAccountOwnershipCannotBeClaimed(t *testing.T) {
+	oldEncryption := useEncryption
+	useEncryption = false
+	defer func() { useEncryption = oldEncryption }()
+
+	accountRepo := &accRepoMock.AccountRepo{}
+	accountRepo.On("AccountByUserName", mock.Anything, "ACCOUNT").Return(&repo.Account{ID: 7}, nil)
+	ownership := &authAccountOwnershipStub{claimErr: errors.New("ownership unavailable")}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	game := NewGameSocket(connmock.NewDataQueue(false, 0).Mock(), accountRepo, session.GameSessionParams{
+		AccountSessionOwnership: ownership,
+	}).(*GameSocket)
+	game.ctx = ctx
+
+	err := game.AuthSession(authSessionPacketForOwnershipTest("ACCOUNT"))
+	assert.Error(t, err)
+	assert.Len(t, game.sendChan, 0, "authentication success must not be queued before ownership is established")
+}
 
 func init() {
 	log.Logger = log.Output(zerolog.ConsoleWriter{

@@ -99,6 +99,11 @@ func main() {
 	if err != nil {
 		log.Fatal().Err(err).Msg("can't create gateway service")
 	}
+	accountSessions := service.NewAccountSessionCoordinator(rdb, nc, gatewayService)
+	if err = accountSessions.Listen(); err != nil {
+		log.Fatal().Err(err).Msg("can't start account session coordinator")
+	}
+	defer accountSessions.Close()
 
 	layerService := service.NewLayer(gameServersService, layerStore)
 	startupLayers := conf.Layering.Maps

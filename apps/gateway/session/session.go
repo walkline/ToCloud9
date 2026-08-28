@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/rs/zerolog"
@@ -33,6 +34,14 @@ var (
 	worldConnectErrCharacterNotFound = errors.New("character not found")
 )
 
+type preparedGameServerConnection struct {
+	character *pbChar.LogInCharacter
+	socket    sockets.Socket
+	client    pbGameServ.WorldServerServiceClient
+	server    *pbServ.Server
+	groupID   uint32
+}
+
 // GameSession represents session of the player, holds world and game sockets, routes and handles packets.
 type GameSession struct {
 	ctx    context.Context
@@ -59,6 +68,7 @@ type GameSession struct {
 	charsUpdsBarrier              *service.CharactersUpdatesBarrier
 	realmNamesService             *service.RealmNamesService
 	gameServerGRPCConnMgr         conn.GameServerGRPCConnMgr
+	accountSessionOwnership       AccountSessionOwnership
 
 	groupUpdateCounter uint32
 
@@ -70,6 +80,14 @@ type GameSession struct {
 
 	accountID uint32
 	character *LoggedInCharacter
+
+	sessionToken             string
+	sessionDone              chan struct{}
+	intentionalDisconnect    atomic.Bool
+	accountOwnershipClaimed  bool
+	ownershipUnregister      func()
+	reconnectWG              sync.WaitGroup
+	worldReconnectInProgress bool
 
 	// groupMemberStats holds last known stats of the character's group members,
 	// fed by group members updated events. Used to answer party member stats requests.
@@ -121,6 +139,7 @@ type GameSessionParams struct {
 	GameServerGRPCConnMgr            conn.GameServerGRPCConnMgr
 	PacketProcessTimeout             time.Duration
 	ShowGameserverConnChangeToClient bool
+	AccountSessionOwnership          AccountSessionOwnership
 }
 
 func NewGameSession(
@@ -155,7 +174,10 @@ func NewGameSession(
 		charsUpdsBarrier:                 params.CharsUpdsBarrier,
 		realmNamesService:                params.RealmNamesService,
 		gameServerGRPCConnMgr:            params.GameServerGRPCConnMgr,
+		accountSessionOwnership:          params.AccountSessionOwnership,
 		showGameserverConnChangeToClient: params.ShowGameserverConnChangeToClient,
+		sessionToken:                     newAccountSessionToken(),
+		sessionDone:                      make(chan struct{}),
 
 		sessionSafeFuChan:        make(chan func(*GameSession), 100),
 		packetProcessTimeout:     packetProcessTimeout,
@@ -171,11 +193,29 @@ func (s *GameSession) HandlePackets(ctx context.Context) {
 	c, cancel := context.WithCancel(ctx)
 	defer cancel()
 	defer s.logger.Debug().Msg("Stopped to handle packets")
+	defer close(s.sessionDone)
+
+	if s.accountSessionOwnership != nil {
+		if err := s.ClaimAccountOwnership(c); err != nil {
+			s.logger.Error().Err(err).Msg("can't claim account session ownership")
+			s.intentionalDisconnect.Store(true)
+			s.gameSocket.Close()
+			return
+		}
+		defer s.releaseAccountOwnership()
+	}
 
 	defer func() {
+		if s.intentionalDisconnect.Load() && s.worldSocket != nil {
+			s.worldSocket.Close()
+		}
 		if s.character != nil {
 			s.onLoggedOut()
 		}
+	}()
+	defer func() {
+		cancel()
+		s.reconnectWG.Wait()
 	}()
 
 	handleEvent := func(event eBroadcaster.Event) {
@@ -230,7 +270,10 @@ func (s *GameSession) HandlePackets(ctx context.Context) {
 		case p, ok := <-worldReadChan:
 			if !ok {
 				s.worldSocket = nil
-				s.onWorldSocketClosed()
+				if s.intentionalDisconnect.Load() {
+					return
+				}
+				s.onWorldSocketClosed(c)
 				break
 			}
 
@@ -269,8 +312,25 @@ func (s *GameSession) HandlePackets(ctx context.Context) {
 func (s *GameSession) Login(ctx context.Context, p *packet.Packet) error {
 	// Reset sending control for new login.
 	s.packetSendingControl = PacketSendingControl{}
+	characterGUID := p.Reader().Uint64()
+	if s.character != nil {
+		resp := packet.NewWriterWithSize(packet.SMsgCharacterLoginFailed, 1)
+		resp.Uint8(uint8(packet.LoginErrorCodeLoginFailed))
+		s.gameSocket.Send(resp)
+		return nil
+	}
+	owned, err := s.accountOwnsCharacter(ctx, characterGUID)
+	if err != nil {
+		return fmt.Errorf("verify character ownership: %w", err)
+	}
+	if !owned {
+		resp := packet.NewWriterWithSize(packet.SMsgCharacterLoginFailed, 1)
+		resp.Uint8(uint8(packet.LoginErrorCodeCharNotFound))
+		s.gameSocket.Send(resp)
+		return nil
+	}
 
-	char, socket, err := s.connectToGameServer(ctx, p.Reader().Uint64(), nil, nil)
+	char, socket, err := s.connectToGameServer(ctx, characterGUID, nil, nil)
 	if err != nil {
 		code := packet.LoginErrorCodeLoginFailed
 		switch {
@@ -363,6 +423,23 @@ func (s *GameSession) Login(ctx context.Context, p *packet.Packet) error {
 	return err
 }
 
+func (s *GameSession) accountOwnsCharacter(ctx context.Context, characterGUID uint64) (bool, error) {
+	response, err := s.charServiceClient.CharactersToLoginForAccount(ctx, &pbChar.CharactersToLoginForAccountRequest{
+		Api:       root.SupportedCharServiceVer,
+		AccountID: s.accountID,
+		RealmID:   root.RealmID,
+	})
+	if err != nil {
+		return false, err
+	}
+	for _, character := range response.Characters {
+		if character.GUID == characterGUID {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
 func (s *GameSession) RealmSplit(ctx context.Context, p *packet.Packet) error {
 	reader := p.Reader()
 	unk := reader.Uint32()
@@ -434,6 +511,15 @@ func (s *GameSession) InterceptPong(ctx context.Context, p *packet.Packet) error
 }
 
 func (s *GameSession) connectToGameServer(ctx context.Context, characterGUID uint64, mapID *uint32, preLoginHook func(sockets.Socket)) (*pbChar.LogInCharacter, sockets.Socket, error) {
+	connection, err := s.prepareGameServerConnection(ctx, characterGUID, mapID, preLoginHook)
+	if err != nil {
+		return nil, nil, err
+	}
+	s.applyPreparedGameServerConnection(connection)
+	return connection.character, connection.socket, nil
+}
+
+func (s *GameSession) prepareGameServerConnection(ctx context.Context, characterGUID uint64, mapID *uint32, preLoginHook func(sockets.Socket)) (*preparedGameServerConnection, error) {
 	r, err := s.charServiceClient.CharactersToLoginByGUID(ctx, &pbChar.CharactersToLoginByGUIDRequest{
 		Api:           root.SupportedCharServiceVer,
 		CharacterGUID: characterGUID,
@@ -441,11 +527,14 @@ func (s *GameSession) connectToGameServer(ctx context.Context, characterGUID uin
 	})
 
 	if err != nil {
-		return nil, nil, fmt.Errorf("can't get characters to login, err: %w", err)
+		return nil, fmt.Errorf("can't get characters to login, err: %w", err)
 	}
 
 	if r.Character == nil {
-		return nil, nil, fmt.Errorf("char id: %q, err: %w", characterGUID, worldConnectErrCharacterNotFound)
+		return nil, fmt.Errorf("char id: %q, err: %w", characterGUID, worldConnectErrCharacterNotFound)
+	}
+	if r.Character.GUID != characterGUID || r.Character.AccountID != s.accountID {
+		return nil, fmt.Errorf("char id: %q does not belong to account %d, err: %w", characterGUID, s.accountID, worldConnectErrCharacterNotFound)
 	}
 
 	mapIDToLogin := r.Character.Map
@@ -460,36 +549,50 @@ func (s *GameSession) connectToGameServer(ctx context.Context, characterGUID uin
 		s.logger.Warn().Err(err).Uint64("char", characterGUID).Msg("group resolve failed, selecting world without group")
 		groupID = 0
 	}
-	s.currentGroupID = groupID
-
-	selected, err := s.selectGameServerForMap(ctx, mapIDToLogin)
+	selected, err := s.selectGameServerForMapAndGroup(ctx, mapIDToLogin, groupID)
 
 	if err != nil {
-		return nil, nil, fmt.Errorf("can't select game server for map: %w", err)
+		return nil, fmt.Errorf("can't select game server for map: %w", err)
 	}
 
 	if selected == nil {
-		return nil, nil, fmt.Errorf("%w, mapID %v", worldConnectErrInstanceNotFound, mapIDToLogin)
+		return nil, fmt.Errorf("%w, mapID %v", worldConnectErrInstanceNotFound, mapIDToLogin)
 	}
 
 	s.gameServerGRPCConnMgr.AddAddressMapping(selected.Address, selected.GrpcAddress)
 
-	s.gameServerGRPCClient, err = s.gameServerGRPCConnMgr.GRPCConnByGameServerAddress(selected.Address)
+	client, err := s.gameServerGRPCConnMgr.GRPCConnByGameServerAddress(selected.Address)
 	if err != nil {
-		return nil, nil, fmt.Errorf("can't get game server grpc client, err: %w", err)
+		return nil, fmt.Errorf("can't get game server grpc client, err: %w", err)
 	}
 
 	socket, err := s.connectToGameServerWithAddress(ctx, characterGUID, selected.Address, preLoginHook)
-	if err == nil {
-		s.currentGameServerID = selected.ID
-		s.currentGameServerAlias = selected.Alias
+	if err != nil {
+		return nil, err
 	}
-	return r.Character, socket, err
+	return &preparedGameServerConnection{
+		character: r.Character,
+		socket:    socket,
+		client:    client,
+		server:    selected,
+		groupID:   groupID,
+	}, nil
+}
+
+func (s *GameSession) applyPreparedGameServerConnection(connection *preparedGameServerConnection) {
+	s.gameServerGRPCClient = connection.client
+	s.currentGameServerID = connection.server.ID
+	s.currentGameServerAlias = connection.server.Alias
+	s.currentGroupID = connection.groupID
 }
 
 func (s *GameSession) selectGameServerForMap(ctx context.Context, mapID uint32) (*pbServ.Server, error) {
+	return s.selectGameServerForMapAndGroup(ctx, mapID, s.currentGroupID)
+}
+
+func (s *GameSession) selectGameServerForMapAndGroup(ctx context.Context, mapID, groupID uint32) (*pbServ.Server, error) {
 	response, err := s.serversRegistryClient.AvailableGameServersForMapAndRealm(ctx, &pbServ.AvailableGameServersForMapAndRealmRequest{
-		Api: root.SupportedServerRegistryVer, RealmID: root.RealmID, MapID: mapID, GroupID: s.currentGroupID,
+		Api: root.SupportedServerRegistryVer, RealmID: root.RealmID, MapID: mapID, GroupID: groupID,
 	})
 	if err != nil || len(response.GameServers) == 0 {
 		return nil, err
@@ -506,6 +609,12 @@ func (s *GameSession) connectToGameServerWithAddress(ctx context.Context, charac
 	if err != nil {
 		return nil, fmt.Errorf("can't connect to the world server, err: %w", err)
 	}
+	keepSocket := false
+	defer func() {
+		if !keepSocket {
+			socket.Close()
+		}
+	}()
 
 	go socket.ListenAndProcess(s.ctx)
 
@@ -523,8 +632,9 @@ func (s *GameSession) connectToGameServerWithAddress(ctx context.Context, charac
 		return nil, ctx.Err()
 	}
 
-	// we need give some time to add session on the world side
-	time.Sleep(time.Millisecond * 200)
+	if !waitForSessionContext(ctx, 200*time.Millisecond) {
+		return nil, ctx.Err()
+	}
 
 	if preLoginHook != nil {
 		preLoginHook(socket)
@@ -534,6 +644,7 @@ func (s *GameSession) connectToGameServerWithAddress(ctx context.Context, charac
 	resp.Uint64(characterGUID)
 	socket.Send(resp)
 
+	keepSocket = true
 	return socket, nil
 }
 
@@ -562,29 +673,42 @@ func (s *GameSession) processWorldPacketsInPlace(ctx context.Context, f func(*pa
 	}
 }
 
-func (s *GameSession) onWorldSocketClosed() {
+func (s *GameSession) onWorldSocketClosed(ctx context.Context) {
+	if s.character == nil || s.worldReconnectInProgress {
+		return
+	}
+	character := *s.character
+	s.worldReconnectInProgress = true
+	s.reconnectWG.Add(1)
+	go func(character LoggedInCharacter) {
+		defer s.reconnectWG.Done()
+		if !s.sendSysMessageContext(ctx, "Lost connection with world server...") {
+			return
+		}
+		if !waitForSessionContext(ctx, 2*time.Second) {
+			return
+		}
 
-	go func(charGUID uint64) {
-		s.SendSysMessage("Lost connection with world server...")
-		time.Sleep(time.Second * 2) // giving some time to recover
-
-		s.SendSysMessage("Trying to recover...")
-		time.Sleep(time.Second * 1) // giving some time to recover
+		if !s.sendSysMessageContext(ctx, "Trying to recover...") {
+			return
+		}
+		if !waitForSessionContext(ctx, time.Second) {
+			return
+		}
 
 		var err error
-		var char *pbChar.LogInCharacter
-		var socket sockets.Socket
+		var connection *preparedGameServerConnection
 		for i := 0; i < 3; i++ {
-			char, socket, err = s.connectToGameServer(context.TODO(), charGUID, nil, func(_ sockets.Socket) {
-				_, err := s.charServiceClient.SavePlayerPosition(context.TODO(), &pbChar.SavePlayerPositionRequest{
+			connection, err = s.prepareGameServerConnection(ctx, character.GUID, nil, func(_ sockets.Socket) {
+				_, err := s.charServiceClient.SavePlayerPosition(ctx, &pbChar.SavePlayerPositionRequest{
 					Api:      root.SupportedCharServiceVer,
 					RealmID:  root.RealmID,
-					CharGUID: s.character.GUID,
-					MapID:    s.character.Map,
-					X:        s.character.PositionX,
-					Y:        s.character.PositionY,
-					Z:        s.character.PositionZ,
-					O:        s.character.PositionO,
+					CharGUID: character.GUID,
+					MapID:    character.Map,
+					X:        character.PositionX,
+					Y:        character.PositionY,
+					Z:        character.PositionZ,
+					O:        character.PositionO,
 				})
 				if err != nil {
 					s.logger.Error().Err(err).Msg("can't save player position")
@@ -595,41 +719,110 @@ func (s *GameSession) onWorldSocketClosed() {
 			} else {
 				break
 			}
-			time.Sleep(time.Second * 5) // giving some time to recover
+			if !waitForSessionContext(ctx, 5*time.Second) {
+				return
+			}
 		}
 
 		if err != nil {
-			s.SendSysMessage("Failed :( Returning to the characters screen.")
+			if !s.sendSysMessageContext(ctx, "Failed :( Returning to the characters screen.") {
+				return
+			}
 
-			time.Sleep(time.Second * 2) // giving some time for player to read the message
-
-			resp := packet.NewWriterWithSize(packet.SMsgCharacterLoginFailed, 1)
-			resp.Uint8(uint8(packet.LoginErrorCodeWorldServerIsDown))
-			s.gameSocket.Send(resp)
+			if !waitForSessionContext(ctx, 2*time.Second) {
+				return
+			}
+			select {
+			case s.sessionSafeFuChan <- func(session *GameSession) {
+				session.worldReconnectInProgress = false
+				session.returnToCharacterSelectionAfterWorldFailure()
+			}:
+			case <-ctx.Done():
+			}
+			return
+		}
+		if err = ctx.Err(); err != nil {
+			connection.socket.Close()
 			return
 		}
 
 		resp := packet.NewWriterWithSize(packet.SMsgNewWorld, 0)
-		resp.Uint32(char.Map)
-		resp.Float32(s.character.PositionX)
-		resp.Float32(s.character.PositionY)
-		resp.Float32(s.character.PositionZ)
+		resp.Uint32(connection.character.Map)
+		resp.Float32(character.PositionX)
+		resp.Float32(character.PositionY)
+		resp.Float32(character.PositionZ)
 		resp.Float32(0.0)
-		s.gameSocket.Send(resp)
+		select {
+		case s.gameSocket.WriteChannel() <- resp.ToPacket():
+		case <-ctx.Done():
+			connection.socket.Close()
+			return
+		}
 
-		// we need to modify session in a safe thread (goroutine)
-		s.sessionSafeFuChan <- func(session *GameSession) {
-			if session.character != nil {
-				session.worldSocket = socket
+		applied := make(chan struct{})
+		update := func(session *GameSession) {
+			defer close(applied)
+			if ctx.Err() != nil || session.character == nil || session.character.GUID != character.GUID {
+				connection.socket.Close()
+				return
 			}
-
+			session.applyPreparedGameServerConnection(connection)
+			session.worldSocket = connection.socket
+			session.worldReconnectInProgress = false
 			if session.showGameserverConnChangeToClient {
-				session.SendSysMessage(fmt.Sprintf("Connection recovered! New gameserver: %s. Sorry for inconvenience.", s.worldSocket.Address()))
+				session.sendSysMessageContext(ctx, fmt.Sprintf("Connection recovered! New gameserver: %s. Sorry for inconvenience.", connection.socket.Address()))
 			} else {
-				session.SendSysMessage("Connection recovered! Sorry for inconvenience.")
+				session.sendSysMessageContext(ctx, "Connection recovered! Sorry for inconvenience.")
 			}
 		}
-	}(s.character.GUID)
+		select {
+		case s.sessionSafeFuChan <- update:
+		case <-ctx.Done():
+			connection.socket.Close()
+			return
+		}
+		select {
+		case <-applied:
+		case <-ctx.Done():
+			connection.socket.Close()
+		}
+	}(character)
+}
+
+func waitForSessionContext(ctx context.Context, duration time.Duration) bool {
+	timer := time.NewTimer(duration)
+	defer timer.Stop()
+	select {
+	case <-timer.C:
+		return true
+	case <-ctx.Done():
+		return false
+	}
+}
+
+func (s *GameSession) sendSysMessageContext(ctx context.Context, msg string) bool {
+	resp := packet.NewWriterWithSize(packet.SMsgMessageChat, 0)
+	resp.Uint8(uint8(ChatTypeSystem))
+	resp.Uint32(0)
+	resp.Uint64(0)
+	resp.Uint32(0)
+	resp.Uint64(0)
+	resp.Uint32(uint32(len(msg) + 1))
+	resp.String(msg)
+	resp.Uint8(0)
+	select {
+	case s.gameSocket.WriteChannel() <- resp.ToPacket():
+		return true
+	case <-ctx.Done():
+		return false
+	}
+}
+
+func (s *GameSession) returnToCharacterSelectionAfterWorldFailure() {
+	s.onLoggedOut()
+	resp := packet.NewWriterWithSize(packet.SMsgCharacterLoginFailed, 1)
+	resp.Uint8(uint8(packet.LoginErrorCodeWorldServerIsDown))
+	s.gameSocket.Send(resp)
 }
 
 func (s *GameSession) onLoggedOut() {
@@ -662,6 +855,55 @@ func (s *GameSession) onLoggedOut() {
 	s.currentGameServerAlias = ""
 
 	s.character = nil
+}
+
+func (s *GameSession) ClaimAccountOwnership(ctx context.Context) error {
+	if s.accountSessionOwnership == nil || s.accountOwnershipClaimed {
+		return nil
+	}
+	unregister := s.accountSessionOwnership.Register(s.sessionToken, s.evictDuplicateSession)
+	if err := s.accountSessionOwnership.Claim(ctx, s.accountID, s.sessionToken); err != nil {
+		unregister()
+		return err
+	}
+	s.ownershipUnregister = unregister
+	s.accountOwnershipClaimed = true
+	return nil
+}
+
+func (s *GameSession) releaseAccountOwnership() {
+	if s.accountSessionOwnership == nil || !s.accountOwnershipClaimed {
+		return
+	}
+	releaseCtx, cancel := context.WithTimeout(context.Background(), time.Second)
+	if err := s.accountSessionOwnership.Release(releaseCtx, s.accountID, s.sessionToken); err != nil {
+		s.logger.Warn().Err(err).Msg("can't release account session ownership")
+	}
+	cancel()
+	s.accountOwnershipClaimed = false
+	if s.ownershipUnregister != nil {
+		s.ownershipUnregister()
+		s.ownershipUnregister = nil
+	}
+}
+
+func (s *GameSession) evictDuplicateSession(ctx context.Context) bool {
+	s.intentionalDisconnect.Store(true)
+	s.logger.Info().Msg("disconnecting session because the account logged in elsewhere")
+	s.gameSocket.Close()
+	select {
+	case <-s.sessionDone:
+		return true
+	case <-ctx.Done():
+		return false
+	}
+}
+
+// Done closes only after all world work has stopped and account ownership has
+// been released. The owning game socket uses it to make process shutdown drain
+// session cleanup before NATS is closed.
+func (s *GameSession) Done() <-chan struct{} {
+	return s.sessionDone
 }
 
 var WorldSocketCreator = worldsocket.NewWorldSocketWithAddress

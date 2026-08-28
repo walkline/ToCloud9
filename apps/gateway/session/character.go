@@ -12,6 +12,9 @@ import (
 )
 
 func (s *GameSession) CharactersList(ctx context.Context, p *packet.Packet) error {
+	if s.worldReconnectInProgress {
+		return fmt.Errorf("world reconnect is still in progress")
+	}
 	if s.worldSocket != nil {
 		socket := s.worldSocket
 		s.worldSocket = nil

@@ -8,7 +8,6 @@ import (
 
 	root "github.com/walkline/ToCloud9/apps/gateway"
 	"github.com/walkline/ToCloud9/apps/gateway/packet"
-	"github.com/walkline/ToCloud9/apps/gateway/sockets"
 	"github.com/walkline/ToCloud9/gen/characters/pb"
 	"github.com/walkline/ToCloud9/shared/events"
 	"github.com/walkline/ToCloud9/shared/wow/guid"
@@ -207,88 +206,26 @@ func (s *GameSession) InterceptMoveWorldPortAck(ctx context.Context, p *packet.P
 		return nil
 	}
 
-	saveAndClosePacket := packet.NewWriterWithSize(packet.TC9CMsgPrepareForRedirect, 0)
-	s.worldSocket.Send(saveAndClosePacket)
-
-	confirmationIsSuccessfulChan := make(chan bool)
-	confirmationContext, cancel := context.WithTimeout(ctx, time.Second*5)
-	defer cancel()
-	go func() {
-		defer close(confirmationIsSuccessfulChan)
-		for {
-			select {
-			case <-confirmationContext.Done():
-				confirmationIsSuccessfulChan <- false
-				return
-			case p, open := <-s.worldSocket.ReadChannel():
-				if !open {
-					// If socket closed, then it also not bad, let's assume that as a good sign as well.
-					confirmationIsSuccessfulChan <- true
-					return
-				}
-				if p.Opcode == packet.TC9SMsgReadyForRedirect {
-					confirmationIsSuccessfulChan <- p.Reader().Uint8() == 0
-					return
-				}
-			}
-		}
-	}()
-
-	// Waits till new value in chan.
-	isReadyForRedirect := <-confirmationIsSuccessfulChan
-	if !isReadyForRedirect {
-		return fmt.Errorf("failed to redirect player with account %d, world server failed to prepare", s.accountID)
+	// Redirect synchronously on the session loop. This keeps the destination
+	// socket and all state publication inside the session lifecycle, so account
+	// eviction cannot be acknowledged while an untracked login is still running.
+	transitionParent := s.ctx
+	if transitionParent == nil {
+		transitionParent = ctx
 	}
-
-	s.worldSocket.Close()
-	s.worldSocket = nil
-	// The new world server drops STATUS_LOGGEDIN opcodes until the player is
-	// back in world; reopen the name query window until its SMsgTimeSyncReq.
-	s.worldEntryPending = true
-
-	go func(charGUID uint64) {
-		var err error
-		var socket sockets.Socket
-		s.gameServerGRPCConnMgr.AddAddressMapping(desiredServer.Address, desiredServer.GrpcAddress)
-		client, clientErr := s.gameServerGRPCConnMgr.GRPCConnByGameServerAddress(desiredServer.Address)
-		if clientErr != nil {
-			err = clientErr
-		} else {
-			socket, err = s.connectToGameServerWithAddress(context.Background(), charGUID, desiredServer.Address, nil)
+	transitionCtx, transitionCancel := context.WithTimeout(transitionParent, 15*time.Second)
+	defer transitionCancel()
+	if err := s.redirectToSelectedLayer(transitionCtx, desiredServer); err != nil {
+		if s.worldSocket == nil && transitionParent.Err() == nil {
+			s.returnToCharacterSelectionAfterWorldFailure()
 		}
-		if err != nil {
-			s.logger.Error().Err(err).Msg("failed to reconnect player to the world")
-			resp := packet.NewWriterWithSize(packet.SMsgCharacterLoginFailed, 1)
-			resp.Uint8(uint8(packet.LoginErrorCodeWorldServerIsDown))
-			s.gameSocket.Send(resp)
-			return
-		}
-
-		s.gameSocket.SendPacket(p)
-
-		// we need to modify session in a safe thread (goroutine)
-		s.sessionSafeFuChan <- func(session *GameSession) {
-			if session.character != nil {
-				session.worldSocket = socket
-				session.gameServerGRPCClient = client
-				session.currentGameServerID = desiredServer.ID
-				session.currentGameServerAlias = desiredServer.Alias
-			}
-
-			if session.showGameserverConnChangeToClient {
-				session.SendSysMessage(fmt.Sprintf("You have been moved to %s layer.", desiredServer.Alias))
-			}
-
-			go func() {
-				time.Sleep(time.Millisecond * 500)
-
-				session.sessionSafeFuChan <- func(session *GameSession) {
-					session.RejoinWorldserverToSystemChannels(ctx)
-				}
-			}()
-		}
-	}(s.character.GUID)
-
+		return err
+	}
+	s.gameSocket.SendPacket(p)
+	if !waitForSessionContext(transitionCtx, 500*time.Millisecond) {
+		return transitionCtx.Err()
+	}
+	s.RejoinWorldserverToSystemChannels(transitionCtx)
 	return nil
 }
 
