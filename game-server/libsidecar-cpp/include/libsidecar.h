@@ -57,6 +57,23 @@ TC9_API uint64_t TC9GetNextAvailableInstanceGuid(int realmID);
 /* Map loading notification */
 TC9_API void TC9ReadyToAcceptPlayersFromMaps(uint32_t* maps, int mapsLen);
 
+/* Online status notifications for in-process sessions (e.g. server-side
+ * bots). Sessions that log in through a gateway already get these events
+ * published by the gateway itself — only call these for sessions WITHOUT
+ * a gateway connection, otherwise events are duplicated. The sidecar
+ * fills RealmID and uses its servers-registry ID as GatewayID so that
+ * charserver purges these entries when this game server dies. */
+TC9_API void TC9CharacterLoggedIn(uint64_t charGUID, const char* charName, uint8_t charRace, uint8_t charClass, uint8_t charGender, uint8_t charLevel, uint32_t charZone, uint32_t charMap, float charPosX, float charPosY, float charPosZ, uint32_t charGuildID, uint32_t accountID);
+TC9_API void TC9CharacterLoggedOut(uint64_t charGUID, const char* charName, uint32_t charGuildID, uint32_t accountID);
+
+/* Post-login field updates for in-process sessions. Batched and merged
+ * per character (same barrier semantics as the gateway) and published as
+ * gw.char.chars-updates so charserver (/who), guildserver and groupserver
+ * caches stay fresh. Same rule as above: only call for sessions WITHOUT
+ * a gateway connection. */
+TC9_API void TC9CharacterZoneChanged(uint64_t charGUID, uint32_t mapID, uint32_t areaID, uint32_t zoneID);
+TC9_API void TC9CharacterLevelChanged(uint64_t charGUID, uint8_t level);
+
 /* Generic NATS pub/sub. Payloads are opaque bytes, subjects are arbitrary.
  * Subscription callbacks run on the thread draining TC9ProcessEventsHooks
  * (the world update thread), not on the NATS delivery thread. Both return
