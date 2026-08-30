@@ -17,6 +17,8 @@ public:
     std::string servers_registry_address() const { return servers_registry_address_; }
     std::string matchmaking_address() const { return matchmaking_address_; }
     std::string guid_provider_address() const { return guid_provider_address_; }
+    std::string group_service_address() const { return group_service_address_; }
+    std::string guild_service_address() const { return guild_service_address_; }
     std::string nats_url() const { return nats_url_; }
 
     // Buffer sizes
@@ -50,6 +52,8 @@ private:
     std::string servers_registry_address_;
     std::string matchmaking_address_;
     std::string guid_provider_address_;
+    std::string group_service_address_;
+    std::string guild_service_address_;
     std::string nats_url_;
     int character_guids_buffer_size_;
     int item_guids_buffer_size_;

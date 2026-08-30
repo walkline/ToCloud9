@@ -15,6 +15,8 @@ Config::Config() {
     servers_registry_address_ = GetEnv("TC9_SERVERS_REGISTRY_ADDRESS", "localhost:8999");
     matchmaking_address_ = GetEnv("TC9_MATCHMAKING_ADDRESS", "localhost:8994");
     guid_provider_address_ = GetEnv("TC9_GUID_PROVIDER_ADDRESS", "localhost:8996");
+    group_service_address_ = GetEnv("TC9_GROUP_SERVICE_ADDRESS", "localhost:8998");
+    guild_service_address_ = GetEnv("TC9_GUILD_SERVICE_ADDRESS", "localhost:8995");
     nats_url_ = GetEnv("TC9_NATS_URL", "nats://localhost:4222");
 
     character_guids_buffer_size_ = GetEnvInt("TC9_CHARACTER_GUIDS_BUFFER_SIZE", 50);

@@ -133,7 +133,9 @@ TC9_API void TC9InitLib(
         g_state.grpc_clients->Connect(
             config.servers_registry_address(),
             config.guid_provider_address(),
-            config.matchmaking_address()
+            config.matchmaking_address(),
+            config.group_service_address(),
+            config.guild_service_address()
         );
 
         // In cross-realm mode this server hosts several realms and player GUIDs
@@ -363,6 +365,39 @@ TC9_API int TC9NatsSubscribe(const char* subject, TC9NatsMessageHandler handler)
         [handler](const std::string& subj, const std::string& payload) {
             handler(subj.c_str(), payload.data(), static_cast<int>(payload.size()));
         }) ? 0 : -1;
+}
+
+TC9_API int TC9GroupAcceptInvite(uint64_t playerGUID) {
+    if (!g_state.initialized || !g_state.grpc_clients) {
+        return -1;
+    }
+
+    return g_state.grpc_clients->AcceptGroupInvite(g_state.realm_id, playerGUID) ? 0 : -1;
+}
+
+TC9_API int TC9GroupLeave(uint64_t playerGUID) {
+    if (!g_state.initialized || !g_state.grpc_clients) {
+        return -1;
+    }
+
+    return g_state.grpc_clients->LeaveGroup(g_state.realm_id, playerGUID) ? 0 : -1;
+}
+
+TC9_API int TC9GuildAcceptInvite(
+    uint64_t guid,
+    const char* name,
+    uint32_t lvl,
+    uint32_t race,
+    uint32_t classID,
+    uint32_t gender,
+    uint32_t areaID,
+    uint64_t accountID) {
+    if (!g_state.initialized || !g_state.grpc_clients || !name) {
+        return -1;
+    }
+
+    return g_state.grpc_clients->AcceptGuildInvite(
+        g_state.realm_id, guid, name, lvl, race, classID, gender, areaID, accountID) ? 0 : -1;
 }
 
 TC9_API void TC9PlayerLeftBattleground(

@@ -81,6 +81,19 @@ typedef void (*TC9NatsMessageHandler)(const char* subject, const char* payload, 
 TC9_API int TC9NatsPublish(const char* subject, const char* payload, int payloadLen);
 TC9_API int TC9NatsSubscribe(const char* subject, TC9NatsMessageHandler handler);
 
+/* Group operations for in-process sessions (no gateway to call the group
+ * service on their behalf). Blocking gRPC call, do not call from map update
+ * threads. Returns 0 on success, -1 on error. */
+TC9_API int TC9GroupAcceptInvite(uint64_t playerGUID);
+TC9_API int TC9GroupLeave(uint64_t playerGUID);
+
+/* Accept a pending guild invite on behalf of an in-process session (no gateway
+ * to relay SMSG_GUILD_INVITE / CMSG_GUILD_ACCEPT). The guild service records the
+ * member and publishes guild.member.added. Blocking gRPC call, do not call
+ * from map update threads. 0 on success, -1 on error. */
+TC9_API int TC9GuildAcceptInvite(uint64_t guid, const char* name, uint32_t lvl,
+    uint32_t race, uint32_t classID, uint32_t gender, uint32_t areaID, uint64_t accountID);
+
 /* Matchmaking notifications */
 TC9_API void TC9PlayerLeftBattleground(uint64_t playerGUID, uint32_t realmID, uint32_t instanceID);
 TC9_API void TC9BattlegroundStatusChanged(uint32_t instanceID, uint8_t status);
