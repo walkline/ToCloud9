@@ -196,6 +196,24 @@ func (b *Battleground) TeamForInvitedPlayer(playerGUID uint64, realmID uint32) (
 	return false, TeamAny
 }
 
+// IsActivePlayer reports whether the player is a seated participant.
+func (b *Battleground) IsActivePlayer(playerGUID uint64, realmID uint32) bool {
+	unwrappedGUID := guid.PlayerUnwrapped{
+		RealmID: uint16(realmID),
+		LowGUID: guid.LowType(playerGUID),
+	}
+
+	for _, guids := range b.ActivePlayersPerTeam {
+		for _, g := range guids {
+			if g == unwrappedGUID {
+				return true
+			}
+		}
+	}
+
+	return false
+}
+
 func (b *Battleground) RemovePlayer(playerGUID uint64, realmID uint32) {
 	unwrappedGUID := guid.PlayerUnwrapped{
 		RealmID: uint16(realmID),

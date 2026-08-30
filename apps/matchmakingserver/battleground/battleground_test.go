@@ -57,3 +57,22 @@ func TestBackfillSlotsForTeamCountsInvitedPlayers(t *testing.T) {
 		t.Errorf("alliance slots = %d, want 0 (invited player holds the slot)", got)
 	}
 }
+
+// TestIsActivePlayer locks the guard semantics: only seated participants are
+// active — realm-aware, and never for unknown players.
+func TestIsActivePlayer(t *testing.T) {
+	bg := bgWithCounts(5, 10, 2, 1)
+
+	if !bg.IsActivePlayer(1, 1) {
+		t.Error("seated alliance player must be active")
+	}
+	if !bg.IsActivePlayer(100, 1) {
+		t.Error("seated horde player must be active")
+	}
+	if bg.IsActivePlayer(1, 2) {
+		t.Error("same low GUID on another realm must not be active")
+	}
+	if bg.IsActivePlayer(999, 1) {
+		t.Error("unknown player must not be active")
+	}
+}

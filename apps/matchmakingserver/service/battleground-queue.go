@@ -161,6 +161,13 @@ func (q *GenericBattlegroundQueue) process(ctx context.Context) error {
 		if freeSlotsAlliance > 0 {
 			groupsToInvite := q.findGroupsForGivenSlots(freeSlotsAlliance, battleground.TeamAlliance)
 			if len(groupsToInvite) > 0 {
+				log.Info().
+					Uint32("instance", bg.InstanceID).
+					Uint8("slots", freeSlotsAlliance).
+					Int("active", len(bg.ActivePlayersPerTeam[battleground.TeamAlliance])).
+					Int("invited", len(bg.InvitedPlayersPerTeam[battleground.TeamAlliance])).
+					Int("groups", len(groupsToInvite)).
+					Msg("backfill invites alliance")
 				q.inviteGroupsToBG(groupsToInvite, &bg, battleground.TeamAlliance)
 			}
 		}
@@ -169,6 +176,13 @@ func (q *GenericBattlegroundQueue) process(ctx context.Context) error {
 		if freeSlotsHorde > 0 {
 			groupsToInvite := q.findGroupsForGivenSlots(freeSlotsHorde, battleground.TeamHorde)
 			if len(groupsToInvite) > 0 {
+				log.Info().
+					Uint32("instance", bg.InstanceID).
+					Uint8("slots", freeSlotsHorde).
+					Int("active", len(bg.ActivePlayersPerTeam[battleground.TeamHorde])).
+					Int("invited", len(bg.InvitedPlayersPerTeam[battleground.TeamHorde])).
+					Int("groups", len(groupsToInvite)).
+					Msg("backfill invites horde")
 				q.inviteGroupsToBG(groupsToInvite, &bg, battleground.TeamHorde)
 			}
 		}

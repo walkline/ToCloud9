@@ -205,3 +205,39 @@ func TestBattlegroundStatusChangedEndedPurgesInvitedLinks(t *testing.T) {
 	assert.Empty(t, s.GetQueueOrBattlegroundLinkForPlayer(QueuesByRealmAndPlayerKey{activePlayer}))
 	assert.Empty(t, s.GetQueueOrBattlegroundLinkForPlayer(QueuesByRealmAndPlayerKey{invitedPlayer}))
 }
+
+// TestRemovePlayerFromQueueKeepsActiveParticipant locks the guard: "remove
+// from queue" must never yank a seated participant out of a running match.
+// A regression would either mutate the battleground state or panic in
+// PlayerLeftBattleground (nil events producer in this fixture).
+func TestRemovePlayerFromQueueKeepsActiveParticipant(t *testing.T) {
+	playerGUID := uint64(12345)
+	realmID := uint32(1)
+
+	bg := &battleground.Battleground{
+		InstanceID:  101,
+		RealmID:     realmID,
+		QueueTypeID: 2,
+	}
+	bg.ActivePlayersPerTeam[battleground.TeamAlliance] = append(
+		bg.ActivePlayersPerTeam[battleground.TeamAlliance],
+		guid.PlayerUnwrapped{RealmID: uint16(realmID), LowGUID: guid.LowType(playerGUID)},
+	)
+
+	bgRepo := repo.NewBattlegroundInMemRepo()
+	assert.NoError(t, bgRepo.SaveBattleground(context.Background(), bg))
+
+	service := &battleGroundService{
+		playersQueueOrBattleground: make(map[QueuesByRealmAndPlayerKey][]QueueOrBattlegroundLink),
+		battlegroundsRepo:          bgRepo,
+	}
+	key := QueuesByRealmAndPlayerKey{guid.PlayerUnwrapped{RealmID: uint16(realmID), LowGUID: guid.LowType(playerGUID)}}
+	service.playersQueueOrBattleground[key] = []QueueOrBattlegroundLink{
+		{BattlegroundKey: &BattlegroundKey{InstanceID: 101, RealmID: realmID}},
+	}
+
+	assert.NoError(t, service.RemovePlayerFromQueue(context.Background(), playerGUID, realmID, bg.QueueTypeID))
+
+	assert.True(t, bg.IsActivePlayer(playerGUID, realmID), "active player must stay seated")
+	assert.Len(t, service.playersQueueOrBattleground[key], 1, "battleground link must be kept")
+}
