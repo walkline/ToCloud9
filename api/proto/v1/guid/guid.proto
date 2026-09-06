@@ -11,6 +11,7 @@ enum GuidType {
   Character = 0;
   Item = 1;
   Instance = 2;
+  PetNumber = 3;
 }
 
 message GetGUIDPoolRequest {

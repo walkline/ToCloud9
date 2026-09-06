@@ -97,6 +97,9 @@ int main(void) {
     uint64_t instance_guid = TC9GetNextAvailableInstanceGuid(0);
     printf("  TC9GetNextAvailableInstanceGuid(0) returned: %llu\n", instance_guid);
 
+    uint64_t pet_number = TC9GetNextAvailablePetNumber(0);
+    printf("  TC9GetNextAvailablePetNumber(0) returned: %llu\n", pet_number);
+
     /* Event hooks */
     printf("\nTesting event hooks...\n");
     TC9SetOnGuildMemberAddedHook(on_guild_member_added);

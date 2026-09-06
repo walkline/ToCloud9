@@ -709,6 +709,20 @@ TC9_API uint64_t TC9GetNextAvailableInstanceGuid(int realmID) {
     }
 }
 
+TC9_API uint64_t TC9GetNextAvailablePetNumber(int realmID) {
+    if (!g_state.initialized) {
+        return 0;
+    }
+
+    try {
+        auto& guid_mgr = tc9::GuidManager::Instance();
+        return guid_mgr.GetNextPetNumber(static_cast<uint32_t>(realmID));
+    } catch (const std::exception& e) {
+        spdlog::error("GetNextAvailablePetNumber failed: {}", e.what());
+        return 0;
+    }
+}
+
 // Event hook registration functions
 // These accept old Go-style callbacks and register internal TC9 callbacks that bridge to them
 

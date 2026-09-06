@@ -53,6 +53,9 @@ TC9_API void TC9ProcessEventsHooks();
 TC9_API uint64_t TC9GetNextAvailableCharacterGuid(int realmID);
 TC9_API uint64_t TC9GetNextAvailableItemGuid(int realmID);
 TC9_API uint64_t TC9GetNextAvailableInstanceGuid(int realmID);
+/* Pet numbers (character_pet.id) are shared by every worldserver of a realm
+ * like character and item guids: taken from the guid service too. Thread safe. */
+TC9_API uint64_t TC9GetNextAvailablePetNumber(int realmID);
 
 /* Map loading notification */
 TC9_API void TC9ReadyToAcceptPlayersFromMaps(uint32_t* maps, int mapsLen);
