@@ -13,10 +13,11 @@ import (
 )
 
 var (
-	ErrNotEnoughRight   = errors.New("not enough rights")
-	ErrGuildNotFound    = errors.New("guild not found")
-	ErrLeaderCantLeave  = errors.New("leader can't leave")
-	ErrAlreadyInGuild   = errors.New("already in guild")
+	ErrNotEnoughRight  = errors.New("not enough rights")
+	ErrGuildNotFound   = errors.New("guild not found")
+	ErrLeaderCantLeave = errors.New("leader can't leave")
+	// ErrAlreadyInGuild aliases the repo error so callers can use errors.Is.
+	ErrAlreadyInGuild   = repo.ErrAlreadyInGuild
 	ErrGuildNameInvalid = errors.New("invalid guild name")
 )
 
@@ -151,9 +152,17 @@ func (g *guildServiceImpl) GuildByRealmAndID(ctx context.Context, realmID uint32
 	return guild, nil
 }
 
+// membershipGuildID prefers MySQL source when available (multi-replica safe).
+func (g *guildServiceImpl) membershipGuildID(ctx context.Context, realmID uint32, memberGUID uint64) (uint64, error) {
+	if src, ok := g.guildsRepo.(GuildMembershipSource); ok {
+		return src.GuildIDByRealmAndMemberGUIDFromSource(ctx, realmID, memberGUID)
+	}
+	return g.guildsRepo.GuildIDByRealmAndMemberGUID(ctx, realmID, memberGUID)
+}
+
 // InviteMember creates invite to the guild.
 func (g *guildServiceImpl) InviteMember(ctx context.Context, realmID uint32, inviterGUID uint64, inviteeGUID uint64, inviteeName string) error {
-	guildID, err := g.guildsRepo.GuildIDByRealmAndMemberGUID(ctx, realmID, inviterGUID)
+	guildID, err := g.membershipGuildID(ctx, realmID, inviterGUID)
 	if err != nil {
 		return fmt.Errorf("can't fetch guild id for member, err: %w", err)
 	}
@@ -162,7 +171,7 @@ func (g *guildServiceImpl) InviteMember(ctx context.Context, realmID uint32, inv
 		return ErrGuildNotFound
 	}
 
-	inviteeGuildID, err := g.guildsRepo.GuildIDByRealmAndMemberGUID(ctx, realmID, inviteeGUID)
+	inviteeGuildID, err := g.membershipGuildID(ctx, realmID, inviteeGUID)
 	if err != nil {
 		return fmt.Errorf("can't fetch guild id for member, err: %w", err)
 	}
@@ -209,31 +218,35 @@ func (g *guildServiceImpl) InviteMember(ctx context.Context, realmID uint32, inv
 }
 
 // InviteAccepted handles guild invite accept users action.
+// Membership insert and invite delete run in one MySQL transaction.
 func (g *guildServiceImpl) InviteAccepted(ctx context.Context, realmID uint32, params InviteAcceptedParams) (uint64, error) {
+	// Pre-check invite for lowest-rank resolution (rank is fixed in the TX insert).
 	guildID, err := g.guildsRepo.GuildIDByCharInvite(ctx, realmID, params.CharGUID)
 	if err != nil {
 		return 0, err
 	}
-
 	if guildID == 0 {
 		return 0, errors.New("character doesn't have invites")
+	}
+
+	// Multi-replica: refuse if already a member per MySQL, not only the local cache.
+	if existing, err := g.membershipGuildID(ctx, realmID, params.CharGUID); err != nil {
+		return 0, err
+	} else if existing != 0 {
+		// Drop the invite so the client is not stuck re-accepting.
+		_ = g.guildsRepo.RemoveGuildInviteForCharacter(ctx, realmID, params.CharGUID)
+		return 0, ErrAlreadyInGuild
 	}
 
 	guild, err := g.guildsRepo.GuildByRealmAndID(ctx, realmID, guildID)
 	if err != nil {
 		return 0, fmt.Errorf("can't fetch guild by id, err: %w", err)
 	}
-
 	if guild == nil {
 		return 0, ErrGuildNotFound
 	}
 
-	err = g.guildsRepo.RemoveGuildInviteForCharacter(ctx, realmID, params.CharGUID)
-	if err != nil {
-		return 0, err
-	}
-
-	err = g.guildsRepo.AddGuildMember(ctx, realmID, repo.GuildMember{
+	member := repo.GuildMember{
 		GuildID:     guildID,
 		PlayerGUID:  params.CharGUID,
 		Rank:        g.lowestRankInGuild(guild),
@@ -248,7 +261,9 @@ func (g *guildServiceImpl) InviteAccepted(ctx context.Context, realmID uint32, p
 		Account:     params.CharAccount,
 		LogoutTime:  0,
 		Status:      repo.GuildMemberStatusOnline,
-	})
+	}
+
+	guildID, err = g.guildsRepo.AcceptGuildInvite(ctx, realmID, member)
 	if err != nil {
 		return 0, err
 	}

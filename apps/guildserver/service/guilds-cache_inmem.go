@@ -6,18 +6,24 @@ import (
 	"sync"
 	"time"
 
+	"github.com/rs/zerolog/log"
+
 	"github.com/walkline/ToCloud9/apps/guildserver/repo"
 	"github.com/walkline/ToCloud9/shared/events"
 )
 
-// guildRefreshThrottle limits how often a cached guild is re-hydrated from the repo.
-const guildRefreshThrottle = 3 * time.Second
+// guildSoftHealInterval is an optional slow rehydrate for out-of-band MySQL
+// mutations (GM tools). Peer multi-replica coherence uses dirty flags instead.
+const guildSoftHealInterval = 30 * time.Second
 
 // guildsInMemCache is in memory implementation of GuildsCache.
 type guildsInMemCache struct {
 	r repo.GuildsRepo
 
-	// cacheMutex guards cache, guildMembersCache, onlineChars and lastRefresh maps.
+	// localServiceID filters peer invalidation self-echo (set via SetLocalServiceID).
+	localServiceID string
+
+	// cacheMutex guards cache, guildMembersCache, onlineChars, lastRefresh, dirty, refreshFlight.
 	cacheMutex sync.RWMutex
 
 	// cache usage example:
@@ -34,8 +40,22 @@ type guildsInMemCache struct {
 	// come from the gateway login/logout events, including for future members.
 	onlineChars map[uint32]map[uint64]struct{}
 
-	// lastRefresh tracks the last re-hydration time per guild.
+	// lastRefresh tracks the last *successful* re-hydration time per guild.
 	lastRefresh map[uint32]map[uint64]time.Time
+
+	// dirty marks guilds that peers invalidated; next read reloads from MySQL
+	// (no eager load on the NATS callback).
+	dirty map[uint32]map[uint64]struct{}
+
+	// refreshFlight coalesces concurrent reloads for the same guild (singleflight).
+	// Waiters share one MySQL load and its success/error — force callers never
+	// false-succeed while a concurrent load is still in flight.
+	refreshFlight map[uint32]map[uint64]*guildRefreshFlight
+}
+
+type guildRefreshFlight struct {
+	done chan struct{} // closed when load finished
+	err  error
 }
 
 // NewGuildsInMemCache returns in memory guilds cache.
@@ -46,7 +66,14 @@ func NewGuildsInMemCache(r repo.GuildsRepo) GuildsCache {
 		guildMembersCache: map[uint32]map[uint64]*repo.GuildMember{},
 		onlineChars:       map[uint32]map[uint64]struct{}{},
 		lastRefresh:       map[uint32]map[uint64]time.Time{},
+		dirty:             map[uint32]map[uint64]struct{}{},
+		refreshFlight:     map[uint32]map[uint64]*guildRefreshFlight{},
 	}
+}
+
+// SetLocalServiceID sets the instance id used to ignore self-published invalidations.
+func (g *guildsInMemCache) SetLocalServiceID(id string) {
+	g.localServiceID = id
 }
 
 // LoadAllForRealm loads all guilds for realm.
@@ -55,70 +82,139 @@ func (g *guildsInMemCache) LoadAllForRealm(ctx context.Context, realmID uint32) 
 	return g.r.LoadAllForRealm(ctx, realmID)
 }
 
-// GuildByRealmAndID loads guild by realm and id.
+// GuildByRealmAndID returns a guild from cache, reloading only when missing,
+// peer-dirty, or due for a slow soft-heal of out-of-band DB edits.
 func (g *guildsInMemCache) GuildByRealmAndID(ctx context.Context, realmID uint32, guildID uint64) (*repo.Guild, error) {
-	g.refreshGuildFromSource(ctx, realmID, guildID)
-
 	g.cacheMutex.RLock()
 	guild := g.cache[realmID][guildID]
+	_, isDirty := g.dirty[realmID][guildID]
+	last := g.lastRefresh[realmID][guildID]
+	g.cacheMutex.RUnlock()
+
+	needLoad := guild == nil || isDirty
+	softHeal := !needLoad && !last.IsZero() && time.Since(last) > guildSoftHealInterval
+	if needLoad || softHeal {
+		// Dirty/missing always force; soft-heal uses the same flight but is not
+		// required for multi-replica peer coherence.
+		_ = g.refreshGuildFromSource(ctx, realmID, guildID, needLoad)
+	}
+
+	g.cacheMutex.RLock()
+	guild = g.cache[realmID][guildID]
 	g.cacheMutex.RUnlock()
 	return guild, nil
 }
 
-// refreshGuildFromSource re-hydrates the cached guild from the repo, throttled per guild.
-// The world can mutate guild_member without going through this service (petition turn-in,
-// in-process invites, GM commands), so the cached roster can be stale or miss members.
-// Online statuses are overlaid from onlineChars since the hydrated characters.online flag
-// isn't maintained for cluster sessions. On repo error the stale cache keeps being served.
-func (g *guildsInMemCache) refreshGuildFromSource(ctx context.Context, realmID uint32, guildID uint64) {
-	g.cacheMutex.Lock()
-	if time.Since(g.lastRefresh[realmID][guildID]) < guildRefreshThrottle {
-		g.cacheMutex.Unlock()
-		return
-	}
-	if g.lastRefresh[realmID] == nil {
-		g.lastRefresh[realmID] = map[uint64]time.Time{}
-	}
-	g.lastRefresh[realmID][guildID] = time.Now()
-	g.cacheMutex.Unlock()
+// MemberAuthzForGuild delegates to the repo (uncached point query for write authz).
+func (g *guildsInMemCache) MemberAuthzForGuild(ctx context.Context, realmID uint32, guildID, playerGUID uint64) (*repo.MemberAuthz, error) {
+	return g.r.MemberAuthzForGuild(ctx, realmID, guildID, playerGUID)
+}
 
-	guild, err := g.r.GuildByRealmAndID(ctx, realmID, guildID)
-	if err != nil {
-		return
-	}
+// ForceRefreshGuild re-hydrates one guild from MySQL, ignoring soft-heal timing.
+func (g *guildsInMemCache) ForceRefreshGuild(ctx context.Context, realmID uint32, guildID uint64) error {
+	return g.refreshGuildFromSource(ctx, realmID, guildID, true)
+}
 
+// HandleGuildCacheInvalidate marks a guild dirty so the next read reloads from
+// MySQL. No eager ForceRefresh — that was the multi-replica thrash source.
+// Self-echo (same ServiceID) is ignored — the publisher already write-through updated.
+func (g *guildsInMemCache) HandleGuildCacheInvalidate(payload events.GuildCacheInvalidatePayload) error {
+	if payload.ServiceID != "" && g.localServiceID != "" && payload.ServiceID == g.localServiceID {
+		return nil
+	}
+	if payload.GuildID == 0 {
+		return nil
+	}
+	g.markDirty(payload.RealmID, payload.GuildID)
+	return nil
+}
+
+func (g *guildsInMemCache) markDirty(realmID uint32, guildID uint64) {
 	g.cacheMutex.Lock()
 	defer g.cacheMutex.Unlock()
+	if g.dirty[realmID] == nil {
+		g.dirty[realmID] = map[uint64]struct{}{}
+	}
+	g.dirty[realmID][guildID] = struct{}{}
+}
 
-	if old := g.cache[realmID][guildID]; old != nil {
-		for _, member := range old.GuildMembers {
-			cached := g.guildMembersCache[realmID][member.PlayerGUID]
-			if cached != nil && cached.GuildID == guildID {
-				delete(g.guildMembersCache[realmID], member.PlayerGUID)
+// refreshGuildFromSource re-hydrates the cached guild from the repo.
+// force=true always loads; force=false is unused for peer path (soft-heal uses force=false
+// only when caller already decided soft-heal is due — still singleflight).
+// lastRefresh is only advanced after a successful load. Concurrent reloads share one flight.
+func (g *guildsInMemCache) refreshGuildFromSource(ctx context.Context, realmID uint32, guildID uint64, force bool) error {
+	g.cacheMutex.Lock()
+	if !force {
+		// Soft-heal only: skip if another load just completed within the interval.
+		if time.Since(g.lastRefresh[realmID][guildID]) < guildSoftHealInterval {
+			if _, dirty := g.dirty[realmID][guildID]; !dirty {
+				g.cacheMutex.Unlock()
+				return nil
 			}
 		}
 	}
-
-	if guild == nil {
-		delete(g.cache[realmID], guildID)
-		return
+	if g.refreshFlight[realmID] == nil {
+		g.refreshFlight[realmID] = map[uint64]*guildRefreshFlight{}
 	}
-
-	if g.cache[realmID] == nil {
-		g.cache[realmID] = map[uint64]*repo.Guild{}
-	}
-	if g.guildMembersCache[realmID] == nil {
-		g.guildMembersCache[realmID] = map[uint64]*repo.GuildMember{}
-	}
-
-	for _, member := range guild.GuildMembers {
-		if _, online := g.onlineChars[realmID][member.PlayerGUID]; online {
-			member.Status = repo.GuildMemberStatusOnline
-			member.LogoutTime = 0
+	if f := g.refreshFlight[realmID][guildID]; f != nil {
+		g.cacheMutex.Unlock()
+		select {
+		case <-f.done:
+			return f.err
+		case <-ctx.Done():
+			return ctx.Err()
 		}
-		g.guildMembersCache[realmID][member.PlayerGUID] = member
 	}
-	g.cache[realmID][guildID] = guild
+	flight := &guildRefreshFlight{done: make(chan struct{})}
+	g.refreshFlight[realmID][guildID] = flight
+	g.cacheMutex.Unlock()
+
+	guild, err := g.r.GuildByRealmAndID(ctx, realmID, guildID)
+
+	g.cacheMutex.Lock()
+	if err == nil {
+		if old := g.cache[realmID][guildID]; old != nil {
+			for _, member := range old.GuildMembers {
+				cached := g.guildMembersCache[realmID][member.PlayerGUID]
+				if cached != nil && cached.GuildID == guildID {
+					delete(g.guildMembersCache[realmID], member.PlayerGUID)
+				}
+			}
+		}
+		if g.lastRefresh[realmID] == nil {
+			g.lastRefresh[realmID] = map[uint64]time.Time{}
+		}
+		g.lastRefresh[realmID][guildID] = time.Now()
+		if g.dirty[realmID] != nil {
+			delete(g.dirty[realmID], guildID)
+		}
+
+		if guild == nil {
+			if g.cache[realmID] != nil {
+				delete(g.cache[realmID], guildID)
+			}
+		} else {
+			if g.cache[realmID] == nil {
+				g.cache[realmID] = map[uint64]*repo.Guild{}
+			}
+			if g.guildMembersCache[realmID] == nil {
+				g.guildMembersCache[realmID] = map[uint64]*repo.GuildMember{}
+			}
+			for _, member := range guild.GuildMembers {
+				if _, online := g.onlineChars[realmID][member.PlayerGUID]; online {
+					member.Status = repo.GuildMemberStatusOnline
+					member.LogoutTime = 0
+				}
+				g.guildMembersCache[realmID][member.PlayerGUID] = member
+			}
+			g.cache[realmID][guildID] = guild
+		}
+	}
+	flight.err = err
+	delete(g.refreshFlight[realmID], guildID)
+	close(flight.done)
+	g.cacheMutex.Unlock()
+	return err
 }
 
 // AddGuildInvite links user invite to a specific guild. Uncached.
@@ -190,6 +286,40 @@ func (g *guildsInMemCache) evictGuildMember(realmID uint32, characterGUID uint64
 	}
 }
 
+// AcceptGuildInvite consumes invite + inserts member in one MySQL TX, then refreshes cache.
+func (g *guildsInMemCache) AcceptGuildInvite(ctx context.Context, realmID uint32, member repo.GuildMember) (uint64, error) {
+	guildID, err := g.r.AcceptGuildInvite(ctx, realmID, member)
+	if err != nil {
+		return 0, err
+	}
+	// Hydrate roster (and membership index) from SoT after the atomic accept.
+	if err := g.ForceRefreshGuild(ctx, realmID, guildID); err != nil {
+		log.Warn().Err(err).Uint32("realmID", realmID).Uint64("guildID", guildID).
+			Msg("AcceptGuildInvite: cache refresh after TX failed")
+	}
+	// Ensure the new member is online in the overlay for event fan-out.
+	g.cacheMutex.Lock()
+	if g.onlineChars[realmID] == nil {
+		g.onlineChars[realmID] = map[uint64]struct{}{}
+	}
+	g.onlineChars[realmID][member.PlayerGUID] = struct{}{}
+	if m := g.guildMembersCache[realmID][member.PlayerGUID]; m != nil {
+		m.Status = repo.GuildMemberStatusOnline
+		m.LogoutTime = 0
+	}
+	// Also index by low guid if the DB stores counters only.
+	low := uint64(uint32(member.PlayerGUID))
+	if low != member.PlayerGUID {
+		g.onlineChars[realmID][low] = struct{}{}
+		if m := g.guildMembersCache[realmID][low]; m != nil {
+			m.Status = repo.GuildMemberStatusOnline
+			m.LogoutTime = 0
+		}
+	}
+	g.cacheMutex.Unlock()
+	return guildID, nil
+}
+
 // AddGuildMember adds guild member to the guild.
 func (g *guildsInMemCache) AddGuildMember(ctx context.Context, realmID uint32, member repo.GuildMember) error {
 	if err := g.r.AddGuildMember(ctx, realmID, member); err != nil {
@@ -197,8 +327,28 @@ func (g *guildsInMemCache) AddGuildMember(ctx context.Context, realmID uint32, m
 	}
 
 	g.cacheMutex.Lock()
-	g.guildMembersCache[realmID][member.PlayerGUID] = &member
-	g.cache[realmID][member.GuildID].GuildMembers = append(g.cache[realmID][member.GuildID].GuildMembers, &member)
+	if g.guildMembersCache[realmID] == nil {
+		g.guildMembersCache[realmID] = map[uint64]*repo.GuildMember{}
+	}
+	if g.cache[realmID] == nil {
+		g.cache[realmID] = map[uint64]*repo.Guild{}
+	}
+	// Peer-created guilds (or cold cache) may not have the guild entry yet.
+	// Always index membership so local auth works; rehydrate guild best-effort.
+	memberCopy := member
+	g.guildMembersCache[realmID][member.PlayerGUID] = &memberCopy
+	guild := g.cache[realmID][member.GuildID]
+	if guild == nil {
+		g.cacheMutex.Unlock()
+		if err := g.ForceRefreshGuild(ctx, realmID, member.GuildID); err != nil {
+			// MySQL member row already exists; do not fail the mutator so peers
+			// still receive cache invalidation from the coherence decorator.
+			log.Warn().Err(err).Uint32("realmID", realmID).Uint64("guildID", member.GuildID).
+				Msg("AddGuildMember: force refresh after insert failed")
+		}
+		return nil
+	}
+	guild.GuildMembers = append(guild.GuildMembers, &memberCopy)
 	g.cacheMutex.Unlock()
 
 	return nil
@@ -419,18 +569,22 @@ func (g *guildsInMemCache) DeleteLowestGuildRank(ctx context.Context, realmID ui
 
 // Warmup called on startup to warmup cache if possible.
 func (g *guildsInMemCache) Warmup(ctx context.Context, realmID uint32) error {
-	g.cacheMutex.Lock()
-	defer g.cacheMutex.Unlock()
-
 	guilds, err := g.r.LoadAllForRealm(ctx, realmID)
 	if err != nil {
 		return err
 	}
 
-	g.cache[realmID] = guilds
+	g.cacheMutex.Lock()
+	defer g.cacheMutex.Unlock()
 
+	g.cache[realmID] = guilds
 	g.guildMembersCache[realmID] = map[uint64]*repo.GuildMember{}
+	if g.lastRefresh[realmID] == nil {
+		g.lastRefresh[realmID] = map[uint64]time.Time{}
+	}
+	now := time.Now()
 	for _, guild := range guilds {
+		g.lastRefresh[realmID][guild.ID] = now
 		for i := range guild.GuildMembers {
 			g.guildMembersCache[realmID][guild.GuildMembers[i].PlayerGUID] = guild.GuildMembers[i]
 		}
@@ -542,6 +696,13 @@ func (g *guildsInMemCache) CreateGuild(ctx context.Context, realmID uint32, name
 		member.Status = repo.GuildMemberStatusOnline
 		g.onlineChars[realmID][member.PlayerGUID] = struct{}{}
 		g.guildMembersCache[realmID][member.PlayerGUID] = member
+	}
+	if g.lastRefresh[realmID] == nil {
+		g.lastRefresh[realmID] = map[uint64]time.Time{}
+	}
+	g.lastRefresh[realmID][id] = time.Now()
+	if g.dirty[realmID] != nil {
+		delete(g.dirty[realmID], id)
 	}
 	g.cacheMutex.Unlock()
 

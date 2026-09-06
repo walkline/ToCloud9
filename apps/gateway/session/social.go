@@ -13,23 +13,23 @@ import (
 
 // FriendsResult enum values matching AzerothCore protocol
 const (
-	FriendResultDBError         = 0x00
-	FriendResultListFull        = 0x01
-	FriendResultOnline          = 0x02
-	FriendResultOffline         = 0x03
-	FriendResultNotFound        = 0x04
-	FriendResultRemoved         = 0x05
-	FriendResultAddedOnline     = 0x06
-	FriendResultAddedOffline    = 0x07
-	FriendResultAlready         = 0x08
-	FriendResultSelf            = 0x09
-	FriendResultEnemy           = 0x0A
-	FriendResultIgnoreSelf      = 0x0B
-	FriendResultIgnoreNotFound  = 0x0C
-	FriendResultIgnoreAlready   = 0x0D
-	FriendResultIgnoreAdded     = 0x0E
-	FriendResultIgnoreRemoved   = 0x0F
-	FriendResultIgnoreFull      = 0x10
+	FriendResultDBError        = 0x00
+	FriendResultListFull       = 0x01
+	FriendResultOnline         = 0x02
+	FriendResultOffline        = 0x03
+	FriendResultNotFound       = 0x04
+	FriendResultRemoved        = 0x05
+	FriendResultAddedOnline    = 0x06
+	FriendResultAddedOffline   = 0x07
+	FriendResultAlready        = 0x08
+	FriendResultSelf           = 0x09
+	FriendResultEnemy          = 0x0A
+	FriendResultIgnoreSelf     = 0x0B
+	FriendResultIgnoreNotFound = 0x0C
+	FriendResultIgnoreAlready  = 0x0D
+	FriendResultIgnoreAdded    = 0x0E
+	FriendResultIgnoreRemoved  = 0x0F
+	FriendResultIgnoreFull     = 0x10
 )
 
 // HandleContactList handles CMsgContactList (0x066)
@@ -57,10 +57,10 @@ func (s *GameSession) HandleContactList(ctx context.Context, p *packet.Packet) e
 	// Friends
 	for _, friend := range resp.Friends {
 		w.Uint64(friend.Guid)
-		w.Uint32(0x01)        // SOCIAL_FLAG_FRIEND
-		w.String(friend.Note) // note comes BEFORE status!
+		w.Uint32(0x01)                // SOCIAL_FLAG_FRIEND
+		w.String(friend.Note)         // note comes BEFORE status!
 		w.Uint8(uint8(friend.Status)) // 0=offline, 1=online
-		if friend.Status > 0 { // if online
+		if friend.Status > 0 {        // if online
 			w.Uint32(friend.Area)
 			w.Uint32(friend.Level)
 			w.Uint32(friend.ClassID)

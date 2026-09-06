@@ -22,13 +22,13 @@ type fakeBankRepo struct {
 	rights      map[uint8][repo.GuildBankMaxTabs]repo.BankTabRights
 	withdrawals repo.BankWithdrawals
 
-	depositedItem         *repo.BankItem
-	depositLogged         bool
-	depositItemReversed   bool
-	depositMoneyReversed  bool
-	withdrawnLimit        uint32
-	movedSplit            uint32
-	moveCalled            bool
+	depositedItem        *repo.BankItem
+	depositLogged        bool
+	depositItemReversed  bool
+	depositMoneyReversed bool
+	withdrawnLimit       uint32
+	movedSplit           uint32
+	moveCalled           bool
 }
 
 func (f *fakeBankRepo) BankMoney(_ context.Context, _ uint32, _ uint64) (uint64, error) {
@@ -46,6 +46,9 @@ func (f *fakeBankRepo) RankTabRights(_ context.Context, _ uint32, _ uint64) (map
 func (f *fakeBankRepo) MemberWithdrawals(_ context.Context, _ uint32, _ uint64) (repo.BankWithdrawals, error) {
 	return f.withdrawals, nil
 }
+
+func (f *fakeBankRepo) TryAcquireDailyResetLock(context.Context, uint32) bool { return true }
+func (f *fakeBankRepo) ReleaseDailyResetLock(context.Context, uint32)         {}
 
 func (f *fakeBankRepo) DepositMoney(_ context.Context, _ uint32, _, _, amount uint64, reverseDaily bool) (uint64, error) {
 	f.money += amount
@@ -102,6 +105,38 @@ func (f *fakeGuildsRepo) GuildByRealmAndID(_ context.Context, _ uint32, _ uint64
 	return f.guild, nil
 }
 
+func (f *fakeGuildsRepo) MemberAuthzForGuild(_ context.Context, _ uint32, guildID, playerGUID uint64) (*repo.MemberAuthz, error) {
+	if f.guild == nil || f.guild.ID != guildID {
+		return nil, nil
+	}
+	var member *repo.GuildMember
+	for _, m := range f.guild.GuildMembers {
+		if m.PlayerGUID == playerGUID || uint32(m.PlayerGUID) == uint32(playerGUID) {
+			member = m
+			break
+		}
+	}
+	if member == nil {
+		return nil, nil
+	}
+	var rank repo.GuildRank
+	for _, r := range f.guild.GuildRanks {
+		if r.Rank == member.Rank {
+			rank = r
+			break
+		}
+	}
+	return &repo.MemberAuthz{
+		GuildID:     f.guild.ID,
+		GuildName:   f.guild.Name,
+		LeaderGUID:  f.guild.LeaderGUID,
+		PlayerGUID:  member.PlayerGUID,
+		Rank:        member.Rank,
+		RankRights:  rank.Rights,
+		MoneyPerDay: rank.MoneyPerDay,
+	}, nil
+}
+
 const (
 	testLeaderGUID  = uint64(1)
 	testOfficerGUID = uint64(2)
@@ -133,7 +168,7 @@ func bankTestService(bankRepo *fakeBankRepo) GuildBankService {
 	producer.On("BankTabUpdated", mock.Anything).Return(nil)
 	producer.On("BankTabsChanged", mock.Anything).Return(nil)
 	producer.On("BankTextUpdated", mock.Anything).Return(nil)
-	return NewGuildBankService(bankRepo, &fakeGuildsRepo{guild: bankTestGuild()}, producer)
+	return NewGuildBankService(bankRepo, &fakeGuildsRepo{guild: bankTestGuild()}, producer, nil)
 }
 
 func TestBankStateRightsMatrix(t *testing.T) {

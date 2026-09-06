@@ -8,6 +8,10 @@ import (
 // ErrGuildNameTaken returned when a guild with the same name already exists.
 var ErrGuildNameTaken = errors.New("guild name already taken")
 
+// ErrAlreadyInGuild returned when accepting an invite for a character that is
+// already a guild member.
+var ErrAlreadyInGuild = errors.New("already in guild")
+
 // Guild represents in game guild.
 type Guild struct {
 	RealmID         uint32
@@ -112,6 +116,18 @@ type GuildMember struct {
 	Status      GuildMemberStatus
 }
 
+// MemberAuthz is a cheap membership + rank rights snapshot for write authz
+// (bank, etc.) without hydrating the full guild roster.
+type MemberAuthz struct {
+	GuildID     uint64
+	GuildName   string
+	LeaderGUID  uint64
+	PlayerGUID  uint64
+	Rank        uint8
+	RankRights  uint32
+	MoneyPerDay uint32
+}
+
 // GuildsRepo represents repository for Guilds.
 //
 //go:generate mockery --name=GuildsRepo --filename=guilds-repo.go
@@ -122,6 +138,11 @@ type GuildsRepo interface {
 
 	// GuildByRealmAndID loads guild by realm and id.
 	GuildByRealmAndID(ctx context.Context, realmID uint32, guildID uint64) (*Guild, error)
+
+	// MemberAuthzForGuild returns membership and rank rights for one player in
+	// a guild. Returns (nil, nil) if the player is not a member of that guild.
+	// Prefer this over GuildByRealmAndID for bank/write authorization.
+	MemberAuthzForGuild(ctx context.Context, realmID uint32, guildID, playerGUID uint64) (*MemberAuthz, error)
 
 	// GuildIDByRealmAndMemberGUID returns guild id by guild member GUID.
 	GuildIDByRealmAndMemberGUID(ctx context.Context, realmID uint32, memberGUID uint64) (uint64, error)
@@ -137,6 +158,12 @@ type GuildsRepo interface {
 
 	// AddGuildMember adds guild member to the guild.
 	AddGuildMember(ctx context.Context, realmID uint32, member GuildMember) error
+
+	// AcceptGuildInvite atomically consumes the invite and inserts the member
+	// in one MySQL transaction. Returns the guild id. Fails with ErrAlreadyInGuild
+	// if the character is already a guild member; fails if no invite exists.
+	// member.GuildID is filled by the implementation from the invite row.
+	AcceptGuildInvite(ctx context.Context, realmID uint32, member GuildMember) (guildID uint64, err error)
 
 	// RemoveGuildMember removes guild member from the guild.
 	RemoveGuildMember(ctx context.Context, realmID uint32, characterGUID uint64) error

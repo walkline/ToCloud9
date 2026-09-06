@@ -7,13 +7,13 @@ import (
 
 // Channel represents a WoW channel
 type Channel struct {
-	ChannelID  uint32
-	Name       string
-	Team       uint32 // 0=Alliance, 1=Horde, 2=Neutral
-	Announce   bool
-	Ownership  bool
-	Password   string
-	LastUsed   time.Time
+	ChannelID uint32
+	Name      string
+	Team      uint32 // 0=Alliance, 1=Horde, 2=Neutral
+	Announce  bool
+	Ownership bool
+	Password  string
+	LastUsed  time.Time
 }
 
 // ChannelRights represents channel moderation settings

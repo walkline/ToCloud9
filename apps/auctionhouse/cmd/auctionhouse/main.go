@@ -24,8 +24,8 @@ import (
 	"github.com/walkline/ToCloud9/apps/auctionhouse/service"
 	"github.com/walkline/ToCloud9/gen/auctionhouse/pb"
 	pbMail "github.com/walkline/ToCloud9/gen/mail/pb"
-	shrepo "github.com/walkline/ToCloud9/shared/repo"
 	"github.com/walkline/ToCloud9/shared/events"
+	shrepo "github.com/walkline/ToCloud9/shared/repo"
 )
 
 func main() {

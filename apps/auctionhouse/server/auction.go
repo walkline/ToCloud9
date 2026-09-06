@@ -84,10 +84,10 @@ func (s *AuctionHouseServer) PlaceBid(ctx context.Context, req *pb.AuctionPlaceB
 	}
 
 	return &pb.AuctionPlaceBidResponse{
-		Error:          pb.AuctionHouseError_AH_OK,
-		AuctionID:      req.AuctionID,
-		IsBuyout:       isBuyout,
-		MoneyToDeduct:  moneyToDeduct,
+		Error:         pb.AuctionHouseError_AH_OK,
+		AuctionID:     req.AuctionID,
+		IsBuyout:      isBuyout,
+		MoneyToDeduct: moneyToDeduct,
 	}, nil
 }
 

@@ -13,16 +13,16 @@ const (
 
 // AuctionEntry is a single auction in the auctionhouse table.
 type AuctionEntry struct {
-	ID         uint32
-	HouseID    uint8
-	ItemGUID   uint32
-	ItemOwner  uint32
+	ID          uint32
+	HouseID     uint8
+	ItemGUID    uint32
+	ItemOwner   uint32
 	BuyoutPrice uint32
-	Time       uint32 // unix timestamp
-	BuyGUID    uint32
-	LastBid    uint32
-	StartBid   uint32
-	Deposit    uint32
+	Time        uint32 // unix timestamp
+	BuyGUID     uint32
+	LastBid     uint32
+	StartBid    uint32
+	Deposit     uint32
 
 	// Joined from item_instance for search/list purposes
 	ItemEntry        uint32

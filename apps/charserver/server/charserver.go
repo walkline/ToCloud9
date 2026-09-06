@@ -609,9 +609,9 @@ func (c *CharServer) GetOnlineCharacters(ctx context.Context, request *pb.GetOnl
 	}
 
 	return &pb.GetOnlineCharactersResponse{
-		Api:             ver,
-		CharacterGUIDs:  guids,
-		TotalCount:      uint32(len(guids)),
+		Api:            ver,
+		CharacterGUIDs: guids,
+		TotalCount:     uint32(len(guids)),
 	}, nil
 }
 

@@ -87,20 +87,20 @@ type CanPlayerJoinBattlegroundQueueHandler func(player uint64) error
 type CanPlayerTeleportToBattlegroundHandler func(player uint64) error
 
 type CppBindings struct {
-	GetPlayerItemsByGuids            GetPlayerItemsByGuidsHandler
-	GetPlayerItemByPos               GetPlayerItemByPosHandler
-	RemoveItemsWithGuidsFromPlayer   RemoveItemsWithGuidsFromPlayerHandler
-	DestroyItemsWithGuidsFromPlayer  DestroyItemsWithGuidsFromPlayerHandler
-	AddExistingItemToPlayer          AddExistingItemToPlayerHandler
-	StoreNewItem                     StoreNewItemHandler
-	SetItemPermanentEnchantment      SetItemPermanentEnchantmentHandler
-	GetMoneyForPlayer                GetMoneyForPlayerHandler
-	ModifyMoneyForPlayer             ModifyMoneyForPlayerHandler
-	SetPlayerGuildFields             SetPlayerGuildFieldsHandler
-	CanPlayerInteractWithNPC         CanPlayerInteractWithNPCWithFlagsHandler
-	CanPlayerInteractWithGO          CanPlayerInteractWithGOWithTypeHandler
-	StartBattleground                StartBattlegroundHandler
-	AddPlayersToBattleground         AddPlayersToBattlegroundHandler
-	CanPlayerJoinBattlegroundQueue   CanPlayerJoinBattlegroundQueueHandler
-	CanPlayerTeleportToBattleground  CanPlayerTeleportToBattlegroundHandler
+	GetPlayerItemsByGuids           GetPlayerItemsByGuidsHandler
+	GetPlayerItemByPos              GetPlayerItemByPosHandler
+	RemoveItemsWithGuidsFromPlayer  RemoveItemsWithGuidsFromPlayerHandler
+	DestroyItemsWithGuidsFromPlayer DestroyItemsWithGuidsFromPlayerHandler
+	AddExistingItemToPlayer         AddExistingItemToPlayerHandler
+	StoreNewItem                    StoreNewItemHandler
+	SetItemPermanentEnchantment     SetItemPermanentEnchantmentHandler
+	GetMoneyForPlayer               GetMoneyForPlayerHandler
+	ModifyMoneyForPlayer            ModifyMoneyForPlayerHandler
+	SetPlayerGuildFields            SetPlayerGuildFieldsHandler
+	CanPlayerInteractWithNPC        CanPlayerInteractWithNPCWithFlagsHandler
+	CanPlayerInteractWithGO         CanPlayerInteractWithGOWithTypeHandler
+	StartBattleground               StartBattlegroundHandler
+	AddPlayersToBattleground        AddPlayersToBattlegroundHandler
+	CanPlayerJoinBattlegroundQueue  CanPlayerJoinBattlegroundQueueHandler
+	CanPlayerTeleportToBattleground CanPlayerTeleportToBattlegroundHandler
 }

@@ -29,9 +29,13 @@ func (noopGroupsRepo) GroupByID(ctx context.Context, realmID uint32, partyID uin
 func (noopGroupsRepo) GroupIDByPlayer(ctx context.Context, realmID uint32, player uint64) (uint, error) {
 	return 0, nil
 }
-func (noopGroupsRepo) Create(ctx context.Context, realmID uint32, group *repo.Group) error { return nil }
-func (noopGroupsRepo) Delete(ctx context.Context, realmID uint32, groupID uint) error      { return nil }
-func (noopGroupsRepo) Update(ctx context.Context, realmID uint32, group *repo.Group) error { return nil }
+func (noopGroupsRepo) Create(ctx context.Context, realmID uint32, group *repo.Group) error {
+	return nil
+}
+func (noopGroupsRepo) Delete(ctx context.Context, realmID uint32, groupID uint) error { return nil }
+func (noopGroupsRepo) Update(ctx context.Context, realmID uint32, group *repo.Group) error {
+	return nil
+}
 func (noopGroupsRepo) AddMember(ctx context.Context, realmID uint32, groupMember *repo.GroupMember) error {
 	return nil
 }

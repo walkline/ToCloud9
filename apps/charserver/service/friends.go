@@ -16,23 +16,23 @@ const (
 
 // FriendsResult enum values matching AzerothCore protocol
 const (
-	FriendResultDBError         = 0x00
-	FriendResultListFull        = 0x01
-	FriendResultOnline          = 0x02
-	FriendResultOffline         = 0x03
-	FriendResultNotFound        = 0x04
-	FriendResultRemoved         = 0x05
-	FriendResultAddedOnline     = 0x06
-	FriendResultAddedOffline    = 0x07
-	FriendResultAlready         = 0x08
-	FriendResultSelf            = 0x09
-	FriendResultEnemy           = 0x0A
-	FriendResultIgnoreSelf      = 0x0B
-	FriendResultIgnoreNotFound  = 0x0C
-	FriendResultIgnoreAlready   = 0x0D
-	FriendResultIgnoreAdded     = 0x0E
-	FriendResultIgnoreRemoved   = 0x0F
-	FriendResultIgnoreFull      = 0x10
+	FriendResultDBError        = 0x00
+	FriendResultListFull       = 0x01
+	FriendResultOnline         = 0x02
+	FriendResultOffline        = 0x03
+	FriendResultNotFound       = 0x04
+	FriendResultRemoved        = 0x05
+	FriendResultAddedOnline    = 0x06
+	FriendResultAddedOffline   = 0x07
+	FriendResultAlready        = 0x08
+	FriendResultSelf           = 0x09
+	FriendResultEnemy          = 0x0A
+	FriendResultIgnoreSelf     = 0x0B
+	FriendResultIgnoreNotFound = 0x0C
+	FriendResultIgnoreAlready  = 0x0D
+	FriendResultIgnoreAdded    = 0x0E
+	FriendResultIgnoreRemoved  = 0x0F
+	FriendResultIgnoreFull     = 0x10
 )
 
 var (

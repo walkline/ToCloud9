@@ -14,6 +14,7 @@ import (
 	eBroadcaster "github.com/walkline/ToCloud9/apps/gateway/events-broadcaster"
 	"github.com/walkline/ToCloud9/apps/gateway/packet"
 	pbGuild "github.com/walkline/ToCloud9/gen/guilds/pb"
+	pbMail "github.com/walkline/ToCloud9/gen/mail/pb"
 	pbGameServ "github.com/walkline/ToCloud9/gen/worldserver/pb"
 	"github.com/walkline/ToCloud9/shared/events"
 )
@@ -274,6 +275,7 @@ func (s *GameSession) HandleGuildBankDepositMoney(ctx context.Context, p *packet
 		PlayerGuid: s.character.GUID,
 		Value:      -int32(amount),
 	}); err != nil {
+		guildBankTwoPhaseFail.WithLabelValues(bankXferOpDepositMoney, bankXferStageWorld).Inc()
 		return nil
 	}
 
@@ -285,12 +287,21 @@ func (s *GameSession) HandleGuildBankDepositMoney(ctx context.Context, p *packet
 		Amount:     uint64(amount),
 	})
 	if err != nil {
-		// Refund the debit.
-		_, _ = s.gameServerGRPCClient.ModifyMoneyForPlayer(ctx, &pbGameServ.ModifyMoneyForPlayerRequest{
+		guildBankTwoPhaseFail.WithLabelValues(bankXferOpDepositMoney, bankXferStageGuild).Inc()
+		// Refund the debit — log hard if compensate fails (player lost copper).
+		if _, rerr := s.gameServerGRPCClient.ModifyMoneyForPlayer(ctx, &pbGameServ.ModifyMoneyForPlayerRequest{
 			Api:        root.Ver,
 			PlayerGuid: s.character.GUID,
 			Value:      int32(amount),
-		})
+		}); rerr != nil {
+			guildBankTwoPhaseRestoreFail.WithLabelValues(bankXferOpDepositMoney).Inc()
+			s.logger.Error().Err(rerr).Err(err).
+				Uint64("player", s.character.GUID).Uint32("guild", s.character.GuildID).
+				Uint32("amount", amount).
+				Msg("CRITICAL guild bank deposit money: refund after bank failure failed — player may have lost copper")
+		} else {
+			guildBankTwoPhaseRestoreOK.WithLabelValues(bankXferOpDepositMoney).Inc()
+		}
 		switch status.Code(err) {
 		case codes.PermissionDenied:
 			s.sendGuildCommandResult(guildCommandMoveItem, "", guildErrPermissions)
@@ -301,6 +312,7 @@ func (s *GameSession) HandleGuildBankDepositMoney(ctx context.Context, p *packet
 		return nil
 	}
 
+	guildBankTwoPhaseSuccess.WithLabelValues(bankXferOpDepositMoney).Inc()
 	return s.sendGuildBankMoneyInfo(ctx)
 }
 
@@ -325,6 +337,7 @@ func (s *GameSession) HandleGuildBankWithdrawMoney(ctx context.Context, p *packe
 		Amount:     uint64(amount),
 	})
 	if err != nil {
+		guildBankTwoPhaseFail.WithLabelValues(bankXferOpWithdrawMoney, bankXferStageGuild).Inc()
 		switch status.Code(err) {
 		case codes.PermissionDenied:
 			s.sendGuildCommandResult(guildCommandMoveItem, "", guildErrPermissions)
@@ -339,18 +352,28 @@ func (s *GameSession) HandleGuildBankWithdrawMoney(ctx context.Context, p *packe
 		PlayerGuid: s.character.GUID,
 		Value:      int32(amount),
 	}); err != nil {
+		guildBankTwoPhaseFail.WithLabelValues(bankXferOpWithdrawMoney, bankXferStageWorld).Inc()
 		// Player money cap or vanished player: put the money back and refund the daily cap.
-		_, _ = s.guildServiceClient.BankDepositMoney(ctx, &pbGuild.BankMoneyParams{
+		if _, rerr := s.guildServiceClient.BankDepositMoney(ctx, &pbGuild.BankMoneyParams{
 			Api:        root.Ver,
 			RealmID:    root.RealmID,
 			GuildID:    uint64(s.character.GuildID),
 			PlayerGUID: s.character.GUID,
 			Amount:     uint64(amount),
 			Restore:    true,
-		})
+		}); rerr != nil {
+			guildBankTwoPhaseRestoreFail.WithLabelValues(bankXferOpWithdrawMoney).Inc()
+			s.logger.Error().Err(rerr).Err(err).
+				Uint64("player", s.character.GUID).Uint32("guild", s.character.GuildID).
+				Uint32("amount", amount).
+				Msg("CRITICAL guild bank withdraw money: restore to bank failed — bank may be short copper")
+		} else {
+			guildBankTwoPhaseRestoreOK.WithLabelValues(bankXferOpWithdrawMoney).Inc()
+		}
 		return nil
 	}
 
+	guildBankTwoPhaseSuccess.WithLabelValues(bankXferOpWithdrawMoney).Inc()
 	return s.sendGuildBankMoneyInfo(ctx)
 }
 
@@ -531,6 +554,7 @@ func (s *GameSession) depositGuildBankItem(ctx context.Context, tab, slot, bag, 
 		Guids:      []uint64{item.Guid},
 	})
 	if err != nil || len(removeResp.UpdatedItemsGuids) == 0 {
+		guildBankTwoPhaseFail.WithLabelValues(bankXferOpDepositItem, bankXferStageWorld).Inc()
 		s.logger.Warn().Err(err).Uint64("item", item.Guid).
 			Int("updated", len(removeResp.GetUpdatedItemsGuids())).
 			Msg("guild bank deposit: RemoveItems failed")
@@ -556,10 +580,11 @@ func (s *GameSession) depositGuildBankItem(ctx context.Context, tab, slot, bag, 
 		},
 	})
 	if err != nil {
+		guildBankTwoPhaseFail.WithLabelValues(bankXferOpDepositItem, bankXferStageGuild).Inc()
 		s.logger.Warn().Err(err).Uint64("item", item.Guid).Uint32("guild", s.character.GuildID).
 			Uint8("tab", tab).Uint8("slot", slot).Msg("guild bank deposit: BankDepositItem failed")
 		// Give the item back to the player.
-		_, _ = s.gameServerGRPCClient.AddExistingItemToPlayer(ctx, &pbGameServ.AddExistingItemToPlayerRequest{
+		addResp, rerr := s.gameServerGRPCClient.AddExistingItemToPlayer(ctx, &pbGameServ.AddExistingItemToPlayerRequest{
 			Api:        root.Ver,
 			PlayerGuid: s.character.GUID,
 			Item: &pbGameServ.AddExistingItemToPlayerRequest_Item{
@@ -572,10 +597,20 @@ func (s *GameSession) depositGuildBankItem(ctx context.Context, tab, slot, bag, 
 				Text:             item.Text,
 			},
 		})
+		if rerr != nil || addResp == nil || addResp.Status != pbGameServ.AddExistingItemToPlayerResponse_Success {
+			guildBankTwoPhaseRestoreFail.WithLabelValues(bankXferOpDepositItem).Inc()
+			s.logger.Error().Err(rerr).Err(err).
+				Uint64("item", item.Guid).Uint64("player", s.character.GUID).
+				Uint32("guild", s.character.GuildID).
+				Msg("CRITICAL guild bank deposit item: restore to player failed — item may be orphaned")
+		} else {
+			guildBankTwoPhaseRestoreOK.WithLabelValues(bankXferOpDepositItem).Inc()
+		}
 		s.handleGuildBankItemError(err)
 		return nil
 	}
 
+	guildBankTwoPhaseSuccess.WithLabelValues(bankXferOpDepositItem).Inc()
 	s.logger.Debug().Uint32("placedSlot", depositResp.GetSlot()).Uint64("item", item.Guid).
 		Msg("guild bank deposit: OK")
 	return s.sendGuildBankSlots(ctx, tab, uint8(depositResp.Slot))
@@ -612,6 +647,7 @@ func (s *GameSession) withdrawGuildBankItem(ctx context.Context, tab, slot uint8
 		Slot:       uint32(slot),
 	})
 	if err != nil {
+		guildBankTwoPhaseFail.WithLabelValues(bankXferOpWithdrawItem, bankXferStageGuild).Inc()
 		switch status.Code(err) {
 		case codes.PermissionDenied:
 			s.sendGuildCommandResult(guildCommandMoveItem, "", guildErrPermissions)
@@ -641,8 +677,32 @@ func (s *GameSession) withdrawGuildBankItem(ctx context.Context, tab, slot uint8
 		},
 	})
 	if err != nil || addResp.Status != pbGameServ.AddExistingItemToPlayerResponse_Success {
-		// Put the item back in the bank (restore path skips the rights check).
-		_, _ = s.guildServiceClient.BankDepositItem(ctx, &pbGuild.BankDepositItemParams{
+		guildBankTwoPhaseFail.WithLabelValues(bankXferOpWithdrawItem, bankXferStageWorld).Inc()
+		// Hop 1 already removed bank placement; recover item before returning.
+		s.restoreWithdrawnGuildBankItem(ctx, tab, slot, item, err)
+		s.sendInventoryFullError()
+		return nil
+	}
+
+	guildBankTwoPhaseSuccess.WithLabelValues(bankXferOpWithdrawItem).Inc()
+	// Partial list clears an emptied slot; full update would omit it and leave a ghost icon.
+	return s.sendGuildBankSlots(ctx, tab, slot)
+}
+
+// restoreWithdrawnGuildBankItem runs after a successful BankWithdrawItem when bag
+// add fails. Tries preferred slot, then free slots (same tab, other tabs), then mail.
+// Bank Restore=true reverses the tab daily counter; mail does not (item left the bank).
+func (s *GameSession) restoreWithdrawnGuildBankItem(ctx context.Context, preferredTab, preferredSlot uint8, item *pbGuild.GuildBankItem, worldErr error) {
+	if item == nil {
+		guildBankTwoPhaseRestoreFail.WithLabelValues(bankXferOpWithdrawItem).Inc()
+		s.logger.Error().Err(worldErr).
+			Uint64("player", s.character.GUID).Uint32("guild", s.character.GuildID).
+			Msg("CRITICAL guild bank withdraw item: nothing to restore")
+		return
+	}
+
+	tryBank := func(tab, slot uint8) (placed uint8, err error) {
+		resp, err := s.guildServiceClient.BankDepositItem(ctx, &pbGuild.BankDepositItemParams{
 			Api:        root.Ver,
 			RealmID:    root.RealmID,
 			GuildID:    uint64(s.character.GuildID),
@@ -652,13 +712,102 @@ func (s *GameSession) withdrawGuildBankItem(ctx context.Context, tab, slot uint8
 			Item:       item,
 			Restore:    true,
 		})
-		s.sendInventoryFullError()
-		return nil
+		if err != nil {
+			return 0, err
+		}
+		return uint8(resp.GetSlot()), nil
 	}
 
-	// The slot is now empty: a partial update clears it client-side (a full
-	// update would omit it and leave the withdrawn item on screen).
-	return s.sendGuildBankSlots(ctx, tab, slot)
+	if placed, err := tryBank(preferredTab, preferredSlot); err == nil {
+		guildBankTwoPhaseRestoreOK.WithLabelValues(bankXferOpWithdrawItem).Inc()
+		_ = s.sendGuildBankSlots(ctx, preferredTab, preferredSlot)
+		s.logger.Info().
+			Uint64("item", item.ItemGuid).Uint8("tab", preferredTab).Uint8("slot", placed).
+			Msg("guild bank withdraw item: restored to preferred slot")
+		return
+	}
+
+	if placed, err := tryBank(preferredTab, guildBankSlotAuto); err == nil {
+		guildBankTwoPhaseRestoreOK.WithLabelValues(bankXferOpWithdrawItem).Inc()
+		_ = s.sendGuildBankSlots(ctx, preferredTab, preferredSlot, placed)
+		s.logger.Warn().
+			Uint64("item", item.ItemGuid).Uint8("tab", preferredTab).
+			Uint8("preferredSlot", preferredSlot).Uint8("placedSlot", placed).
+			Msg("guild bank withdraw item: preferred slot busy, restored to free slot on same tab")
+		return
+	}
+
+	if state, err := s.guildBankState(ctx); err == nil {
+		for i := range state.Tabs {
+			tab := uint8(i)
+			if tab == preferredTab {
+				continue
+			}
+			placed, dErr := tryBank(tab, guildBankSlotAuto)
+			if dErr != nil {
+				continue
+			}
+			guildBankTwoPhaseRestoreOK.WithLabelValues(bankXferOpWithdrawItem).Inc()
+			_ = s.sendGuildBankSlots(ctx, preferredTab, preferredSlot)
+			_ = s.sendGuildBankSlots(ctx, tab, placed)
+			s.logger.Warn().
+				Uint64("item", item.ItemGuid).
+				Uint8("preferredTab", preferredTab).Uint8("preferredSlot", preferredSlot).
+				Uint8("placedTab", tab).Uint8("placedSlot", placed).
+				Msg("guild bank withdraw item: tab full, restored to free slot on another tab")
+			return
+		}
+	}
+
+	if merr := s.mailWithdrawnGuildBankItem(ctx, item); merr == nil {
+		guildBankTwoPhaseRestoreOK.WithLabelValues(bankXferOpWithdrawItem).Inc()
+		_ = s.sendGuildBankSlots(ctx, preferredTab, preferredSlot)
+		s.logger.Warn().Err(worldErr).
+			Uint64("item", item.ItemGuid).Uint64("player", s.character.GUID).
+			Uint32("guild", s.character.GuildID).
+			Msg("guild bank withdraw item: bank full on restore, mailed item to player")
+		s.SendSysMessage("Your inventory is full and the guild bank had no free slot. The item was mailed to you.")
+		return
+	} else {
+		s.logger.Error().Err(merr).
+			Uint64("item", item.ItemGuid).Uint64("player", s.character.GUID).
+			Msg("guild bank withdraw item: mail restore failed")
+	}
+
+	guildBankTwoPhaseRestoreFail.WithLabelValues(bankXferOpWithdrawItem).Inc()
+	s.logger.Error().Err(worldErr).
+		Uint64("item", item.ItemGuid).Uint64("player", s.character.GUID).
+		Uint32("guild", s.character.GuildID).Uint8("tab", preferredTab).Uint8("slot", preferredSlot).
+		Msg("CRITICAL guild bank withdraw item: bank restore and mail both failed — item may be lost from bank and bags")
+}
+
+// mailWithdrawnGuildBankItem attaches the existing item_instance to player mail.
+func (s *GameSession) mailWithdrawnGuildBankItem(ctx context.Context, item *pbGuild.GuildBankItem) error {
+	if s.mailServiceClient == nil {
+		return fmt.Errorf("mail service client is nil")
+	}
+	// Mail attachments use the 32-bit item_instance counter, not the full ObjectGuid.
+	itemGUID := item.ItemGuid & 0xFFFFFFFF
+	_, err := s.mailServiceClient.Send(ctx, &pbMail.SendRequest{
+		Api:          root.SupportedMailServiceVer,
+		RealmID:      root.RealmID,
+		ReceiverGuid: s.character.GUID,
+		Subject:      "Guild Bank",
+		Body:         "This item could not be placed in your bags or returned to a free guild bank slot.",
+		Attachments: []*pbMail.ItemAttachment{{
+			Guid:             itemGUID,
+			Entry:            item.Entry,
+			Count:            item.Count,
+			Flags:            item.Flags,
+			Durability:       int32(item.Durability),
+			RandomPropertyID: uint32(item.RandomPropertyID),
+			Text:             item.Text,
+		}},
+		DeliveryTimestamp: time.Now().Unix(),
+		Stationery:        pbMail.MailStationery_StDefault,
+		Type:              pbMail.MailType_GameObject,
+	})
+	return err
 }
 
 // sendInventoryFullError shows the standard "Inventory is full." client error.
@@ -698,6 +847,7 @@ func (s *GameSession) HandleGuildBankBuyTab(ctx context.Context, p *packet.Packe
 		PlayerGuid: s.character.GUID,
 		Value:      -int32(state.NextTabCost),
 	}); err != nil {
+		guildBankTwoPhaseFail.WithLabelValues(bankXferOpBuyTab, bankXferStageWorld).Inc()
 		return nil
 	}
 
@@ -710,17 +860,28 @@ func (s *GameSession) HandleGuildBankBuyTab(ctx context.Context, p *packet.Packe
 		PaidCost:   state.NextTabCost,
 	})
 	if err != nil {
-		_, _ = s.gameServerGRPCClient.ModifyMoneyForPlayer(ctx, &pbGameServ.ModifyMoneyForPlayerRequest{
+		guildBankTwoPhaseFail.WithLabelValues(bankXferOpBuyTab, bankXferStageGuild).Inc()
+		// Refund the debit — log hard if compensate fails (player lost copper).
+		if _, rerr := s.gameServerGRPCClient.ModifyMoneyForPlayer(ctx, &pbGameServ.ModifyMoneyForPlayerRequest{
 			Api:        root.Ver,
 			PlayerGuid: s.character.GUID,
 			Value:      int32(state.NextTabCost),
-		})
+		}); rerr != nil {
+			guildBankTwoPhaseRestoreFail.WithLabelValues(bankXferOpBuyTab).Inc()
+			s.logger.Error().Err(rerr).Err(err).
+				Uint64("player", s.character.GUID).Uint32("guild", s.character.GuildID).
+				Uint8("tab", tab).Uint32("cost", state.NextTabCost).
+				Msg("CRITICAL guild bank buy tab: refund after bank failure failed — player may have lost copper")
+		} else {
+			guildBankTwoPhaseRestoreOK.WithLabelValues(bankXferOpBuyTab).Inc()
+		}
 		if status.Code(err) == codes.PermissionDenied {
 			s.sendGuildCommandResult(guildCommandMoveItem, "", guildErrPermissions)
 		}
 		return nil
 	}
 
+	guildBankTwoPhaseSuccess.WithLabelValues(bankXferOpBuyTab).Inc()
 	// Same trick as the core: push permissions so the client updates the tabs.
 	if err = s.sendGuildPermissions(ctx); err != nil {
 		return err

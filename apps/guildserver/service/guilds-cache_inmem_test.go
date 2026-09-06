@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -202,10 +203,10 @@ func Test_guildsInMemCache_GuildIDByRealmAndMemberGUIDFromSource(t *testing.T) {
 
 func Test_guildsInMemCache_GuildByRealmAndIDRefreshesFromSource(t *testing.T) {
 	const (
-		realmID    = uint32(1)
-		guildID    = uint64(64)
-		leaderGUID = uint64(50553)
-		cutsGUID   = uint64(50554)
+		realmID           = uint32(1)
+		guildID           = uint64(64)
+		leaderGUID        = uint64(50553)
+		cutsGUID          = uint64(50554)
 		offlineMemberGUID = uint64(50555)
 	)
 
@@ -221,7 +222,7 @@ func Test_guildsInMemCache_GuildByRealmAndIDRefreshesFromSource(t *testing.T) {
 		return cache
 	}
 
-	t.Run("picks up members added in-process and overlays online status", func(t *testing.T) {
+	t.Run("picks up members after dirty mark and overlays online status", func(t *testing.T) {
 		repoMock := &mocks.GuildsRepo{}
 		repoMock.On("GuildByRealmAndID", mock.Anything, realmID, guildID).Return(&repo.Guild{
 			ID: guildID,
@@ -233,8 +234,13 @@ func Test_guildsInMemCache_GuildByRealmAndIDRefreshesFromSource(t *testing.T) {
 		}, nil)
 
 		cache := newSeededCache(repoMock)
+		cache.lastRefresh[realmID] = map[uint64]time.Time{guildID: time.Now()}
 		assert.NoError(t, cache.HandleCharacterLoggedIn(events.GWEventCharacterLoggedInPayload{RealmID: realmID, CharGUID: leaderGUID}))
 		assert.NoError(t, cache.HandleCharacterLoggedIn(events.GWEventCharacterLoggedInPayload{RealmID: realmID, CharGUID: offlineMemberGUID}))
+		// Peer invalidate (or local dirty) triggers reload on next read — not eagerly.
+		assert.NoError(t, cache.HandleGuildCacheInvalidate(events.GuildCacheInvalidatePayload{
+			ServiceID: "other", RealmID: realmID, GuildID: guildID,
+		}))
 
 		guild, err := cache.GuildByRealmAndID(context.Background(), realmID, guildID)
 		assert.NoError(t, err)
@@ -252,27 +258,28 @@ func Test_guildsInMemCache_GuildByRealmAndIDRefreshesFromSource(t *testing.T) {
 		assert.NotNil(t, cache.guildMembersCache[realmID][offlineMemberGUID])
 	})
 
-	t.Run("throttles source reads", func(t *testing.T) {
+	t.Run("serves warm cache without source read", func(t *testing.T) {
 		repoMock := &mocks.GuildsRepo{}
-		repoMock.On("GuildByRealmAndID", mock.Anything, realmID, guildID).Return(&repo.Guild{
-			ID:           guildID,
-			GuildMembers: []*repo.GuildMember{{PlayerGUID: leaderGUID, GuildID: guildID}},
-		}, nil)
-
+		// Warm + not dirty → no MySQL.
 		cache := newSeededCache(repoMock)
+		cache.lastRefresh[realmID] = map[uint64]time.Time{guildID: time.Now()}
 		_, err := cache.GuildByRealmAndID(context.Background(), realmID, guildID)
 		assert.NoError(t, err)
 		_, err = cache.GuildByRealmAndID(context.Background(), realmID, guildID)
 		assert.NoError(t, err)
 
-		repoMock.AssertNumberOfCalls(t, "GuildByRealmAndID", 1)
+		repoMock.AssertNumberOfCalls(t, "GuildByRealmAndID", 0)
 	})
 
-	t.Run("evicts guild deleted in-process", func(t *testing.T) {
+	t.Run("evicts guild deleted after dirty mark", func(t *testing.T) {
 		repoMock := &mocks.GuildsRepo{}
 		repoMock.On("GuildByRealmAndID", mock.Anything, realmID, guildID).Return(nil, nil)
 
 		cache := newSeededCache(repoMock)
+		cache.lastRefresh[realmID] = map[uint64]time.Time{guildID: time.Now()}
+		assert.NoError(t, cache.HandleGuildCacheInvalidate(events.GuildCacheInvalidatePayload{
+			ServiceID: "other", RealmID: realmID, GuildID: guildID,
+		}))
 		guild, err := cache.GuildByRealmAndID(context.Background(), realmID, guildID)
 		assert.NoError(t, err)
 		assert.Nil(t, guild)
@@ -285,6 +292,10 @@ func Test_guildsInMemCache_GuildByRealmAndIDRefreshesFromSource(t *testing.T) {
 		repoMock.On("GuildByRealmAndID", mock.Anything, realmID, guildID).Return(nil, assert.AnError)
 
 		cache := newSeededCache(repoMock)
+		cache.lastRefresh[realmID] = map[uint64]time.Time{guildID: time.Now()}
+		assert.NoError(t, cache.HandleGuildCacheInvalidate(events.GuildCacheInvalidatePayload{
+			ServiceID: "other", RealmID: realmID, GuildID: guildID,
+		}))
 		guild, err := cache.GuildByRealmAndID(context.Background(), realmID, guildID)
 		assert.NoError(t, err)
 		assert.NotNil(t, guild)
@@ -345,14 +356,14 @@ func Test_guildsInMemCache_CreateGuildLeaderStaysOnlineAcrossRefresh(t *testing.
 
 	repoMock := &mocks.GuildsRepo{}
 	repoMock.On("CreateGuild", mock.Anything, realmID, "TestGuild", leaderGUID, mock.Anything, mock.Anything).Return(guildID, nil)
-	// Both the create hydration and the later refresh read the leader as
-	// offline: in cluster mode the world doesn't flush characters.online.
+	// Create hydrates once (leader offline in DB); write-through marks them online.
+	// Warm cache read must not re-hit MySQL (Sprint A: no auto ForceRefresh).
 	repoMock.On("GuildByRealmAndID", mock.Anything, realmID, guildID).Return(&repo.Guild{
 		ID: guildID,
 		GuildMembers: []*repo.GuildMember{
 			{PlayerGUID: leaderGUID, GuildID: guildID, Status: repo.GuildMemberStatusOffline, LogoutTime: 10},
 		},
-	}, nil)
+	}, nil).Once()
 
 	cache := NewGuildsInMemCache(repoMock).(*guildsInMemCache)
 	cache.cache = map[uint32]map[uint64]*repo.Guild{realmID: {}}
@@ -364,7 +375,7 @@ func Test_guildsInMemCache_CreateGuildLeaderStaysOnlineAcrossRefresh(t *testing.
 	guild, err := cache.GuildByRealmAndID(context.Background(), realmID, guildID)
 	assert.NoError(t, err)
 	assert.Equal(t, repo.GuildMemberStatusOnline, guild.GuildMembers[0].Status)
-	repoMock.AssertNumberOfCalls(t, "GuildByRealmAndID", 2)
+	repoMock.AssertNumberOfCalls(t, "GuildByRealmAndID", 1)
 }
 
 func Test_guildsInMemCache_SeedOnlineChars(t *testing.T) {

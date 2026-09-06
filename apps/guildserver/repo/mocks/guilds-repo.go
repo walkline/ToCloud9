@@ -28,6 +28,27 @@ func (_m *GuildsRepo) AddGuildInvite(ctx context.Context, realmID uint32, charGU
 	return r0
 }
 
+// AcceptGuildInvite provides a mock function with given fields: ctx, realmID, member
+func (_m *GuildsRepo) AcceptGuildInvite(ctx context.Context, realmID uint32, member repo.GuildMember) (uint64, error) {
+	ret := _m.Called(ctx, realmID, member)
+	var r0 uint64
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, uint32, repo.GuildMember) (uint64, error)); ok {
+		return rf(ctx, realmID, member)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, uint32, repo.GuildMember) uint64); ok {
+		r0 = rf(ctx, realmID, member)
+	} else {
+		r0 = ret.Get(0).(uint64)
+	}
+	if rf, ok := ret.Get(1).(func(context.Context, uint32, repo.GuildMember) error); ok {
+		r1 = rf(ctx, realmID, member)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
 // AddGuildMember provides a mock function with given fields: ctx, realmID, member
 func (_m *GuildsRepo) AddGuildMember(ctx context.Context, realmID uint32, member repo.GuildMember) error {
 	ret := _m.Called(ctx, realmID, member)
@@ -93,6 +114,28 @@ func (_m *GuildsRepo) GuildByRealmAndID(ctx context.Context, realmID uint32, gui
 		r1 = ret.Error(1)
 	}
 
+	return r0, r1
+}
+
+// MemberAuthzForGuild provides a mock function with given fields: ctx, realmID, guildID, playerGUID
+func (_m *GuildsRepo) MemberAuthzForGuild(ctx context.Context, realmID uint32, guildID, playerGUID uint64) (*repo.MemberAuthz, error) {
+	ret := _m.Called(ctx, realmID, guildID, playerGUID)
+
+	var r0 *repo.MemberAuthz
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, uint32, uint64, uint64) (*repo.MemberAuthz, error)); ok {
+		return rf(ctx, realmID, guildID, playerGUID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, uint32, uint64, uint64) *repo.MemberAuthz); ok {
+		r0 = rf(ctx, realmID, guildID, playerGUID)
+	} else if ret.Get(0) != nil {
+		r0 = ret.Get(0).(*repo.MemberAuthz)
+	}
+	if rf, ok := ret.Get(1).(func(context.Context, uint32, uint64, uint64) error); ok {
+		r1 = rf(ctx, realmID, guildID, playerGUID)
+	} else {
+		r1 = ret.Error(1)
+	}
 	return r0, r1
 }
 

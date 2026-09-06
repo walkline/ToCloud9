@@ -2,12 +2,12 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
 	"database/sql"
 	"fmt"
 	"net"
 	"os"
 	"os/signal"
-	"strconv"
 	"sync"
 	"syscall"
 	"time"
@@ -30,8 +30,18 @@ import (
 )
 
 func init() {
-	// set service identifier with almost random number
-	guildserver.ServiceID = strconv.Itoa(time.Now().Nanosecond())
+	// Unique instance id for NATS self-echo filtering and event ServiceID.
+	// UUID avoids nanosecond collisions across multi-replica starts.
+	guildserver.ServiceID = newGuildserverInstanceID()
+}
+
+func newGuildserverInstanceID() string {
+	// Collision-resistant across multi-replica pods (self-echo filtering).
+	var b [16]byte
+	if _, err := rand.Read(b[:]); err != nil {
+		return fmt.Sprintf("gs-%d-%d", time.Now().UnixNano(), os.Getpid())
+	}
+	return fmt.Sprintf("gs-%x", b[:])
 }
 
 func main() {
@@ -109,7 +119,23 @@ func createGuildService(cfg *config.Config, natsCon *nats.Conn) (service.GuildSe
 		log.Fatal().Err(err).Msg("can't create guilds repo")
 	}
 
-	cache := service.NewGuildsInMemCache(guildsRepo)
+	innerCache := service.NewGuildsInMemCache(guildsRepo)
+
+	// Peer cache bus (decoupled from UI guild.* events).
+	cacheProducer := events.NewGuildCacheProducerNatsJSON(natsCon, guildserver.Ver)
+	cache := service.NewGuildsCacheWithCoherence(innerCache, cacheProducer, guildserver.ServiceID)
+
+	// Warm every configured realm before accepting peer invalidates / traffic.
+	for realmID := range cfg.CharDBConnection {
+		if err = cache.Warmup(context.Background(), realmID); err != nil {
+			log.Fatal().Err(err).Uint32("realmID", realmID).Msg("can't warmup guilds cache")
+		}
+	}
+
+	if err = events.NewGuildCacheConsumer(natsCon, cache).Listen(); err != nil {
+		log.Fatal().Err(err).Msg("can't listen to guild cache coherence events")
+	}
+
 	err = events.NewGatewayConsumer(
 		natsCon,
 		events.WithGWConsumerLoggedInHandler(cache),
@@ -118,11 +144,6 @@ func createGuildService(cfg *config.Config, natsCon *nats.Conn) (service.GuildSe
 	).Listen()
 	if err != nil {
 		log.Fatal().Err(err).Msg("can't listen to gateway updates")
-	}
-
-	err = cache.Warmup(context.Background(), 1)
-	if err != nil {
-		log.Fatal().Err(err).Msg("can't warmup guilds cache")
 	}
 
 	charsListener := service.NewCharactersListener(natsCon, cache)
@@ -138,7 +159,8 @@ func createGuildService(cfg *config.Config, natsCon *nats.Conn) (service.GuildSe
 	producer := events.NewGuildServiceProducerNatsJSON(natsCon, guildserver.Ver)
 
 	bankRepo := repo.NewGuildBankMySQLRepo(charDB)
-	bankService := service.NewGuildBankService(bankRepo, cache, producer)
+	// Bank authz uses MemberAuthzForGuild (point query); peerSync unused for ForceRefresh.
+	bankService := service.NewGuildBankService(bankRepo, cache, producer, nil)
 	startBankWithdrawalsReset(cfg, bankRepo)
 
 	return service.NewGuildService(cache, producer), bankService
@@ -146,6 +168,7 @@ func createGuildService(cfg *config.Config, natsCon *nats.Conn) (service.GuildSe
 
 // startBankWithdrawalsReset zeroes the daily guild bank withdrawal counters
 // of every realm once a day at 06:00 UTC (AC "Guild Daily Cap reset").
+// Only one multi-replica pod runs the reset per realm (MySQL GET_LOCK).
 func startBankWithdrawalsReset(cfg *config.Config, bankRepo repo.GuildBankRepo) {
 	go func() {
 		for {
@@ -157,7 +180,14 @@ func startBankWithdrawalsReset(cfg *config.Config, bankRepo repo.GuildBankRepo) 
 			time.Sleep(next.Sub(now))
 
 			for realmID := range cfg.CharDBConnection {
-				if err := bankRepo.ResetDailyWithdrawals(context.Background(), realmID); err != nil {
+				ctx := context.Background()
+				if !bankRepo.TryAcquireDailyResetLock(ctx, realmID) {
+					log.Debug().Uint32("realmID", realmID).Msg("guild bank daily reset: another replica holds the lock")
+					continue
+				}
+				err := bankRepo.ResetDailyWithdrawals(ctx, realmID)
+				bankRepo.ReleaseDailyResetLock(ctx, realmID)
+				if err != nil {
 					log.Error().Err(err).Uint32("realmID", realmID).Msg("can't reset guild bank withdrawals")
 				} else {
 					log.Info().Uint32("realmID", realmID).Msg("guild bank daily withdrawals reset")

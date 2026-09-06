@@ -581,7 +581,7 @@ func (s *ChatService) InviteToChannel(ctx context.Context, req *pb.InviteToChann
 		RealmID:       req.RealmID,
 		ChannelName:   req.ChannelName,
 		ChannelID:     channel.GetChannelID(),
-		NotifyType:    0x18, // ChatInviteNotice
+		NotifyType:    0x18,            // ChatInviteNotice
 		TargetGUID:    req.InviterGUID, // The inviter's GUID (shown in the packet)
 		TargetName:    req.TargetName,
 		SecondGUID:    req.InviterGUID,

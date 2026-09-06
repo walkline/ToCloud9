@@ -630,6 +630,33 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 	return err
 }
 
+// TryAcquireDailyResetLock takes a MySQL named lock so only one guildserver
+// replica runs the 06:00 UTC daily withdrawal reset. Returns false if another
+// replica already holds the lock (or on error). Caller must ReleaseDailyResetLock.
+func (g *guildBankMySQLRepo) TryAcquireDailyResetLock(ctx context.Context, realmID uint32) bool {
+	db := g.db.DBByRealm(realmID)
+	if db == nil {
+		return false
+	}
+	var got int
+	// Non-blocking: timeout 0.
+	err := db.QueryRowContext(ctx, "SELECT GET_LOCK(?, 0)", dailyResetLockName(realmID)).Scan(&got)
+	return err == nil && got == 1
+}
+
+// ReleaseDailyResetLock releases the lock acquired by TryAcquireDailyResetLock.
+func (g *guildBankMySQLRepo) ReleaseDailyResetLock(ctx context.Context, realmID uint32) {
+	db := g.db.DBByRealm(realmID)
+	if db == nil {
+		return
+	}
+	_, _ = db.ExecContext(ctx, "SELECT RELEASE_LOCK(?)", dailyResetLockName(realmID))
+}
+
+func dailyResetLockName(realmID uint32) string {
+	return fmt.Sprintf("tc9_guild_bank_daily_reset_%d", realmID)
+}
+
 func (g *guildBankMySQLRepo) ResetDailyWithdrawals(ctx context.Context, realmID uint32) error {
 	_, err := g.db.DBByRealm(realmID).ExecContext(ctx,
 		"UPDATE guild_member_withdraw SET tab0 = 0, tab1 = 0, tab2 = 0, tab3 = 0, tab4 = 0, tab5 = 0, money = 0")

@@ -166,4 +166,10 @@ type GuildBankRepo interface {
 
 	// ResetDailyWithdrawals zeroes all member withdrawal counters of the realm.
 	ResetDailyWithdrawals(ctx context.Context, realmID uint32) error
+
+	// TryAcquireDailyResetLock returns true if this process holds the
+	// multi-replica singleton lock for the daily withdrawal reset of realmID.
+	// Call ReleaseDailyResetLock when finished (even if ResetDailyWithdrawals fails).
+	TryAcquireDailyResetLock(ctx context.Context, realmID uint32) bool
+	ReleaseDailyResetLock(ctx context.Context, realmID uint32)
 }

@@ -27,13 +27,13 @@ type AuctionHouseEventAuctionCreatedPayload struct {
 }
 
 type AuctionHouseEventBidPlacedPayload struct {
-	RealmID    uint32 `json:"realm_id"`
-	AuctionID  uint32 `json:"auction_id"`
-	BuyGUID    uint32 `json:"buy_guid"`
-	LastBid    uint32 `json:"last_bid"`
-	IsBuyout   bool   `json:"is_buyout"`
-	OldBidder  uint32 `json:"old_bidder,omitempty"`
-	OldBid     uint32 `json:"old_bid,omitempty"`
+	RealmID   uint32 `json:"realm_id"`
+	AuctionID uint32 `json:"auction_id"`
+	BuyGUID   uint32 `json:"buy_guid"`
+	LastBid   uint32 `json:"last_bid"`
+	IsBuyout  bool   `json:"is_buyout"`
+	OldBidder uint32 `json:"old_bidder,omitempty"`
+	OldBid    uint32 `json:"old_bid,omitempty"`
 }
 
 type AuctionHouseEventAuctionCanceledPayload struct {

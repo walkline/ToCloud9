@@ -95,7 +95,6 @@ func (m *charServicePetitionMock) GuildNameExists(_ context.Context, _ *pbChar.G
 	return &pbChar.GuildNameExistsResponse{Exists: false}, nil
 }
 
-
 // worldClientTurnInMock returns the charter item for GetPlayerItemsByGuids by default.
 type worldClientTurnInMock struct {
 	pbWorld.WorldServerServiceClient

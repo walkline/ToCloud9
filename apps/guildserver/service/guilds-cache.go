@@ -29,6 +29,9 @@ type GuildsCache interface {
 
 	// GuildMembershipSource part of the interface since cached membership can be stale.
 	GuildMembershipSource
+
+	// GuildCachePeerSync applies peer-replica invalidations and strong reloads.
+	GuildCachePeerSync
 }
 
 // GuildMembershipSource provides guild membership from the source of truth,
@@ -37,4 +40,17 @@ type GuildMembershipSource interface {
 	// GuildIDByRealmAndMemberGUIDFromSource returns guild id by guild member guid
 	// from the underlying storage.
 	GuildIDByRealmAndMemberGUIDFromSource(ctx context.Context, realmID uint32, memberGUID uint64) (uint64, error)
+}
+
+// GuildCachePeerSync is the peer-coherence surface for multi-replica guildserver.
+// Kept separate from GuildsRepo so bank/UI producers do not depend on NATS.
+type GuildCachePeerSync interface {
+	// ForceRefreshGuild re-hydrates one guild from MySQL, bypassing the
+	// normal refresh throttle (used after peer invalidation and for bank authz).
+	// Returns an error if the underlying load fails (callers may fail closed).
+	ForceRefreshGuild(ctx context.Context, realmID uint32, guildID uint64) error
+	// HandleGuildCacheInvalidate implements events.GuildCacheInvalidateHandler.
+	HandleGuildCacheInvalidate(payload events.GuildCacheInvalidatePayload) error
+	// SetLocalServiceID configures self-echo filtering for peer invalidations.
+	SetLocalServiceID(id string)
 }

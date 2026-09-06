@@ -719,14 +719,9 @@ func (_m *CharactersServiceClient) ValidateGuildPetitionTurnIn(ctx context.Conte
 	return r0, r1
 }
 
-
-
 // UpsertGuildPetition provides a mock function with given fields: ctx, in, opts
 
 // GuildNameExists provides a mock function with given fields: ctx, in, opts
-
-
-
 
 func (_m *CharactersServiceClient) GuildNameExists(ctx context.Context, in *pb.GuildNameExistsRequest, opts ...grpc.CallOption) (*pb.GuildNameExistsResponse, error) {
 	_va := make([]interface{}, len(opts))

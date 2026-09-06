@@ -240,12 +240,99 @@ func (g *guildsMySQLRepo) GuildIDByRealmAndMemberGUID(ctx context.Context, realm
 	return guildID, nil
 }
 
+// MemberAuthzForGuild returns a cheap authz snapshot for one player in a guild.
+// Matches characters.guid as either a full ObjectGuid or the 32-bit counter.
+func (g *guildsMySQLRepo) MemberAuthzForGuild(ctx context.Context, realmID uint32, guildID, playerGUID uint64) (*MemberAuthz, error) {
+	db := g.db.DBByRealm(realmID)
+	guidLow := uint64(uint32(playerGUID))
+	const q = `
+SELECT gm.guildid, g.name, g.leaderguid, gm.guid, gm.` + "`rank`" + `, gr.rights, gr.BankMoneyPerDay
+FROM guild_member gm
+JOIN guild g ON g.guildid = gm.guildid
+JOIN guild_rank gr ON gr.guildid = gm.guildid AND gr.rid = gm.` + "`rank`" + `
+WHERE gm.guildid = ? AND (gm.guid = ? OR gm.guid = ?)
+LIMIT 1`
+	var a MemberAuthz
+	err := db.QueryRowContext(ctx, q, guildID, playerGUID, guidLow).Scan(
+		&a.GuildID, &a.GuildName, &a.LeaderGUID, &a.PlayerGUID, &a.Rank, &a.RankRights, &a.MoneyPerDay,
+	)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &a, nil
+}
+
 // AddGuildMember adds guild member to the guild.
 func (g *guildsMySQLRepo) AddGuildMember(ctx context.Context, realmID uint32, member GuildMember) error {
 	_, err := g.db.PreparedStatement(realmID, StmtAddGuildMember).ExecContext(
 		ctx, member.GuildID, member.PlayerGUID, member.Rank, member.PublicNote, member.OfficerNote,
 	)
 	return err
+}
+
+// AcceptGuildInvite deletes the invite and inserts the guild member in one TX.
+func (g *guildsMySQLRepo) AcceptGuildInvite(ctx context.Context, realmID uint32, member GuildMember) (uint64, error) {
+	db := g.db.DBByRealm(realmID)
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return 0, err
+	}
+	defer tx.Rollback()
+
+	guidLow := uint64(uint32(member.PlayerGUID))
+	var guildID uint64
+	err = tx.QueryRowContext(ctx,
+		"SELECT guildId FROM guild_invites WHERE charGuid = ? OR charGuid = ? FOR UPDATE",
+		member.PlayerGUID, guidLow,
+	).Scan(&guildID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return 0, errors.New("character doesn't have invites")
+	}
+	if err != nil {
+		return 0, err
+	}
+
+	var existingGuild uint64
+	err = tx.QueryRowContext(ctx,
+		"SELECT guildid FROM guild_member WHERE guid = ? OR guid = ? LIMIT 1",
+		member.PlayerGUID, guidLow,
+	).Scan(&existingGuild)
+	if err == nil && existingGuild != 0 {
+		// Drop the stale invite so the client is not stuck.
+		_, _ = tx.ExecContext(ctx, "DELETE FROM guild_invites WHERE charGuid = ? OR charGuid = ?", member.PlayerGUID, guidLow)
+		_ = tx.Commit()
+		return 0, ErrAlreadyInGuild
+	}
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return 0, err
+	}
+
+	if _, err = tx.ExecContext(ctx,
+		"DELETE FROM guild_invites WHERE charGuid = ? OR charGuid = ?",
+		member.PlayerGUID, guidLow,
+	); err != nil {
+		return 0, err
+	}
+
+	// Persist the 32-bit character counter (AC guild_member.guid).
+	memberGUID := guidLow
+	if member.PlayerGUID != 0 && member.PlayerGUID <= 0xFFFFFFFF {
+		memberGUID = member.PlayerGUID
+	}
+	if _, err = tx.ExecContext(ctx,
+		"INSERT INTO guild_member (guildid, guid, `rank`, pnote, offnote) VALUES (?, ?, ?, ?, ?)",
+		guildID, memberGUID, member.Rank, member.PublicNote, member.OfficerNote,
+	); err != nil {
+		return 0, err
+	}
+
+	if err = tx.Commit(); err != nil {
+		return 0, err
+	}
+	return guildID, nil
 }
 
 // RemoveGuildMember removes guild member from the guild.

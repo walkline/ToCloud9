@@ -26,7 +26,7 @@ func NewCrossRealmMgr(client pb.GuidServiceClient, guidType pb.GuidType, desired
 	}
 
 	mgr.InitForRealm(defaultRealmID)
-	
+
 	return mgr
 }
 

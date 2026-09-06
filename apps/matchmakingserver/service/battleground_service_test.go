@@ -1,8 +1,8 @@
 package service
 
 import (
-	"sync"
 	"context"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -176,7 +176,7 @@ func TestAddQueueForGroupMembersIfFreeConcurrent(t *testing.T) {
 	}
 	assert.Equal(t, 1, succeeded, "exactly one concurrent enqueue must win")
 }
-  
+
 func TestBattlegroundStatusChangedEndedPurgesInvitedLinks(t *testing.T) {
 	bgRepo := repo.NewBattlegroundInMemRepo()
 

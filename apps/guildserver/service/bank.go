@@ -76,7 +76,10 @@ type guildBankServiceImpl struct {
 	eventsProducer events.GuildServiceProducer
 }
 
-func NewGuildBankService(bankRepo repo.GuildBankRepo, guildsRepo repo.GuildsRepo, eventsProducer events.GuildServiceProducer) GuildBankService {
+// NewGuildBankService constructs the bank domain service.
+// peerSync is accepted for API compatibility with older call sites but ignored:
+// bank authz uses a cheap MySQL point query (MemberAuthzForGuild), not full roster ForceRefresh.
+func NewGuildBankService(bankRepo repo.GuildBankRepo, guildsRepo repo.GuildsRepo, eventsProducer events.GuildServiceProducer, _ GuildCachePeerSync) GuildBankService {
 	return &guildBankServiceImpl{
 		bankRepo:       bankRepo,
 		guildsRepo:     guildsRepo,
@@ -84,35 +87,44 @@ func NewGuildBankService(bankRepo repo.GuildBankRepo, guildsRepo repo.GuildsRepo
 	}
 }
 
-// memberContext resolves the guild and the member with its rank, making sure
-// the player belongs to the guild it claims to act on.
+// memberContext resolves membership and rank for bank authz via a point query
+// (MemberAuthzForGuild). Soft-loads the roster cache only for event fan-out
+// (MembersOnline); bank rights never depend on a full ForceRefresh.
 func (g *guildBankServiceImpl) memberContext(ctx context.Context, realmID uint32, guildID, playerGUID uint64) (*repo.Guild, *repo.GuildMember, *repo.GuildRank, error) {
+	authz, err := g.guildsRepo.MemberAuthzForGuild(ctx, realmID, guildID, playerGUID)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	if authz == nil || authz.GuildID == 0 {
+		return nil, nil, nil, ErrGuildNotFound
+	}
+
+	member := &repo.GuildMember{
+		GuildID:    authz.GuildID,
+		PlayerGUID: authz.PlayerGUID,
+		Rank:       authz.Rank,
+	}
+	rank := &repo.GuildRank{
+		GuildID:     authz.GuildID,
+		Rank:        authz.Rank,
+		Rights:      authz.RankRights,
+		MoneyPerDay: authz.MoneyPerDay,
+	}
+
+	// Soft cache load for online fan-out; never force-rehydrate the full roster here.
 	guild, err := g.guildsRepo.GuildByRealmAndID(ctx, realmID, guildID)
 	if err != nil {
 		return nil, nil, nil, err
 	}
 	if guild == nil {
-		return nil, nil, nil, ErrGuildNotFound
-	}
-
-	var member *repo.GuildMember
-	for _, m := range guild.GuildMembers {
-		// Roster stores characters.guid (counter); callers may pass full ObjectGuid.
-		if sameCharacterGUID(m.PlayerGUID, playerGUID) {
-			member = m
-			break
+		guild = &repo.Guild{
+			RealmID:    realmID,
+			ID:         authz.GuildID,
+			Name:       authz.GuildName,
+			LeaderGUID: authz.LeaderGUID,
 		}
 	}
-	if member == nil {
-		return nil, nil, nil, ErrGuildNotFound
-	}
-
-	for i := range guild.GuildRanks {
-		if guild.GuildRanks[i].Rank == member.Rank {
-			return guild, member, &guild.GuildRanks[i], nil
-		}
-	}
-	return nil, nil, nil, ErrGuildNotFound
+	return guild, member, rank, nil
 }
 
 func (g *guildBankServiceImpl) isGuildMaster(member *repo.GuildMember) bool {

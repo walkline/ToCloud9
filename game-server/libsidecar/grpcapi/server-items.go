@@ -215,8 +215,8 @@ func (w *WorldServerGRPCAPI) DestroyItemsWithGuidsFromPlayer(ctx context.Context
 	}
 
 	return &pb.DestroyItemsWithGuidsFromPlayerResponse{
-		Api:                  LibVer,
-		DestroyedItemsGuids:  resp.items,
+		Api:                 LibVer,
+		DestroyedItemsGuids: resp.items,
 	}, nil
 }
 
