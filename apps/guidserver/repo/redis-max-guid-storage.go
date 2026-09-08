@@ -19,6 +19,7 @@ type MaxGuidStorage interface {
 
 	// SetMaxGuidForInstances sets max guid for dungeon/raid instance. Unsafe for concurrent usage. Use IncreaseMaxGuidForItems instead.
 	SetMaxGuidForInstances(ctx context.Context, realmID uint32, value uint64) error
+	SetMaxGuidForPetNumbers(ctx context.Context, realmID uint32, value uint64) error
 
 	// IncreaseMaxGuidForCharacters increases max character guid to increaseAmount value and returns new max guid.
 	IncreaseMaxGuidForCharacters(ctx context.Context, realmID uint32, increaseAmount uint64) (uint64, error)
@@ -28,6 +29,7 @@ type MaxGuidStorage interface {
 
 	// IncreaseMaxGuidForInstances increases max dungeon/raid instance guid to increaseAmount value and returns new max guid.
 	IncreaseMaxGuidForInstances(ctx context.Context, realmID uint32, increaseAmount uint64) (uint64, error)
+	IncreaseMaxGuidForPetNumbers(ctx context.Context, realmID uint32, increaseAmount uint64) (uint64, error)
 }
 
 // NewRedisMaxGuidStorage returns new redis max guids storage.
@@ -53,6 +55,23 @@ func (r *redisMaxGuidStorage) SetMaxGuidForItems(ctx context.Context, realmID ui
 
 func (r *redisMaxGuidStorage) SetMaxGuidForInstances(ctx context.Context, realmID uint32, value uint64) error {
 	return r.rdb.Set(ctx, r.instanceKey(realmID), value, 0).Err()
+}
+
+func (r *redisMaxGuidStorage) SetMaxGuidForPetNumbers(ctx context.Context, realmID uint32, value uint64) error {
+	return r.rdb.Set(ctx, r.petNumberKey(realmID), value, 0).Err()
+}
+
+func (r *redisMaxGuidStorage) MaxGuidForPetNumbers(ctx context.Context, realmID uint32) (uint64, error) {
+	v, err := r.rdb.Get(ctx, r.petNumberKey(realmID)).Uint64()
+	if err != nil && err != redis.Nil {
+		return 0, err
+	}
+
+	return v, nil
+}
+
+func (r *redisMaxGuidStorage) IncreaseMaxGuidForPetNumbers(ctx context.Context, realmID uint32, increaseAmount uint64) (uint64, error) {
+	return r.increaseKey(ctx, r.petNumberKey(realmID), increaseAmount)
 }
 
 func (r *redisMaxGuidStorage) MaxGuidForCharacters(ctx context.Context, realmID uint32) (uint64, error) {
@@ -139,4 +158,8 @@ func (r *redisMaxGuidStorage) characterKey(realmID uint32) string {
 
 func (r *redisMaxGuidStorage) instanceKey(realmID uint32) string {
 	return fmt.Sprintf("realm:%d:maxInstance", realmID)
+}
+
+func (r *redisMaxGuidStorage) petNumberKey(realmID uint32) string {
+	return fmt.Sprintf("realm:%d:maxPetNumber", realmID)
 }

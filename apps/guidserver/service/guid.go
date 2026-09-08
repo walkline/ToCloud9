@@ -18,6 +18,7 @@ const (
 	GuidTypeCharacter GuidType = iota
 	GuidTypeItem
 	GuidTypeInstance
+	GuidTypePetNumber
 	GuidTypeMax
 )
 
@@ -93,6 +94,24 @@ func NewGuidService(ctx context.Context, mysql repo.MaxGuidProvider, redisStorag
 			}
 		}
 
+		// Inits pet numbers max in redis if needed.
+		max, err = redisStorage.MaxGuidForPetNumbers(ctx, realmID)
+		if err != nil {
+			return nil, err
+		}
+
+		if max == 0 {
+			max, err = mysql.MaxGuidForPetNumbers(ctx, realmID)
+			if err != nil {
+				return nil, err
+			}
+
+			err = redisStorage.SetMaxGuidForPetNumbers(ctx, realmID, max)
+			if err != nil {
+				return nil, err
+			}
+		}
+
 		caches := [GuidTypeMax]*AvailableDiapasons{}
 		for i := range service.localCache[realmID] {
 			caches[i] = &AvailableDiapasons{}
@@ -109,6 +128,10 @@ func (g *guidServiceImpl) GetGuids(ctx context.Context, realmID uint32, guidType
 	availableGuidsWithTypes, found := g.localCache[realmID]
 	if !found {
 		return nil, fmt.Errorf("realmID %d not found", realmID)
+	}
+
+	if guidType >= uint8(GuidTypeMax) {
+		return nil, fmt.Errorf("unknown guid type %d", guidType)
 	}
 
 	availableGuids := availableGuidsWithTypes[guidType]
@@ -256,6 +279,17 @@ func (g *guidServiceImpl) requestProcessor(requests <-chan guidsRequest, respons
 				continue
 			}
 
+		case GuidTypePetNumber:
+			newMax, err = g.maxGuidsStorage.IncreaseMaxGuidForPetNumbers(ctx, r.realmID, r.desiredAmount)
+			cancel()
+			if err != nil {
+				log.Err(err).Msg("can't increase pet numbers guid")
+				response <- guidsResponse{
+					request:  r,
+					newGuids: GuidDiapason{},
+				}
+				continue
+			}
 		default:
 			log.Err(fmt.Errorf("unk guid type: %d", r.guidType))
 			cancel()

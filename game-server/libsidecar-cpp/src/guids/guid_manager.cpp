@@ -147,6 +147,7 @@ GuidManager::GuidManager() {
     character_guids_ = std::make_unique<GuidIterator>(0, false);  // Character
     item_guids_ = std::make_unique<GuidIterator>(1, true);        // Item (THREAD-SAFE)
     instance_guids_ = std::make_unique<GuidIterator>(2, false);   // Instance
+    pet_number_guids_ = std::make_unique<GuidIterator>(3, true);  // PetNumber (THREAD-SAFE)
 
     spdlog::debug("GuidManager created");
 }
@@ -171,6 +172,7 @@ void GuidManager::Initialize(GrpcClients* clients, uint32_t realm_id) {
     RefillGuidPool(0, realm_id);  // Characters
     RefillGuidPool(1, realm_id);  // Items
     RefillGuidPool(2, realm_id);  // Instances
+    RefillGuidPool(3, realm_id);  // Pet numbers
 
     initialized_ = true;
 }
@@ -232,6 +234,25 @@ uint64_t GuidManager::GetNextInstanceGuid(uint32_t realm_id) {
     return guid;
 }
 
+uint64_t GuidManager::GetNextPetNumber(uint32_t realm_id) {
+    if (!initialized_) {
+        spdlog::error("GuidManager not initialized");
+        return 0;
+    }
+
+    uint32_t realm = realm_id ? realm_id : default_realm_id_;
+    uint64_t guid = pet_number_guids_->Next(realm);
+
+    // Check if we need to refill (async)
+    if (pet_number_guids_->NeedsRefill()) {
+        std::thread([this, realm]() {
+            RefillGuidPool(3, realm);
+        }).detach();
+    }
+
+    return guid;
+}
+
 void GuidManager::RefillGuidPool(int guid_type, uint32_t realm_id) {
     if (!grpc_clients_) {
         spdlog::error("Cannot refill GUID pool: no gRPC client");
@@ -259,6 +280,9 @@ void GuidManager::RefillGuidPool(int guid_type, uint32_t realm_id) {
                 break;
             case 2:  // Instance
                 instance_guids_->AddRanges(ranges);
+                break;
+            case 3:  // PetNumber
+                pet_number_guids_->AddRanges(ranges);
                 break;
             default:
                 spdlog::error("Invalid GUID type: {}", guid_type);

@@ -16,6 +16,7 @@ type MaxGuidProvider interface {
 
 	// MaxGuidForInstances returns max guid for dungeon/raid instance.
 	MaxGuidForInstances(ctx context.Context, realmID uint32) (uint64, error)
+	MaxGuidForPetNumbers(ctx context.Context, realmID uint32) (uint64, error)
 }
 
 type mysqlMaxGuidRepo struct {
@@ -26,6 +27,7 @@ func NewMysqlMaxGuidRepo(db shrepo.CharactersDB) (MaxGuidProvider, error) {
 	db.SetPreparedStatement(StmtGetMaxCharacterGUID)
 	db.SetPreparedStatement(StmtGetMaxItemGUID)
 	db.SetPreparedStatement(StmtGetMaxInstanceGUID)
+	db.SetPreparedStatement(StmtGetMaxPetNumber)
 
 	return &mysqlMaxGuidRepo{
 		charDB: db,
@@ -76,6 +78,21 @@ func (m *mysqlMaxGuidRepo) MaxGuidForInstances(ctx context.Context, realmID uint
 
 // CharsPreparedStatements represents prepared statements for the characters database.
 // Implements sharedrepo.PreparedStatement interface.
+func (m *mysqlMaxGuidRepo) MaxGuidForPetNumbers(ctx context.Context, realmID uint32) (uint64, error) {
+	row := m.charDB.PreparedStatement(realmID, StmtGetMaxPetNumber).QueryRowContext(ctx)
+	if row.Err() != nil {
+		return 0, row.Err()
+	}
+
+	var guid uint64
+	err := row.Scan(&guid)
+	if err != nil {
+		return 0, err
+	}
+
+	return guid, nil
+}
+
 type CharsPreparedStatements uint32
 
 const (
@@ -87,6 +104,7 @@ const (
 
 	// StmtGetMaxInstanceGUID returns max GUID for instance table.
 	StmtGetMaxInstanceGUID
+	StmtGetMaxPetNumber
 )
 
 // ID returns identifier of prepared statement.
@@ -103,6 +121,8 @@ func (s CharsPreparedStatements) Stmt() string {
 		return "SELECT COALESCE(MAX(guid), 0) FROM item_instance"
 	case StmtGetMaxInstanceGUID:
 		return "SELECT COALESCE(MAX(id), 0) FROM instance"
+	case StmtGetMaxPetNumber:
+		return "SELECT COALESCE(MAX(id), 0) FROM character_pet"
 	}
 	panic(fmt.Errorf("unk stmt %d", s))
 }

@@ -44,7 +44,7 @@ public:
 private:
     void MoveToNextRange();
 
-    int guid_type_;                     // 0=Character, 1=Item, 2=Instance
+    int guid_type_;                     // 0=Character, 1=Item, 2=Instance, 3=PetNumber
     bool thread_safe_;                  // Use atomics if true
 
     // GUID ranges and current position
@@ -77,6 +77,7 @@ public:
     uint64_t GetNextCharacterGuid(uint32_t realm_id);
     uint64_t GetNextItemGuid(uint32_t realm_id);        // THREAD-SAFE
     uint64_t GetNextInstanceGuid(uint32_t realm_id);
+    uint64_t GetNextPetNumber(uint32_t realm_id);      // THREAD-SAFE (map threads)
 
     // Check if initialization is needed
     bool IsInitialized() const { return initialized_; }
@@ -102,6 +103,7 @@ private:
     std::unique_ptr<GuidIterator> character_guids_;  // Thread-unsafe (fast)
     std::unique_ptr<GuidIterator> item_guids_;       // Thread-safe (atomics)
     std::unique_ptr<GuidIterator> instance_guids_;   // Thread-unsafe (fast)
+    std::unique_ptr<GuidIterator> pet_number_guids_; // Thread-safe (atomics)
 
     // Pool size to request from service
     static constexpr uint64_t POOL_SIZE = 10000;

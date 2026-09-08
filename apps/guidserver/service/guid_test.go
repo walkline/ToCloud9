@@ -13,10 +13,12 @@ type MaxGuidStorageMock struct {
 	charCounter      []uint64
 	itemCounter      []uint64
 	instancesCounter []uint64
+	petNumberCounter []uint64
 
 	charLock      sync.RWMutex
 	itemLock      sync.RWMutex
 	instancesLock sync.RWMutex
+	petNumberLock sync.RWMutex
 
 	increaseDelay time.Duration
 
@@ -116,6 +118,37 @@ func (m *MaxGuidStorageMock) IncreaseMaxGuidForInstances(ctx context.Context, re
 	return m.instancesCounter[realmID], nil
 }
 
+func (m *MaxGuidStorageMock) MaxGuidForPetNumbers(ctx context.Context, realmID uint32) (uint64, error) {
+	m.petNumberLock.RLock()
+	defer m.petNumberLock.RUnlock()
+
+	return m.petNumberCounter[realmID], nil
+}
+
+func (m *MaxGuidStorageMock) SetMaxGuidForPetNumbers(ctx context.Context, realmID uint32, value uint64) error {
+	m.petNumberLock.Lock()
+	defer m.petNumberLock.Unlock()
+
+	m.petNumberCounter[realmID] = value
+	return nil
+}
+
+func (m *MaxGuidStorageMock) IncreaseMaxGuidForPetNumbers(ctx context.Context, realmID uint32, increaseAmount uint64) (uint64, error) {
+	m.petNumberLock.Lock()
+	defer m.petNumberLock.Unlock()
+
+	if m.increaseDelay > 0 {
+		time.Sleep(m.increaseDelay)
+	}
+
+	m.counterLock.Lock()
+	m.requestsCounter++
+	m.counterLock.Unlock()
+
+	m.petNumberCounter[realmID] += increaseAmount
+	return m.petNumberCounter[realmID], nil
+}
+
 func (m *MaxGuidStorageMock) GetRequestsCounter() int {
 	m.counterLock.Lock()
 	defer m.counterLock.Unlock()
@@ -130,6 +163,7 @@ func Test_guidServiceImpl_GetGuids(t *testing.T) {
 		charCounter:      []uint64{1000, 1000, 1000},
 		itemCounter:      []uint64{1, 1, 1},
 		instancesCounter: []uint64{1, 1, 1},
+		petNumberCounter: []uint64{1, 1, 1},
 		//increaseDelay: time.Microsecond * 1,
 	}
 
@@ -158,6 +192,7 @@ func Test_guidServiceImpl_GetGuids_ThreeTypes(t *testing.T) {
 		charCounter:      []uint64{1000, 1000, 1000},
 		itemCounter:      []uint64{1, 1, 1},
 		instancesCounter: []uint64{50, 50, 50},
+		petNumberCounter: []uint64{50, 50, 50},
 		increaseDelay:    time.Millisecond * 1,
 	}
 
