@@ -35,6 +35,8 @@ typedef struct {
 typedef struct {
     uint32_t groupGuid;
     uint64_t memberGuid;
+    /* Set when the removed member was the leader; 0 otherwise */
+    uint64_t newLeaderGuid;
 } TC9EventGroupMemberRemoved;
 
 typedef struct {

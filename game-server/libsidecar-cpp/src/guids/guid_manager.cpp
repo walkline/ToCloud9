@@ -1,6 +1,8 @@
 #include "guid_manager.h"
+#include "../core/config.h"
 #include "../grpc/clients.h"
 #include <spdlog/spdlog.h>
+#include <algorithm>
 #include <thread>
 
 namespace tc9 {
@@ -77,7 +79,14 @@ void GuidIterator::AddRanges(const std::vector<std::pair<uint64_t, uint64_t>>& n
 
 bool GuidIterator::NeedsRefill() const {
     std::lock_guard<std::mutex> lock(ranges_mutex_);
-    return AvailableCount() < REFILL_THRESHOLD;
+    return AvailableCount() < refill_threshold_;
+}
+
+void GuidIterator::SetRefillPolicy(uint64_t pool_size) {
+    std::lock_guard<std::mutex> lock(ranges_mutex_);
+    // Mirror the Go sidecar: request more once 65% of the pool is used,
+    // i.e. when less than 35% remains available.
+    refill_threshold_ = static_cast<size_t>(std::max<uint64_t>(1, pool_size * 35 / 100));
 }
 
 size_t GuidIterator::AvailableCount() const {
@@ -165,7 +174,20 @@ void GuidManager::Initialize(GrpcClients* clients, uint32_t realm_id) {
     grpc_clients_ = clients;
     default_realm_id_ = realm_id;
 
-    spdlog::info("GuidManager initialized for realm {}", realm_id);
+    // Pool sizes come from the *_GUIDS_BUFFER_SIZE settings
+    auto& config = Config::Instance();
+    auto pool_size = [](int configured, uint64_t fallback) {
+        return configured > 0 ? static_cast<uint64_t>(configured) : fallback;
+    };
+    pool_sizes_[0] = pool_size(config.character_guids_buffer_size(), pool_sizes_[0]);
+    pool_sizes_[1] = pool_size(config.item_guids_buffer_size(), pool_sizes_[1]);
+    pool_sizes_[2] = pool_size(config.instance_guids_buffer_size(), pool_sizes_[2]);
+    character_guids_->SetRefillPolicy(pool_sizes_[0]);
+    item_guids_->SetRefillPolicy(pool_sizes_[1]);
+    instance_guids_->SetRefillPolicy(pool_sizes_[2]);
+
+    spdlog::info("GuidManager initialized for realm {} (pool sizes: {}/{}/{})",
+                 realm_id, pool_sizes_[0], pool_sizes_[1], pool_sizes_[2]);
 
     // Pre-fetch initial GUID pools for all types
     RefillGuidPool(0, realm_id);  // Characters
@@ -238,13 +260,18 @@ void GuidManager::RefillGuidPool(int guid_type, uint32_t realm_id) {
         return;
     }
 
+    if (guid_type < 0 || guid_type > 2) {
+        spdlog::error("Invalid GUID type: {}", guid_type);
+        return;
+    }
+
     spdlog::info("Requesting GUID pool for type {} (realm {})", guid_type, realm_id);
 
     std::vector<std::pair<uint64_t, uint64_t>> ranges;
     bool success = grpc_clients_->RequestGUIDPool(
         realm_id,
         guid_type,
-        POOL_SIZE,
+        pool_sizes_[guid_type],
         ranges
     );
 

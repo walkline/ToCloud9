@@ -41,6 +41,9 @@ public:
     // Get total available GUIDs
     size_t AvailableCount() const;
 
+    // Derive the refill trigger from the configured pool size
+    void SetRefillPolicy(uint64_t pool_size);
+
 private:
     void MoveToNextRange();
 
@@ -62,7 +65,8 @@ private:
     // Mutex only for range management (rare operations)
     mutable std::mutex ranges_mutex_;
 
-    static constexpr size_t REFILL_THRESHOLD = 1000;
+    // Refill once available GUIDs drop below this (see SetRefillPolicy)
+    size_t refill_threshold_ = 1000;
 };
 
 // Manages GUID generation for all types
@@ -103,8 +107,8 @@ private:
     std::unique_ptr<GuidIterator> item_guids_;       // Thread-safe (atomics)
     std::unique_ptr<GuidIterator> instance_guids_;   // Thread-unsafe (fast)
 
-    // Pool size to request from service
-    static constexpr uint64_t POOL_SIZE = 10000;
+    // Pool size to request from service, per GUID type (from Config)
+    uint64_t pool_sizes_[3] = {50, 200, 10};
 };
 
 }  // namespace tc9

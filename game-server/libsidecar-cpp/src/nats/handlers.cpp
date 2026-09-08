@@ -111,6 +111,7 @@ std::unique_ptr<Handler> CreateGroupMemberRemovedHandler(const std::string& data
             TC9EventGroupMemberRemoved event{};
             event.groupGuid = j.value("GroupID", 0u);
             event.memberGuid = j.value("MemberGUID", 0ull);
+            event.newLeaderGuid = j.value("NewLeaderID", 0ull);
 
             EventHooks::Instance().DispatchGroupMemberRemoved(event);
         } catch (const std::exception& e) {

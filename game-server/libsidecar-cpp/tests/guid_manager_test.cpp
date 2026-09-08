@@ -306,3 +306,39 @@ TEST(GuidIteratorTest, IncrementalRangeAddition) {
         EXPECT_EQ(i, iter.Next(1));
     }
 }
+
+// The refill trigger mirrors the Go sidecar: request more once 65% of the
+// configured pool is used, i.e. below 35% remaining.
+TEST(GuidIteratorTest, SetRefillPolicy_ThresholdFromPoolSize) {
+    GuidIterator iter(0, false);
+    iter.SetRefillPolicy(50);  // threshold = 50 * 35 / 100 = 17
+
+    std::vector<std::pair<uint64_t, uint64_t>> ranges = {{1, 51}};  // 50 GUIDs
+    iter.AddRanges(ranges);
+    EXPECT_FALSE(iter.NeedsRefill());
+
+    // Consume down to exactly 17 available: not yet below the threshold.
+    for (int i = 0; i < 33; ++i) {
+        iter.Next(1);
+    }
+    EXPECT_FALSE(iter.NeedsRefill());
+
+    // One more leaves 16 available -> below 35% remaining.
+    iter.Next(1);
+    EXPECT_TRUE(iter.NeedsRefill());
+}
+
+TEST(GuidIteratorTest, SetRefillPolicy_TinyPoolFloorsAtOne) {
+    GuidIterator iter(2, false);
+    iter.SetRefillPolicy(2);  // 2 * 35 / 100 = 0 -> floored to 1
+
+    std::vector<std::pair<uint64_t, uint64_t>> ranges = {{1, 3}};  // 2 GUIDs
+    iter.AddRanges(ranges);
+    EXPECT_FALSE(iter.NeedsRefill());
+
+    iter.Next(1);  // 1 available: not below the floor of 1
+    EXPECT_FALSE(iter.NeedsRefill());
+
+    iter.Next(1);  // exhausted -> refill
+    EXPECT_TRUE(iter.NeedsRefill());
+}
