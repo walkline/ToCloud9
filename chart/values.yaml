@@ -3,15 +3,28 @@
 # Declare variables to be passed into your templates.
 tc9ImagesTag: &defaultImagesTag "v0.0.4"
 
+global:
+  security:
+    # Bitnami moved versioned community images to the legacy archive.
+    allowInsecureImages: true
+
 redis:
   enabled: true
   architecture: standalone
+  image:
+    repository: bitnamilegacy/redis
+    tag: 7.2.3-debian-11-r1
+    digest: sha256:2f1e62f0ccd8f84daa0ee49e1eb7d9e24081d15f86d97ba3043952de2017ca75
   auth:
     enabled: false
 nats:
   enabled: true
 mysql:
   enabled: true
+  image:
+    repository: bitnamilegacy/mysql
+    tag: 8.4.4-debian-12-r0
+    digest: sha256:0c251f38541125c502546425879286abbdb3fad0a7721a648affdda47de9700b
   global:
     storageClass: standard
   initdbScriptsConfigMap: mysql-init-scripts
