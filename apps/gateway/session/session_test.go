@@ -483,7 +483,7 @@ func (m GameGRPCConnMgrMock) GRPCConnByGameServerAddress(address string) (pb.Wor
 	return m.connToReturn, m.err
 }
 
-func TestOnLoggedOutClearsGroupMemberStats(t *testing.T) {
+func TestOnLoggedOutClearsCharacterScopedCaches(t *testing.T) {
 	gwEventProducerMock := &gwProducerMock.GatewayProducer{}
 	gwEventProducerMock.On("CharacterLoggedOut", mock.Anything).Return(nil)
 
@@ -499,9 +499,11 @@ func TestOnLoggedOutClearsGroupMemberStats(t *testing.T) {
 		channelMembership:             NewChannelMembership(40554, chatChannels),
 		character:                     &LoggedInCharacter{GUID: 40554},
 		groupMemberStats:              map[uint64]events.GroupMemberStatsUpdate{60554: {MemberGUID: 60554}},
+		corpseSnapshots:               map[uint64]corpseSnapshot{1: {id: 1, operation: corpseSnapshotUpsert}},
 	}
 
 	session.onLoggedOut()
 
 	assert.Nil(t, session.groupMemberStats, "stale group member stats would be answered as online after relogin")
+	assert.Empty(t, session.corpseSnapshots, "corpse state must not cross a normal logout or character switch")
 }

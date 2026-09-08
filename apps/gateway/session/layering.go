@@ -65,8 +65,8 @@ func (s *GameSession) layerPlayerRedirect(ctx context.Context, characterGUID uin
 	}
 
 	oldSocket := s.worldSocket
-	oldSocket.Send(packet.NewWriterWithSize(packet.TC9CMsgPrepareForRedirect, 0))
-	if err := waitForWorldServerRedirect(ctx, oldSocket); err != nil {
+	oldSocket.Send(s.prepareForRedirectPacket(true))
+	if err := s.waitForWorldServerRedirect(ctx, oldSocket); err != nil {
 		return fmt.Errorf("prepare layer redirect for account %d: %w", s.accountID, err)
 	}
 
@@ -106,7 +106,7 @@ func (s *GameSession) layerPlayerRedirect(ctx context.Context, characterGUID uin
 	return nil
 }
 
-func waitForWorldServerRedirect(ctx context.Context, socket sockets.Socket) error {
+func (s *GameSession) waitForWorldServerRedirect(ctx context.Context, socket sockets.Socket) error {
 	confirmationContext, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
@@ -117,6 +117,12 @@ func waitForWorldServerRedirect(ctx context.Context, socket sockets.Socket) erro
 		case response, open := <-socket.ReadChannel():
 			if !open {
 				return nil
+			}
+			if response.Opcode == packet.TC9SMsgCorpseSnapshot {
+				if err := s.InterceptCorpseSnapshot(ctx, response); err != nil {
+					return err
+				}
+				continue
 			}
 			if response.Opcode == packet.TC9SMsgReadyForRedirect {
 				if response.Reader().Uint8() != 0 {

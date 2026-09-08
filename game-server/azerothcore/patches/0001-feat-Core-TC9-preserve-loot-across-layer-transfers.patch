@@ -1,0 +1,1717 @@
+From bbc18b8499c568a8b8df115f047801ecff4ab68a Mon Sep 17 00:00:00 2001
+From: Moostigre <moostigre@proton.me>
+Date: Sun, 30 Aug 2026 19:09:11 +0200
+Subject: [PATCH] feat(Core/TC9): preserve loot across layer transfers
+
+---
+ .../game/Entities/Creature/Creature.cpp       |  44 +-
+ src/server/game/Entities/Creature/Creature.h  |  28 +
+ src/server/game/Entities/Object/Object.cpp    |   3 +
+ src/server/game/Entities/Player/Player.cpp    |  16 +-
+ .../game/Entities/Player/PlayerStorage.cpp    |   6 +-
+ src/server/game/Entities/Unit/Unit.cpp        |   4 +
+ src/server/game/Groups/Group.cpp              |  82 +-
+ src/server/game/Groups/Group.h                |   4 +
+ src/server/game/Handlers/LootHandler.cpp      |  40 +-
+ src/server/game/Loot/LootMgr.cpp              |  59 +-
+ src/server/game/Loot/LootMgr.h                |   5 +
+ src/server/game/Server/Protocol/Opcodes.cpp   |   2 +
+ src/server/game/Server/Protocol/Opcodes.h     |   4 +-
+ src/server/game/Server/WorldSession.cpp       |  52 +-
+ src/server/game/Server/WorldSession.h         |   1 +
+ .../game/TC9Sidecar/TC9CorpseTransfer.cpp     | 798 ++++++++++++++++++
+ .../game/TC9Sidecar/TC9CorpseTransfer.h       |  58 ++
+ 17 files changed, 1178 insertions(+), 28 deletions(-)
+ create mode 100644 src/server/game/TC9Sidecar/TC9CorpseTransfer.cpp
+ create mode 100644 src/server/game/TC9Sidecar/TC9CorpseTransfer.h
+
+diff --git a/src/server/game/Entities/Creature/Creature.cpp b/src/server/game/Entities/Creature/Creature.cpp
+index a7fd97630c..72417c04a9 100644
+--- a/src/server/game/Entities/Creature/Creature.cpp
++++ b/src/server/game/Entities/Creature/Creature.cpp
+@@ -43,6 +43,7 @@
+ #include "SpellAuraEffects.h"
+ #include "SpellMgr.h"
+ #include "TemporarySummon.h"
++#include "TC9CorpseTransfer.h"
+ #include "Transport.h"
+ #include "Util.h"
+ #include "Vehicle.h"
+@@ -314,23 +315,26 @@ void Creature::AddToWorld()
+         }
+         Unit::AddToWorld();
+ 
+-        SearchFormation();
+-
+-        AIM_Initialize();
++        if (!IsTC9RecoveredCorpse())
++        {
++            SearchFormation();
++            AIM_Initialize();
++        }
+ 
+-        if (IsVehicle())
++        if (IsVehicle() && !IsTC9RecoveredCorpse())
+         {
+             GetVehicleKit()->Install();
+         }
+ 
+-        if (GetZoneScript())
++        if (GetZoneScript() && !IsTC9RecoveredCorpse())
+         {
+             GetZoneScript()->OnCreatureCreate(this);
+         }
+ 
+         loot.sourceWorldObjectGUID = GetGUID();
+ 
+-        sScriptMgr->OnCreatureAddWorld(this);
++        if (!IsTC9RecoveredCorpse())
++            sScriptMgr->OnCreatureAddWorld(this);
+     }
+ }
+ 
+@@ -338,9 +342,13 @@ void Creature::RemoveFromWorld()
+ {
+     if (IsInWorld())
+     {
+-        sScriptMgr->OnCreatureRemoveWorld(this);
++        if (GetTC9CorpseSnapshotId() || IsTC9CorpseTransferOverflow())
++            sTC9CorpseTransfer->Forget(this, true);
++
++        if (!IsTC9RecoveredCorpse())
++            sScriptMgr->OnCreatureRemoveWorld(this);
+ 
+-        if (GetZoneScript())
++        if (GetZoneScript() && !IsTC9RecoveredCorpse())
+             GetZoneScript()->OnCreatureRemove(this);
+ 
+         if (m_formation)
+@@ -420,6 +428,9 @@ void Creature::RemoveCorpse(bool setSpawnTime, bool skipVisibility)
+     if (getDeathState() != DeathState::Corpse)
+         return;
+ 
++    if (GetTC9CorpseSnapshotId() || IsTC9CorpseTransferOverflow())
++        sTC9CorpseTransfer->Forget(this, true);
++
+     if (_respawnCompatibilityMode)
+     {
+         m_corpseRemoveTime = GameTime::GetGameTime().count();
+@@ -1364,6 +1375,23 @@ void Creature::SetLootRecipient(Unit* unit, bool withGroup)
+     SetDynamicFlag(UNIT_DYNFLAG_TAPPED);
+ }
+ 
++void Creature::SetTC9CorpseTransferData(
++    uint64 snapshotId, uint32 revision, ObjectGuid carrier, GuidSet viewers, bool recovered)
++{
++    _tc9CorpseSnapshotId = snapshotId;
++    _tc9CorpseSnapshotRevision = revision;
++    _tc9CorpseCarrier = carrier;
++    _tc9CorpseViewers = std::move(viewers);
++    _tc9RecoveredCorpse = recovered;
++}
++
++void Creature::SetTC9TransferredLootRecipient(ObjectGuid recipient, ObjectGuid::LowType groupGuid)
++{
++    m_lootRecipient = recipient;
++    m_lootRecipientGroup = groupGuid;
++    SetDynamicFlag(UNIT_DYNFLAG_TAPPED | UNIT_DYNFLAG_LOOTABLE);
++}
++
+ // return true if this creature is tapped by the player or by a member of his group.
+ bool Creature::isTappedBy(Player const* player) const
+ {
+diff --git a/src/server/game/Entities/Creature/Creature.h b/src/server/game/Entities/Creature/Creature.h
+index a26e257a89..ff245ffa69 100644
+--- a/src/server/game/Entities/Creature/Creature.h
++++ b/src/server/game/Entities/Creature/Creature.h
+@@ -73,6 +73,7 @@ public:
+ 
+     void SetCorpseDelay(uint32 delay) { m_corpseDelay = delay; }
+     void SetCorpseRemoveTime(uint32 delay);
++    [[nodiscard]] time_t GetCorpseRemoveTime() const { return m_corpseRemoveTime; }
+     [[nodiscard]] uint32 GetCorpseDelay() const { return m_corpseDelay; }
+     [[nodiscard]] bool HasFlagsExtra(uint32 flag) const { return GetCreatureTemplate()->HasFlagsExtra(flag); }
+     [[nodiscard]] bool IsRacialLeader() const { return GetCreatureTemplate()->RacialLeader; }
+@@ -242,6 +243,25 @@ public:
+     void SetLootRecipient (Unit* unit, bool withGroup = true);
+     void AllLootRemovedFromCorpse();
+ 
++    void SetTC9CorpseTransferData(
++        uint64 snapshotId, uint32 revision, ObjectGuid carrier, GuidSet viewers, bool recovered);
++    void SetTC9TransferredLootRecipient(ObjectGuid recipient, ObjectGuid::LowType groupGuid);
++    [[nodiscard]] uint64 GetTC9CorpseSnapshotId() const { return _tc9CorpseSnapshotId; }
++    [[nodiscard]] uint32 GetTC9CorpseSnapshotRevision() const { return _tc9CorpseSnapshotRevision; }
++    void SetTC9CorpseSnapshotRevision(uint32 revision) { _tc9CorpseSnapshotRevision = revision; }
++    void ClearTC9CorpseSnapshotId() { _tc9CorpseSnapshotId = 0; }
++    [[nodiscard]] ObjectGuid GetTC9CorpseCarrier() const { return _tc9CorpseCarrier; }
++    [[nodiscard]] GuidSet const& GetTC9CorpseViewers() const { return _tc9CorpseViewers; }
++    [[nodiscard]] bool IsTC9RecoveredCorpse() const { return _tc9RecoveredCorpse; }
++    void SetTC9CorpseTransferOverflow(bool overflow) { _tc9CorpseTransferOverflow = overflow; }
++    [[nodiscard]] bool IsTC9CorpseTransferOverflow() const { return _tc9CorpseTransferOverflow; }
++    [[nodiscard]] bool IsTC9RecoveredMasterLootInitialized() const { return _tc9RecoveredMasterLootInitialized; }
++    void SetTC9RecoveredMasterLootInitialized() { _tc9RecoveredMasterLootInitialized = true; }
++    [[nodiscard]] bool IsTC9CorpseVisibleFor(ObjectGuid guid) const
++    {
++        return _tc9CorpseViewers.find(guid) != _tc9CorpseViewers.end();
++    }
++
+     [[nodiscard]] uint16 GetLootMode() const { return m_LootMode; }
+     [[nodiscard]] bool HasLootMode(uint16 lootMode) const { return m_LootMode & lootMode; }
+     void SetLootMode(uint16 lootMode) { m_LootMode = lootMode; }
+@@ -471,6 +491,14 @@ protected:
+     ObjectGuid m_lootRecipient;
+     ObjectGuid::LowType m_lootRecipientGroup;
+ 
++    uint64 _tc9CorpseSnapshotId{0};
++    uint32 _tc9CorpseSnapshotRevision{0};
++    ObjectGuid _tc9CorpseCarrier;
++    GuidSet _tc9CorpseViewers;
++    bool _tc9RecoveredCorpse{false};
++    bool _tc9CorpseTransferOverflow{false};
++    bool _tc9RecoveredMasterLootInitialized{false};
++
+     bool _respawnCompatibilityMode{true};
+ 
+     /// Timers
+diff --git a/src/server/game/Entities/Object/Object.cpp b/src/server/game/Entities/Object/Object.cpp
+index 9bdd47d4a5..b0cf83d97b 100644
+--- a/src/server/game/Entities/Object/Object.cpp
++++ b/src/server/game/Entities/Object/Object.cpp
+@@ -1860,6 +1860,9 @@ bool WorldObject::CanSeeOrDetect(WorldObject const* obj, bool ignoreStealth, boo
+ 
+             if (Creature const* creature = obj->ToCreature())
+             {
++                if (creature->IsTC9RecoveredCorpse() && !creature->IsTC9CorpseVisibleFor(GetGUID()))
++                    return false;
++
+                 if (TempSummon const* tempSummon = creature->ToTempSummon())
+                 {
+                     if (tempSummon->IsVisibleBySummonerOnly() && GetGUID() != tempSummon->GetSummonerGUID())
+diff --git a/src/server/game/Entities/Player/Player.cpp b/src/server/game/Entities/Player/Player.cpp
+index 9b2cb38c39..b7efbdd548 100644
+--- a/src/server/game/Entities/Player/Player.cpp
++++ b/src/server/game/Entities/Player/Player.cpp
+@@ -8195,7 +8195,9 @@ void Player::SendLoot(ObjectGuid guid, LootType loot_type)
+         Creature* creature = GetMap()->GetCreature(guid);
+ 
+         // must be in range and creature must be alive for pickpocket and must be dead for another loot
+-        if (!creature || creature->IsAlive() != (loot_type == LOOT_PICKPOCKETING) || !creature->IsWithinDistInMap(this, INTERACTION_DISTANCE))
++        if (!creature || (creature->IsTC9RecoveredCorpse() && !creature->IsTC9CorpseVisibleFor(GetGUID())) ||
++            creature->IsAlive() != (loot_type == LOOT_PICKPOCKETING) ||
++            !creature->IsWithinDistInMap(this, INTERACTION_DISTANCE))
+         {
+             SendLootRelease(guid);
+             return;
+@@ -8250,6 +8252,16 @@ void Player::SendLoot(ObjectGuid guid, LootType loot_type)
+             if (!recipient && !recipientGroup)
+                 return;
+ 
++            // The client drops the master-loot candidate list on a world
++            // switch. A recovered corpse has a fresh runtime GUID, so resend
++            // that list once without regenerating Need/Greed rolls.
++            if (creature->IsTC9RecoveredCorpse() && !creature->IsTC9RecoveredMasterLootInitialized() &&
++                loot->loot_type != LOOT_NONE && recipientGroup && recipientGroup->GetLootMethod() == MASTER_LOOT)
++            {
++                recipientGroup->MasterLoot(loot, creature);
++                creature->SetTC9RecoveredMasterLootInitialized();
++            }
++
+             if (loot->loot_type == LOOT_NONE)
+             {
+                 // for creature, loot is filled when creature is killed.
+@@ -8266,6 +8278,8 @@ void Player::SendLoot(ObjectGuid guid, LootType loot_type)
+                             break;
+                         case MASTER_LOOT:
+                             recipientGroup->MasterLoot(loot, creature);
++                            if (creature->IsTC9RecoveredCorpse())
++                                creature->SetTC9RecoveredMasterLootInitialized();
+                             break;
+                         default:
+                             break;
+diff --git a/src/server/game/Entities/Player/PlayerStorage.cpp b/src/server/game/Entities/Player/PlayerStorage.cpp
+index 1d64ced157..4566dcd3c2 100644
+--- a/src/server/game/Entities/Player/PlayerStorage.cpp
++++ b/src/server/game/Entities/Player/PlayerStorage.cpp
+@@ -5712,7 +5712,11 @@ bool Player::LoadFromDB(ObjectGuid playerGuid, CharacterDatabaseQueryHolder cons
+ 
+ bool Player::isAllowedToLoot(Creature const* creature)
+ {
+-    if (!creature->isDead() || !creature->IsDamageEnoughForLootingAndReward() || creature->IsLootRewardDisabled())
++    // A recovered TC9 corpse is reconstructed from a validated snapshot and
++    // has no combat history on this core. Its source corpse already passed the
++    // damage/reward checks before it was transferred.
++    if (!creature->isDead() || (!creature->IsTC9RecoveredCorpse() &&
++        (!creature->IsDamageEnoughForLootingAndReward() || creature->IsLootRewardDisabled())))
+         return false;
+ 
+     if (HasPendingBind())
+diff --git a/src/server/game/Entities/Unit/Unit.cpp b/src/server/game/Entities/Unit/Unit.cpp
+index f0dfa9f536..2bb7d68539 100644
+--- a/src/server/game/Entities/Unit/Unit.cpp
++++ b/src/server/game/Entities/Unit/Unit.cpp
+@@ -64,6 +64,7 @@
+ #include "SpellInfo.h"
+ #include "SpellMgr.h"
+ #include "TemporarySummon.h"
++#include "TC9CorpseTransfer.h"
+ #include "Totem.h"
+ #include "TotemAI.h"
+ #include "Transport.h"
+@@ -14300,6 +14301,9 @@ void Unit::Kill(Unit* killer, Unit* victim, bool durabilityLoss, WeaponAttackTyp
+     }
+ 
+     sScriptMgr->OnUnitDeath(victim, killer);
++
++    if (creature)
++        sTC9CorpseTransfer->TrackAndPublish(creature);
+ }
+ 
+ void Unit::SetControlled(bool apply, UnitState state, Unit* source /*= nullptr*/, bool isFear /*= false*/)
+diff --git a/src/server/game/Groups/Group.cpp b/src/server/game/Groups/Group.cpp
+index 4da913a965..02e86039f9 100644
+--- a/src/server/game/Groups/Group.cpp
++++ b/src/server/game/Groups/Group.cpp
+@@ -34,6 +34,7 @@
+ #include "Player.h"
+ #include "ScriptMgr.h"
+ #include "SharedDefines.h"
++#include "TC9CorpseTransfer.h"
+ #include "TC9Sidecar.h"
+ #include "UpdateFieldFlags.h"
+ #include "Util.h"
+@@ -1467,9 +1468,15 @@ void Group::MasterLoot(Loot* loot, WorldObject* pLootedObject)
+             continue;
+         }
+ 
+-        bool canLoot = looter->IsAtLootRewardDistance(pLootedObject);
+-        if (!canLoot && hasAllowedLooters)
+-            canLoot = pLootedObject->HasAllowedLooter(looter->GetGUID());
++        bool canLoot = false;
++        if (Creature const* creature = pLootedObject->ToCreature(); creature && creature->IsTC9RecoveredCorpse())
++            canLoot = creature->IsTC9CorpseVisibleFor(looter->GetGUID());
++        else
++        {
++            canLoot = looter->IsAtLootRewardDistance(pLootedObject);
++            if (!canLoot && hasAllowedLooters)
++                canLoot = pLootedObject->HasAllowedLooter(looter->GetGUID());
++        }
+ 
+         if (canLoot)
+         {
+@@ -1538,6 +1545,7 @@ bool Group::CountRollVote(ObjectGuid playerGUID, ObjectGuid Guid, uint8 Choice)
+         CountTheRoll(rollI);
+         return true;
+     }
++    sTC9CorpseTransfer->PublishLootState(roll->getLoot());
+     return false;
+ }
+ 
+@@ -1556,6 +1564,69 @@ void Group::EndRoll(Loot* pLoot)
+     }
+ }
+ 
++bool Group::HasTC9RollForLoot(Loot* loot) const
++{
++    for (Roll* roll : RollId)
++        if (roll->getLoot() == loot)
++            return true;
++    return false;
++}
++
++bool Group::GetTC9RollState(
++    Loot* loot, uint8 itemSlot, std::vector<std::pair<ObjectGuid, uint8>>& votes, uint8& voteMask)
++{
++    for (Roll* roll : RollId)
++    {
++        if (roll->getLoot() != loot || roll->itemSlot != itemSlot)
++            continue;
++
++        voteMask = roll->rollVoteMask;
++        votes.reserve(roll->playerVote.size());
++        for (auto const& vote : roll->playerVote)
++            votes.emplace_back(vote.first, uint8(vote.second));
++        return true;
++    }
++    return false;
++}
++
++void Group::RestoreTC9Roll(Loot* loot, Creature* creature, uint8 itemSlot,
++    std::vector<std::pair<ObjectGuid, uint8>> const& votes, uint8 voteMask, uint32 remainingTime)
++{
++    LootItem const& item = itemSlot >= loot->items.size() ?
++        loot->quest_items[itemSlot - loot->items.size()] : loot->items[itemSlot];
++    ObjectGuid rollGuid = ObjectGuid::Create<HighGuid::Item>(sObjectMgr->GetGenerator<HighGuid::Item>().Generate());
++    Roll* roll = new Roll(rollGuid, item);
++    roll->setLoot(loot);
++    roll->itemSlot = itemSlot;
++    roll->rollVoteMask = voteMask;
++
++    for (auto const& voteData : votes)
++    {
++        RollVote vote = RollVote(voteData.second);
++        roll->playerVote[voteData.first] = vote;
++        if (vote == NOT_VALID)
++            continue;
++        ++roll->totalPlayersRolling;
++        if (vote == PASS)
++            ++roll->totalPass;
++        else if (vote == NEED)
++            ++roll->totalNeed;
++        else if (vote == GREED || vote == DISENCHANT)
++            ++roll->totalGreed;
++    }
++
++    RollId.push_back(roll);
++    creature->m_groupLootTimer = std::max(creature->m_groupLootTimer, remainingTime);
++    creature->lootingGroupLowGUID = GetGUID().GetCounter();
++
++    ItemTemplate const* itemTemplate = sObjectMgr->GetItemTemplate(item.itemid);
++    for (auto const& voteData : votes)
++        if (voteData.second == NOT_EMITED_YET)
++            if (Player* voter = ObjectAccessor::FindConnectedPlayer(voteData.first))
++                SendLootStartRollToPlayer(remainingTime, creature->GetMapId(), voter,
++                    voter->CanRollForItemInLFG(itemTemplate, creature) == EQUIP_ERR_OK, *roll);
++}
++
+ void Group::RemovePlayerFromRolls(ObjectGuid guid)
+ {
+     for (Rolls::iterator it = RollId.begin(); it != RollId.end();)
+@@ -1800,7 +1871,8 @@ void Group::CountTheRoll(Rolls::iterator rollI)
+             item->is_blocked = false;
+     }
+ 
+-    if (Loot* loot = roll->getLoot(); loot && loot->isLooted() && loot->sourceGameObject)
++    Loot* loot = roll->getLoot();
++    if (loot && loot->isLooted() && loot->sourceGameObject)
+     {
+         GameObjectTemplate const* goInfo = loot->sourceGameObject->GetGOInfo();
+         if (goInfo && goInfo->type == GAMEOBJECT_TYPE_CHEST)
+@@ -1810,6 +1882,8 @@ void Group::CountTheRoll(Rolls::iterator rollI)
+         }
+     }
+ 
++    sTC9CorpseTransfer->PublishLootState(loot);
++
+     RollId.erase(rollI);
+     delete roll;
+ }
+diff --git a/src/server/game/Groups/Group.h b/src/server/game/Groups/Group.h
+index 32da012913..f7b736965f 100644
+--- a/src/server/game/Groups/Group.h
++++ b/src/server/game/Groups/Group.h
+@@ -310,6 +310,10 @@ public:
+     bool CountRollVote(ObjectGuid playerGUID, ObjectGuid Guid, uint8 Choise);
+     void EndRoll(Loot* loot);
+     void RemovePlayerFromRolls(ObjectGuid guid);
++    bool HasTC9RollForLoot(Loot* loot) const;
++    bool GetTC9RollState(Loot* loot, uint8 itemSlot, std::vector<std::pair<ObjectGuid, uint8>>& votes, uint8& voteMask);
++    void RestoreTC9Roll(Loot* loot, Creature* creature, uint8 itemSlot,
++        std::vector<std::pair<ObjectGuid, uint8>> const& votes, uint8 voteMask, uint32 remainingTime);
+ 
+     // related to disenchant rolls
+     void ResetMaxEnchantingLevel();
+diff --git a/src/server/game/Handlers/LootHandler.cpp b/src/server/game/Handlers/LootHandler.cpp
+index a18781f0e9..63e33bba71 100644
+--- a/src/server/game/Handlers/LootHandler.cpp
++++ b/src/server/game/Handlers/LootHandler.cpp
+@@ -27,6 +27,7 @@
+ #include "Opcodes.h"
+ #include "Player.h"
+ #include "ScriptMgr.h"
++#include "TC9CorpseTransfer.h"
+ #include "WorldPacket.h"
+ #include "WorldSession.h"
+ 
+@@ -36,6 +37,7 @@ void WorldSession::HandleAutostoreLootItemOpcode(WorldPacket& recvData)
+     Player* player = GetPlayer();
+     ObjectGuid lguid = player->GetLootGUID();
+     Loot* loot = nullptr;
++    Creature* lootCreature = nullptr;
+     uint8 lootSlot = 0;
+ 
+     recvData >> lootSlot;
+@@ -91,7 +93,11 @@ void WorldSession::HandleAutostoreLootItemOpcode(WorldPacket& recvData)
+     {
+         Creature* creature = GetPlayer()->GetMap()->GetCreature(lguid);
+ 
+-        bool lootAllowed = creature && creature->IsAlive() == (player->IsClass(CLASS_ROGUE, CLASS_CONTEXT_ABILITY) && creature->loot.loot_type == LOOT_PICKPOCKETING);
++        bool isVisibleRecoveredCorpse = creature &&
++            (!creature->IsTC9RecoveredCorpse() || creature->IsTC9CorpseVisibleFor(player->GetGUID()));
++        bool lootAllowed = isVisibleRecoveredCorpse &&
++            creature->IsAlive() ==
++                (player->IsClass(CLASS_ROGUE, CLASS_CONTEXT_ABILITY) && creature->loot.loot_type == LOOT_PICKPOCKETING);
+         if (!lootAllowed || !creature->IsWithinDistInMap(_player, INTERACTION_DISTANCE))
+         {
+             player->SendLootError(lguid, lootAllowed ? LOOT_ERROR_TOO_FAR : LOOT_ERROR_DIDNT_KILL);
+@@ -99,6 +105,7 @@ void WorldSession::HandleAutostoreLootItemOpcode(WorldPacket& recvData)
+         }
+ 
+         loot = &creature->loot;
++        lootCreature = creature;
+     }
+ 
+     sScriptMgr->OnPlayerAfterCreatureLoot(player);
+@@ -117,6 +124,9 @@ void WorldSession::HandleAutostoreLootItemOpcode(WorldPacket& recvData)
+     // If player is removing the last LootItem, delete the empty container.
+     if (loot->isLooted() && lguid.IsItem())
+         DoLootRelease(lguid);
++
++    if (lootCreature)
++        sTC9CorpseTransfer->Publish(lootCreature);
+ }
+ 
+ void WorldSession::HandleLootMoneyOpcode(WorldPacket& /*recvData*/)
+@@ -129,6 +139,7 @@ void WorldSession::HandleLootMoneyOpcode(WorldPacket& /*recvData*/)
+         return;
+ 
+     Loot* loot = nullptr;
++    Creature* lootCreature = nullptr;
+     bool shareMoney = true;
+ 
+     switch (guid.GetHigh())
+@@ -170,10 +181,15 @@ void WorldSession::HandleLootMoneyOpcode(WorldPacket& /*recvData*/)
+         case HighGuid::Vehicle:
+             {
+                 Creature* creature = player->GetMap()->GetCreature(guid);
+-                bool lootAllowed = creature && creature->IsAlive() == (player->IsClass(CLASS_ROGUE, CLASS_CONTEXT_ABILITY) && creature->loot.loot_type == LOOT_PICKPOCKETING);
++                bool isVisibleRecoveredCorpse = creature &&
++                    (!creature->IsTC9RecoveredCorpse() || creature->IsTC9CorpseVisibleFor(player->GetGUID()));
++                bool lootAllowed = isVisibleRecoveredCorpse &&
++                    creature->IsAlive() == (player->IsClass(CLASS_ROGUE, CLASS_CONTEXT_ABILITY) &&
++                        creature->loot.loot_type == LOOT_PICKPOCKETING);
+                 if (lootAllowed && creature->IsWithinDistInMap(player, INTERACTION_DISTANCE))
+                 {
+                     loot = &creature->loot;
++                    lootCreature = creature;
+                     if (creature->IsAlive())
+                         shareMoney = false;
+                 }
+@@ -281,6 +297,9 @@ void WorldSession::HandleLootMoneyOpcode(WorldPacket& /*recvData*/)
+         // Delete container if empty
+         if (loot->isLooted() && guid.IsItem())
+             DoLootRelease(guid);
++
++        if (lootCreature)
++            sTC9CorpseTransfer->Publish(lootCreature);
+     }
+ }
+ 
+@@ -308,6 +327,8 @@ void WorldSession::HandleLootOpcode(WorldPacket& recvData)
+         player->InterruptNonMeleeSpells(false);
+ 
+     player->SendLoot(guid, LOOT_CORPSE);
++    if (Creature* creature = player->GetMap()->GetCreature(guid))
++        sTC9CorpseTransfer->Publish(creature);
+ }
+ 
+ void WorldSession::HandleLootReleaseOpcode(WorldPacket& recvData)
+@@ -439,7 +460,11 @@ void WorldSession::DoLootRelease(ObjectGuid lguid)
+     {
+         Creature* creature = GetPlayer()->GetMap()->GetCreature(lguid);
+ 
+-        bool lootAllowed = creature && creature->IsAlive() == (player->IsClass(CLASS_ROGUE, CLASS_CONTEXT_ABILITY) && creature->loot.loot_type == LOOT_PICKPOCKETING);
++        bool isVisibleRecoveredCorpse = creature &&
++            (!creature->IsTC9RecoveredCorpse() || creature->IsTC9CorpseVisibleFor(player->GetGUID()));
++        bool lootAllowed = isVisibleRecoveredCorpse &&
++            creature->IsAlive() ==
++                (player->IsClass(CLASS_ROGUE, CLASS_CONTEXT_ABILITY) && creature->loot.loot_type == LOOT_PICKPOCKETING);
+         if (!lootAllowed || !creature->IsWithinDistInMap(_player, INTERACTION_DISTANCE))
+             return;
+ 
+@@ -466,6 +491,8 @@ void WorldSession::DoLootRelease(ObjectGuid lguid)
+             // force dynflag update to update looter and lootable info
+             creature->ForceValuesUpdateAtIndex(UNIT_DYNAMIC_FLAGS);
+         }
++
++        sTC9CorpseTransfer->Publish(creature);
+     }
+ 
+     //Player is not looking at loot list, he doesn't need to see updates on the loot list
+@@ -511,14 +538,16 @@ void WorldSession::HandleLootMasterGiveOpcode(WorldPacket& recvData)
+     }
+ 
+     Loot* loot = nullptr;
++    Creature* lootCreature = nullptr;
+ 
+     if (GetPlayer()->GetLootGUID().IsCreatureOrVehicle())
+     {
+         Creature* creature = GetPlayer()->GetMap()->GetCreature(lootguid);
+-        if (!creature)
++        if (!creature || (creature->IsTC9RecoveredCorpse() && !creature->IsTC9CorpseVisibleFor(_player->GetGUID())))
+             return;
+ 
+         loot = &creature->loot;
++        lootCreature = creature;
+     }
+     else if (GetPlayer()->GetLootGUID().IsGameObject())
+     {
+@@ -570,4 +599,7 @@ void WorldSession::HandleLootMasterGiveOpcode(WorldPacket& recvData)
+ 
+     loot->NotifyItemRemoved(slotid);
+     --loot->unlootedCount;
++
++    if (lootCreature)
++        sTC9CorpseTransfer->Publish(lootCreature);
+ }
+diff --git a/src/server/game/Loot/LootMgr.cpp b/src/server/game/Loot/LootMgr.cpp
+index a103aab09b..f97bc6285b 100644
+--- a/src/server/game/Loot/LootMgr.cpp
++++ b/src/server/game/Loot/LootMgr.cpp
+@@ -409,6 +409,8 @@ LootItem::LootItem(LootStoreItem const& li)
+     is_blocked = false;
+     is_underthreshold = false;
+     is_counted = false;
++    uses_transferred_eligibility = false;
++    had_transferred_conditions = false;
+     rollWinnerGUID = ObjectGuid::Empty;
+     groupid = li.groupid;
+ }
+@@ -423,6 +425,12 @@ bool LootItem::AllowedForPlayer(Player const* player, ObjectGuid source) const
+     if (sDisableMgr->IsDisabledFor(DISABLE_TYPE_LOOT, itemid, nullptr))
+         return false;
+ 
++    // Condition pointers cannot cross a process boundary. For transferred
++    // corpses the source core evaluates them once and sends the immutable set
++    // of players who were eligible at death.
++    if (uses_transferred_eligibility)
++        return allowedGUIDs.find(player->GetGUID()) != allowedGUIDs.end();
++
+     if (!sConditionMgr->IsObjectMeetToConditions(const_cast<Player*>(player), conditions))
+         return false;
+ 
+@@ -477,6 +485,41 @@ void LootItem::AddAllowedLooter(Player const* player)
+ // --------- Loot ---------
+ //
+ 
++void Loot::RestorePlayerLootMaps(QuestItemMap&& questItems, QuestItemMap&& ffaItems, QuestItemMap&& conditionalItems)
++{
++    ASSERT(PlayerQuestItems.empty() && PlayerFFAItems.empty() && PlayerNonQuestNonFFAConditionalItems.empty());
++    PlayerQuestItems = std::move(questItems);
++    PlayerFFAItems = std::move(ffaItems);
++    PlayerNonQuestNonFFAConditionalItems = std::move(conditionalItems);
++}
++
++void Loot::TakeTransferredState(Loot& other)
++{
++    clear();
++    items = std::move(other.items);
++    quest_items = std::move(other.quest_items);
++    gold = other.gold;
++    unlootedCount = other.unlootedCount;
++    roundRobinPlayer = other.roundRobinPlayer;
++    lootOwnerGUID = other.lootOwnerGUID;
++    loot_type = other.loot_type;
++    containerGUID = other.containerGUID;
++    sourceWorldObjectGUID = other.sourceWorldObjectGUID;
++    sourceGameObject = other.sourceGameObject;
++    PlayerQuestItems = std::move(other.PlayerQuestItems);
++    PlayerFFAItems = std::move(other.PlayerFFAItems);
++    PlayerNonQuestNonFFAConditionalItems = std::move(other.PlayerNonQuestNonFFAConditionalItems);
++
++    other.gold = 0;
++    other.unlootedCount = 0;
++    other.roundRobinPlayer.Clear();
++    other.lootOwnerGUID.Clear();
++    other.loot_type = LOOT_NONE;
++    other.containerGUID.Clear();
++    other.sourceWorldObjectGUID.Clear();
++    other.sourceGameObject = nullptr;
++}
++
+ // Inserts the item into the loot (called by LootTemplate processors)
+ void Loot::AddItem(LootStoreItem const& item)
+ {
+@@ -717,7 +760,7 @@ QuestItemList* Loot::FillNonQuestNonFFAConditionalLoot(Player* player)
+         {
+             item.AddAllowedLooter(player);
+ 
+-            if (!item.conditions.empty())
++            if (item.HasConditions())
+             {
+                 ql->push_back(QuestItem(i));
+                 if (!item.is_counted)
+@@ -857,7 +900,7 @@ LootItem* Loot::LootItemInSlot(uint32 lootSlot, Player* player, QuestItem * *qit
+                     }
+             }
+         }
+-        else if (!item->conditions.empty())
++        else if (item->HasConditions())
+         {
+             QuestItemMap::const_iterator itr = PlayerNonQuestNonFFAConditionalItems.find(player->GetGUID());
+             if (itr != PlayerNonQuestNonFFAConditionalItems.end())
+@@ -898,7 +941,7 @@ bool Loot::hasItemForAll() const
+     }
+ 
+     for (LootItem const& item : items)
+-        if (!item.is_looted && !item.freeforall && item.conditions.empty())
++        if (!item.is_looted && !item.freeforall && !item.HasConditions())
+             return true;
+     return false;
+ }
+@@ -1001,7 +1044,9 @@ ByteBuffer& operator<<(ByteBuffer& b, LootView const& lv)
+                 // blocked rolled items and quest items, and !ffa items
+                 for (uint8 i = 0; i < l.items.size(); ++i)
+                 {
+-                    if (!l.items[i].is_looted && !l.items[i].freeforall && (l.items[i].conditions.empty() || isMasterLooter) && l.items[i].AllowedForPlayer(lv.viewer, l.sourceWorldObjectGUID))
++                    if (!l.items[i].is_looted && !l.items[i].freeforall &&
++                        (!l.items[i].HasConditions() || isMasterLooter) &&
++                        l.items[i].AllowedForPlayer(lv.viewer, l.sourceWorldObjectGUID))
+                     {
+                         uint8 slot_type = 0;
+ 
+@@ -1059,7 +1104,8 @@ ByteBuffer& operator<<(ByteBuffer& b, LootView const& lv)
+             {
+                 for (uint8 i = 0; i < l.items.size(); ++i)
+                 {
+-                    if (!l.items[i].is_looted && !l.items[i].freeforall && l.items[i].conditions.empty() && l.items[i].AllowedForPlayer(lv.viewer, l.sourceWorldObjectGUID))
++                    if (!l.items[i].is_looted && !l.items[i].freeforall && !l.items[i].HasConditions() &&
++                        l.items[i].AllowedForPlayer(lv.viewer, l.sourceWorldObjectGUID))
+                     {
+                         if (l.roundRobinPlayer && lv.viewer->GetGUID() != l.roundRobinPlayer)
+                             // item shall not be displayed.
+@@ -1078,7 +1124,8 @@ ByteBuffer& operator<<(ByteBuffer& b, LootView const& lv)
+                 uint8 slot_type = lv.permission == OWNER_PERMISSION ? LOOT_SLOT_TYPE_OWNER : LOOT_SLOT_TYPE_ALLOW_LOOT;
+                 for (uint8 i = 0; i < l.items.size(); ++i)
+                 {
+-                    if (!l.items[i].is_looted && !l.items[i].freeforall && l.items[i].conditions.empty() && l.items[i].AllowedForPlayer(lv.viewer, l.sourceWorldObjectGUID))
++                    if (!l.items[i].is_looted && !l.items[i].freeforall && !l.items[i].HasConditions() &&
++                        l.items[i].AllowedForPlayer(lv.viewer, l.sourceWorldObjectGUID))
+                     {
+                         b << uint8(i) << l.items[i];
+                         b << uint8(slot_type);
+diff --git a/src/server/game/Loot/LootMgr.h b/src/server/game/Loot/LootMgr.h
+index 9f92a1f752..7ae8cfc6e6 100644
+--- a/src/server/game/Loot/LootMgr.h
++++ b/src/server/game/Loot/LootMgr.h
+@@ -167,6 +167,8 @@ struct LootItem
+     bool    is_counted        : 1;
+     bool    needs_quest       : 1;                          // quest drop
+     bool    follow_loot_rules : 1;
++    bool    uses_transferred_eligibility : 1 {false};
++    bool    had_transferred_conditions : 1 {false};
+     uint8   groupid           : 7;
+ 
+     // Constructor, copies most fields from LootStoreItem, generates random count and random suffixes/properties
+@@ -179,6 +181,7 @@ struct LootItem
+     bool AllowedForPlayer(Player const* player, ObjectGuid source) const;
+     void AddAllowedLooter(Player const* player);
+     [[nodiscard]] AllowedLooterSet const& GetAllowedLooters() const { return allowedGUIDs; }
++    [[nodiscard]] bool HasConditions() const { return !conditions.empty() || had_transferred_conditions; }
+ };
+ 
+ struct QuestItem
+@@ -316,6 +319,8 @@ struct Loot
+     [[nodiscard]] QuestItemMap const& GetPlayerQuestItems() const { return PlayerQuestItems; }
+     [[nodiscard]] QuestItemMap const& GetPlayerFFAItems() const { return PlayerFFAItems; }
+     [[nodiscard]] QuestItemMap const& GetPlayerNonQuestNonFFAConditionalItems() const { return PlayerNonQuestNonFFAConditionalItems; }
++    void RestorePlayerLootMaps(QuestItemMap&& questItems, QuestItemMap&& ffaItems, QuestItemMap&& conditionalItems);
++    void TakeTransferredState(Loot& other);
+ 
+     std::vector<LootItem> items;
+     std::vector<LootItem> quest_items;
+diff --git a/src/server/game/Server/Protocol/Opcodes.cpp b/src/server/game/Server/Protocol/Opcodes.cpp
+index c2d99161e6..94f1857095 100644
+--- a/src/server/game/Server/Protocol/Opcodes.cpp
++++ b/src/server/game/Server/Protocol/Opcodes.cpp
+@@ -1441,6 +1441,8 @@ void OpcodeTable::Initialize()
+     /*0x51E*/ DEFINE_SERVER_OPCODE_HANDLER(SMSG_MULTIPLE_MOVES, STATUS_NEVER);
+     /*0x51F*/ DEFINE_HANDLER(TC9_CMSG_PREPARE_FOR_REDIRECT,                                         STATUS_AUTHED,     PROCESS_THREADUNSAFE,   &WorldSession::HandleTC9PrepareForRedirect);
+     /*0x520*/ DEFINE_SERVER_OPCODE_HANDLER(TC9_SMSG_READY_FOR_REDIRECT, STATUS_NEVER);
++    /*0x521*/ DEFINE_SERVER_OPCODE_HANDLER(TC9_SMSG_CORPSE_SNAPSHOT, STATUS_NEVER);
++    /*0x522*/ DEFINE_HANDLER(TC9_CMSG_RESTORE_CORPSE,                                               STATUS_LOGGEDIN,   PROCESS_THREADUNSAFE,   &WorldSession::HandleTC9RestoreCorpse);
+ 
+ #undef DEFINE_HANDLER
+ #undef DEFINE_SERVER_OPCODE_HANDLER
+diff --git a/src/server/game/Server/Protocol/Opcodes.h b/src/server/game/Server/Protocol/Opcodes.h
+index 0b34344c42..90579d8d48 100644
+--- a/src/server/game/Server/Protocol/Opcodes.h
++++ b/src/server/game/Server/Protocol/Opcodes.h
+@@ -1340,7 +1340,9 @@ enum Opcodes : uint16
+     SMSG_MULTIPLE_MOVES                             = 0x51E, // uncompressed version of SMSG_COMPRESSED_MOVES
+     TC9_CMSG_PREPARE_FOR_REDIRECT                   = 0x51F,
+     TC9_SMSG_READY_FOR_REDIRECT                     = 0x520,
+-    NUM_MSG_TYPES                                   = 0x521
++    TC9_SMSG_CORPSE_SNAPSHOT                        = 0x521,
++    TC9_CMSG_RESTORE_CORPSE                         = 0x522,
++    NUM_MSG_TYPES                                   = 0x523
+ };
+ 
+ enum OpcodeMisc : uint16
+diff --git a/src/server/game/Server/WorldSession.cpp b/src/server/game/Server/WorldSession.cpp
+index 3982998d1e..b48cfdf43c 100644
+--- a/src/server/game/Server/WorldSession.cpp
++++ b/src/server/game/Server/WorldSession.cpp
+@@ -19,6 +19,7 @@
+     \ingroup u2w
+ */
+ 
++#include "TC9CorpseTransfer.h"
+ #include "TC9Sidecar.h"
+ #include "WorldSession.h"
+ #include "AccountMgr.h"
+@@ -1596,7 +1597,7 @@ void WorldSession::InitializeSessionCallback(CharacterDatabaseQueryHolder const&
+     }
+ }
+ 
+-void WorldSession::HandleTC9PrepareForRedirect(WorldPacket& /*recvData*/)
++void WorldSession::HandleTC9PrepareForRedirect(WorldPacket& recvData)
+ {
+     if (!sToCloud9Sidecar->ClusterModeEnabled())
+         return;
+@@ -1610,19 +1611,55 @@ void WorldSession::HandleTC9PrepareForRedirect(WorldPacket& /*recvData*/)
+         return;
+     }
+ 
++    std::vector<uint64> corpseSnapshots;
++    bool detachCarriedCorpses = false;
++    try
++    {
++        if (recvData.rpos() < recvData.size())
++        {
++            detachCarriedCorpses = true;
++            uint8 version = 0;
++            uint16 count = 0;
++            recvData >> version >> count;
++            bool invalidPayload = version != 1 || count > 1024 ||
++                recvData.size() - recvData.rpos() != std::size_t(count) * sizeof(uint64);
++            if (invalidPayload)
++            {
++                WorldPacket data(TC9_SMSG_READY_FOR_REDIRECT, 1);
++                data << uint8(1);
++                SendPacket(&data);
++                return;
++            }
++            corpseSnapshots.resize(count);
++            for (uint64& snapshotId : corpseSnapshots)
++                recvData >> snapshotId;
++        }
++    }
++    catch (ByteBufferException const&)
++    {
++        WorldPacket data(TC9_SMSG_READY_FOR_REDIRECT, 1);
++        data << uint8(1);
++        SendPacket(&data);
++        return;
++    }
++
+     LOG_DEBUG("network", "Starting saving, AccountId = {}", GetAccountId());
+ 
+     CharacterDatabaseTransaction trans = CharacterDatabase.BeginTransaction();
+     player->SaveToDB(trans, false, true);
+-    AddTransactionCallback(CharacterDatabase.AsyncCommitTransaction(trans)).AfterComplete([this](bool success)
++    AddTransactionCallback(CharacterDatabase.AsyncCommitTransaction(trans)).AfterComplete(
++        [this, corpseSnapshots = std::move(corpseSnapshots), detachCarriedCorpses](bool success)
+     {
++        if (success && detachCarriedCorpses)
++            success = sTC9CorpseTransfer->Detach(GetPlayer(), corpseSnapshots, true);
++
+         WorldPacket data(TC9_SMSG_READY_FOR_REDIRECT, 1);
+         data << uint8(!success); // 0 - Success, 1 - Failed.
+         SendPacket(&data);
+ 
+         if (!success)
+         {
+-            LOG_ERROR("network", "Failed to save player, AccountId = {}", GetAccountId());
++            LOG_ERROR("network", "Failed to prepare player redirect, AccountId = {}", GetAccountId());
+             return;
+         }
+ 
+@@ -1638,6 +1675,15 @@ void WorldSession::HandleTC9PrepareForRedirect(WorldPacket& /*recvData*/)
+     });
+ }
+ 
++void WorldSession::HandleTC9RestoreCorpse(WorldPacket& recvData)
++{
++    if (!sToCloud9Sidecar->ClusterModeEnabled() || !GetPlayer())
++        return;
++
++    if (!sTC9CorpseTransfer->Restore(GetPlayer(), recvData))
++        LOG_WARN("network", "Rejected invalid TC9 corpse snapshot for AccountId = {}", GetAccountId());
++}
++
+ void WorldSession::SetPacketLogging(bool state)
+ {
+     if (m_Socket)
+diff --git a/src/server/game/Server/WorldSession.h b/src/server/game/Server/WorldSession.h
+index 0abedb40cd..0f32cb8bcf 100644
+--- a/src/server/game/Server/WorldSession.h
++++ b/src/server/game/Server/WorldSession.h
+@@ -688,6 +688,7 @@ public:                                                 // opcodes handlers
+     void SendSetPlayerDeclinedNamesResult(DeclinedNameResult result, ObjectGuid guid);
+ 
+     void HandleTC9PrepareForRedirect(WorldPacket& recvData);
++    void HandleTC9RestoreCorpse(WorldPacket& recvData);
+ 
+     // played time
+     void HandlePlayedTime(WorldPackets::Character::PlayedTimeClient& packet);
+diff --git a/src/server/game/TC9Sidecar/TC9CorpseTransfer.cpp b/src/server/game/TC9Sidecar/TC9CorpseTransfer.cpp
+new file mode 100644
+index 0000000000..e0c6763b35
+--- /dev/null
++++ b/src/server/game/TC9Sidecar/TC9CorpseTransfer.cpp
+@@ -0,0 +1,798 @@
++/*
++ * This file is part of the AzerothCore Project. See AUTHORS file for Copyright information
++ */
++
++#include "TC9CorpseTransfer.h"
++
++#include "Creature.h"
++#include "GameTime.h"
++#include "Group.h"
++#include "GroupMgr.h"
++#include "Log.h"
++#include "LootMgr.h"
++#include "Map.h"
++#include "ObjectAccessor.h"
++#include "ObjectMgr.h"
++#include "Opcodes.h"
++#include "Player.h"
++#include "Random.h"
++#include "TC9Sidecar.h"
++#include "TemporarySummon.h"
++#include "WorldPacket.h"
++#include "WorldSession.h"
++
++#include <algorithm>
++#include <limits>
++#include <memory>
++
++namespace
++{
++constexpr uint8 SnapshotVersion = 1;
++constexpr uint8 SnapshotUpsert = 1;
++constexpr uint8 SnapshotRemove = 2;
++constexpr std::size_t MaxSnapshotBytes = 64 * 1024;
++constexpr uint8 MaxTransferredPlayers = 40;
++constexpr std::size_t MaxTrackedCorpsesPerCarrier = 1024;
++constexpr uint64 MaxTransferredLifetime = 24 * HOUR;
++constexpr uint64 TransferredRollLootGrace = MINUTE;
++
++struct DecodedLoot
++{
++    Loot loot;
++    GuidSet viewers;
++    ObjectGuid recipient;
++    ObjectGuid::LowType recipientGroup{0};
++    uint32 entry{0};
++    uint32 phaseMask{PHASEMASK_NORMAL};
++    Position position;
++    struct RollState
++    {
++        std::vector<std::pair<ObjectGuid, uint8>> votes;
++        uint64 deadline{0};
++        uint8 voteMask{0};
++    };
++    std::vector<RollState> itemRolls;
++    std::vector<RollState> questItemRolls;
++};
++
++void DeleteQuestItemMap(QuestItemMap& map)
++{
++    for (auto const& pair : map)
++        delete pair.second;
++    map.clear();
++}
++
++struct QuestItemMapsCleanup
++{
++    QuestItemMap& quest;
++    QuestItemMap& ffa;
++    QuestItemMap& conditional;
++
++    ~QuestItemMapsCleanup()
++    {
++        DeleteQuestItemMap(quest);
++        DeleteQuestItemMap(ffa);
++        DeleteQuestItemMap(conditional);
++    }
++};
++
++void WriteGuidSet(WorldPacket& packet, GuidSet const& guids)
++{
++    uint8 count = uint8(std::min<std::size_t>(guids.size(), MaxTransferredPlayers));
++    packet << count;
++    auto itr = guids.begin();
++    for (uint8 i = 0; i < count; ++i, ++itr)
++        packet << uint64(itr->GetRawValue());
++}
++
++bool ReadGuidSet(WorldPacket& packet, GuidSet& guids)
++{
++    uint8 count = 0;
++    packet >> count;
++    if (count > MaxTransferredPlayers)
++        return false;
++
++    for (uint8 i = 0; i < count; ++i)
++    {
++        uint64 rawGuid = 0;
++        packet >> rawGuid;
++        ObjectGuid guid(rawGuid);
++        if (!guid.IsPlayer())
++            return false;
++        guids.insert(guid);
++    }
++    return true;
++}
++
++bool WriteLootItem(WorldPacket& packet, LootItem const& item, GuidSet const& eligibility, uint64 blockedUntil,
++    Group* group, Loot* loot, uint8 itemSlot)
++{
++    bool blocked = item.is_blocked && !item.is_looted;
++    if (!blocked)
++        blockedUntil = 0;
++    uint8 flags = 0;
++    flags |= item.is_looted ? 0x01 : 0;
++    flags |= blocked ? 0x02 : 0;
++    flags |= item.freeforall ? 0x04 : 0;
++    flags |= item.is_underthreshold ? 0x08 : 0;
++    flags |= item.is_counted ? 0x10 : 0;
++    flags |= item.needs_quest ? 0x20 : 0;
++    flags |= item.follow_loot_rules ? 0x40 : 0;
++    flags |= item.HasConditions() ? 0x80 : 0;
++
++    packet << item.itemid << item.randomSuffix << item.randomPropertyId << item.count << flags << item.groupid;
++    packet << uint64(item.rollWinnerGUID.GetRawValue()) << blockedUntil;
++    WriteGuidSet(packet, eligibility);
++
++    std::vector<std::pair<ObjectGuid, uint8>> votes;
++    uint8 voteMask = 0;
++    if (blocked && blockedUntil && (!group || !group->GetTC9RollState(loot, itemSlot, votes, voteMask)))
++        return false;
++    packet << voteMask << uint8(votes.size());
++    for (auto const& vote : votes)
++        packet << uint64(vote.first.GetRawValue()) << vote.second;
++    return true;
++}
++
++bool IsSubset(GuidSet const& subset, GuidSet const& superset)
++{
++    return std::all_of(subset.begin(), subset.end(), [&superset](ObjectGuid const& guid)
++    {
++        return superset.find(guid) != superset.end();
++    });
++}
++
++bool ReadLootItem(WorldPacket& packet, LootItem& item, uint32 index, GuidSet const& viewers, uint64 expiresAt,
++    DecodedLoot::RollState& rollState)
++{
++    uint8 flags = 0;
++    uint8 count = 0;
++    uint8 groupId = 0;
++    uint64 rollWinner = 0;
++    uint64 blockedUntil = 0;
++    packet >> item.itemid >> item.randomSuffix >> item.randomPropertyId >> count >> flags >> groupId >>
++        rollWinner >> blockedUntil;
++    item.itemIndex = index;
++    item.count = count;
++    item.groupid = groupId;
++    item.is_looted = (flags & 0x01) != 0;
++    bool wasBlocked = (flags & 0x02) != 0;
++    if ((wasBlocked && blockedUntil > expiresAt) || (!wasBlocked && blockedUntil))
++        return false;
++    item.is_blocked = wasBlocked;
++    item.freeforall = (flags & 0x04) != 0;
++    item.is_underthreshold = (flags & 0x08) != 0;
++    item.is_counted = (flags & 0x10) != 0;
++    item.needs_quest = (flags & 0x20) != 0;
++    item.follow_loot_rules = (flags & 0x40) != 0;
++    item.had_transferred_conditions = (flags & 0x80) != 0;
++    item.uses_transferred_eligibility = true;
++    item.rollWinnerGUID = ObjectGuid(rollWinner);
++    if (!item.itemid || (!item.is_looted && !item.count) || !sObjectMgr->GetItemTemplate(item.itemid) ||
++        !ReadGuidSet(packet, item.allowedGUIDs) || !IsSubset(item.allowedGUIDs, viewers))
++        return false;
++    if (item.rollWinnerGUID && (!item.rollWinnerGUID.IsPlayer() ||
++        item.allowedGUIDs.find(item.rollWinnerGUID) == item.allowedGUIDs.end()))
++        return false;
++
++    uint8 voterCount = 0;
++    packet >> rollState.voteMask >> voterCount;
++    if (voterCount > MaxTransferredPlayers || (rollState.voteMask & ~ROLL_ALL_TYPE_MASK))
++        return false;
++    rollState.deadline = blockedUntil;
++    GuidSet voters;
++    for (uint8 i = 0; i < voterCount; ++i)
++    {
++        uint64 rawGuid = 0;
++        uint8 vote = 0;
++        packet >> rawGuid >> vote;
++        ObjectGuid guid(rawGuid);
++        bool voteAllowed = vote == PASS || vote == NOT_EMITED_YET || vote == NOT_VALID ||
++            (vote == NEED && (rollState.voteMask & ROLL_FLAG_TYPE_NEED)) ||
++            (vote == GREED && (rollState.voteMask & ROLL_FLAG_TYPE_GREED)) ||
++            (vote == DISENCHANT && (rollState.voteMask & ROLL_FLAG_TYPE_DISENCHANT));
++        if (!guid.IsPlayer() || viewers.find(guid) == viewers.end() || !voteAllowed || !voters.insert(guid).second)
++            return false;
++        rollState.votes.emplace_back(guid, vote);
++    }
++
++    if (!wasBlocked || !blockedUntil)
++        return !voterCount && !rollState.voteMask;
++    return voterCount && rollState.voteMask;
++}
++
++void WriteQuestItemMap(WorldPacket& packet, QuestItemMap const& map)
++{
++    uint8 playerCount = uint8(std::min<std::size_t>(map.size(), MaxTransferredPlayers));
++    packet << playerCount;
++    auto mapItr = map.begin();
++    for (uint8 i = 0; i < playerCount; ++i, ++mapItr)
++    {
++        packet << uint64(mapItr->first.GetRawValue());
++        QuestItemList const& items = *mapItr->second;
++        uint8 itemCount = uint8(std::min<std::size_t>(items.size(), std::numeric_limits<uint8>::max()));
++        packet << itemCount;
++        for (uint8 itemIndex = 0; itemIndex < itemCount; ++itemIndex)
++            packet << items[itemIndex].index << uint8(items[itemIndex].is_looted);
++    }
++}
++
++bool ReadQuestItemMap(WorldPacket& packet, QuestItemMap& map, uint32 maximumIndex, GuidSet const& viewers)
++{
++    uint8 playerCount = 0;
++    packet >> playerCount;
++    if (playerCount > MaxTransferredPlayers)
++        return false;
++
++    for (uint8 i = 0; i < playerCount; ++i)
++    {
++        uint64 rawGuid = 0;
++        uint8 itemCount = 0;
++        packet >> rawGuid >> itemCount;
++        ObjectGuid guid(rawGuid);
++        if (!guid.IsPlayer() || viewers.find(guid) == viewers.end() || map.find(guid) != map.end())
++            return false;
++
++        std::unique_ptr<QuestItemList> items = std::make_unique<QuestItemList>();
++        items->reserve(itemCount);
++        for (uint8 itemIndex = 0; itemIndex < itemCount; ++itemIndex)
++        {
++            uint8 index = 0;
++            uint8 looted = 0;
++            packet >> index >> looted;
++            if (index >= maximumIndex || looted > 1)
++                return false;
++            items->emplace_back(index, looted != 0);
++        }
++        map.emplace(guid, items.release());
++    }
++    return true;
++}
++
++GuidSet EligiblePlayersForItem(Creature* creature, LootItem const& item, GuidSet const& viewers)
++{
++    GuidSet eligible = item.GetAllowedLooters();
++    for (ObjectGuid const& guid : viewers)
++        if (Player* player = ObjectAccessor::FindConnectedPlayer(guid))
++            if (player->IsInMap(creature) && item.AllowedForPlayer(player, creature->GetGUID()))
++                eligible.insert(guid);
++    return eligible;
++}
++}
++
++TC9CorpseTransfer* TC9CorpseTransfer::instance()
++{
++    static TC9CorpseTransfer instance;
++    return &instance;
++}
++
++uint64 TC9CorpseTransfer::GenerateSnapshotId()
++{
++    uint64 id = 0;
++    do
++        id = (uint64(urand(1, std::numeric_limits<uint32>::max())) << 32) |
++            urand(1, std::numeric_limits<uint32>::max());
++    while (_trackedCorpses.find(id) != _trackedCorpses.end());
++    return id;
++}
++
++uint64 TC9CorpseTransfer::LocationKey(uint32 mapId, uint32 instanceId)
++{
++    return (uint64(mapId) << 32) | instanceId;
++}
++
++void TC9CorpseTransfer::TrackAndPublish(Creature* creature)
++{
++    if (!sToCloud9Sidecar->ClusterModeEnabled() || !creature || !creature->IsInWorld() || creature->IsAlive() ||
++        creature->loot.isLooted() || !creature->IsDamageEnoughForLootingAndReward() ||
++        creature->IsLootRewardDisabled())
++        return;
++
++    std::lock_guard<std::recursive_mutex> lock(_mutex);
++
++    ObjectGuid carrier = creature->loot.lootOwnerGUID;
++    if (!carrier)
++        carrier = creature->GetLootRecipientGUID();
++    Player* carrierPlayer = ObjectAccessor::FindConnectedPlayer(carrier);
++    if (!carrierPlayer || !carrierPlayer->IsInMap(creature))
++        return;
++
++    std::size_t trackedForCarrier = std::count_if(
++        _trackedCorpses.begin(), _trackedCorpses.end(), [carrier](auto const& pair)
++    {
++        return pair.second.carrier == carrier;
++    });
++    if (trackedForCarrier >= MaxTrackedCorpsesPerCarrier)
++    {
++        creature->SetTC9CorpseTransferData(0, 0, carrier, GuidSet{}, false);
++        creature->SetTC9CorpseTransferOverflow(true);
++        ++_overflowCorpses[carrier][LocationKey(creature->GetMapId(), creature->GetInstanceId())];
++        return;
++    }
++
++    TrackedCorpse tracked;
++    tracked.creatureGuid = creature->GetGUID();
++    tracked.carrier = carrier;
++    tracked.mapId = creature->GetMapId();
++    tracked.instanceId = creature->GetInstanceId();
++    tracked.expiresAt = uint64(creature->GetCorpseRemoveTime());
++    tracked.viewers.insert(carrier);
++
++    // Preserve the private corpse for the complete group roster captured at
++    // death. Members can be hosted by another core already, so GetFirstMember
++    // alone would omit them and make the recovered corpse invisible when the
++    // carrier joins their layer. Per-item eligibility is still evaluated
++    // separately below and is not broadened by visibility.
++    if (Group* group = creature->GetLootRecipientGroup())
++        for (Group::MemberSlot const& member : group->GetMemberSlots())
++            tracked.viewers.insert(member.guid);
++
++    for (ObjectGuid const& guid : creature->GetAllowedLooters())
++        tracked.viewers.insert(guid);
++
++    for (LootItem const& item : creature->loot.items)
++        tracked.itemEligibility.push_back(EligiblePlayersForItem(creature, item, tracked.viewers));
++    for (LootItem const& item : creature->loot.quest_items)
++        tracked.questItemEligibility.push_back(EligiblePlayersForItem(creature, item, tracked.viewers));
++
++    uint64 snapshotId = GenerateSnapshotId();
++    creature->SetTC9CorpseTransferData(snapshotId, 0, carrier, tracked.viewers, false);
++    _trackedCorpses.emplace(snapshotId, std::move(tracked));
++    Publish(creature);
++}
++
++void TC9CorpseTransfer::Publish(Creature* creature)
++{
++    if (!sToCloud9Sidecar->ClusterModeEnabled() || !creature)
++        return;
++
++    std::lock_guard<std::recursive_mutex> lock(_mutex);
++
++    uint64 snapshotId = creature->GetTC9CorpseSnapshotId();
++    auto trackedItr = _trackedCorpses.find(snapshotId);
++    if (!snapshotId || trackedItr == _trackedCorpses.end())
++        return;
++
++    TrackedCorpse& tracked = trackedItr->second;
++    uint32 revision = creature->GetTC9CorpseSnapshotRevision() + 1;
++    creature->SetTC9CorpseSnapshotRevision(revision);
++
++    uint64 now = uint64(GameTime::GetGameTime().count());
++    uint64 liveBlockedUntil = creature->m_groupLootTimer ?
++        now + (creature->m_groupLootTimer + IN_MILLISECONDS - 1) / IN_MILLISECONDS : now;
++    uint64 latestBlockedUntil = creature->m_groupLootTimer ? liveBlockedUntil : 0;
++    if (latestBlockedUntil)
++        tracked.expiresAt = std::max(tracked.expiresAt, latestBlockedUntil + TransferredRollLootGrace);
++
++    if (creature->loot.isLooted() || now >= tracked.expiresAt)
++    {
++        SendRemove(tracked, snapshotId, revision);
++        _trackedCorpses.erase(trackedItr);
++        creature->ClearTC9CorpseSnapshotId();
++        return;
++    }
++
++    Player* carrier = ObjectAccessor::FindConnectedPlayer(tracked.carrier);
++    if (!carrier || !carrier->GetSession())
++        return;
++
++    Group* group = creature->GetLootRecipientGroup();
++    if (group && group->GetLootMethod() == MASTER_LOOT && creature->loot.loot_type == LOOT_CORPSE)
++    {
++        bool hasAllowedLooters = !creature->GetAllowedLooters().empty();
++        for (GroupReference* itr = group->GetFirstMember(); itr; itr = itr->next())
++        {
++            Player* member = itr->GetSource();
++            if (!member || (!member->IsAtLootRewardDistance(creature) &&
++                (!hasAllowedLooters || !creature->HasAllowedLooter(member->GetGUID()))))
++                continue;
++            tracked.viewers.insert(member->GetGUID());
++            for (uint32 i = 0; i < creature->loot.items.size(); ++i)
++                if (creature->loot.items[i].AllowedForPlayer(member, creature->GetGUID()))
++                    tracked.itemEligibility[i].insert(member->GetGUID());
++            for (uint32 i = 0; i < creature->loot.quest_items.size(); ++i)
++                if (creature->loot.quest_items[i].AllowedForPlayer(member, creature->GetGUID()))
++                    tracked.questItemEligibility[i].insert(member->GetGUID());
++        }
++    }
++    if (creature->m_groupLootTimer)
++    {
++        auto captureRollViewers =
++            [group, creature, &tracked](LootItem const& item, uint8 itemSlot, GuidSet& eligibility)
++        {
++            if (!item.is_blocked || item.is_looted)
++                return true;
++            std::vector<std::pair<ObjectGuid, uint8>> votes;
++            uint8 voteMask = 0;
++            if (!group || !group->GetTC9RollState(&creature->loot, itemSlot, votes, voteMask))
++                return false;
++            for (auto const& vote : votes)
++            {
++                tracked.viewers.insert(vote.first);
++                if (Player* voter = ObjectAccessor::FindConnectedPlayer(vote.first))
++                    if (item.AllowedForPlayer(voter, creature->GetGUID()))
++                        eligibility.insert(vote.first);
++            }
++            return true;
++        };
++        for (uint32 i = 0; i < creature->loot.items.size(); ++i)
++            if (!captureRollViewers(creature->loot.items[i], uint8(i), tracked.itemEligibility[i]))
++            {
++                tracked.transferable = false;
++                return;
++            }
++        for (uint32 i = 0; i < creature->loot.quest_items.size(); ++i)
++            if (!captureRollViewers(creature->loot.quest_items[i], uint8(creature->loot.items.size() + i),
++                tracked.questItemEligibility[i]))
++            {
++                tracked.transferable = false;
++                return;
++            }
++    }
++
++    if (tracked.viewers.size() > MaxTransferredPlayers)
++    {
++        tracked.transferable = false;
++        return;
++    }
++
++    WorldPacket packet(TC9_SMSG_CORPSE_SNAPSHOT, 1024);
++    packet << SnapshotVersion << SnapshotUpsert << snapshotId << revision << tracked.mapId << tracked.instanceId;
++    packet << uint64(tracked.carrier.GetRawValue()) << tracked.expiresAt;
++    packet << creature->GetEntry() << creature->GetPositionX() << creature->GetPositionY() <<
++        creature->GetPositionZ() << creature->GetOrientation();
++    packet << creature->GetPhaseMask() << uint64(creature->GetLootRecipientGUID().GetRawValue()) <<
++        creature->GetLootRecipientGroupGUID();
++    packet << uint8(creature->loot.loot_type) << creature->loot.gold << creature->loot.unlootedCount;
++    packet << uint64(creature->loot.roundRobinPlayer.GetRawValue()) << uint64(tracked.carrier.GetRawValue());
++    WriteGuidSet(packet, tracked.viewers);
++
++    packet << uint8(creature->loot.items.size());
++    for (uint32 i = 0; i < creature->loot.items.size(); ++i)
++    {
++        GuidSet eligibility = i < tracked.itemEligibility.size() ? tracked.itemEligibility[i] : GuidSet{};
++        LootItem const& item = creature->loot.items[i];
++        uint64 itemBlockedUntil = item.is_blocked && creature->m_groupLootTimer ? liveBlockedUntil : 0;
++        if (!WriteLootItem(packet, item, eligibility, itemBlockedUntil, group, &creature->loot, uint8(i)))
++        {
++            tracked.transferable = false;
++            return;
++        }
++    }
++    packet << uint8(creature->loot.quest_items.size());
++    for (uint32 i = 0; i < creature->loot.quest_items.size(); ++i)
++    {
++        GuidSet eligibility = i < tracked.questItemEligibility.size() ? tracked.questItemEligibility[i] : GuidSet{};
++        LootItem const& item = creature->loot.quest_items[i];
++        uint64 itemBlockedUntil = item.is_blocked && creature->m_groupLootTimer ? liveBlockedUntil : 0;
++        if (!WriteLootItem(packet, item, eligibility, itemBlockedUntil, group, &creature->loot,
++            uint8(creature->loot.items.size() + i)))
++        {
++            tracked.transferable = false;
++            return;
++        }
++    }
++
++    WriteQuestItemMap(packet, creature->loot.GetPlayerQuestItems());
++    WriteQuestItemMap(packet, creature->loot.GetPlayerFFAItems());
++    WriteQuestItemMap(packet, creature->loot.GetPlayerNonQuestNonFFAConditionalItems());
++
++    if (packet.size() > MaxSnapshotBytes)
++    {
++        tracked.transferable = false;
++        LOG_WARN("network", "TC9 corpse snapshot {} is too large ({} bytes), skipping", snapshotId, packet.size());
++        return;
++    }
++    tracked.transferable = true;
++    carrier->GetSession()->SendPacket(&packet);
++}
++
++void TC9CorpseTransfer::PublishLootState(Loot const* loot)
++{
++    if (!sToCloud9Sidecar->ClusterModeEnabled() || !loot || !loot->sourceWorldObjectGUID.IsCreatureOrVehicle())
++        return;
++
++    std::lock_guard<std::recursive_mutex> lock(_mutex);
++    for (auto const& pair : _trackedCorpses)
++    {
++        TrackedCorpse const& tracked = pair.second;
++        if (tracked.creatureGuid != loot->sourceWorldObjectGUID)
++            continue;
++
++        if (Player* carrier = ObjectAccessor::FindConnectedPlayer(tracked.carrier))
++            if (Creature* creature = carrier->GetMap()->GetCreature(tracked.creatureGuid))
++                if (&creature->loot == loot)
++                {
++                    Publish(creature);
++                    return;
++                }
++    }
++}
++
++void TC9CorpseTransfer::SendRemove(TrackedCorpse const& tracked, uint64 snapshotId, uint32 revision)
++{
++    Player* carrier = ObjectAccessor::FindConnectedPlayer(tracked.carrier);
++    if (!carrier || !carrier->GetSession())
++        return;
++
++    WorldPacket packet(TC9_SMSG_CORPSE_SNAPSHOT, 38);
++    packet << SnapshotVersion << SnapshotRemove << snapshotId << revision << tracked.mapId << tracked.instanceId;
++    packet << uint64(tracked.carrier.GetRawValue()) << tracked.expiresAt;
++    carrier->GetSession()->SendPacket(&packet);
++}
++
++void TC9CorpseTransfer::Forget(Creature* creature, bool notifyGateway)
++{
++    if (!sToCloud9Sidecar->ClusterModeEnabled() || !creature)
++        return;
++    std::lock_guard<std::recursive_mutex> lock(_mutex);
++
++    if (creature->IsTC9CorpseTransferOverflow())
++    {
++        ObjectGuid carrier = creature->GetTC9CorpseCarrier();
++        auto carrierItr = _overflowCorpses.find(carrier);
++        if (carrierItr != _overflowCorpses.end())
++        {
++            uint64 location = LocationKey(creature->GetMapId(), creature->GetInstanceId());
++            auto locationItr = carrierItr->second.find(location);
++            if (locationItr != carrierItr->second.end() && --locationItr->second == 0)
++                carrierItr->second.erase(locationItr);
++            if (carrierItr->second.empty())
++                _overflowCorpses.erase(carrierItr);
++        }
++        creature->SetTC9CorpseTransferOverflow(false);
++        return;
++    }
++
++    uint64 snapshotId = creature->GetTC9CorpseSnapshotId();
++    auto itr = _trackedCorpses.find(snapshotId);
++    if (!snapshotId || itr == _trackedCorpses.end())
++        return;
++
++    if (notifyGateway)
++        SendRemove(itr->second, snapshotId, creature->GetTC9CorpseSnapshotRevision() + 1);
++    _trackedCorpses.erase(itr);
++    creature->ClearTC9CorpseSnapshotId();
++}
++
++bool TC9CorpseTransfer::Detach(Player* player, std::vector<uint64> const& snapshotIds, bool allCarriedCorpses)
++{
++    if (!player)
++        return false;
++
++    std::lock_guard<std::recursive_mutex> lock(_mutex);
++
++    auto overflowItr = _overflowCorpses.find(player->GetGUID());
++    if (overflowItr != _overflowCorpses.end() &&
++        overflowItr->second.find(LocationKey(player->GetMapId(), player->GetInstanceId())) != overflowItr->second.end())
++        return false;
++
++    std::vector<uint64> ids = snapshotIds;
++    if (allCarriedCorpses)
++        for (auto const& pair : _trackedCorpses)
++            if (pair.second.carrier == player->GetGUID() && pair.second.mapId == player->GetMapId() &&
++                pair.second.instanceId == player->GetInstanceId())
++                if (std::find(ids.begin(), ids.end(), pair.first) == ids.end())
++                    ids.push_back(pair.first);
++
++    for (uint64 snapshotId : ids)
++    {
++        auto itr = _trackedCorpses.find(snapshotId);
++        if (itr == _trackedCorpses.end() || itr->second.carrier != player->GetGUID() ||
++            itr->second.mapId != player->GetMapId() || itr->second.instanceId != player->GetInstanceId())
++            continue;
++        if (Creature* creature = player->GetMap()->GetCreature(itr->second.creatureGuid))
++            if (Group* group = creature->GetLootRecipientGroup())
++                if (group->HasTC9RollForLoot(&creature->loot))
++                    return false;
++    }
++
++    // Send one final revision before READY_FOR_REDIRECT. Packets on this socket
++    // are ordered, so the gateway caches it before closing the connection.
++    for (uint64 snapshotId : ids)
++    {
++        auto itr = _trackedCorpses.find(snapshotId);
++        if (itr == _trackedCorpses.end())
++            continue;
++        if (Creature* creature = player->GetMap()->GetCreature(itr->second.creatureGuid))
++            Publish(creature);
++    }
++
++    for (uint64 snapshotId : ids)
++    {
++        auto itr = _trackedCorpses.find(snapshotId);
++        if (itr != _trackedCorpses.end() && itr->second.carrier == player->GetGUID() &&
++            itr->second.mapId == player->GetMapId() && itr->second.instanceId == player->GetInstanceId() &&
++            !itr->second.transferable)
++            return false;
++    }
++
++    for (uint64 snapshotId : ids)
++    {
++        auto itr = _trackedCorpses.find(snapshotId);
++        if (itr == _trackedCorpses.end() || itr->second.carrier != player->GetGUID() ||
++            itr->second.mapId != player->GetMapId() || itr->second.instanceId != player->GetInstanceId())
++            continue;
++
++        Creature* creature = player->GetMap()->GetCreature(itr->second.creatureGuid);
++        if (!creature || creature->GetTC9CorpseSnapshotId() != snapshotId)
++            continue;
++
++        _trackedCorpses.erase(itr);
++        creature->ClearTC9CorpseSnapshotId();
++        creature->RemoveCorpse(false);
++    }
++    return true;
++}
++
++bool TC9CorpseTransfer::Restore(Player* player, WorldPacket& packet)
++{
++    if (!sToCloud9Sidecar->ClusterModeEnabled() || !player || packet.size() > MaxSnapshotBytes)
++        return false;
++
++    std::lock_guard<std::recursive_mutex> lock(_mutex);
++
++    QuestItemMap questMaps;
++    QuestItemMap ffaMaps;
++    QuestItemMap conditionalMaps;
++    QuestItemMapsCleanup mapsCleanup{questMaps, ffaMaps, conditionalMaps};
++    try
++    {
++        uint8 version = 0;
++        uint8 operation = 0;
++        uint64 snapshotId = 0;
++        uint32 revision = 0;
++        uint32 mapId = 0;
++        uint32 instanceId = 0;
++        uint64 carrierRaw = 0;
++        uint64 expiresAt = 0;
++        packet >> version >> operation >> snapshotId >> revision >> mapId >> instanceId >> carrierRaw >> expiresAt;
++        ObjectGuid carrier(carrierRaw);
++        uint64 now = uint64(GameTime::GetGameTime().count());
++        if (version != SnapshotVersion || operation != SnapshotUpsert || !snapshotId ||
++            carrier != player->GetGUID() || mapId != player->GetMapId() || instanceId != player->GetInstanceId() ||
++            expiresAt <= now || expiresAt - now > MaxTransferredLifetime)
++            return false;
++
++        auto existingItr = _trackedCorpses.find(snapshotId);
++        if (existingItr != _trackedCorpses.end())
++        {
++            if (existingItr->second.carrier != carrier || existingItr->second.mapId != mapId ||
++                existingItr->second.instanceId != instanceId)
++                return false;
++            if (Creature* existing = player->GetMap()->GetCreature(existingItr->second.creatureGuid))
++                if (existing->GetTC9CorpseSnapshotRevision() >= revision)
++                    return true;
++        }
++
++        DecodedLoot decoded;
++        float x = 0.0f, y = 0.0f, z = 0.0f, orientation = 0.0f;
++        uint64 recipientRaw = 0;
++        uint8 lootType = 0;
++        uint64 roundRobinRaw = 0;
++        uint64 lootOwnerRaw = 0;
++        packet >> decoded.entry >> x >> y >> z >> orientation >> decoded.phaseMask >> recipientRaw >>
++            decoded.recipientGroup;
++        packet >> lootType >> decoded.loot.gold >> decoded.loot.unlootedCount >> roundRobinRaw >> lootOwnerRaw;
++        decoded.position.Relocate(x, y, z, orientation);
++        decoded.recipient = ObjectGuid(recipientRaw);
++        decoded.loot.loot_type = LootType(lootType);
++        decoded.loot.roundRobinPlayer = ObjectGuid(roundRobinRaw);
++        decoded.loot.lootOwnerGUID = ObjectGuid(lootOwnerRaw);
++        if (!decoded.entry || !sObjectMgr->GetCreatureTemplate(decoded.entry) || !decoded.position.IsPositionValid() ||
++            (decoded.loot.loot_type != LOOT_NONE && decoded.loot.loot_type != LOOT_CORPSE) ||
++            !decoded.recipient.IsPlayer() || decoded.loot.lootOwnerGUID != carrier ||
++            !ReadGuidSet(packet, decoded.viewers) || decoded.viewers.find(carrier) == decoded.viewers.end())
++            return false;
++
++        uint8 itemCount = 0;
++        packet >> itemCount;
++        if (itemCount > MAX_NR_LOOT_ITEMS)
++            return false;
++        decoded.loot.items.resize(itemCount);
++        decoded.itemRolls.resize(itemCount);
++        for (uint32 i = 0; i < itemCount; ++i)
++            if (!ReadLootItem(packet, decoded.loot.items[i], i, decoded.viewers, expiresAt, decoded.itemRolls[i]))
++                return false;
++
++        uint8 questItemCount = 0;
++        packet >> questItemCount;
++        if (questItemCount > MAX_NR_QUEST_ITEMS)
++            return false;
++        decoded.loot.quest_items.resize(questItemCount);
++        decoded.questItemRolls.resize(questItemCount);
++        for (uint32 i = 0; i < questItemCount; ++i)
++            if (!ReadLootItem(packet, decoded.loot.quest_items[i], i, decoded.viewers, expiresAt,
++                decoded.questItemRolls[i]))
++                return false;
++
++        if (!ReadQuestItemMap(packet, questMaps, decoded.loot.quest_items.size(), decoded.viewers) ||
++            !ReadQuestItemMap(packet, ffaMaps, decoded.loot.items.size(), decoded.viewers) ||
++            !ReadQuestItemMap(packet, conditionalMaps, decoded.loot.items.size(), decoded.viewers) ||
++            packet.rpos() != packet.size())
++            return false;
++        decoded.loot.RestorePlayerLootMaps(std::move(questMaps), std::move(ffaMaps), std::move(conditionalMaps));
++
++        auto hasDeadline = [](DecodedLoot::RollState const& roll) { return roll.deadline != 0; };
++        bool hasActiveRoll = std::any_of(decoded.itemRolls.begin(), decoded.itemRolls.end(), hasDeadline) ||
++            std::any_of(decoded.questItemRolls.begin(), decoded.questItemRolls.end(), hasDeadline);
++        Group* rollGroup = hasActiveRoll ? sGroupMgr->GetGroupByGUID(decoded.recipientGroup) : nullptr;
++        if (hasActiveRoll && !rollGroup)
++            return false;
++
++        Creature* corpse = nullptr;
++        if (existingItr != _trackedCorpses.end())
++            corpse = player->GetMap()->GetCreature(existingItr->second.creatureGuid);
++
++        if (!corpse)
++        {
++            TempSummon* summon = new TempSummon(nullptr, ObjectGuid::Empty);
++            summon->SetTC9CorpseTransferData(snapshotId, revision, carrier, decoded.viewers, true);
++            ObjectGuid::LowType corpseGuid = player->GetMap()->GenerateLowGuid<HighGuid::Unit>();
++            if (!summon->Create(corpseGuid, player->GetMap(), decoded.phaseMask, decoded.entry, 0,
++                    x, y, z, orientation))
++            {
++                delete summon;
++                return false;
++            }
++            summon->InitStats(uint32((expiresAt - now) * IN_MILLISECONDS));
++            summon->SetTempSummonType(TEMPSUMMON_CORPSE_TIMED_DESPAWN);
++            // Build the visual loot corpse directly. JustDied would notify
++            // ZoneScript/InstanceScript and replay the creature's real death.
++            summon->setDeathState(DeathState::Corpse);
++            summon->SetHealth(0);
++            summon->SetTarget();
++            summon->ReplaceAllNpcFlags(UNIT_NPC_FLAG_NONE);
++            summon->SetCorpseRemoveTime(uint32(expiresAt - now));
++            summon->SetTC9TransferredLootRecipient(decoded.recipient, decoded.recipientGroup);
++            if (!player->GetMap()->AddToMap(static_cast<Creature*>(summon)))
++            {
++                delete summon;
++                return false;
++            }
++            corpse = summon;
++        }
++        else
++        {
++            corpse->loot.clear();
++            corpse->SetTC9CorpseTransferData(snapshotId, revision, carrier, decoded.viewers, true);
++            corpse->SetTC9TransferredLootRecipient(decoded.recipient, decoded.recipientGroup);
++        }
++
++        corpse->loot.TakeTransferredState(decoded.loot);
++        corpse->loot.sourceWorldObjectGUID = corpse->GetGUID();
++        corpse->SetTC9CorpseSnapshotRevision(revision);
++
++        auto restoreRoll = [rollGroup, corpse, now](DecodedLoot::RollState const& roll, uint8 itemSlot)
++        {
++            if (!roll.deadline)
++                return;
++            uint64 remainingSeconds = roll.deadline > now ? roll.deadline - now : 0;
++            uint32 remainingTime = uint32(std::max<uint64>(1, remainingSeconds * IN_MILLISECONDS));
++            rollGroup->RestoreTC9Roll(&corpse->loot, corpse, itemSlot, roll.votes, roll.voteMask, remainingTime);
++        };
++        for (uint32 i = 0; i < decoded.itemRolls.size(); ++i)
++            restoreRoll(decoded.itemRolls[i], uint8(i));
++        for (uint32 i = 0; i < decoded.questItemRolls.size(); ++i)
++            restoreRoll(decoded.questItemRolls[i], uint8(corpse->loot.items.size() + i));
++        corpse->UpdateObjectVisibility(false);
++
++        TrackedCorpse tracked;
++        tracked.creatureGuid = corpse->GetGUID();
++        tracked.carrier = carrier;
++        tracked.viewers = corpse->GetTC9CorpseViewers();
++        tracked.mapId = mapId;
++        tracked.instanceId = instanceId;
++        tracked.expiresAt = expiresAt;
++        for (LootItem const& item : corpse->loot.items)
++            tracked.itemEligibility.emplace_back(item.GetAllowedLooters().begin(), item.GetAllowedLooters().end());
++        for (LootItem const& item : corpse->loot.quest_items)
++            tracked.questItemEligibility.emplace_back(item.GetAllowedLooters().begin(), item.GetAllowedLooters().end());
++        _trackedCorpses[snapshotId] = std::move(tracked);
++        return true;
++    }
++    catch (ByteBufferException const&)
++    {
++        return false;
++    }
++}
+diff --git a/src/server/game/TC9Sidecar/TC9CorpseTransfer.h b/src/server/game/TC9Sidecar/TC9CorpseTransfer.h
+new file mode 100644
+index 0000000000..760af5dc78
+--- /dev/null
++++ b/src/server/game/TC9Sidecar/TC9CorpseTransfer.h
+@@ -0,0 +1,58 @@
++/*
++ * This file is part of the AzerothCore Project. See AUTHORS file for Copyright information
++ */
++
++#ifndef _TC9_CORPSE_TRANSFER_H
++#define _TC9_CORPSE_TRANSFER_H
++
++#include "Common.h"
++#include "ObjectGuid.h"
++
++#include <mutex>
++#include <unordered_map>
++#include <vector>
++
++class Creature;
++class Player;
++class WorldPacket;
++struct Loot;
++struct LootItem;
++
++class TC9CorpseTransfer
++{
++public:
++    static TC9CorpseTransfer* instance();
++
++    void TrackAndPublish(Creature* creature);
++    void Publish(Creature* creature);
++    void PublishLootState(Loot const* loot);
++    void Forget(Creature* creature, bool notifyGateway);
++    bool Detach(Player* player, std::vector<uint64> const& snapshotIds, bool allCarriedCorpses);
++    bool Restore(Player* player, WorldPacket& packet);
++
++private:
++    struct TrackedCorpse
++    {
++        ObjectGuid creatureGuid;
++        ObjectGuid carrier;
++        GuidSet viewers;
++        std::vector<GuidSet> itemEligibility;
++        std::vector<GuidSet> questItemEligibility;
++        uint32 mapId{0};
++        uint32 instanceId{0};
++        uint64 expiresAt{0};
++        bool transferable{true};
++    };
++
++    uint64 GenerateSnapshotId();
++    static uint64 LocationKey(uint32 mapId, uint32 instanceId);
++    void SendRemove(TrackedCorpse const& tracked, uint64 snapshotId, uint32 revision);
++
++    std::recursive_mutex _mutex;
++    std::unordered_map<uint64, TrackedCorpse> _trackedCorpses;
++    std::unordered_map<ObjectGuid, std::unordered_map<uint64, std::size_t>> _overflowCorpses;
++};
++
++#define sTC9CorpseTransfer TC9CorpseTransfer::instance()
++
++#endif
+-- 
+2.47.3
+

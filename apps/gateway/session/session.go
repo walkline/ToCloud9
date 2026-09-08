@@ -102,6 +102,11 @@ type GameSession struct {
 	currentGameServerID              string
 	currentGameServerAlias           string
 	currentGroupID                   uint32
+
+	// corpseSnapshots contains opaque, short-lived loot state received from
+	// the authoritative worldserver. It exists only for the logged-in session
+	// and is replayed after same-map redirects or crash recovery.
+	corpseSnapshots map[uint64]corpseSnapshot
 }
 
 type GameSessionParams struct {
@@ -619,9 +624,7 @@ func (s *GameSession) onWorldSocketClosed() {
 
 		// we need to modify session in a safe thread (goroutine)
 		s.sessionSafeFuChan <- func(session *GameSession) {
-			if session.character != nil {
-				session.worldSocket = socket
-			}
+			session.installRecoveredWorldSocket(socket)
 
 			if session.showGameserverConnChangeToClient {
 				session.SendSysMessage(fmt.Sprintf("Connection recovered! New gameserver: %s. Sorry for inconvenience.", s.worldSocket.Address()))
@@ -630,6 +633,15 @@ func (s *GameSession) onWorldSocketClosed() {
 			}
 		}
 	}(s.character.GUID)
+}
+
+func (s *GameSession) installRecoveredWorldSocket(socket sockets.Socket) {
+	if s.character == nil {
+		return
+	}
+
+	s.worldSocket = socket
+	s.worldEntryPending = true
 }
 
 func (s *GameSession) onLoggedOut() {
@@ -660,6 +672,7 @@ func (s *GameSession) onLoggedOut() {
 	s.currentGroupID = 0
 	s.currentGameServerID = ""
 	s.currentGameServerAlias = ""
+	s.clearCorpseSnapshots()
 
 	s.character = nil
 }

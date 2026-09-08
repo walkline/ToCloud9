@@ -91,7 +91,10 @@ var HandleMap = map[packet.Opcode]HandlersQueue{
 	packet.SMsgMOTD:                   NewHandler("SMsgMOTD", (*GameSession).InterceptMessageOfTheDay),
 	packet.SMsgAccountDataTimes:       NewHandler("SMsgAccountDataTimes", (*GameSession).InterceptAccountDataTimes),
 
-	packet.TC9SMsgReadyForRedirect: NewHandler("TC9SMsgReadyForRedirect", (*GameSession).HandleReadyForRedirectRequest),
+	packet.TC9SMsgReadyForRedirect:   NewHandler("TC9SMsgReadyForRedirect", (*GameSession).HandleReadyForRedirectRequest),
+	packet.TC9CMsgPrepareForRedirect: NewHandler("TC9CMsgPrepareForRedirect", (*GameSession).DropInternalTC9Packet),
+	packet.TC9SMsgCorpseSnapshot:     NewHandler("TC9SMsgCorpseSnapshot", (*GameSession).InterceptCorpseSnapshot),
+	packet.TC9CMsgRestoreCorpse:      NewHandler("TC9CMsgRestoreCorpse", (*GameSession).DropInternalTC9Packet),
 
 	packet.SMsgNameQueryResponse: NewHandler("SMsgNameQueryResponse", (*GameSession).InterceptSMsgNameQueryResponse),
 	packet.CMsgNameQuery:         NewHandler("CMsgNameQuery", (*GameSession).HandleNameQuery),

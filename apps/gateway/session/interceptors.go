@@ -23,6 +23,9 @@ func (s *GameSession) InterceptInitWorldStates(ctx context.Context, p *packet.Pa
 	areaID := reader.Int32()
 
 	if s.character.Map != uint32(mapID) {
+		// Normal map transitions leave the original corpse on its source map.
+		// Do not replay that cached copy if the player later returns.
+		s.clearCorpseSnapshots()
 		s.charsUpdsBarrier.UpdateMap(s.character.GUID, uint32(mapID))
 		s.character.Map = uint32(mapID)
 	}
@@ -335,7 +338,11 @@ func (s *GameSession) InterceptAccountDataTimes(ctx context.Context, p *packet.P
 // sends its first SMSG_TIME_SYNC_REQ right after the player is added to the
 // map, so STATUS_LOGGEDIN opcodes are processed normally from that point on.
 func (s *GameSession) InterceptSMsgTimeSyncReq(ctx context.Context, p *packet.Packet) error {
+	wasWorldEntryPending := s.worldEntryPending
 	s.worldEntryPending = false
+	if wasWorldEntryPending {
+		s.restoreCorpseSnapshots()
+	}
 	s.gameSocket.SendPacket(p)
 	return nil
 }
@@ -448,6 +455,10 @@ func (s *GameSession) buildNameQueryResponse(ctx context.Context, charGUID uint6
 }
 
 func (s *GameSession) HandleReadyForRedirectRequest(ctx context.Context, p *packet.Packet) error {
+	if p.Source != packet.SourceWorldServer {
+		return nil
+	}
+
 	char, socket, err := s.connectToGameServer(ctx, s.character.GUID, nil, nil)
 	if err != nil {
 		return errors.New("failed to connect player to the new gameserver")
