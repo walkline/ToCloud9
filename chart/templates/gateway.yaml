@@ -99,5 +99,8 @@ spec:
   ports:
   - port: {{ .Values.gateway.port | int  }}
     targetPort: {{ .Values.gateway.port | int  }}
+    {{- if eq .Values.gateway.service.type "NodePort" }}
+    nodePort: {{ .Values.gateway.port | int }}
+    {{- end }}
   selector:
     app: {{ $fullname }}-gateway

@@ -52,12 +52,18 @@ spec:
         env:
         - name: PORT
           value: "{{ .Values.gameserver_ac.service.internalPort | int }}"
-        - name: GUID_PROVIDER_SERVICE_ADDRESS
+        - name: TC9_GUID_PROVIDER_ADDRESS
           value: {{ .Release.Name }}-guidserver:{{ .Values.guidserver.service.externalPort}}
-        - name: SERVERS_REGISTRY_SERVICE_ADDRESS
+        - name: TC9_SERVERS_REGISTRY_ADDRESS
           value: {{ .Release.Name }}-servers-registry:{{ .Values.servers_registry.service.externalPort}}
-        - name: NATS_URL
+        - name: TC9_MATCHMAKING_ADDRESS
+          value: {{ .Release.Name }}-matchmakingserver:{{ .Values.matchmakingserver.service.externalPort}}
+        - name: TC9_NATS_URL
           value: nats://{{ .Release.Name }}-nats:4222
+        - name: TC9_PREFERRED_HOSTNAME
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
         - name: DB_SCHEMA_TYPE
           valueFrom:
             secretKeyRef:
@@ -101,13 +107,13 @@ spec:
           value: "1"
         - name: AC_WORLD_SERVER_PORT
           value: "{{ .Values.gameserver_ac.port_world | int }}"
-        - name: CHARACTER_GUIDS_BUFFER_SIZE
+        - name: TC9_CHARACTER_GUIDS_BUFFER_SIZE
           value: "5"
-        - name: ITEM_GUIDS_BUFFER_SIZE
+        - name: TC9_ITEM_GUIDS_BUFFER_SIZE
           value: "50"
-        - name: GRPC_PORT
+        - name: TC9_GRPC_PORT
           value: "{{ .Values.gameserver_ac.service.internalPort | int }}"
-        - name: HEALTH_CHECK_PORT
+        - name: TC9_HEALTH_CHECK_PORT
           value: "{{ .Values.gameserver_ac.port_health | int }}"
         volumeMounts:
           - name: etc-vol

@@ -1,0 +1,469 @@
+# Sole release path for libsidecar-cpp (not included in v* product releases).
+#
+# Tag format: libsidecar-v<semver>  e.g. libsidecar-v1.0.0
+# <semver> must match project(libsidecar VERSION ...) in
+# game-server/libsidecar-cpp/CMakeLists.txt
+#
+# Full monorepo releases (v*) ship Go services only — see build-release.yml.
+
+name: Release libsidecar-cpp
+
+on:
+  push:
+    tags:
+      - 'libsidecar-v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-linux-x64:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache CMake build
+        uses: actions/cache@v4
+        with:
+          path: |
+            game-server/libsidecar-cpp/build/_deps
+            ~/.cache
+          key: ${{ runner.os }}-x64-cmake-${{ hashFiles('game-server/libsidecar-cpp/CMakeLists.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-x64-cmake-
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake g++ libssl-dev zlib1g-dev pkg-config
+
+      - name: Build libsidecar-cpp
+        working-directory: game-server/libsidecar-cpp
+        run: |
+          mkdir -p build
+          cd build
+          cmake .. \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DBUILD_TESTS=ON \
+            -DUSE_SYSTEM_GRPC=OFF \
+            -DUSE_SYSTEM_PROTOBUF=OFF
+          cmake --build . --config Release -j $(nproc)
+          LIBSIDECAR_VERSION=$(grep '^CMAKE_PROJECT_VERSION:STATIC=' CMakeCache.txt | cut -d= -f2)
+          echo "LIBSIDECAR_VERSION=${LIBSIDECAR_VERSION}" >> "$GITHUB_ENV"
+          echo "libsidecar version: ${LIBSIDECAR_VERSION}"
+
+      - name: Verify tag matches CMake version
+        if: startsWith(github.ref, 'refs/tags/libsidecar-v')
+        run: |
+          TAG_VERSION="${GITHUB_REF_NAME#libsidecar-v}"
+          echo "Tag version: ${TAG_VERSION}"
+          echo "CMake version: ${LIBSIDECAR_VERSION}"
+          if [ "${TAG_VERSION}" != "${LIBSIDECAR_VERSION}" ]; then
+            echo "::error::Tag libsidecar-v${TAG_VERSION} does not match CMake project VERSION ${LIBSIDECAR_VERSION}. Bump project(libsidecar VERSION ...) or retag."
+            exit 1
+          fi
+
+      - name: Run tests
+        working-directory: game-server/libsidecar-cpp/build
+        run: |
+          ctest --output-on-failure --verbose -R "^(libsidecar_tests|CApiCompatibility)$" -E "Benchmark"
+
+      - name: Package artifacts
+        run: |
+          mkdir -p artifacts/lib artifacts/include
+          cp -P game-server/libsidecar-cpp/build/libsidecar.so* artifacts/lib/
+          cp game-server/libsidecar-cpp/include/*.h artifacts/include/
+          cp game-server/libsidecar-cpp/build/generated/include/tc9_version.h artifacts/include/
+          cp -r game-server/libsidecar-cpp/include/libsidecar artifacts/include/
+
+          cat > artifacts/README.txt << EOF
+          libsidecar-cpp for Linux x64
+
+          Version: ${LIBSIDECAR_VERSION}
+          Git tag: ${GITHUB_REF_NAME}
+          Commit: ${GITHUB_SHA}
+
+          Build Information:
+          - Platform: Linux x64 (glibc 2.35+)
+          - Compiler: GCC
+          - C++ Standard: C++17
+          - Build Type: Release
+
+          Files:
+          - lib/libsidecar.so* (versioned shared library + symlinks)
+          - include/*.h including generated tc9_version.h
+          - include/libsidecar/
+
+          System Dependencies:
+          - libssl3, zlib1g, libstdc++6 (Debian/Ubuntu)
+          - openssl-libs, zlib, libstdc++ (RHEL/Fedora)
+
+          Installation:
+          1. Extract archive
+          2. Install system deps
+          3. Copy lib/libsidecar.so* to a library path and run ldconfig
+          4. Copy include/ into AzerothCore deps/libsidecar/include/
+          5. Copy the unversioned libsidecar.so next to worldserver / into deps as required by AC CMake
+          EOF
+
+          ARCHIVE="libsidecar-cpp-${LIBSIDECAR_VERSION}-linux-x64.tar.gz"
+          cd artifacts
+          tar -czf "../${ARCHIVE}" *
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: libsidecar-cpp-${{ env.LIBSIDECAR_VERSION }}-linux-x64
+          path: libsidecar-cpp-${{ env.LIBSIDECAR_VERSION }}-linux-x64.tar.gz
+
+  build-linux-arm64:
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache CMake build
+        uses: actions/cache@v4
+        with:
+          path: |
+            game-server/libsidecar-cpp/build/_deps
+            ~/.cache
+          key: ${{ runner.os }}-arm64-cmake-${{ hashFiles('game-server/libsidecar-cpp/CMakeLists.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-arm64-cmake-
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake g++ libssl-dev zlib1g-dev pkg-config
+
+      - name: Build libsidecar-cpp
+        working-directory: game-server/libsidecar-cpp
+        run: |
+          mkdir -p build
+          cd build
+          cmake .. \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DBUILD_TESTS=ON \
+            -DUSE_SYSTEM_GRPC=OFF \
+            -DUSE_SYSTEM_PROTOBUF=OFF
+          cmake --build . --config Release -j $(nproc)
+          LIBSIDECAR_VERSION=$(grep '^CMAKE_PROJECT_VERSION:STATIC=' CMakeCache.txt | cut -d= -f2)
+          echo "LIBSIDECAR_VERSION=${LIBSIDECAR_VERSION}" >> "$GITHUB_ENV"
+          echo "libsidecar version: ${LIBSIDECAR_VERSION}"
+
+      - name: Verify tag matches CMake version
+        if: startsWith(github.ref, 'refs/tags/libsidecar-v')
+        run: |
+          TAG_VERSION="${GITHUB_REF_NAME#libsidecar-v}"
+          if [ "${TAG_VERSION}" != "${LIBSIDECAR_VERSION}" ]; then
+            echo "::error::Tag libsidecar-v${TAG_VERSION} does not match CMake project VERSION ${LIBSIDECAR_VERSION}."
+            exit 1
+          fi
+
+      - name: Run tests
+        working-directory: game-server/libsidecar-cpp/build
+        run: |
+          ctest --output-on-failure --verbose -R "^(libsidecar_tests|CApiCompatibility)$" -E "Benchmark"
+
+      - name: Package artifacts
+        run: |
+          mkdir -p artifacts/lib artifacts/include
+          cp -P game-server/libsidecar-cpp/build/libsidecar.so* artifacts/lib/
+          cp game-server/libsidecar-cpp/include/*.h artifacts/include/
+          cp game-server/libsidecar-cpp/build/generated/include/tc9_version.h artifacts/include/
+          cp -r game-server/libsidecar-cpp/include/libsidecar artifacts/include/
+
+          cat > artifacts/README.txt << EOF
+          libsidecar-cpp for Linux ARM64
+
+          Version: ${LIBSIDECAR_VERSION}
+          Git tag: ${GITHUB_REF_NAME}
+          Commit: ${GITHUB_SHA}
+
+          Build Information:
+          - Platform: Linux ARM64
+          - C++ Standard: C++17
+          - Build Type: Release
+
+          Files:
+          - lib/libsidecar.so*
+          - include/*.h including generated tc9_version.h
+          - include/libsidecar/
+          EOF
+
+          ARCHIVE="libsidecar-cpp-${LIBSIDECAR_VERSION}-linux-arm64.tar.gz"
+          cd artifacts
+          tar -czf "../${ARCHIVE}" *
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: libsidecar-cpp-${{ env.LIBSIDECAR_VERSION }}-linux-arm64
+          path: libsidecar-cpp-${{ env.LIBSIDECAR_VERSION }}-linux-arm64.tar.gz
+
+  build-windows-x64:
+    runs-on: windows-2022
+    strategy:
+      matrix:
+        toolset: [v143, v142]
+    name: build-windows-x64-${{ matrix.toolset }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache CMake dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            game-server/libsidecar-cpp/build/_deps
+          key: windows-x64-${{ matrix.toolset }}-deps-v2-${{ hashFiles('game-server/libsidecar-cpp/CMakeLists.txt') }}
+          restore-keys: |
+            windows-x64-${{ matrix.toolset }}-deps-v2-
+            windows-x64-${{ matrix.toolset }}-deps-
+
+      - name: Setup MSVC
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Setup sccache
+        uses: mozilla-actions/sccache-action@v0.0.6
+
+      - name: Build libsidecar-cpp
+        working-directory: game-server/libsidecar-cpp
+        shell: cmd
+        env:
+          SCCACHE_GHA_ENABLED: "true"
+        run: |
+          if not exist build mkdir build
+          cd build
+          cmake .. ^
+            -G "Visual Studio 17 2022" ^
+            -A x64 ^
+            -T ${{ matrix.toolset }} ^
+            -DCMAKE_BUILD_TYPE=Release ^
+            -DBUILD_TESTS=ON ^
+            -DUSE_SYSTEM_GRPC=OFF ^
+            -DUSE_SYSTEM_PROTOBUF=OFF ^
+            -DCMAKE_C_COMPILER_LAUNCHER=sccache ^
+            -DCMAKE_CXX_COMPILER_LAUNCHER=sccache
+          cmake --build . --config Release -j %NUMBER_OF_PROCESSORS%
+
+      - name: Read libsidecar version
+        shell: pwsh
+        run: |
+          $line = Get-Content game-server/libsidecar-cpp/build/CMakeCache.txt |
+            Where-Object { $_ -match '^CMAKE_PROJECT_VERSION:STATIC=' }
+          $version = ($line -split '=', 2)[1]
+          echo "LIBSIDECAR_VERSION=$version" >> $env:GITHUB_ENV
+          Write-Host "libsidecar version: $version"
+
+      - name: Verify tag matches CMake version
+        if: startsWith(github.ref, 'refs/tags/libsidecar-v')
+        shell: pwsh
+        run: |
+          $tagVersion = "${{ github.ref_name }}".Substring("libsidecar-v".Length)
+          $cmakeVersion = $env:LIBSIDECAR_VERSION
+          Write-Host "Tag version: $tagVersion"
+          Write-Host "CMake version: $cmakeVersion"
+          if ($tagVersion -ne $cmakeVersion) {
+            Write-Error "Tag libsidecar-v$tagVersion does not match CMake project VERSION $cmakeVersion."
+            exit 1
+          }
+
+      - name: Run tests
+        working-directory: game-server/libsidecar-cpp/build
+        shell: cmd
+        run: |
+          ctest -C Release --output-on-failure --verbose -R "^(libsidecar_tests|CApiCompatibility)$" -E "Benchmark"
+
+      - name: Package artifacts
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path artifacts/lib
+          New-Item -ItemType Directory -Force -Path artifacts/include
+          Copy-Item game-server/libsidecar-cpp/build/Release/libsidecar.dll artifacts/lib/
+          Copy-Item game-server/libsidecar-cpp/build/Release/libsidecar.lib artifacts/lib/
+          Copy-Item game-server/libsidecar-cpp/include/*.h artifacts/include/
+          Copy-Item game-server/libsidecar-cpp/build/generated/include/tc9_version.h artifacts/include/
+          Copy-Item -Recurse game-server/libsidecar-cpp/include/libsidecar artifacts/include/
+
+          $version = $env:LIBSIDECAR_VERSION
+          $toolset = "${{ matrix.toolset }}"
+          $vsYear = if ($toolset -eq "v143") { "2022" } else { "2019" }
+
+          @"
+          libsidecar-cpp for Windows x64
+
+          Version: $version
+          Git tag: ${{ github.ref_name }}
+          Commit: ${{ github.sha }}
+
+          Build Information:
+          - Visual Studio: $vsYear
+          - Toolset: $toolset
+          - Architecture: x64
+
+          Files:
+          - lib/libsidecar.dll
+          - lib/libsidecar.lib
+          - include/*.h including generated tc9_version.h
+          - include/libsidecar/
+          "@ | Out-File -FilePath artifacts/README.txt -Encoding utf8
+
+          $archive = "libsidecar-cpp-$version-windows-x64-$toolset.zip"
+          Compress-Archive -Path artifacts/* -DestinationPath $archive
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: libsidecar-cpp-${{ env.LIBSIDECAR_VERSION }}-windows-x64-${{ matrix.toolset }}
+          path: libsidecar-cpp-${{ env.LIBSIDECAR_VERSION }}-windows-x64-${{ matrix.toolset }}.zip
+
+  build-macos-arm64:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache CMake build
+        uses: actions/cache@v4
+        with:
+          path: |
+            game-server/libsidecar-cpp/build/_deps
+            ~/Library/Caches/Homebrew
+          key: ${{ runner.os }}-arm64-cmake-${{ hashFiles('game-server/libsidecar-cpp/CMakeLists.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-arm64-cmake-
+
+      - name: Install dependencies
+        run: |
+          brew install cmake openssl zlib
+
+      - name: Build libsidecar-cpp
+        working-directory: game-server/libsidecar-cpp
+        run: |
+          mkdir -p build
+          cd build
+          cmake .. \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DBUILD_TESTS=ON \
+            -DUSE_SYSTEM_GRPC=OFF \
+            -DUSE_SYSTEM_PROTOBUF=OFF \
+            -DOPENSSL_ROOT_DIR=$(brew --prefix openssl)
+          cmake --build . --config Release -j $(sysctl -n hw.ncpu)
+          LIBSIDECAR_VERSION=$(grep '^CMAKE_PROJECT_VERSION:STATIC=' CMakeCache.txt | cut -d= -f2)
+          echo "LIBSIDECAR_VERSION=${LIBSIDECAR_VERSION}" >> "$GITHUB_ENV"
+          echo "libsidecar version: ${LIBSIDECAR_VERSION}"
+
+      - name: Verify tag matches CMake version
+        if: startsWith(github.ref, 'refs/tags/libsidecar-v')
+        run: |
+          TAG_VERSION="${GITHUB_REF_NAME#libsidecar-v}"
+          if [ "${TAG_VERSION}" != "${LIBSIDECAR_VERSION}" ]; then
+            echo "::error::Tag libsidecar-v${TAG_VERSION} does not match CMake project VERSION ${LIBSIDECAR_VERSION}."
+            exit 1
+          fi
+
+      - name: Run tests
+        working-directory: game-server/libsidecar-cpp/build
+        run: |
+          ctest --output-on-failure --verbose -R "^(libsidecar_tests|CApiCompatibility)$" -E "Benchmark"
+
+      - name: Package artifacts
+        run: |
+          mkdir -p artifacts/lib artifacts/include
+          cp -P game-server/libsidecar-cpp/build/libsidecar*.dylib artifacts/lib/
+          cp game-server/libsidecar-cpp/include/*.h artifacts/include/
+          cp game-server/libsidecar-cpp/build/generated/include/tc9_version.h artifacts/include/
+          cp -r game-server/libsidecar-cpp/include/libsidecar artifacts/include/
+
+          cat > artifacts/README.txt << EOF
+          libsidecar-cpp for macOS ARM64 (Apple Silicon)
+
+          Version: ${LIBSIDECAR_VERSION}
+          Git tag: ${GITHUB_REF_NAME}
+          Commit: ${GITHUB_SHA}
+
+          Build Information:
+          - Platform: macOS ARM64
+          - C++ Standard: C++17
+          - Build Type: Release
+
+          Files:
+          - lib/libsidecar*.dylib
+          - include/*.h including generated tc9_version.h
+          - include/libsidecar/
+          EOF
+
+          ARCHIVE="libsidecar-cpp-${LIBSIDECAR_VERSION}-macos-arm64.tar.gz"
+          cd artifacts
+          tar -czf "../${ARCHIVE}" *
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: libsidecar-cpp-${{ env.LIBSIDECAR_VERSION }}-macos-arm64
+          path: libsidecar-cpp-${{ env.LIBSIDECAR_VERSION }}-macos-arm64.tar.gz
+
+  create-release:
+    needs: [build-linux-x64, build-linux-arm64, build-windows-x64, build-macos-arm64]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/libsidecar-v')
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Prepare release assets and notes
+        run: |
+          mkdir -p release-assets
+          find artifacts -type f \( -name "*.tar.gz" -o -name "*.zip" \) -exec cp {} release-assets/ \;
+          ls -lh release-assets/
+
+          VERSION="${GITHUB_REF_NAME#libsidecar-v}"
+          echo "LIBSIDECAR_VERSION=${VERSION}" >> "$GITHUB_ENV"
+
+          {
+            echo "## libsidecar-cpp ${VERSION}"
+            echo ""
+            echo "C++ sidecar library only (not a full ToCloud9 services release)."
+            echo ""
+            echo "- **ABI / package version:** \`${VERSION}\` (from CMake \`project(libsidecar VERSION ...)\`)"
+            echo "- **Git tag:** \`${GITHUB_REF_NAME}\`"
+            echo "- **Commit:** \`${GITHUB_SHA}\`"
+            echo ""
+            echo "Always install **headers and binary from the same archive**."
+            echo "AzerothCore checks ABI at cluster init via \`TC9CheckAbiCompatible\`."
+            echo ""
+            echo "### Assets"
+            echo ""
+            for f in release-assets/*; do
+              [ -e "$f" ] || continue
+              echo "- \`$(basename "$f")\`"
+            done
+            echo ""
+            echo "### Platforms"
+            echo ""
+            echo "| Archive pattern | Platform |"
+            echo "|-----------------|----------|"
+            echo "| \`libsidecar-cpp-${VERSION}-linux-x64.tar.gz\` | Linux x86_64 |"
+            echo "| \`libsidecar-cpp-${VERSION}-linux-arm64.tar.gz\` | Linux ARM64 |"
+            echo "| \`libsidecar-cpp-${VERSION}-windows-x64-v143.zip\` | Windows / VS 2022 |"
+            echo "| \`libsidecar-cpp-${VERSION}-windows-x64-v142.zip\` | Windows / VS 2019 |"
+            echo "| \`libsidecar-cpp-${VERSION}-macos-arm64.tar.gz\` | macOS Apple Silicon |"
+            echo ""
+            echo "Heavy dependencies (gRPC, NATS, prometheus, etc.) are statically linked."
+          } > release-body.md
+          cat release-body.md
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          # Title uses CMake/tag semver; git tag remains libsidecar-vX.Y.Z
+          name: libsidecar-cpp ${{ env.LIBSIDECAR_VERSION }}
+          files: release-assets/*
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+          body_path: release-body.md
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

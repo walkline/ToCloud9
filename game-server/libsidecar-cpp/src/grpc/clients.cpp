@@ -2,12 +2,13 @@
 #include "servers-registry/registry.grpc.pb.h"
 #include "guid/guid.grpc.pb.h"
 #include "matchmaking/matchmaking.grpc.pb.h"
+#include "tc9_version.h"
 #include <spdlog/spdlog.h>
 
 namespace tc9 {
 
 namespace {
-const char* LIB_VERSION = "libsidecar-cpp-v0.0.1";
+const char* LIB_VERSION = TC9_VERSION_STRING;
 }
 
 GrpcClients::GrpcClients() {

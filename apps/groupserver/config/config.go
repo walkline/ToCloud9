@@ -19,6 +19,9 @@ type Config struct {
 
 	// CharServiceAddress is address of characters service
 	CharServiceAddress string `yaml:"charactersServiceAddress" env:"CHAR_SERVICE_ADDRESS" env-default:"localhost:8991"`
+
+	// ServersRegistryServiceAddress is address of servers registry service.
+	ServersRegistryServiceAddress string `yaml:"serversRegistryServiceAddress" env:"SERVERS_REGISTRY_SERVICE_ADDRESS" env-default:"localhost:8999"`
 }
 
 // LoadConfig loads config from file or/and env variables

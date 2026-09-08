@@ -33,7 +33,7 @@ func NewAccountMySQLRepo(db *sql.DB, stmtBuilder StatementsBuilder) (AccountRepo
 func (r *accountMySQLRepo) AccountByUserName(ctx context.Context, username string) (*Account, error) {
 	account := &Account{}
 	row := r.accountByUserStmt.QueryRowContext(ctx, username)
-	err := row.Scan(&account.ID, &account.Username, &account.Salt, &account.Verifier, &account.SessionKeyAuth, &account.Locked, &account.LastIP)
+	err := row.Scan(&account.ID, &account.Username, &account.Salt, &account.Verifier, &account.SessionKeyAuth, &account.Locked, &account.LastIP, &account.Locale)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil
@@ -44,6 +44,6 @@ func (r *accountMySQLRepo) AccountByUserName(ctx context.Context, username strin
 }
 
 func (r *accountMySQLRepo) UpdateAccount(ctx context.Context, a *Account) error {
-	_, err := r.updateAccountStmt.ExecContext(ctx, a.Username, a.Salt, a.Verifier, a.SessionKeyAuth, a.Locked, a.LastIP, a.ID)
+	_, err := r.updateAccountStmt.ExecContext(ctx, a.Username, a.Salt, a.Verifier, a.SessionKeyAuth, a.Locked, a.LastIP, a.Locale, a.ID)
 	return err
 }

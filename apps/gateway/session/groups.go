@@ -76,12 +76,14 @@ func (s *GameSession) HandleGroupInvite(ctx context.Context, p *packet.Packet) e
 	}
 
 	inviteRes, err := s.groupServiceClient.Invite(ctx, &pb.InviteParams{
-		Api:         root.SupportedGroupServiceVer,
-		RealmID:     root.RealmID,
-		Inviter:     s.character.GUID,
-		Invited:     resp.Character.CharGUID,
-		InviterName: s.character.Name,
-		InvitedName: resp.Character.CharName,
+		Api:                 root.SupportedGroupServiceVer,
+		RealmID:             root.RealmID,
+		Inviter:             s.character.GUID,
+		Invited:             resp.Character.CharGUID,
+		InviterName:         s.character.Name,
+		InvitedName:         resp.Character.CharName,
+		InviterMapID:        s.character.Map,
+		InviterGameServerID: s.currentGameServerID,
 	})
 	if err != nil {
 		return NewGroupServiceUnavailableErr(err)
@@ -134,6 +136,10 @@ func (s *GameSession) HandleEventGroupMemberOnlineStatusChanged(ctx context.Cont
 
 func (s *GameSession) HandleEventGroupCreated(ctx context.Context, e *eBroadcaster.Event) error {
 	eventData := e.Payload.(*events.GroupEventGroupCreatedPayload)
+	s.currentGroupID = uint32(eventData.GroupID)
+	if err := s.applyGroupLayer(ctx, uint32(eventData.GroupID)); err != nil {
+		return fmt.Errorf("apply group layer: %w", err)
+	}
 
 	var member *events.GroupMember
 	for i, memberItr := range eventData.Members {
@@ -500,24 +506,37 @@ func (s *GameSession) groupUninviteWithGUID(ctx context.Context, player uint64, 
 	return nil
 }
 
-func (s *GameSession) LoadGroupForPlayer(ctx context.Context) error {
+// resolveGroupIDForPlayer loads the player's current group ID from the group
+// service. Used before gameserver selection so layer binding sees the group.
+func (s *GameSession) resolveGroupIDForPlayer(ctx context.Context, playerGUID uint64) (uint32, error) {
 	res, err := s.groupServiceClient.GetGroupIDByPlayer(ctx, &pb.GetGroupIDByPlayerRequest{
 		Api:     root.SupportedGroupServiceVer,
 		RealmID: root.RealmID,
-		Player:  s.character.GUID,
+		Player:  playerGUID,
 	})
 	if err != nil {
-		return NewGroupServiceUnavailableErr(err)
+		return 0, NewGroupServiceUnavailableErr(err)
+	}
+	return res.GroupID, nil
+}
+
+func (s *GameSession) LoadGroupForPlayer(ctx context.Context) error {
+	groupID, err := s.resolveGroupIDForPlayer(ctx, s.character.GUID)
+	if err != nil {
+		return err
 	}
 
-	if res.GroupID == 0 {
+	if groupID == 0 {
+		s.currentGroupID = 0
 		return nil
 	}
+	s.currentGroupID = groupID
 
-	return s.SendGroupUpdate(ctx, uint(res.GroupID))
+	return s.SendGroupUpdate(ctx, uint(groupID))
 }
 
 func (s *GameSession) SendGroupUpdate(ctx context.Context, groupID uint) error {
+	s.currentGroupID = uint32(groupID)
 	groupResp, err := s.groupServiceClient.GetGroup(ctx, &pb.GetGroupRequest{
 		Api:     root.SupportedGroupServiceVer,
 		RealmID: root.RealmID,
@@ -588,6 +607,7 @@ func (s *GameSession) HandleEventGroupMemberLeft(ctx context.Context, e *eBroadc
 	eventData := e.Payload.(*events.GroupEventGroupMemberLeftPayload)
 
 	if eventData.MemberGUID == s.character.GUID {
+		s.currentGroupID = 0
 		s.groupMemberStats = nil
 
 		resp := packet.NewWriterWithSize(packet.SMsgGroupUnInvite, 0)
@@ -609,6 +629,7 @@ func (s *GameSession) HandleEventGroupDisband(ctx context.Context, e *eBroadcast
 	eventData := e.Payload.(*events.GroupEventGroupDisbandPayload)
 
 	s.groupMemberStats = nil
+	s.currentGroupID = 0
 
 	s.groupUpdateCounter++
 
@@ -625,6 +646,12 @@ func (s *GameSession) HandleEventGroupDisband(ctx context.Context, e *eBroadcast
 
 func (s *GameSession) HandleEventGroupMemberAdded(ctx context.Context, e *eBroadcaster.Event) error {
 	eventData := e.Payload.(*events.GroupEventGroupMemberAddedPayload)
+	if eventData.MemberGUID == s.character.GUID {
+		s.currentGroupID = uint32(eventData.GroupID)
+		if err := s.applyGroupLayer(ctx, uint32(eventData.GroupID)); err != nil {
+			return err
+		}
+	}
 
 	s.publishCharacterStatsSnapshot()
 

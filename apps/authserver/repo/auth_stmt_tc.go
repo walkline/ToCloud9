@@ -9,9 +9,9 @@ type trinityCoreStatementsBuilder struct{}
 func (b trinityCoreStatementsBuilder) StmtForType(t AuthStmtType) string {
 	switch t {
 	case AuthStmtTypeGetAccountByUsername:
-		return "SELECT id, username, salt, verifier, session_key_auth, locked, last_ip FROM account WHERE username = ?"
+		return "SELECT id, username, salt, verifier, session_key_auth, locked, last_ip, locale FROM account WHERE username = ?"
 	case AuthStmtTypeUpdateAccountByID:
-		return "UPDATE account SET username = ?, salt = ?, verifier = ?, session_key_auth = ?, locked = ?, last_ip = ? WHERE id = ?"
+		return "UPDATE account SET username = ?, salt = ?, verifier = ?, session_key_auth = ?, locked = ?, last_ip = ?, locale = ? WHERE id = ?"
 	case AuthStmtTypeGetRealmList:
 		return "SELECT id, name, icon, flag, timezone, allowedSecurityLevel, gamebuild FROM realmlist"
 	case AuthStmtTypeGetCharactersCountOnRealmsByAccount:

@@ -5,12 +5,20 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"google.golang.org/grpc"
 
 	"github.com/walkline/ToCloud9/apps/groupserver/repo"
+	pbServ "github.com/walkline/ToCloud9/gen/servers-registry/pb"
 	"github.com/walkline/ToCloud9/shared/events"
 )
 
 type noopGroupProducer struct{}
+
+type noopGroupLayerBinder struct{}
+
+func (noopGroupLayerBinder) BindGroupToGameServer(context.Context, *pbServ.BindGroupToGameServerRequest, ...grpc.CallOption) (*pbServ.BindGroupToGameServerResponse, error) {
+	return &pbServ.BindGroupToGameServerResponse{}, nil
+}
 
 func (noopGroupProducer) InviteCreated(*events.GroupEventInviteCreatedPayload) error { return nil }
 func (noopGroupProducer) GroupCreated(*events.GroupEventGroupCreatedPayload) error   { return nil }
@@ -49,7 +57,7 @@ func TestGroupsServiceSetLootMethodKeepsThresholdOnStockPacket(t *testing.T) {
 	group.LootThreshold = uint8(repo.ItemQualityRare)
 	assert.NoError(t, cache.Create(ctx, 1, group))
 
-	s := NewGroupsService(cache, nil, noopGroupProducer{})
+	s := NewGroupsService(cache, nil, noopGroupLayerBinder{}, noopGroupProducer{})
 
 	assert.NoError(t, s.SetLootMethod(ctx, 1, 1, uint8(repo.LootTypeGroupLoot), 0, 0))
 
@@ -65,7 +73,7 @@ func TestGroupsServiceSetLootMethodValidation(t *testing.T) {
 
 	assert.NoError(t, cache.Create(ctx, 1, newTwoMembersGroup()))
 
-	s := NewGroupsService(cache, nil, noopGroupProducer{})
+	s := NewGroupsService(cache, nil, noopGroupLayerBinder{}, noopGroupProducer{})
 
 	// Unknown loot method.
 	assert.Error(t, s.SetLootMethod(ctx, 1, 1, 42, 0, uint8(repo.ItemQualityUncommon)))

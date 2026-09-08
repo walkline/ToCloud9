@@ -30,6 +30,8 @@ spec:
               key: CHAR_DB_CONNECTION
         - name: CHAR_SERVICE_ADDRESS
           value: {{ .Release.Name }}-charserver:{{ .Values.charserver.service.externalPort}}
+        - name: SERVERS_REGISTRY_SERVICE_ADDRESS
+          value: {{ .Release.Name }}-servers-registry:{{ .Values.servers_registry.service.externalPort }}
         ports:
         - containerPort: {{ .Values.groupserver.service.internalPort | int  }}
         # livenessProbe:

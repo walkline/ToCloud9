@@ -22,6 +22,118 @@ type GameServer interface {
 	ListOfCrossRealms(ctx context.Context) ([]repo.GameServer, error)
 	ListAll(ctx context.Context) ([]repo.GameServer, error)
 	MapsLoadedForServer(ctx context.Context, serverID string, maps []uint32) (*repo.GameServer, error)
+	RedistributeRealm(ctx context.Context, realmID uint32) error
+}
+
+func (g *gameServerImpl) RedistributeRealm(ctx context.Context, realmID uint32) error {
+	if g.layers != nil {
+		unlock, err := g.layers.LockRealm(ctx, realmID)
+		if err != nil {
+			return err
+		}
+		defer unlock()
+	}
+	servers, err := g.ListForRealm(ctx, realmID)
+	if err != nil {
+		return err
+	}
+	_, err = g.distributeMapsToServers(ctx, servers)
+	return err
+}
+
+func applyLayerAssignments(servers []repo.GameServer, config map[uint32]uint32) {
+	for mapID, count := range config {
+		if count < 2 {
+			continue
+		}
+		for i := range servers {
+			servers[i].AssignedMapsToHandle = removeMap(servers[i].AssignedMapsToHandle, mapID)
+		}
+		for replica := uint32(0); replica < count; replica++ {
+			candidate := -1
+			for i := range servers {
+				if !mapAvailable(servers[i], mapID) || containsMap(servers[i].AssignedMapsToHandle, mapID) {
+					continue
+				}
+				if candidate == -1 || len(servers[i].AssignedMapsToHandle) < len(servers[candidate].AssignedMapsToHandle) ||
+					(len(servers[i].AssignedMapsToHandle) == len(servers[candidate].AssignedMapsToHandle) && servers[i].ID < servers[candidate].ID) {
+					candidate = i
+				}
+			}
+			if candidate >= 0 {
+				servers[candidate].AssignedMapsToHandle = append(servers[candidate].AssignedMapsToHandle, mapID)
+				sort.Slice(servers[candidate].AssignedMapsToHandle, func(i, j int) bool {
+					return servers[candidate].AssignedMapsToHandle[i] < servers[candidate].AssignedMapsToHandle[j]
+				})
+			}
+		}
+	}
+}
+
+func containsMap(maps []uint32, mapID uint32) bool {
+	for _, candidate := range maps {
+		if candidate == mapID {
+			return true
+		}
+	}
+	return false
+}
+
+func mapAvailable(server repo.GameServer, mapID uint32) bool {
+	if server.IsAllMapsAvailable() {
+		return true
+	}
+	for _, available := range server.AvailableMaps {
+		if available == mapID {
+			return true
+		}
+	}
+	return false
+}
+
+func removeMap(maps []uint32, mapID uint32) []uint32 {
+	result := maps[:0]
+	for _, assigned := range maps {
+		if assigned != mapID {
+			result = append(result, assigned)
+		}
+	}
+	return result
+}
+
+func newlyAssigned(oldMaps, newMaps []uint32) []uint32 {
+	old := make(map[uint32]struct{}, len(oldMaps))
+	for _, mapID := range oldMaps {
+		old[mapID] = struct{}{}
+	}
+	var result []uint32
+	for _, mapID := range newMaps {
+		if _, exists := old[mapID]; !exists {
+			result = append(result, mapID)
+		}
+	}
+	return result
+}
+
+func pendingAssignments(existing, oldMaps, newMaps []uint32) []uint32 {
+	newSet := make(map[uint32]struct{}, len(newMaps))
+	for _, mapID := range newMaps {
+		newSet[mapID] = struct{}{}
+	}
+	result := make([]uint32, 0, len(existing)+len(newMaps))
+	seen := make(map[uint32]struct{})
+	for _, mapID := range existing {
+		if _, retained := newSet[mapID]; retained {
+			result = append(result, mapID)
+			seen[mapID] = struct{}{}
+		}
+	}
+	for _, mapID := range newlyAssigned(oldMaps, newMaps) {
+		if _, exists := seen[mapID]; !exists {
+			result = append(result, mapID)
+		}
+	}
+	return result
 }
 
 type gameServerImpl struct {
@@ -30,6 +142,7 @@ type gameServerImpl struct {
 	metrics     healthandmetrics.MetricsConsumer
 	mapBalancer mapbalancing.MapDistributor
 	eProducer   events.ServerRegistryProducer
+	layers      repo.LayerStore
 }
 
 func NewGameServer(
@@ -39,6 +152,7 @@ func NewGameServer(
 	metrics healthandmetrics.MetricsConsumer,
 	mapBalancer mapbalancing.MapDistributor,
 	eProducer events.ServerRegistryProducer,
+	layers repo.LayerStore,
 	supportedRealmIDs []uint32,
 ) (GameServer, error) {
 	service := &gameServerImpl{
@@ -47,6 +161,7 @@ func NewGameServer(
 		metrics:     metrics,
 		mapBalancer: mapBalancer,
 		eProducer:   eProducer,
+		layers:      layers,
 	}
 
 	checker.AddFailedObserver(func(object healthandmetrics.HealthCheckObject, err error) {
@@ -180,7 +295,7 @@ func (g *gameServerImpl) AvailableForMapAndRealm(ctx context.Context, mapID uint
 		}
 	}
 
-	return append(result), nil
+	return result, nil
 }
 
 func (g *gameServerImpl) RandomServerForRealm(ctx context.Context, realmID uint32) (*repo.GameServer, error) {
@@ -311,6 +426,13 @@ func (g *gameServerImpl) distributeMapsToServers(ctx context.Context, servers []
 	}
 
 	distributed := g.mapBalancer.Distribute(servers)
+	if len(distributed) > 0 && !distributed[0].IsCrossRealm && g.layers != nil {
+		config, err := g.layers.Configuration(ctx, distributed[0].RealmID)
+		if err != nil {
+			return nil, fmt.Errorf("read layer configuration: %w", err)
+		}
+		applyLayerAssignments(distributed, config)
+	}
 
 	res := make([]events.GameServer, len(distributed))
 	for i := range distributed {
@@ -342,7 +464,13 @@ func (g *gameServerImpl) distributeMapsToServers(ctx context.Context, servers []
 			}
 		}
 
-		if err := g.r.Upsert(ctx, &distributed[i]); err != nil {
+		assigned := append([]uint32(nil), distributed[i].AssignedMapsToHandle...)
+		pending := append([]uint32(nil), distributed[i].AssignedButPendingMaps...)
+		if err := g.r.Update(ctx, distributed[i].ID, func(latest *repo.GameServer) *repo.GameServer {
+			latest.AssignedMapsToHandle = assigned
+			latest.AssignedButPendingMaps = pending
+			return latest
+		}); err != nil {
 			return nil, err
 		}
 	}

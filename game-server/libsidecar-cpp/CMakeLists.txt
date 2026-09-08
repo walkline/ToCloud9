@@ -19,12 +19,20 @@ if(DEFINED VCPKG_TARGET_TRIPLET)
     endif()
 endif()
 
-project(libsidecar VERSION 0.0.1 LANGUAGES C CXX)
+project(libsidecar VERSION 1.0.0 LANGUAGES C CXX)
 
 # C++ Standard
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
+
+# Generate public version header from project VERSION (single source of truth)
+set(TC9_GENERATED_INCLUDE_DIR "${CMAKE_CURRENT_BINARY_DIR}/generated/include")
+configure_file(
+    "${CMAKE_CURRENT_SOURCE_DIR}/cmake/tc9_version.h.in"
+    "${TC9_GENERATED_INCLUDE_DIR}/tc9_version.h"
+    @ONLY
+)
 
 # Enable Position Independent Code for all targets (required for shared library)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
@@ -366,6 +374,7 @@ add_library(libsidecar_objs OBJECT ${LIBSIDECAR_SOURCES})
 target_include_directories(libsidecar_objs
     PUBLIC
         ${CMAKE_SOURCE_DIR}/include
+        ${TC9_GENERATED_INCLUDE_DIR}
         ${CMAKE_SOURCE_DIR}/src
         ${PROTO_GENERATED_DIR}
 )
@@ -392,17 +401,30 @@ target_link_libraries(libsidecar_objs
 # Main library target (DLL/shared library)
 add_library(libsidecar SHARED $<TARGET_OBJECTS:libsidecar_objs>)
 
-# Library naming to match Go artifacts (libsidecar.so on all platforms)
+# Unversioned filename (libsidecar.so / .dylib / .dll).
+# AzerothCore imports a single unversioned file with IMPORTED_NO_SONAME.
+# ABI is tracked via project VERSION → tc9_version.h / TC9GetVersion, not SONAME.
+# Do not set VERSION/SOVERSION: that produces libsidecar.1.dylib and
+# @rpath/libsidecar.1.dylib, which breaks AC's unversioned layout.
 set_target_properties(libsidecar PROPERTIES
     PREFIX ""
     OUTPUT_NAME "libsidecar"
-    VERSION ${PROJECT_VERSION}
-    SOVERSION ${PROJECT_VERSION_MAJOR}
 )
+
+# macOS: install name @rpath/libsidecar.dylib (consumers must set rpath, or
+# place the dylib next to the binary and add @loader_path as rpath).
+if(APPLE)
+    set_target_properties(libsidecar PROPERTIES
+        MACOSX_RPATH ON
+        INSTALL_NAME_DIR "@rpath"
+        BUILD_WITH_INSTALL_NAME_DIR ON
+    )
+endif()
 
 target_include_directories(libsidecar
     PUBLIC
         $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
+        $<BUILD_INTERFACE:${TC9_GENERATED_INCLUDE_DIR}>
         $<INSTALL_INTERFACE:include>
     PRIVATE
         ${CMAKE_SOURCE_DIR}/src
@@ -474,6 +496,7 @@ if(BUILD_TESTS)
 
     target_include_directories(c_api_compatibility_test PRIVATE
         ${CMAKE_SOURCE_DIR}/include
+        ${TC9_GENERATED_INCLUDE_DIR}
     )
 
     target_link_libraries(c_api_compatibility_test
@@ -504,6 +527,7 @@ install(FILES
     include/player-interactions-api.h
     include/battleground-api.h
     include/monitoring.h
+    "${TC9_GENERATED_INCLUDE_DIR}/tc9_version.h"
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
 )
 

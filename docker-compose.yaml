@@ -41,7 +41,7 @@ services:
     command: >
       sh -c "curl -L https://raw.githubusercontent.com/walkline/azerothcore-wotlk/cluster-mode/src/server/apps/worldserver/worldserver.conf.dist -o /config/worldserver.conf &&
       mkdir -p /data && cd /data &&
-      curl -L -o data.zip https://github.com/wowgaming/client-data/releases/download/v16/data.zip &&
+      curl -L -o data.zip https://github.com/wowgaming/client-data/releases/download/v20.0/Data.zip &&
       unzip -q data.zip &&
       rm -f data.zip"
     profiles:
@@ -122,6 +122,7 @@ services:
     environment:
       PORT: 8999
       REDIS_URL: redis://:@redis:6379/0
+      LAYER_MAPS: ${LAYER_MAPS:-}
     profiles:
       - ac
       - tc
@@ -175,6 +176,7 @@ services:
         condition: service_healthy
     environment:
       CHAR_DB_CONNECTION: 1:${CHAR_DB_USER}:${CHAR_DB_PASS}@tcp(${CHAR_DB_HOST}:${CHAR_DB_PORT})/${CHAR_DB_NAME}
+      SERVERS_REGISTRY_SERVICE_ADDRESS: servers-registry:8999
       NATS_URL: nats://nats:4222
       PORT: 8992
     profiles:

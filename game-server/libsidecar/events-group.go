@@ -84,14 +84,10 @@ func NewGroupHandlerFabric(logger zerolog.Logger) consumer.GroupHandlersFabric {
 
 func (g groupHandlerFabric) GroupCreated(payload *events.GroupEventGroupCreatedPayload) queue.Handler {
 	return eventsHandlerFunc(func() {
-		cMemberGUIDs := C.malloc(C.size_t(len(payload.Members)) * C.size_t(unsafe.Sizeof(C.uint64_t(0))))
-		defer C.free(cMemberGUIDs) // Make sure to free the memory when done
+		cMemberGUIDsMem := C.malloc(C.size_t(len(payload.Members)) * C.size_t(unsafe.Sizeof(C.uint64_t(0))))
+		defer C.free(cMemberGUIDsMem) // Make sure to free the memory when done
 
-		cMemberGUIDsPtr := (*C.uint64_t)(cMemberGUIDs)
-		for i, guid := range payload.Members {
-			cMemberGUIDsPtr = (*C.uint64_t)(unsafe.Pointer(uintptr(unsafe.Pointer(cMemberGUIDsPtr)) + uintptr(i)*unsafe.Sizeof(C.uint64_t(0))))
-			*cMemberGUIDsPtr = C.uint64_t(guid.MemberGUID)
-		}
+		writeMemberGUIDs(cMemberGUIDsMem, payload.Members)
 
 		var group C.EventObjectGroup
 		group.guid = C.uint32_t(payload.GroupID)
@@ -103,7 +99,7 @@ func (g groupHandlerFabric) GroupCreated(payload *events.GroupEventGroupCreatedP
 		group.difficulty = C.uint8_t(payload.Difficulty)
 		group.raidDifficulty = C.uint8_t(payload.RaidDifficulty)
 		group.masterLooterGuid = C.uint64_t(payload.MasterLooterGuid)
-		group.members = (*C.uint64_t)(cMemberGUIDs)
+		group.members = (*C.uint64_t)(cMemberGUIDsMem)
 		group.membersSize = C.uint8_t(len(payload.Members))
 
 		r := C.CallOnGroupCreatedHook(&group)
@@ -185,5 +181,14 @@ func (g groupHandlerFabric) handleResponse(resp int, hookName string) {
 		g.logger.Warn().Str("hook", hookName).Msg("no bound hook")
 	default:
 		g.logger.Error().Str("hook", hookName).Msg("unk status")
+	}
+}
+
+// writeMemberGUIDs fills the C array allocated at mem with the GUID of every
+// member, one element per member.
+func writeMemberGUIDs(mem unsafe.Pointer, members []events.GroupMember) {
+	guids := unsafe.Slice((*C.uint64_t)(mem), len(members))
+	for i := range members {
+		guids[i] = C.uint64_t(members[i].MemberGUID)
 	}
 }

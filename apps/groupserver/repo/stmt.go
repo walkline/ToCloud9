@@ -44,9 +44,9 @@ func (s CharsPreparedStatements) ID() uint32 {
 func (s CharsPreparedStatements) Stmt() string {
 	switch s {
 	case StmtReplaceGroupInvite:
-		return "REPLACE INTO group_invites (invited, inviter, groupId, invitedName, inviterName) VALUES (?, ?, ?, ?, ?)"
+		return "REPLACE INTO group_invites (invited, inviter, groupId, invitedName, inviterName, inviterMapId, inviterGameServerId) VALUES (?, ?, ?, ?, ?, ?, ?)"
 	case StmtSelectGroupInviteByInvited:
-		return "SELECT inviter, groupId, invitedName, inviterName FROM group_invites WHERE invited = ?"
+		return "SELECT inviter, groupId, invitedName, inviterName, inviterMapId, inviterGameServerId FROM group_invites WHERE invited = ?"
 	case StmtInsertNewGroup:
 		return `INSERT INTO 
     				` + "`groups`" + `(leaderGuid, lootMethod, looterGuid, lootThreshold, icon1, icon2, icon3, icon4, icon5, icon6, icon7, icon8, groupType, difficulty, raidDifficulty, masterLooterGuid) 

@@ -1,6 +1,12 @@
+# Local build artifacts (must not enter image — poison CMake cache paths)
+game-server/libsidecar-cpp/build/
+game-server/libsidecar-cpp/test-build/
 game-server/libsidecar/*.dylib
 game-server/libsidecar/libsidecar.h
-
 game-server/Dockerfile
+
 bin/
 vendor/
+.git/
+**/cmake-build-*/
+**/.DS_Store

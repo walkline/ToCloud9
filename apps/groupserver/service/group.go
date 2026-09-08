@@ -7,10 +7,12 @@ import (
 	"sync"
 
 	"github.com/rs/zerolog/log"
+	"google.golang.org/grpc"
 
 	"github.com/walkline/ToCloud9/apps/groupserver"
 	"github.com/walkline/ToCloud9/apps/groupserver/repo"
-	"github.com/walkline/ToCloud9/gen/characters/pb"
+	pbChar "github.com/walkline/ToCloud9/gen/characters/pb"
+	pbServ "github.com/walkline/ToCloud9/gen/servers-registry/pb"
 	"github.com/walkline/ToCloud9/shared/events"
 )
 
@@ -38,7 +40,7 @@ type GroupsService interface {
 	GroupByMemberGUID(ctx context.Context, realmID uint32, memberGUID uint64) (*repo.Group, error)
 	GroupIDByPlayer(ctx context.Context, realmID uint32, player uint64) (uint, error)
 
-	Invite(ctx context.Context, realmID uint32, inviter, invited uint64, inviterName, invitedName string) error
+	Invite(ctx context.Context, realmID uint32, inviter, invited uint64, inviterName, invitedName string, inviterMapID uint32, inviterGameServerID string) error
 	Uninvite(ctx context.Context, realmID uint32, initiator, target uint64, reason string) error
 	Leave(ctx context.Context, realmID uint32, player uint64) error
 
@@ -61,12 +63,17 @@ type GroupsService interface {
 	events.GWCharacterLoggedOutHandler
 }
 
-func NewGroupsService(r repo.GroupsRepo, charClient pb.CharactersServiceClient, ep events.GroupServiceProducer) GroupsService {
+type GroupLayerBinder interface {
+	BindGroupToGameServer(context.Context, *pbServ.BindGroupToGameServerRequest, ...grpc.CallOption) (*pbServ.BindGroupToGameServerResponse, error)
+}
+
+func NewGroupsService(r repo.GroupsRepo, charClient pbChar.CharactersServiceClient, groupLayerBinder GroupLayerBinder, ep events.GroupServiceProducer) GroupsService {
 	return &groupServiceImpl{
-		r:          r,
-		ep:         ep,
-		charClient: charClient,
-		locks:      newGroupLocks(),
+		r:                r,
+		ep:               ep,
+		charClient:       charClient,
+		groupLayerBinder: groupLayerBinder,
+		locks:            newGroupLocks(),
 	}
 }
 
@@ -74,7 +81,8 @@ type groupServiceImpl struct {
 	r  repo.GroupsRepo
 	ep events.GroupServiceProducer
 
-	charClient pb.CharactersServiceClient
+	charClient       pbChar.CharactersServiceClient
+	groupLayerBinder GroupLayerBinder
 
 	locks *groupLocks
 }
@@ -178,7 +186,7 @@ func (g groupServiceImpl) GroupByMemberGUID(ctx context.Context, realmID uint32,
 	return g.GroupByID(ctx, realmID, groupID)
 }
 
-func (g groupServiceImpl) Invite(ctx context.Context, realmID uint32, inviter, invited uint64, inviterName, invitedName string) error {
+func (g groupServiceImpl) Invite(ctx context.Context, realmID uint32, inviter, invited uint64, inviterName, invitedName string, inviterMapID uint32, inviterGameServerID string) error {
 	groupID, err := g.r.GroupIDByPlayer(ctx, realmID, invited)
 	if err != nil {
 		return err
@@ -200,11 +208,13 @@ func (g groupServiceImpl) Invite(ctx context.Context, realmID uint32, inviter, i
 
 	if inviterGroupID == 0 {
 		if err = g.r.AddInvite(ctx, realmID, repo.GroupInvite{
-			Inviter:     inviter,
-			InviterName: inviterName,
-			Invitee:     invited,
-			InviteeName: invitedName,
-			GroupID:     0,
+			Inviter:             inviter,
+			InviterName:         inviterName,
+			Invitee:             invited,
+			InviteeName:         invitedName,
+			GroupID:             0,
+			InviterMapID:        inviterMapID,
+			InviterGameServerID: inviterGameServerID,
 		}); err != nil {
 			return err
 		}
@@ -245,11 +255,13 @@ func (g groupServiceImpl) Invite(ctx context.Context, realmID uint32, inviter, i
 	}
 
 	if err = g.r.AddInvite(ctx, realmID, repo.GroupInvite{
-		Inviter:     inviter,
-		InviterName: inviterName,
-		Invitee:     invited,
-		InviteeName: invitedName,
-		GroupID:     inviterGroupID,
+		Inviter:             inviter,
+		InviterName:         inviterName,
+		Invitee:             invited,
+		InviteeName:         invitedName,
+		GroupID:             inviterGroupID,
+		InviterMapID:        inviterMapID,
+		InviterGameServerID: inviterGameServerID,
 	}); err != nil {
 		return err
 	}
@@ -656,7 +668,7 @@ func (g groupServiceImpl) SetDungeonDifficulty(ctx context.Context, realmID uint
 		return err
 	}
 
-	characters, err := g.charClient.ShortOnlineCharactersDataByGUIDs(ctx, &pb.ShortCharactersDataByGUIDsRequest{
+	characters, err := g.charClient.ShortOnlineCharactersDataByGUIDs(ctx, &pbChar.ShortCharactersDataByGUIDsRequest{
 		Api:     groupserver.Ver,
 		RealmID: realmID,
 		GUIDs:   group.OnlineMemberGUIDs(),
@@ -705,7 +717,7 @@ func (g groupServiceImpl) SetRaidDifficulty(ctx context.Context, realmID uint32,
 		return err
 	}
 
-	characters, err := g.charClient.ShortOnlineCharactersDataByGUIDs(ctx, &pb.ShortCharactersDataByGUIDsRequest{
+	characters, err := g.charClient.ShortOnlineCharactersDataByGUIDs(ctx, &pbChar.ShortCharactersDataByGUIDsRequest{
 		Api:     groupserver.Ver,
 		RealmID: realmID,
 		GUIDs:   group.OnlineMemberGUIDs(),
@@ -853,6 +865,24 @@ func (g groupServiceImpl) createGroup(ctx context.Context, realmID uint32, invit
 	err := g.r.Create(ctx, realmID, &group)
 	if err != nil {
 		return err
+	}
+
+	if invite.InviterGameServerID == "" {
+		_ = g.r.Delete(ctx, realmID, group.ID)
+		return errors.New("group leader gameserver is required")
+	}
+	_, err = g.groupLayerBinder.BindGroupToGameServer(ctx, &pbServ.BindGroupToGameServerRequest{
+		Api:          groupserver.Ver,
+		RealmID:      realmID,
+		GroupID:      uint32(group.ID),
+		MapID:        invite.InviterMapID,
+		GameServerID: invite.InviterGameServerID,
+	})
+	if err != nil {
+		if rollbackErr := g.r.Delete(ctx, realmID, group.ID); rollbackErr != nil {
+			return errors.Join(fmt.Errorf("bind new group to leader gameserver: %w", err), fmt.Errorf("roll back group creation: %w", rollbackErr))
+		}
+		return fmt.Errorf("bind new group to leader gameserver: %w", err)
 	}
 
 	members := make([]events.GroupMember, len(group.Members))

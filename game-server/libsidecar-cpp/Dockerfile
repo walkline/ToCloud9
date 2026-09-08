@@ -1,5 +1,10 @@
 # Multi-stage Dockerfile for libsidecar-cpp
 # Builds a shared library compatible with AzerothCore
+#
+# Build from repo root:
+#   docker build -f game-server/libsidecar-cpp/Dockerfile --target export -o out .
+#
+# Version: project(libsidecar VERSION ...) in CMakeLists.txt → generated tc9_version.h
 
 FROM ubuntu:22.04 AS build-libsidecar
 
@@ -26,21 +31,22 @@ RUN apt-get update && \
 COPY api/proto /api/proto
 COPY game-server/libsidecar-cpp /build/libsidecar-cpp
 
-# Build libsidecar-cpp
-WORKDIR /build/libsidecar-cpp/build
-
-RUN cmake .. \
-    -DCMAKE_BUILD_TYPE=Release \
-    -DBUILD_TESTS=OFF \
-    -DUSE_SYSTEM_GRPC=OFF \
-    -DUSE_SYSTEM_PROTOBUF=OFF && \
+# Build libsidecar-cpp (clean tree — never reuse a host CMake cache)
+WORKDIR /build/libsidecar-cpp
+RUN rm -rf build && mkdir build && cd build && \
+    cmake .. \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DBUILD_TESTS=OFF \
+        -DUSE_SYSTEM_GRPC=OFF \
+        -DUSE_SYSTEM_PROTOBUF=OFF && \
     cmake --build . --config Release -j $(nproc)
 
-# Extract artifacts (copy all library files including version symlinks)
+# Extract artifacts: unversioned .so + public headers including generated version
 RUN mkdir -p /artifacts/lib /artifacts/include && \
-    cp -P libsidecar.so* /artifacts/lib/ && \
-    cp ../include/*.h /artifacts/include/ && \
-    cp -r ../include/libsidecar /artifacts/include/
+    cp build/libsidecar.so /artifacts/lib/ && \
+    cp include/*.h /artifacts/include/ && \
+    cp build/generated/include/tc9_version.h /artifacts/include/ && \
+    cp -r include/libsidecar /artifacts/include/
 
 # Minimal export stage
 FROM scratch AS export

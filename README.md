@@ -47,6 +47,8 @@ Currently, it is possible to play the game, but some functionalities still do no
 
 Utilize the [helm chart](chart/) to seamlessly deploy the solution in your Kubernetes cluster. Kudos to [@2o1o0](https://github.com/2o1o0) for the solution.
 
+Worldserver layering is documented in [doc/Layering.md](doc/Layering.md).
+
 ### Docker Compose
 
 __Prerequisites:__

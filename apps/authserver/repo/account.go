@@ -10,6 +10,7 @@ type Account struct {
 	SessionKeyAuth []byte
 	Locked         bool
 	LastIP         string
+	Locale         uint8
 }
 
 type AccountRepo interface {

@@ -182,6 +182,7 @@ func (g groupsRepoMysql) Delete(ctx context.Context, realmID uint32, groupID uin
 func (g groupsRepoMysql) AddInvite(ctx context.Context, realmID uint32, invite GroupInvite) error {
 	_, err := g.db.PreparedStatement(realmID, StmtReplaceGroupInvite).ExecContext(
 		ctx, invite.Invitee, invite.Inviter, invite.GroupID, invite.InviteeName, invite.InviterName,
+		invite.InviterMapID, invite.InviterGameServerID,
 	)
 	return err
 }
@@ -193,7 +194,14 @@ func (g groupsRepoMysql) GetInviteByInvitedPlayer(ctx context.Context, realmID u
 		Invitee: invitedPlayer,
 	}
 
-	err := row.Scan(&groupInvite.Inviter, &groupInvite.GroupID, &groupInvite.InviteeName, &groupInvite.InviterName)
+	err := row.Scan(
+		&groupInvite.Inviter,
+		&groupInvite.GroupID,
+		&groupInvite.InviteeName,
+		&groupInvite.InviterName,
+		&groupInvite.InviterMapID,
+		&groupInvite.InviterGameServerID,
+	)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil

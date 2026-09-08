@@ -15,11 +15,11 @@ import (
 	"github.com/walkline/ToCloud9/apps/gateway/service"
 	"github.com/walkline/ToCloud9/apps/gateway/sockets"
 	"github.com/walkline/ToCloud9/apps/gateway/sockets/worldsocket"
+	pbAH "github.com/walkline/ToCloud9/gen/auctionhouse/pb"
 	pbChar "github.com/walkline/ToCloud9/gen/characters/pb"
 	pbChat "github.com/walkline/ToCloud9/gen/chat/pb"
 	pbGroup "github.com/walkline/ToCloud9/gen/group/pb"
 	pbGuild "github.com/walkline/ToCloud9/gen/guilds/pb"
-	pbAH "github.com/walkline/ToCloud9/gen/auctionhouse/pb"
 	pbMail "github.com/walkline/ToCloud9/gen/mail/pb"
 	pbMatchmaking "github.com/walkline/ToCloud9/gen/matchmaking/pb"
 	pbServ "github.com/walkline/ToCloud9/gen/servers-registry/pb"
@@ -99,6 +99,9 @@ type GameSession struct {
 	// showGameserverConnChangeToClient when enabled sends chat system message
 	// to the player with information about connection change.
 	showGameserverConnChangeToClient bool
+	currentGameServerID              string
+	currentGameServerAlias           string
+	currentGroupID                   uint32
 }
 
 type GameSessionParams struct {
@@ -347,8 +350,12 @@ func (s *GameSession) Login(ctx context.Context, p *packet.Packet) error {
 		return err
 	}
 
-	if err = s.LoadGroupForPlayer(ctx); err != nil {
-		return err
+	// Group ID was already resolved in connectToGameServer for layer selection.
+	// Only fetch the group payload for the party UI when the player is grouped.
+	if s.currentGroupID != 0 {
+		if err = s.SendGroupUpdate(ctx, uint(s.currentGroupID)); err != nil {
+			return err
+		}
 	}
 
 	s.channelMembership = NewChannelMembership(char.GUID, s.chatChannelsEventsBroadcaster)
@@ -446,29 +453,48 @@ func (s *GameSession) connectToGameServer(ctx context.Context, characterGUID uin
 		mapIDToLogin = *mapID
 	}
 
-	serversResult, err := s.serversRegistryClient.AvailableGameServersForMapAndRealm(s.ctx, &pbServ.AvailableGameServersForMapAndRealmRequest{
-		Api:     root.SupportedCharServiceVer,
-		RealmID: root.RealmID,
-		MapID:   mapIDToLogin,
-	})
+	// Prefer group-aware layer selection; if groupserver is down, fall back to
+	// ungrouped placement (groupID 0) so login still works.
+	groupID, err := s.resolveGroupIDForPlayer(ctx, characterGUID)
+	if err != nil {
+		s.logger.Warn().Err(err).Uint64("char", characterGUID).Msg("group resolve failed, selecting world without group")
+		groupID = 0
+	}
+	s.currentGroupID = groupID
+
+	selected, err := s.selectGameServerForMap(ctx, mapIDToLogin)
 
 	if err != nil {
-		return nil, nil, fmt.Errorf("can't get available game servers for map, err: %w", err)
+		return nil, nil, fmt.Errorf("can't select game server for map: %w", err)
 	}
 
-	if len(serversResult.GameServers) == 0 {
+	if selected == nil {
 		return nil, nil, fmt.Errorf("%w, mapID %v", worldConnectErrInstanceNotFound, mapIDToLogin)
 	}
 
-	s.gameServerGRPCConnMgr.AddAddressMapping(serversResult.GameServers[0].Address, serversResult.GameServers[0].GrpcAddress)
+	s.gameServerGRPCConnMgr.AddAddressMapping(selected.Address, selected.GrpcAddress)
 
-	s.gameServerGRPCClient, err = s.gameServerGRPCConnMgr.GRPCConnByGameServerAddress(serversResult.GameServers[0].Address)
+	s.gameServerGRPCClient, err = s.gameServerGRPCConnMgr.GRPCConnByGameServerAddress(selected.Address)
 	if err != nil {
 		return nil, nil, fmt.Errorf("can't get game server grpc client, err: %w", err)
 	}
 
-	socket, err := s.connectToGameServerWithAddress(ctx, characterGUID, serversResult.GameServers[0].Address, preLoginHook)
+	socket, err := s.connectToGameServerWithAddress(ctx, characterGUID, selected.Address, preLoginHook)
+	if err == nil {
+		s.currentGameServerID = selected.ID
+		s.currentGameServerAlias = selected.Alias
+	}
 	return r.Character, socket, err
+}
+
+func (s *GameSession) selectGameServerForMap(ctx context.Context, mapID uint32) (*pbServ.Server, error) {
+	response, err := s.serversRegistryClient.AvailableGameServersForMapAndRealm(ctx, &pbServ.AvailableGameServersForMapAndRealmRequest{
+		Api: root.SupportedServerRegistryVer, RealmID: root.RealmID, MapID: mapID, GroupID: s.currentGroupID,
+	})
+	if err != nil || len(response.GameServers) == 0 {
+		return nil, err
+	}
+	return response.GameServers[0], nil
 }
 
 func (s *GameSession) connectToGameServerWithAddress(ctx context.Context, characterGUID uint64, gameserverAddress string, preLoginHook func(sockets.Socket)) (sockets.Socket, error) {
@@ -631,6 +657,9 @@ func (s *GameSession) onLoggedOut() {
 	// no longer registered for group events there, so cached group member stats can
 	// go stale (a member logging out would be missed and answered as still online).
 	s.groupMemberStats = nil
+	s.currentGroupID = 0
+	s.currentGameServerID = ""
+	s.currentGameServerAlias = ""
 
 	s.character = nil
 }

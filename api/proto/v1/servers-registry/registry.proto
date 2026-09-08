@@ -10,6 +10,10 @@ service ServersRegistryService {
   rpc ListGameServersForRealm(ListGameServersForRealmRequest) returns (ListGameServersResponse);
   rpc ListAllGameServers(ListAllGameServersRequest) returns (ListGameServersResponse);
   rpc GameServerMapsLoaded(GameServerMapsLoadedRequest) returns (GameServerMapsLoadedResponse);
+  rpc BindGroupToGameServer(BindGroupToGameServerRequest) returns (BindGroupToGameServerResponse);
+  rpc GetMapLayerConfiguration(GetMapLayerConfigurationRequest) returns (GetMapLayerConfigurationResponse);
+  rpc UpdateMapLayerConfiguration(UpdateMapLayerConfigurationRequest) returns (UpdateMapLayerConfigurationResponse);
+  rpc GetLayerStats(GetLayerStatsRequest) returns (GetLayerStatsResponse);
 
   rpc RegisterGateway(RegisterGatewayRequest) returns (RegisterGatewayResponse);
   rpc GatewaysForRealms(GatewaysForRealmsRequest) returns (GatewaysForRealmsResponse);
@@ -36,6 +40,7 @@ message RegisterGameServerResponse{
 
   string id = 2;
   repeated uint32 assignedMaps = 3;
+  string alias = 4;
 }
 
 //
@@ -47,6 +52,8 @@ message AvailableGameServersForMapAndRealmRequest{
   uint32 realmID = 2;
   uint32 mapID = 3;
   bool   isCrossRealm = 4;  // Can't be used with realm id
+  uint32 groupID = 5;
+  string preferredGameServerAlias = 6;
 }
 
 message AvailableGameServersForMapAndRealmResponse{
@@ -99,6 +106,7 @@ message GameServerDetailed {
   Diff diff = 8;
   repeated uint32 availableMaps = 9;
   repeated uint32 assignedMaps = 10;
+  string alias = 11;
 }
 
 message ListGameServersResponse {
@@ -126,6 +134,38 @@ message GameServerMapsLoadedRequest {
 
 message GameServerMapsLoadedResponse {
   string api = 1;
+}
+
+message BindGroupToGameServerRequest {
+  string api = 1;
+  uint32 realmID = 2;
+  uint32 groupID = 3;
+  uint32 mapID = 4;
+  string gameServerID = 5;
+}
+message BindGroupToGameServerResponse { string api = 1; }
+
+message MapLayerConfiguration {
+  uint32 mapID = 1;
+  uint32 layerCount = 2;
+}
+message GetMapLayerConfigurationRequest { string api = 1; uint32 realmID = 2; }
+message GetMapLayerConfigurationResponse { string api = 1; repeated MapLayerConfiguration maps = 2; }
+message UpdateMapLayerConfigurationRequest { string api = 1; uint32 realmID = 2; repeated MapLayerConfiguration maps = 3; }
+message UpdateMapLayerConfigurationResponse { string api = 1; }
+
+message GetLayerStatsRequest { string api = 1; uint32 realmID = 2; uint32 mapID = 3; }
+message GetLayerStatsResponse {
+  message Layer {
+    reserved 1;
+    uint32 players = 2;
+    string gameServerID = 3;
+    string address = 4;
+    string gameServerAlias = 5;
+  }
+  string api = 1;
+  uint32 configuredLayers = 2;
+  repeated Layer layers = 3;
 }
 
 //
@@ -193,5 +233,6 @@ message Server {
   uint32 realmID = 2;
   bool   isCrossRealm = 3;
   string grpcAddress = 4;
+  string ID = 5;
+  string alias = 6;
 }
-
