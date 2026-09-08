@@ -105,6 +105,8 @@ spec:
           value: /data
         - name: AC_CLUSTER_ENABLED
           value: "1"
+        - name: AC_CLUSTER_SEAMLESS_LAYER_SWITCH
+          value: "{{ .Values.gateway.seamlessLayerSwitch }}"
         - name: AC_WORLD_SERVER_PORT
           value: "{{ .Values.gameserver_ac.port_world | int }}"
         - name: TC9_CHARACTER_GUIDS_BUFFER_SIZE

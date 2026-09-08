@@ -168,6 +168,8 @@ matchmakingserver:
 
 gateway:
   replicaCount: 3
+  # Native visibility transition for same-map layer handoffs.
+  seamlessLayerSwitch: false
   # IP or domain to access this gateway.
   # If empty - uses node IP.
   hostname: ""

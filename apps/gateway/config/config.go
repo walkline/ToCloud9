@@ -61,6 +61,10 @@ type Config struct {
 
 	// ShowGameserverConnChangeToClient when enabled sends chat system message to the player with information about connection change.
 	ShowGameserverConnChangeToClient bool `yaml:"showGameserverConnChangeToClient" env:"SHOW_GAMESERVER_CONN_CHANGE_TO_CLIENT" env-default:"true"`
+
+	// SeamlessLayerSwitch enables native visibility transitions during same-map
+	// layer handoffs instead of sending SMSG_NEW_WORLD.
+	SeamlessLayerSwitch bool `yaml:"seamlessLayerSwitch" env:"SEAMLESS_LAYER_SWITCH" env-default:"false"`
 }
 
 func (c Config) PortInt() (p int) {

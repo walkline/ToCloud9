@@ -65,10 +65,23 @@ func (s *GameSession) layerPlayerRedirect(ctx context.Context, characterGUID uin
 	}
 
 	oldSocket := s.worldSocket
-	oldSocket.Send(packet.NewWriterWithSize(packet.TC9CMsgPrepareForRedirect, 0))
-	if err := waitForWorldServerRedirect(ctx, oldSocket); err != nil {
+	prepareRedirect := packet.NewWriterWithSize(packet.TC9CMsgPrepareForRedirect, 0)
+	if s.seamlessLayerSwitch {
+		prepareRedirect = packet.NewWriterWithSize(packet.TC9CMsgPrepareForRedirect, 2).
+			Uint8(packet.TC9RedirectVersionedRequest).
+			Uint8(packet.TC9RedirectOptionSeamless)
+	}
+	oldSocket.Send(prepareRedirect)
+	var onSourcePacket func(*packet.Packet)
+	if s.seamlessLayerSwitch {
+		onSourcePacket = s.forwardLayerTransitionPacket
+	}
+	acceptedOptions, err := waitForWorldServerRedirect(ctx, oldSocket, onSourcePacket)
+	if err != nil {
 		return fmt.Errorf("prepare layer redirect for account %d: %w", s.accountID, err)
 	}
+	seamlessRedirect := s.seamlessLayerSwitch &&
+		acceptedOptions&packet.TC9RedirectOptionSeamless != 0
 
 	oldSocket.Close()
 	s.worldSocket = nil
@@ -79,13 +92,15 @@ func (s *GameSession) layerPlayerRedirect(ctx context.Context, characterGUID uin
 		return fmt.Errorf("connect to layer gameserver %s: %w", address, err)
 	}
 
-	newWorld := packet.NewWriterWithSize(packet.SMsgNewWorld, 0)
-	newWorld.Uint32(s.character.Map)
-	newWorld.Float32(s.character.PositionX)
-	newWorld.Float32(s.character.PositionY)
-	newWorld.Float32(s.character.PositionZ)
-	newWorld.Float32(s.character.PositionO)
-	s.gameSocket.Send(newWorld)
+	if !seamlessRedirect {
+		newWorld := packet.NewWriterWithSize(packet.SMsgNewWorld, 0)
+		newWorld.Uint32(s.character.Map)
+		newWorld.Float32(s.character.PositionX)
+		newWorld.Float32(s.character.PositionY)
+		newWorld.Float32(s.character.PositionZ)
+		newWorld.Float32(s.character.PositionO)
+		s.gameSocket.Send(newWorld)
+	}
 
 	firstPacket, err := waitForFirstWorldPacket(ctx, newSocket)
 	if err != nil {
@@ -106,23 +121,56 @@ func (s *GameSession) layerPlayerRedirect(ctx context.Context, characterGUID uin
 	return nil
 }
 
-func waitForWorldServerRedirect(ctx context.Context, socket sockets.Socket) error {
+// forwardLayerTransitionPacket keeps the client's current world stream alive
+// while the source core prepares a seamless redirect. In particular, an
+// AzerothCore phase change emits the native out-of-range updates that make the
+// old layer fade out. The gateway deliberately treats these packets as opaque:
+// it neither parses nor retains any visible-world state.
+func (s *GameSession) forwardLayerTransitionPacket(p *packet.Packet) {
+	if p == nil || s.gameSocket == nil || OpcodeBlacklist[p.Opcode] {
+		return
+	}
+	s.gameSocket.WriteChannel() <- p
+}
+
+func waitForWorldServerRedirect(ctx context.Context, socket sockets.Socket, onPacket func(*packet.Packet)) (uint8, error) {
 	confirmationContext, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
 	for {
 		select {
 		case <-confirmationContext.Done():
-			return confirmationContext.Err()
+			return 0, confirmationContext.Err()
 		case response, open := <-socket.ReadChannel():
 			if !open {
-				return nil
+				return 0, nil
 			}
 			if response.Opcode == packet.TC9SMsgReadyForRedirect {
-				if response.Reader().Uint8() != 0 {
-					return fmt.Errorf("worldserver rejected redirect")
+				reader := response.Reader()
+				status := reader.Uint8()
+				if reader.Error() != nil {
+					return 0, fmt.Errorf("worldserver returned malformed redirect acknowledgement")
 				}
-				return nil
+				if status != 0 {
+					return 0, fmt.Errorf("worldserver rejected redirect")
+				}
+
+				// A one-byte success is the legacy acknowledgement. The redirect is
+				// still valid, but the gateway must use SMSG_NEW_WORLD because the
+				// source core did not explicitly accept the seamless option.
+				if reader.Left() == 0 {
+					return 0, nil
+				}
+
+				version := reader.Uint8()
+				acceptedOptions := reader.Uint8()
+				if reader.Error() != nil || reader.Left() != 0 || version != packet.TC9RedirectVersionedRequest {
+					return 0, nil
+				}
+				return acceptedOptions & packet.TC9RedirectSupportedOptions, nil
+			}
+			if onPacket != nil {
+				onPacket(response)
 			}
 		}
 	}

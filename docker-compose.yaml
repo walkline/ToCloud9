@@ -75,6 +75,7 @@ services:
       PREFERRED_HOSTNAME: ${EXTERNAL_ADDRESS}
       LOG_LEVEL: 0
       PORT: 8085
+      SEAMLESS_LAYER_SWITCH: ${SEAMLESS_LAYER_SWITCH:-false}
       NATS_URL: nats://nats:4222
     profiles:
       - ac
@@ -105,6 +106,7 @@ services:
       PREFERRED_HOSTNAME: ${EXTERNAL_ADDRESS}
       LOG_LEVEL: 0
       PORT: 8045
+      SEAMLESS_LAYER_SWITCH: ${SEAMLESS_LAYER_SWITCH:-false}
       NATS_URL: nats://nats:4222
     profiles:
       - ac
@@ -337,6 +339,7 @@ services:
       AC_SOAP_ENABLE: 0
       AC_DATA_DIR: /data
       AC_CLUSTER_ENABLED: 1
+      AC_CLUSTER_SEAMLESS_LAYER_SWITCH: ${SEAMLESS_LAYER_SWITCH:-false}
       CHARACTER_GUIDS_BUFFER_SIZE: 5
       ITEM_GUIDS_BUFFER_SIZE: 50
       NATS_URL: nats://nats:4222

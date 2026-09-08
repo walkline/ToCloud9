@@ -63,6 +63,8 @@ gateway:
   auctionHouseServiceAddress: "localhost:8993"
   packetProcessTimeoutSecs: 20
   showGameserverConnChangeToClient: true
+  # Preserve the loaded world during same-map layer switches.
+  seamlessLayerSwitch: false
   natsUrl: *defaultNatsUrl
   logging: *defaultLogging
 

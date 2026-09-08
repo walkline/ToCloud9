@@ -33,6 +33,8 @@ spec:
           value: "8900"
         - name: PORT
           value: "{{ .Values.gateway.port }}"
+        - name: SEAMLESS_LAYER_SWITCH
+          value: "{{ .Values.gateway.seamlessLayerSwitch }}"
         - name: REDIS_URL
           value: redis://{{ .Release.Name }}-redis-headless:6379/0
         - name: NATS_URL
