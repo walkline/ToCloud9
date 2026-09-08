@@ -230,6 +230,228 @@ bool GrpcClients::PlayerLeftBattleground(
     return true;
 }
 
+bool GrpcClients::BattlegroundQueueDataForPlayer(
+    uint32_t realm_id,
+    uint64_t player_guid,
+    uint32_t& out_bg_type_id,
+    uint32_t& out_instance_id,
+    uint32_t& out_map_id,
+    std::string& out_gameserver_address) {
+
+    if (!connected_ || !matchmaking_stub_) {
+        spdlog::error("Matchmaking client not connected");
+        return false;
+    }
+
+    v1::BattlegroundQueueDataForPlayerRequest request;
+    request.set_api(LIB_VERSION);
+    request.set_realmid(realm_id);
+    request.set_playerguid(player_guid);
+
+    v1::BattlegroundQueueDataForPlayerResponse response;
+    grpc::ClientContext context;
+    context.set_deadline(Deadline());
+
+    grpc::Status status = matchmaking_stub_->BattlegroundQueueDataForPlayer(&context, request, &response);
+
+    if (!status.ok()) {
+        spdlog::warn("BattlegroundQueueDataForPlayer RPC failed: {} - {}",
+                    status.error_code(), status.error_message());
+        return false;
+    }
+
+    if (response.slots_size() == 0 || !response.slots(0).has_assignedbattlegrounddata()) {
+        return false;
+    }
+
+    const auto& slot = response.slots(0);
+    const auto& bg_data = slot.assignedbattlegrounddata();
+    out_bg_type_id = slot.bgtypeid();
+    out_instance_id = bg_data.assignedbattlegroundinstanceid();
+    out_map_id = bg_data.mapid();
+    out_gameserver_address = bg_data.gameserveraddress();
+    return true;
+}
+
+bool GrpcClients::EnqueueToBattleground(
+    uint32_t realm_id,
+    uint64_t player_guid,
+    uint32_t player_lvl,
+    uint32_t bg_type_id,
+    uint32_t team_id) {
+
+    if (!connected_ || !matchmaking_stub_) {
+        spdlog::error("Matchmaking client not connected");
+        return false;
+    }
+
+    v1::EnqueueToBattlegroundRequest request;
+    request.set_api(LIB_VERSION);
+    request.set_realmid(realm_id);
+    request.set_leaderguid(player_guid);
+    request.set_leaderslvl(player_lvl);
+    request.set_bgtypeid(bg_type_id);
+    request.set_teamid(static_cast<v1::PVPTeamID>(team_id));
+
+    v1::EnqueueToBattlegroundResponse response;
+    grpc::ClientContext context;
+    context.set_deadline(Deadline());
+
+    grpc::Status status = matchmaking_stub_->EnqueueToBattleground(&context, request, &response);
+
+    if (!status.ok()) {
+        spdlog::warn("EnqueueToBattleground RPC failed: {} - {}",
+                    status.error_code(), status.error_message());
+        return false;
+    }
+
+    spdlog::debug("Enqueued player {} to BG type {} (team {})",
+                 player_guid, bg_type_id, team_id);
+    return true;
+}
+
+bool GrpcClients::EnqueueGroupToBattleground(
+    uint32_t realm_id,
+    uint64_t leader_guid,
+    uint32_t leader_lvl,
+    uint32_t bg_type_id,
+    uint32_t team_id,
+    const uint64_t* member_guids,
+    int member_count) {
+
+    if (!connected_ || !matchmaking_stub_) {
+        spdlog::error("Matchmaking client not connected");
+        return false;
+    }
+
+    v1::EnqueueToBattlegroundRequest request;
+    request.set_api(LIB_VERSION);
+    request.set_realmid(realm_id);
+    request.set_leaderguid(leader_guid);
+    request.set_leaderslvl(leader_lvl);
+    request.set_bgtypeid(bg_type_id);
+    request.set_teamid(static_cast<v1::PVPTeamID>(team_id));
+    for (int i = 0; i < member_count; ++i)
+        request.add_partymembers(member_guids[i]);
+
+    v1::EnqueueToBattlegroundResponse response;
+    grpc::ClientContext context;
+    context.set_deadline(Deadline());
+
+    grpc::Status status = matchmaking_stub_->EnqueueToBattleground(&context, request, &response);
+
+    if (!status.ok()) {
+        spdlog::warn("EnqueueGroupToBattleground RPC failed: {} - {}",
+                    status.error_code(), status.error_message());
+        return false;
+    }
+
+    spdlog::debug("Enqueued group of {} (leader {}) to BG type {} (team {})",
+                 member_count + 1, leader_guid, bg_type_id, team_id);
+    return true;
+}
+
+bool GrpcClients::RemovePlayerFromQueue(
+    uint32_t realm_id,
+    uint64_t player_guid,
+    uint32_t bg_type_id) {
+
+    if (!connected_ || !matchmaking_stub_) {
+        spdlog::error("Matchmaking client not connected");
+        return false;
+    }
+
+    v1::RemovePlayerFromQueueRequest request;
+    request.set_api(LIB_VERSION);
+    request.set_realmid(realm_id);
+    request.set_playerguid(player_guid);
+    request.set_battlegroundtype(bg_type_id);
+
+    v1::RemovePlayerFromQueueResponse response;
+    grpc::ClientContext context;
+    context.set_deadline(Deadline());
+
+    grpc::Status status = matchmaking_stub_->RemovePlayerFromQueue(&context, request, &response);
+
+    if (!status.ok()) {
+        spdlog::warn("RemovePlayerFromQueue RPC failed: {} - {}",
+                    status.error_code(), status.error_message());
+        return false;
+    }
+
+    spdlog::debug("Removed player {} from BG type {} queue", player_guid, bg_type_id);
+    return true;
+}
+
+bool GrpcClients::PlayerJoinedBattleground(
+    uint32_t realm_id,
+    uint64_t player_guid,
+    uint32_t instance_id,
+    bool is_cross_realm) {
+
+    if (!connected_ || !matchmaking_stub_) {
+        spdlog::error("Matchmaking client not connected");
+        return false;
+    }
+
+    v1::PlayerJoinedBattlegroundRequest request;
+    request.set_api(LIB_VERSION);
+    request.set_realmid(realm_id);
+    request.set_playerguid(player_guid);
+    request.set_instanceid(instance_id);
+    request.set_iscrossrealm(is_cross_realm);
+
+    v1::PlayerJoinedBattlegroundResponse response;
+    grpc::ClientContext context;
+    context.set_deadline(Deadline());
+
+    grpc::Status status = matchmaking_stub_->PlayerJoinedBattleground(&context, request, &response);
+
+    if (!status.ok()) {
+        spdlog::warn("PlayerJoinedBattleground RPC failed: {} - {}",
+                    status.error_code(), status.error_message());
+        return false;
+    }
+
+    spdlog::debug("Notified matchmaking: player {} joined BG instance {}",
+                 player_guid, instance_id);
+    return true;
+}
+
+bool GrpcClients::FindGameServerAddressByID(
+    const std::string& server_id,
+    std::string& out_address) {
+
+    if (!connected_ || !registry_stub_) {
+        spdlog::error("Registry client not connected");
+        return false;
+    }
+
+    v1::ListAllGameServersRequest request;
+    request.set_api(LIB_VERSION);
+
+    v1::ListGameServersResponse response;
+    grpc::ClientContext context;
+    context.set_deadline(Deadline());
+
+    grpc::Status status = registry_stub_->ListAllGameServers(&context, request, &response);
+
+    if (!status.ok()) {
+        spdlog::warn("ListAllGameServers RPC failed: {} - {}",
+                    status.error_code(), status.error_message());
+        return false;
+    }
+
+    for (const auto& server : response.gameservers()) {
+        if (server.id() == server_id) {
+            out_address = server.address();
+            return true;
+        }
+    }
+
+    return false;
+}
+
 bool GrpcClients::BattlegroundStatusChanged(
     uint32_t realm_id,
     uint32_t instance_id,

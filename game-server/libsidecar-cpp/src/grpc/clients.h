@@ -58,6 +58,58 @@ public:
         bool is_cross_realm,
         uint8_t status);
 
+    // Sync query of the player's queue slot after an invite; false when the
+    // RPC fails or no battleground has been assigned to the player yet.
+    bool BattlegroundQueueDataForPlayer(
+        uint32_t realm_id,
+        uint64_t player_guid,
+        uint32_t& out_bg_type_id,
+        uint32_t& out_instance_id,
+        uint32_t& out_map_id,
+        std::string& out_gameserver_address);
+
+    bool PlayerJoinedBattleground(
+        uint32_t realm_id,
+        uint64_t player_guid,
+        uint32_t instance_id,
+        bool is_cross_realm);
+
+    // Enqueues a solo in-process player into a battleground queue, the same
+    // RPC the gateway issues for real players (team_id: 1 alliance, 2 horde).
+    bool EnqueueToBattleground(
+        uint32_t realm_id,
+        uint64_t player_guid,
+        uint32_t player_lvl,
+        uint32_t bg_type_id,
+        uint32_t team_id);
+
+    // Group variant: one enqueue for a leader plus party members — the queue
+    // then treats them as one group, so a whole fill pops atomically
+    // instead of the match being created mid-batch. member_guids excludes
+    // the leader (sent separately as leader_guid, like the gateway does).
+    bool EnqueueGroupToBattleground(
+        uint32_t realm_id,
+        uint64_t leader_guid,
+        uint32_t leader_lvl,
+        uint32_t bg_type_id,
+        uint32_t team_id,
+        const uint64_t* member_guids,
+        int member_count);
+
+    // Removes a player from a battleground queue (leftover in-process
+    // enqueues that were never invited, or out-of-bracket after a level up).
+    bool RemovePlayerFromQueue(
+        uint32_t realm_id,
+        uint64_t player_guid,
+        uint32_t bg_type_id);
+
+    // Resolves a game server's public address (host:port) from its registry
+    // ID. Used to decide whether an assigned battleground is served by this
+    // very worldserver.
+    bool FindGameServerAddressByID(
+        const std::string& server_id,
+        std::string& out_address);
+
     void Shutdown();
 
     GrpcClients(const GrpcClients&) = delete;

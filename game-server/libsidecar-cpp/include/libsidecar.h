@@ -85,6 +85,38 @@ TC9_API int TC9NatsSubscribe(const char* subject, TC9NatsMessageHandler handler)
 TC9_API void TC9PlayerLeftBattleground(uint64_t playerGUID, uint32_t realmID, uint32_t instanceID);
 TC9_API void TC9BattlegroundStatusChanged(uint32_t instanceID, uint8_t status);
 
+/* Enqueue a solo in-process player into a battleground queue — the same RPC
+ * the gateway issues for real players (pvpTeamID: 1 alliance, 2 horde).
+ * Blocking gRPC call, do not call from map update threads. 0 on success. */
+TC9_API int TC9EnqueueLocalPlayerToBattleground(uint64_t playerGUID, uint32_t playerLvl,
+    uint32_t bgTypeID, uint32_t pvpTeamID);
+
+/* Group enqueue: leader plus party members in ONE queue entry, so a whole
+ * group fill pops one full battleground instead of the matchmaking creating
+ * the match mid-batch. memberGUIDs lists the OTHER party members only — the
+ * leader travels as leaderGUID and must not be repeated, exactly like the
+ * gateway's PartyMembers field. Blocking gRPC call. 0 on success. */
+TC9_API int TC9EnqueueLocalGroupToBattleground(uint64_t leaderGUID, uint32_t leaderLvl,
+    uint32_t bgTypeID, uint32_t pvpTeamID, const uint64_t* memberGUIDs, int memberCount);
+
+/* Query the queue slot assigned to an invited player (matchmaking owns the BG
+ * queues cluster-wide; in-process sessions have no gateway to accept invites).
+ * outIsAssignedToThisServer is 1 when the assigned battleground runs on THIS
+ * worldserver. Blocking gRPC call, do not call from map update threads.
+ * 0 on success, -1 on error or when no battleground is assigned yet. */
+TC9_API int TC9BattlegroundQueueDataForLocalPlayer(uint64_t playerGUID, uint32_t* outBgTypeID,
+    uint32_t* outInstanceID, uint32_t* outMapID, int* outIsAssignedToThisServer);
+
+/* Confirm to matchmaking that an in-process player entered the battleground
+ * (the gateway does this for real players after AddPlayersToBattleground).
+ * Blocking gRPC call, do not call from map update threads. 0 on success. */
+TC9_API int TC9PlayerJoinedBattleground(uint64_t playerGUID, uint32_t instanceID);
+
+/* Remove a player from a battleground queue (leftover in-process enqueues
+ * that were never invited, or out-of-bracket after a level up). Blocking
+ * gRPC call, do not call from map update threads. 0 on success. */
+TC9_API int TC9RemovePlayerFromBattlegroundQueue(uint64_t playerGUID, uint32_t bgTypeID);
+
 /* Event hooks registration */
 TC9_API void TC9SetOnGroupCreatedHook(OnGroupCreatedHook h);
 TC9_API void TC9SetOnGroupMemberAddedHook(OnGroupMemberAddedHook h);

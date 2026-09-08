@@ -26,6 +26,7 @@
 
 #include <spdlog/spdlog.h>
 #include <memory>
+#include <mutex>
 #include <cstring>
 
 namespace {
@@ -385,6 +386,106 @@ TC9_API void TC9PlayerLeftBattleground(
     } catch (const std::exception& e) {
         spdlog::error("Error notifying player left BG: {}", e.what());
     }
+}
+
+TC9_API int TC9BattlegroundQueueDataForLocalPlayer(
+    uint64_t playerGUID,
+    uint32_t* outBgTypeID,
+    uint32_t* outInstanceID,
+    uint32_t* outMapID,
+    int* outIsAssignedToThisServer) {
+
+    if (!g_state.initialized || !g_state.grpc_clients ||
+        !outBgTypeID || !outInstanceID || !outMapID || !outIsAssignedToThisServer) {
+        return -1;
+    }
+
+    uint32_t bg_type_id = 0;
+    uint32_t instance_id = 0;
+    uint32_t map_id = 0;
+    std::string gameserver_address;
+    if (!g_state.grpc_clients->BattlegroundQueueDataForPlayer(
+            g_state.realm_id, playerGUID, bg_type_id, instance_id, map_id, gameserver_address)) {
+        return -1;
+    }
+
+    // The registry never returns our own ID with a different address, so a
+    // one-shot resolution is enough for the pod's lifetime.
+    static std::mutex own_address_mutex;
+    static std::string own_address;
+    {
+        std::lock_guard<std::mutex> lock(own_address_mutex);
+        if (own_address.empty() &&
+            !g_state.grpc_clients->FindGameServerAddressByID(g_state.assigned_server_id, own_address)) {
+            spdlog::warn("Can't resolve own game server address (id {})", g_state.assigned_server_id);
+            return -1;
+        }
+
+        *outIsAssignedToThisServer = (gameserver_address == own_address) ? 1 : 0;
+    }
+
+    *outBgTypeID = bg_type_id;
+    *outInstanceID = instance_id;
+    *outMapID = map_id;
+    return 0;
+}
+
+TC9_API int TC9PlayerJoinedBattleground(uint64_t playerGUID, uint32_t instanceID) {
+    if (!g_state.initialized || !g_state.grpc_clients) {
+        return -1;
+    }
+
+    return g_state.grpc_clients->PlayerJoinedBattleground(
+        g_state.realm_id, playerGUID, instanceID, false) ? 0 : -1;
+}
+
+TC9_API int TC9EnqueueLocalPlayerToBattleground(
+    uint64_t playerGUID,
+    uint32_t playerLvl,
+    uint32_t bgTypeID,
+    uint32_t pvpTeamID) {
+
+    if (!g_state.initialized || !g_state.grpc_clients) {
+        return -1;
+    }
+
+    // 1 = alliance, 2 = horde; anything else would forward an invalid
+    // enum value to the matchmaking service.
+    if (pvpTeamID != 1 && pvpTeamID != 2) {
+        return -1;
+    }
+
+    return g_state.grpc_clients->EnqueueToBattleground(
+        g_state.realm_id, playerGUID, playerLvl, bgTypeID, pvpTeamID) ? 0 : -1;
+}
+
+TC9_API int TC9EnqueueLocalGroupToBattleground(uint64_t leaderGUID, uint32_t leaderLvl,
+    uint32_t bgTypeID, uint32_t pvpTeamID, const uint64_t* memberGUIDs, int memberCount) {
+
+    if (!g_state.initialized || !g_state.grpc_clients) {
+        return -1;
+    }
+
+    if (pvpTeamID != 1 && pvpTeamID != 2) {
+        return -1;
+    }
+
+    if (memberCount < 0 || (memberCount > 0 && !memberGUIDs)) {
+        return -1;
+    }
+
+    return g_state.grpc_clients->EnqueueGroupToBattleground(
+        g_state.realm_id, leaderGUID, leaderLvl, bgTypeID, pvpTeamID,
+        memberGUIDs, memberCount) ? 0 : -1;
+}
+
+TC9_API int TC9RemovePlayerFromBattlegroundQueue(uint64_t playerGUID, uint32_t bgTypeID) {
+    if (!g_state.initialized || !g_state.grpc_clients) {
+        return -1;
+    }
+
+    return g_state.grpc_clients->RemovePlayerFromQueue(
+        g_state.realm_id, playerGUID, bgTypeID) ? 0 : -1;
 }
 
 TC9_API void TC9BattlegroundStatusChanged(uint32_t instanceID, uint8_t status) {
