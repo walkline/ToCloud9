@@ -29,6 +29,14 @@ mysql:
     storageClass: standard
   initdbScriptsConfigMap: mysql-init-scripts
   primary:
+    resourcesPreset: none
+    resources:
+      requests:
+        cpu: 500m
+        memory: 1Gi
+      limits:
+        cpu: 2
+        memory: 2Gi
     # Had some issues with restarts, so disabled these for now.
     livenessProbe:
       enabled: false
