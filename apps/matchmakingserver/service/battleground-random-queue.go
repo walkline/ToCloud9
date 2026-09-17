@@ -45,6 +45,10 @@ func (b BattlegroundRandomQueue) QueuedGroupByPlayer(player guid.PlayerUnwrapped
 	return b.realQ.QueuedGroupByPlayer(player)
 }
 
+func (b BattlegroundRandomQueue) ProcessBackfill(ctx context.Context) error {
+	return b.realQ.ProcessBackfill(ctx)
+}
+
 func (b BattlegroundRandomQueue) GetQueueTypeID() battleground.QueueTypeID {
 	return battleground.QueueTypeIDRandomBattleground
 }

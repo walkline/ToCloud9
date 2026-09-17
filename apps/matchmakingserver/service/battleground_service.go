@@ -618,8 +618,16 @@ func (s *battleGroundService) PlayerLeftBattleground(ctx context.Context, player
 		realmKey.RealmID = 0
 	}
 
+	var queueTypeID battleground.QueueTypeID
+	var bracketID uint8
+	var battlegroupID uint32
+	found := false
 	err := s.battlegroundsRepo.UpdateBattleground(ctx, instanceID, realmKey, func(b *battleground.Battleground) error {
 		b.RemovePlayer(playerGUID, realmID)
+		queueTypeID = b.QueueTypeID
+		bracketID = b.BracketID
+		battlegroupID = b.BattleGroupID
+		found = true
 		return nil
 	})
 	if err != nil {
@@ -635,6 +643,26 @@ func (s *battleGroundService) PlayerLeftBattleground(ctx context.Context, player
 		InstanceID:    instanceID,
 		BattlegroupID: 0,
 	}, playerGUID, realmID)
+
+	// The freed slot would otherwise only be backfilled on the next enqueue
+	// into this queue: kick the queue pass so a waiting group is invited
+	// right away. Async: the caller is the gameserver's leave path.
+	if found {
+		if bracketsMap, ok := s.queues[QueueByRealmOrBattlegroupKey{
+			BattlegroupID: battlegroupID,
+			RealmID:       realmKey.RealmID,
+		}][queueTypeID]; ok {
+			if queue, ok := bracketsMap[BracketID(bracketID)]; ok {
+				go func() {
+					ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+					defer cancel()
+					if err := queue.ProcessBackfill(ctx); err != nil {
+						log.Err(err).Msg("backfill pass after player left battleground failed")
+					}
+				}()
+			}
+		}
+	}
 
 	return nil
 }

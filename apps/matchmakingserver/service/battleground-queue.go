@@ -44,6 +44,11 @@ type PVPQueue interface {
 	QueuedGroupByPlayer(player guid.PlayerUnwrapped) *QueuedGroup
 
 	GetQueueTypeID() battleground.QueueTypeID
+
+	// ProcessBackfill re-runs the queue pass (backfill running battlegrounds,
+	// then create new ones): without it a slot freed by
+	// PlayerLeftBattleground is only filled on the next enqueue.
+	ProcessBackfill(ctx context.Context) error
 }
 
 type GenericBattlegroundQueue struct {
@@ -59,6 +64,12 @@ type GenericBattlegroundQueue struct {
 	mut                        sync.RWMutex
 	queuedGroups               map[ /*leaderGUID*/ guid.PlayerUnwrapped]QueuedGroup
 	playersGroupLeaderByPlayer map[ /*playerGUID*/ guid.PlayerUnwrapped] /*leaderGUID*/ guid.PlayerUnwrapped
+
+	// processMut serializes process() runs: group selection happens under a
+	// read lock and removal only after the invite, so two overlapping runs
+	// (concurrent enqueues, or a backfill pass racing an enqueue) could
+	// invite the same queued group twice.
+	processMut sync.Mutex
 }
 
 func NewGenericBattlegroundQueue(service BattleGroundService, battleGroundCreator BattlegroundCreator, template repo.BattlegroundTemplate, realmID, battlegroupID uint32, bracketID uint8) *GenericBattlegroundQueue {
@@ -144,7 +155,14 @@ func (q *GenericBattlegroundQueue) QueuedGroupByPlayer(player guid.PlayerUnwrapp
 	return &group
 }
 
+func (q *GenericBattlegroundQueue) ProcessBackfill(ctx context.Context) error {
+	return q.process(ctx)
+}
+
 func (q *GenericBattlegroundQueue) process(ctx context.Context) error {
+	q.processMut.Lock()
+	defer q.processMut.Unlock()
+
 	battlegroundToFillIn, err := q.battleGroundService.BattlegroundsThatNeedPlayers(
 		ctx,
 		q.QueueTypeID,
