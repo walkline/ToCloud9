@@ -30,15 +30,18 @@ go build -o bin/mailserver.exe apps/mailserver/cmd/mailserver/main.go
 
 ### Build AzerothCore
 
-You need to build & run AzerothCore inside of WSL, the reason for that is libsidecar (more details [here](https://github.com/walkline/azerothcore-wotlk/blob/af06d3c5e24f1f3f0a820eea18aba8c6e5633dd6/deps/libsidecar/CMakeLists.txt#L13)).
+You need to build & run AzerothCore inside of WSL, since the worldserver links against the Linux build of libsidecar.
 
-Let's start with building libsidecar.
+Let's start with getting libsidecar. The maintained implementation is the C++ one in `game-server/libsidecar-cpp` (the Go/cgo build is deprecated, see `game-server/libsidecar/README.md`).
 
-1. To build libsidecar you need to have Go installed in WSL as well. So please follow *Linux* instructions described here: https://go.dev/doc/install.
-2. Open ToCloud9 folder downloaded from previous steps in WSL terminal and run the next command:
+1. Either download a prebuilt `libsidecar.so` from the [releases page](https://github.com/walkline/ToCloud9/releases?q=libsidecar) (tags `libsidecar-vX.Y.Z`), copy it to `bin/` and skip to step 3, or build it yourself in the WSL terminal — you need CMake, a C++17 compiler, and the OpenSSL/zlib dev packages (`sudo apt install cmake g++ libssl-dev zlib1g-dev pkg-config`).
+2. To build: open the ToCloud9 folder downloaded from previous steps in the WSL terminal and run:
 ```
-go build -o bin/libsidecar.so -buildmode=c-shared ./game-server/libsidecar/
+cmake -S game-server/libsidecar-cpp -B game-server/libsidecar-cpp/build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTS=OFF
+cmake --build game-server/libsidecar-cpp/build -j $(nproc)
+cp game-server/libsidecar-cpp/build/libsidecar.so bin/libsidecar.so
 ```
+(or simply `make build-sidecar`, which does the same).
 3. Download AzerothCore sources with cluster mode support using git in some folder, example:
 ```
 cd ~/dev/
@@ -108,12 +111,12 @@ AC_CLUSTER_ENABLED=1 AC_WORLD_SERVER_PORT=9601 ./worldserver
 3. At this point you should have working cluster with 1 worldserver, but the point of this clustering feature to have several.
 Let's run one more worldserver. You need to use the same command as previous but you need to override ports with some available, example:
 ```
-AC_CLUSTER_ENABLED=1 AC_WORLD_SERVER_PORT=9602 GRPC_PORT=9603 HEALTH_CHECK_PORT=9604 ./worldserver
+AC_CLUSTER_ENABLED=1 AC_WORLD_SERVER_PORT=9602 TC9_GRPC_PORT=9603 TC9_HEALTH_CHECK_PORT=9604 ./worldserver
 ```
 4. Now you should have 2 worldservers in your cluster and map IDs distributed equally between them.
 But let's run worldserver that will handle only Icecrown Citadel map:
 ```
-AC_CLUSTER_AVAILABLE_MAPS=631 AC_CLUSTER_ENABLED=1 AC_WORLD_SERVER_PORT=9605 GRPC_PORT=9606 HEALTH_CHECK_PORT=9607 ./worldserver
+AC_CLUSTER_AVAILABLE_MAPS=631 AC_CLUSTER_ENABLED=1 AC_WORLD_SERVER_PORT=9605 TC9_GRPC_PORT=9606 TC9_HEALTH_CHECK_PORT=9607 ./worldserver
 ```
 
 Congratulations if you reached to this place without issues! :) 

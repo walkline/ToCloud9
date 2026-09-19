@@ -45,6 +45,13 @@ build-servers-registry:
 	go build -o $(INSTALL_PATH)/servers-registry apps/servers-registry/cmd/servers-registry/main.go
 
 build-sidecar:
+	cmake -S game-server/libsidecar-cpp -B game-server/libsidecar-cpp/build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTS=OFF
+	cmake --build game-server/libsidecar-cpp/build -j $(nproc)
+	cp game-server/libsidecar-cpp/build/libsidecar.so $(INSTALL_PATH)/libsidecar.so
+
+# Deprecated: the Go/cgo sidecar is superseded by game-server/libsidecar-cpp
+# (see game-server/libsidecar/README.md). Kept only as a fallback.
+build-sidecar-go:
 	go build -ldflags=-w -o $(INSTALL_PATH)/libsidecar.so -buildmode=c-shared ./game-server/libsidecar/
 
 build-guidserver:
