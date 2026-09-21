@@ -40,6 +40,7 @@ public:
     void RegisterGuildMemberAdded(TC9OnGuildMemberAddedHook hook);
     void RegisterGuildMemberLeft(TC9OnGuildMemberLeftHook hook);
     void RegisterGuildMemberRemoved(TC9OnGuildMemberRemovedHook hook);
+    void RegisterGuildCreated(TC9OnGuildCreatedHook hook);
 
     // Registry event registration
     void RegisterMapsReassigned(TC9OnMapsReassignedHook hook);
@@ -58,6 +59,7 @@ public:
     void DispatchGuildMemberAdded(const TC9EventGuildMemberAdded& event);
     void DispatchGuildMemberLeft(const TC9EventGuildMemberLeft& event);
     void DispatchGuildMemberRemoved(const TC9EventGuildMemberRemoved& event);
+    void DispatchGuildCreated(const TC9EventGuildCreated& event);
 
     // Registry event dispatching
     void DispatchMapsReassigned(const TC9EventMapsReassigned& event);
@@ -82,6 +84,7 @@ private:
     TC9OnGuildMemberAddedHook on_guild_member_added_ = nullptr;
     TC9OnGuildMemberLeftHook on_guild_member_left_ = nullptr;
     TC9OnGuildMemberRemovedHook on_guild_member_removed_ = nullptr;
+    TC9OnGuildCreatedHook on_guild_created_ = nullptr;
 
     // Registry event hooks
     TC9OnMapsReassignedHook on_maps_reassigned_ = nullptr;

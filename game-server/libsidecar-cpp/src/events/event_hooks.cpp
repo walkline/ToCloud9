@@ -67,6 +67,11 @@ void EventHooks::RegisterGuildMemberRemoved(TC9OnGuildMemberRemovedHook hook) {
     spdlog::debug("Registered OnGuildMemberRemoved hook");
 }
 
+void EventHooks::RegisterGuildCreated(TC9OnGuildCreatedHook hook) {
+    on_guild_created_ = hook;
+    spdlog::debug("Registered OnGuildCreated hook");
+}
+
 // Registry event registration
 
 void EventHooks::RegisterMapsReassigned(TC9OnMapsReassignedHook hook) {
@@ -217,6 +222,19 @@ void EventHooks::DispatchGuildMemberRemoved(const TC9EventGuildMemberRemoved& ev
             spdlog::error("Error in OnGuildMemberRemoved hook: {}", e.what());
         } catch (...) {
             spdlog::error("Unknown error in OnGuildMemberRemoved hook");
+        }
+    }
+}
+
+void EventHooks::DispatchGuildCreated(const TC9EventGuildCreated& event) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    if (on_guild_created_) {
+        try {
+            on_guild_created_(event);
+        } catch (const std::exception& e) {
+            spdlog::error("Error in OnGuildCreated hook: {}", e.what());
+        } catch (...) {
+            spdlog::error("Unknown error in OnGuildCreated hook");
         }
     }
 }

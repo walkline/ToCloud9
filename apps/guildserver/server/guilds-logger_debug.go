@@ -234,3 +234,15 @@ func (g *guildDebugLoggerMiddleware) SendGuildMessage(ctx context.Context, param
 	res, err = g.realService.SendGuildMessage(ctx, params)
 	return
 }
+
+func (g *guildDebugLoggerMiddleware) CreateGuild(ctx context.Context, params *pb.CreateGuildParams) (res *pb.CreateGuildResponse, err error) {
+	defer func(t time.Time) {
+		g.logger.Debug().
+			Uint64("leaderGUID", params.LeaderGUID).
+			Err(err).
+			Msgf("Handled CreateGuild for %v.", time.Since(t))
+	}(time.Now())
+
+	res, err = g.realService.CreateGuild(ctx, params)
+	return
+}

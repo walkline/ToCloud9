@@ -96,6 +96,10 @@ type GameSession struct {
 	worldserverChannelBufferMu sync.Mutex
 	worldserverChannelTimer    *time.Timer
 
+  // allowCrossFactionGuilds mirrors the core config AllowTwoSide.Interaction.Guild:
+	// when disabled, a player cannot invite someone of the other faction.
+	allowCrossFactionGuilds bool
+
 	// showGameserverConnChangeToClient when enabled sends chat system message
 	// to the player with information about connection change.
 	showGameserverConnChangeToClient bool
@@ -121,6 +125,7 @@ type GameSessionParams struct {
 	GameServerGRPCConnMgr            conn.GameServerGRPCConnMgr
 	PacketProcessTimeout             time.Duration
 	ShowGameserverConnChangeToClient bool
+	AllowCrossFactionGuilds          bool
 }
 
 func NewGameSession(
@@ -156,6 +161,7 @@ func NewGameSession(
 		realmNamesService:                params.RealmNamesService,
 		gameServerGRPCConnMgr:            params.GameServerGRPCConnMgr,
 		showGameserverConnChangeToClient: params.ShowGameserverConnChangeToClient,
+		allowCrossFactionGuilds:          params.AllowCrossFactionGuilds,
 
 		sessionSafeFuChan:        make(chan func(*GameSession), 100),
 		packetProcessTimeout:     packetProcessTimeout,

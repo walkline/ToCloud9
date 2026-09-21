@@ -22,7 +22,7 @@ func (s *getGuildNamesRealServiceStub) GetGuildNamesByIDs(_ context.Context, _ *
 // not forward explicitly silently answers codes.Unimplemented in production:
 // assert the call reaches the real service.
 func TestDebugLoggerMiddlewareForwardsGetGuildNamesByIDs(t *testing.T) {
-	want := &pb.GetGuildNamesByIDsResponse{GuildNames: map[uint64]string{7: "Moebius"}}
+	want := &pb.GetGuildNamesByIDsResponse{GuildNames: map[uint64]string{7: "Test Guild"}}
 	m := NewGuildsDebugLoggerMiddleware(&getGuildNamesRealServiceStub{resp: want}, zerolog.Nop())
 
 	got, err := m.GetGuildNamesByIDs(context.Background(), &pb.GetGuildNamesByIDsParams{RealmID: 1, GuildIDs: []uint64{7}})

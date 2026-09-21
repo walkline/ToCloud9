@@ -179,6 +179,7 @@ func main() {
 			GameServerGRPCConnMgr:            gameserverconn.DefaultGameServerGRPCConnMgr,
 			PacketProcessTimeout:             time.Second * time.Duration(conf.PacketProcessTimeoutSecs),
 			ShowGameserverConnChangeToClient: conf.ShowGameserverConnChangeToClient,
+			AllowCrossFactionGuilds:          conf.AllowCrossFactionGuilds,
 		})
 		go func() {
 			healthandmetrics.ActiveConnectionsMetrics.Inc()

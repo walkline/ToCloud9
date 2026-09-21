@@ -1,15 +1,19 @@
 package main
 
 /*
+#include <stdlib.h>
 #include "events-guild.h"
 */
 import "C"
 
 import (
+	"unsafe"
+
 	"github.com/rs/zerolog"
 
 	"github.com/walkline/ToCloud9/game-server/libsidecar/consumer"
 	"github.com/walkline/ToCloud9/game-server/libsidecar/queue"
+	"github.com/walkline/ToCloud9/shared/events"
 )
 
 // TC9SetOnGuildMemberAddedHook sets hook for guild member added event.
@@ -31,6 +35,13 @@ func TC9SetOnGuildMemberRemovedHook(h C.OnGuildMemberRemovedHook) {
 //export TC9SetOnGuildMemberLeftHook
 func TC9SetOnGuildMemberLeftHook(h C.OnGuildMemberLeftHook) {
 	C.SetOnGuildMemberLeftHook(h)
+}
+
+// TC9SetOnGuildCreatedHook sets hook for guild created event.
+//
+//export TC9SetOnGuildCreatedHook
+func TC9SetOnGuildCreatedHook(h C.OnGuildCreatedHook) {
+	C.SetOnGuildCreatedHook(h)
 }
 
 type guildHandlerFabric struct {
@@ -61,6 +72,29 @@ func (g guildHandlerFabric) GuildMemberLeftHandler(guildID, characterGUID uint64
 	return eventsHandlerFunc(func() {
 		r := C.CallOnGuildMemberLeftHook(C.uint64_t(guildID), C.uint64_t(characterGUID))
 		g.handleResponse(int(r), "GuildMemberLeft")
+	})
+}
+
+func (g guildHandlerFabric) GuildCreatedHandler(payload *events.GuildEventGuildCreatedPayload) queue.Handler {
+	return eventsHandlerFunc(func() {
+		cname := C.CString(payload.GuildName)
+		defer C.free(unsafe.Pointer(cname))
+
+		var cmembers *C.uint64_t
+		if len(payload.MemberGUIDs) > 0 {
+			cmembers = (*C.uint64_t)(C.malloc(C.size_t(len(payload.MemberGUIDs)) * C.size_t(unsafe.Sizeof(C.uint64_t(0)))))
+			defer C.free(unsafe.Pointer(cmembers))
+			for i, guid := range payload.MemberGUIDs {
+				cguid := (*C.uint64_t)(unsafe.Pointer(uintptr(unsafe.Pointer(cmembers)) + uintptr(i)*unsafe.Sizeof(*cmembers)))
+				*cguid = C.uint64_t(guid)
+			}
+		}
+
+		r := C.CallOnGuildCreatedHook(
+			C.uint64_t(payload.GuildID), cname, C.uint64_t(payload.LeaderGUID),
+			cmembers, C.int(len(payload.MemberGUIDs)),
+		)
+		g.handleResponse(int(r), "GuildCreated")
 	})
 }
 

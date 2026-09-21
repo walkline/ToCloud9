@@ -22,4 +22,19 @@ type GuildsCache interface {
 
 	// Warmup called on startup to warmup cache if possible.
 	Warmup(ctx context.Context, realmID uint32) error
+
+	// SeedOnlineChars marks the given characters as online, overlaying the
+	// already cached rosters. Meant to recover the online state on startup.
+	SeedOnlineChars(realmID uint32, charGUIDs []uint64)
+
+	// GuildMembershipSource part of the interface since cached membership can be stale.
+	GuildMembershipSource
+}
+
+// GuildMembershipSource provides guild membership from the source of truth,
+// bypassing any caching layer.
+type GuildMembershipSource interface {
+	// GuildIDByRealmAndMemberGUIDFromSource returns guild id by guild member guid
+	// from the underlying storage.
+	GuildIDByRealmAndMemberGUIDFromSource(ctx context.Context, realmID uint32, memberGUID uint64) (uint64, error)
 }

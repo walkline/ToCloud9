@@ -57,6 +57,7 @@ var HandleMap = map[packet.Opcode]HandlersQueue{
 	packet.CMsgChannelAnnouncements: NewHandler("CMsgChannelAnnouncements", (*GameSession).HandleChannelAnnouncements),
 	packet.CMsgChannelModerate:      NewHandler("CMsgChannelModerate", (*GameSession).HandleChannelModerate),
 
+	packet.CMsgTurnInPetition:         NewHandler("CMsgTurnInPetition", (*GameSession).HandleTurnInPetition),
 	packet.CMsgGuildInvite:            NewHandler("CMsgGuildInvite", (*GameSession).HandleGuildInvite),
 	packet.CMsgGuildInviteAccept:      NewHandler("CMsgGuildInviteAccept", (*GameSession).HandleGuildInviteAccept),
 	packet.CMsgGuildRoster:            NewHandler("CMsgGuildRoster", (*GameSession).HandleGuildRoster),

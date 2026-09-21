@@ -109,6 +109,27 @@ func (c *natsConsumer) Start() error {
 
 	c.subs = append(c.subs, sub)
 
+	sub, err = c.nc.Subscribe(events.GuildEventGuildCreated.SubjectName(), func(msg *nats.Msg) {
+		p := events.GuildEventGuildCreatedPayload{}
+		_, err := events.Unmarshal(msg.Data, &p)
+		if err != nil {
+			log.Error().Err(err).Msg("can't read GuildEventGuildCreated (payload part) event")
+			return
+		}
+
+		if p.RealmID != c.realmID {
+			return
+		}
+
+		handler := c.guildHandlersFabric.GuildCreatedHandler(&p)
+		c.queue.Push(handler)
+	})
+	if err != nil {
+		return err
+	}
+
+	c.subs = append(c.subs, sub)
+
 	sub, err = c.nc.Subscribe(events.GroupEventGroupCreated.SubjectName(), func(msg *nats.Msg) {
 		p := events.GroupEventGroupCreatedPayload{}
 		_, err := events.Unmarshal(msg.Data, &p)

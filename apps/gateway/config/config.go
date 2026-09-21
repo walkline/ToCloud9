@@ -61,6 +61,10 @@ type Config struct {
 
 	// ShowGameserverConnChangeToClient when enabled sends chat system message to the player with information about connection change.
 	ShowGameserverConnChangeToClient bool `yaml:"showGameserverConnChangeToClient" env:"SHOW_GAMESERVER_CONN_CHANGE_TO_CLIENT" env-default:"true"`
+
+	// AllowCrossFactionGuilds mirrors the world server config AllowTwoSide.Interaction.Guild.
+	// Keep it in sync with the game servers, the gateway cannot read their config.
+	AllowCrossFactionGuilds bool `yaml:"allowCrossFactionGuilds" env:"ALLOW_CROSS_FACTION_GUILDS" env-default:"false"`
 }
 
 func (c Config) PortInt() (p int) {
