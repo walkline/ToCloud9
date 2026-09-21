@@ -1,0 +1,84 @@
+{{- if .Values.gameserver_ac.databaseMigration.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ .Release.Name }}-database-migration-{{ .Release.Revision }}
+  labels:
+    chart: "{{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}"
+    app: {{ .Release.Name }}-database-migration
+spec:
+  backoffLimit: {{ .Values.gameserver_ac.databaseMigration.backoffLimit | int }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Release.Name }}-database-migration
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: database-migration
+          image: "{{ .Values.gameserver_ac.databaseMigration.image.repository }}:{{ .Values.gameserver_ac.databaseMigration.image.tag }}"
+          imagePullPolicy: {{ .Values.gameserver_ac.databaseMigration.image.pullPolicy }}
+          command: ["/bin/sh", "-ec"]
+          env:
+            - name: AC_LOGIN_DATABASE_INFO
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-databases-config
+                  key: AC_LOGIN_DATABASE_INFO
+            - name: AC_WORLD_DATABASE_INFO
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-databases-config
+                  key: AC_WORLD_DATABASE_INFO
+            - name: AC_CHARACTER_DATABASE_INFO
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-databases-config
+                  key: AC_CHARACTER_DATABASE_INFO
+            - name: RELEASE_REVISION
+              value: "{{ .Release.Revision }}"
+            - name: RELEASE_NAME
+              value: "{{ .Release.Name }}"
+          args:
+            - |
+              old_ifs="$IFS"
+              IFS=';'
+              set -- $AC_LOGIN_DATABASE_INFO
+              IFS="$old_ifs"
+              db_host="$1"
+              db_port="$2"
+              db_user="$3"
+              export MYSQL_PWD="$4"
+              db_name="$5"
+
+              lock_output="$(mktemp)"
+              mysql --protocol=TCP --host="$db_host" --port="$db_port" --user="$db_user" \
+                --silent --skip-column-names --unbuffered "$db_name" \
+                --execute="SELECT GET_LOCK('tc9_database_migration', 600); SELECT SLEEP(86400)" \
+                >"$lock_output" &
+              lock_pid=$!
+              trap 'kill "$lock_pid" 2>/dev/null || true; wait "$lock_pid" 2>/dev/null || true; rm -f "$lock_output"' EXIT
+
+              until grep -qx '1' "$lock_output"; do
+                if ! kill -0 "$lock_pid" 2>/dev/null; then
+                  wait "$lock_pid" || true
+                  echo "Could not acquire the database migration lock" >&2
+                  exit 1
+                fi
+                sleep 1
+              done
+
+              ./dbimport
+
+              mysql --protocol=TCP --host="$db_host" --port="$db_port" --user="$db_user" "$db_name" <<SQL
+              CREATE TABLE IF NOT EXISTS tc9_database_migrations (
+                  release_name VARCHAR(63) NOT NULL,
+                  release_revision BIGINT UNSIGNED NOT NULL,
+                  completed_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                  PRIMARY KEY (release_name, release_revision)
+              );
+              INSERT INTO tc9_database_migrations (release_name, release_revision)
+              VALUES ('${RELEASE_NAME}', ${RELEASE_REVISION})
+              ON DUPLICATE KEY UPDATE completed_at = CURRENT_TIMESTAMP;
+              SQL
+{{- end }}

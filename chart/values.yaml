@@ -181,6 +181,14 @@ gateway:
     type: NodePort
 
 gameserver_ac:
+  databaseMigration:
+    enabled: true
+    backoffLimit: 10
+    waitTimeoutSeconds: 1800
+    image:
+      repository: ghcr.io/walkline/dbimport-ac
+      pullPolicy: Always
+      tag: *defaultImagesTag
   initcontainer:
     # If true - downloads assets and unzip them if pvc is empty.
     download_enabled: true

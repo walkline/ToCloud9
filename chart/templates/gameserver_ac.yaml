@@ -22,6 +22,48 @@ spec:
           persistentVolumeClaim:
             claimName: {{ $fullname }}-gameserver-ac-data-shared-pv-claim
       initContainers:
+        {{- if .Values.gameserver_ac.databaseMigration.enabled }}
+        - name: wait-for-database-migration
+          image: "{{ .Values.gameserver_ac.databaseMigration.image.repository }}:{{ .Values.gameserver_ac.databaseMigration.image.tag }}"
+          imagePullPolicy: {{ .Values.gameserver_ac.databaseMigration.image.pullPolicy }}
+          command: ["/bin/sh", "-ec"]
+          env:
+            - name: AC_LOGIN_DATABASE_INFO
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-databases-config
+                  key: AC_LOGIN_DATABASE_INFO
+            - name: RELEASE_REVISION
+              value: "{{ .Release.Revision }}"
+            - name: RELEASE_NAME
+              value: "{{ .Release.Name }}"
+            - name: WAIT_TIMEOUT_SECONDS
+              value: "{{ .Values.gameserver_ac.databaseMigration.waitTimeoutSeconds }}"
+          args:
+            - |
+              old_ifs="$IFS"
+              IFS=';'
+              set -- $AC_LOGIN_DATABASE_INFO
+              IFS="$old_ifs"
+              db_host="$1"
+              db_port="$2"
+              db_user="$3"
+              export MYSQL_PWD="$4"
+              db_name="$5"
+              deadline=$(( $(date +%s) + WAIT_TIMEOUT_SECONDS ))
+
+              until [ "$(mysql --protocol=TCP --host="$db_host" --port="$db_port" --user="$db_user" \
+                  --silent --skip-column-names "$db_name" \
+                  --execute="SELECT 1 FROM tc9_database_migrations WHERE release_name = '${RELEASE_NAME}' AND release_revision = ${RELEASE_REVISION}" \
+                  2>/dev/null)" = "1" ]; do
+                if [ "$(date +%s)" -ge "$deadline" ]; then
+                  echo "Timed out waiting for database migration revision ${RELEASE_REVISION}" >&2
+                  exit 1
+                fi
+                echo "Waiting for database migration revision ${RELEASE_REVISION}"
+                sleep 5
+              done
+        {{- end }}
         - name: check-data
           image: "{{ .Values.gameserver_ac.initcontainer.image.repository }}:{{ .Values.gameserver_ac.initcontainer.image.tag }}"
           imagePullPolicy: {{ .Values.gameserver_ac.initcontainer.image.pullPolicy }}
@@ -105,6 +147,10 @@ spec:
           value: /data
         - name: AC_CLUSTER_ENABLED
           value: "1"
+        {{- if .Values.gameserver_ac.databaseMigration.enabled }}
+        - name: AC_UPDATES_ENABLE_DATABASES
+          value: "0"
+        {{- end }}
         - name: AC_WORLD_SERVER_PORT
           value: "{{ .Values.gameserver_ac.port_world | int }}"
         - name: TC9_CHARACTER_GUIDS_BUFFER_SIZE
