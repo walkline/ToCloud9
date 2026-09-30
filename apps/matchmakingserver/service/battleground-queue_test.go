@@ -130,11 +130,11 @@ func TestGenericBattlegroundQueue_FillInExistingBG(t *testing.T) {
 	mockService.AssertExpectations(t)
 }
 
-// TestGenericBattlegroundQueue_BalancedBGDoesNotAbsorbNewGroups reproduces the
-// 10v5 bug: a balanced in-progress battleground (5v5, max 10) must not absorb a
-// fresh 5-player group on one team; the group stays queued and pops a new
-// instance once the opposite faction is available.
-func TestGenericBattlegroundQueue_BalancedBGDoesNotAbsorbNewGroups(t *testing.T) {
+// TestGenericBattlegroundQueue_BalancedBGBackfillsTowardMax asserts the retail
+// behavior: an in-progress battleground below MaxPlayersPerTeam keeps
+// absorbing queued groups regardless of balance — the transient imbalance is
+// then corrected by the opposite faction's own backfill (humans or bot fill).
+func TestGenericBattlegroundQueue_BalancedBGBackfillsTowardMax(t *testing.T) {
 	template := repo.BattlegroundTemplate{
 		MinPlayersPerTeam: 5,
 		MaxPlayersPerTeam: 10,
@@ -152,24 +152,26 @@ func TestGenericBattlegroundQueue_BalancedBGDoesNotAbsorbNewGroups(t *testing.T)
 	mockService := new(mocks.BattleGroundService)
 	mockService.On("BattlegroundsThatNeedPlayers", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return([]battleground.Battleground{runningBG}, nil)
 	mockService.On("TemplateForQueueTypeID", mock.Anything, mock.Anything).Return(template, nil)
-	// No InviteGroups expectation: inviting into the running BG must not happen.
+	invites := 0
+	var invitedGroups []service.QueuedGroup
+	var invitedTeam battleground.PVPTeam
+	mockService.On("InviteGroups", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Run(func(args mock.Arguments) {
+		invites++
+		invitedGroups = args.Get(1).([]service.QueuedGroup)
+		invitedTeam = args.Get(3).(battleground.PVPTeam)
+	}).Return(nil)
 
-	newBGCreated := false
 	queue := service.NewGenericBattlegroundQueue(mockService, bgCreatorMock(func(ctx context.Context, template repo.BattlegroundTemplate, queueType battleground.QueueTypeID, bracketID service.BracketID, realmID, battlegroupID uint32, allianceGroups, hordeGroups []service.QueuedGroup) error {
-		newBGCreated = true
 		return nil
 	}), repo.BattlegroundTemplate{TypeID: 1}, 1, 1, 1)
 
-	// 5-player alliance group queues while the balanced match runs.
+	// 5-player alliance group queues while the 5v5 match runs: it is invited
+	// into the running instance (5 free alliance slots up to the max of 10).
 	assert.NoError(t, queue.AddQueuedGroup(groupWithMembers(5, battleground.TeamAlliance)))
-	assert.False(t, newBGCreated, "no horde in queue yet")
-	assert.Len(t, queue.GetAllQueuedGroups(), 1, "group must stay in queue")
-
-	// Horde players arrive (e.g. the bot fill): a NEW instance pops.
-	for i := 0; i < 5; i++ {
-		assert.NoError(t, queue.AddQueuedGroup(groupWithMembers(1, battleground.TeamHorde)))
-	}
-	assert.True(t, newBGCreated, "second instance must be created")
+	assert.Equal(t, 1, invites, "group must backfill into the running battleground exactly once")
+	assert.Equal(t, battleground.TeamAlliance, invitedTeam, "backfill must target the queued group's team")
+	assert.Len(t, invitedGroups, 1, "exactly the one queued group is invited")
+	assert.Len(t, queue.GetAllQueuedGroups(), 0, "invited group leaves the queue")
 
 	mockService.AssertExpectations(t)
 }
@@ -187,11 +189,12 @@ func TestGenericBattlegroundQueue_BackfillCountsLeaders(t *testing.T) {
 		MinPlayersPerTeam: template.MinPlayersPerTeam,
 		MaxPlayersPerTeam: template.MaxPlayersPerTeam,
 	}
-	for i := uint32(1); i <= 5; i++ {
-		if i <= 4 {
-			runningBG.ActivePlayersPerTeam[battleground.TeamAlliance] = append(runningBG.ActivePlayersPerTeam[battleground.TeamAlliance], getGUID(1, i))
+	// 9v5 with max 10: exactly one free alliance slot (retail backfill).
+	for i := uint32(1); i <= 9; i++ {
+		runningBG.ActivePlayersPerTeam[battleground.TeamAlliance] = append(runningBG.ActivePlayersPerTeam[battleground.TeamAlliance], getGUID(1, i))
+		if i <= 5 {
+			runningBG.ActivePlayersPerTeam[battleground.TeamHorde] = append(runningBG.ActivePlayersPerTeam[battleground.TeamHorde], getGUID(1, i+100))
 		}
-		runningBG.ActivePlayersPerTeam[battleground.TeamHorde] = append(runningBG.ActivePlayersPerTeam[battleground.TeamHorde], getGUID(1, i+100))
 	}
 
 	mockService := new(mocks.BattleGroundService)

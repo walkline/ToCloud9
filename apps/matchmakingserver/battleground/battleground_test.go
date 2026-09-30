@@ -27,13 +27,13 @@ func TestBackfillSlotsForTeam(t *testing.T) {
 		expectedAlliance uint8
 		expectedHorde    uint8
 	}{
-		{"balanced full match accepts nobody", 5, 5, 0, 0},
-		{"short team refills up to min", 4, 5, 1, 0},
-		{"both short refill to min", 3, 4, 2, 1},
-		{"team refills up to bigger opposite team", 5, 8, 3, 0},
+		{"match at min keeps filling to max", 5, 5, 5, 5},
+		{"short team refills toward max", 4, 5, 6, 5},
+		{"both short refill toward max", 3, 4, 7, 6},
+		{"unbalanced still fills both to max", 5, 8, 5, 2},
 		{"never past max", 5, 10, 5, 0},
-		{"balanced above min accepts nobody", 8, 8, 0, 0},
-		{"empty bg refills to min", 0, 0, 5, 5},
+		{"balanced above min keeps filling", 8, 8, 2, 2},
+		{"empty bg refills to max", 0, 0, 10, 10},
 	}
 
 	for _, c := range cases {
@@ -50,7 +50,7 @@ func TestBackfillSlotsForTeam(t *testing.T) {
 }
 
 func TestBackfillSlotsForTeamCountsInvitedPlayers(t *testing.T) {
-	bg := bgWithCounts(5, 10, 4, 5)
+	bg := bgWithCounts(5, 10, 9, 5)
 	bg.InvitedPlayersPerTeam[TeamAlliance] = append(bg.InvitedPlayersPerTeam[TeamAlliance], InvitedPlayer{GUID: guid.PlayerUnwrapped{RealmID: 1, LowGUID: 50}})
 
 	if got := bg.BackfillSlotsForTeam(TeamAlliance); got != 0 {
