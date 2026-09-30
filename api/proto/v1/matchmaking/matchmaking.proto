@@ -12,6 +12,13 @@ service MatchmakingService {
   rpc PlayerLeftBattleground(PlayerLeftBattlegroundRequest) returns (PlayerLeftBattlegroundResponse);
   rpc PlayerJoinedBattleground(PlayerJoinedBattlegroundRequest) returns (PlayerJoinedBattlegroundResponse);
   rpc BattlegroundStatusChanged(BattlegroundStatusChangedRequest) returns (BattlegroundStatusChangedResponse);
+
+  // Dungeon finder is deliberately ephemeral. Gateways retain queue intent
+  // and replay JoinLFG with the original queuedAtUnixMilli when this service's
+  // instanceID changes after a restart.
+  rpc JoinLFG(JoinLFGRequest) returns (JoinLFGResponse);
+  rpc LeaveLFG(LeaveLFGRequest) returns (LeaveLFGResponse);
+  rpc GetLFGStatus(GetLFGStatusRequest) returns (GetLFGStatusResponse);
 }
 
 enum PVPTeamID {
@@ -38,10 +45,12 @@ message EnqueueToBattlegroundRequest {
 
   uint32 bgTypeID = 6;
   PVPTeamID teamID = 7;
+  int64 queuedAtUnixMilli = 8;
 }
 
 message EnqueueToBattlegroundResponse {
   string api = 1;
+  string instanceID = 2;
 }
 
 message RemovePlayerFromQueueRequest {
@@ -129,4 +138,74 @@ message BattlegroundStatusChangedRequest {
 
 message BattlegroundStatusChangedResponse {
   string api = 1;
+}
+
+enum LFGRole {
+  LFGRoleNone = 0;
+  LFGRoleTank = 1;
+  LFGRoleHealer = 2;
+  LFGRoleDamage = 4;
+}
+
+enum LFGQueueStatus {
+  LFGQueueStatusNone = 0;
+  LFGQueueStatusQueued = 1;
+  LFGQueueStatusProposed = 2;
+}
+
+message LFGMember {
+  uint32 realmID = 1;
+  uint64 playerGUID = 2;
+  uint32 roles = 3;
+  uint32 level = 4;
+  uint32 classID = 5;
+
+  // This is the authoritative result of the world-server eligibility check,
+  // including level, difficulty, expansion, attunement/quest, equipment,
+  // lockout, deserter and other core rules. Matchmaking never broadens it.
+  repeated uint32 eligibleDungeonIDs = 6;
+}
+
+message JoinLFGRequest {
+  string api = 1;
+  string requestID = 2;
+  uint32 battlegroupID = 3;
+  uint64 leaderGUID = 4;
+  repeated LFGMember members = 5;
+  repeated uint32 selectedDungeonIDs = 6;
+  int64 queuedAtUnixMilli = 7;
+}
+
+message JoinLFGResponse {
+  string api = 1;
+  string instanceID = 2;
+  LFGQueueStatus status = 3;
+  uint64 proposalID = 4;
+}
+
+message LeaveLFGRequest {
+  string api = 1;
+  uint32 realmID = 2;
+  uint64 playerGUID = 3;
+}
+
+message LeaveLFGResponse {
+  string api = 1;
+  string instanceID = 2;
+}
+
+message GetLFGStatusRequest {
+  string api = 1;
+  uint32 realmID = 2;
+  uint64 playerGUID = 3;
+}
+
+message GetLFGStatusResponse {
+  string api = 1;
+  string instanceID = 2;
+  LFGQueueStatus status = 3;
+  int64 queuedAtUnixMilli = 4;
+  uint64 proposalID = 5;
+  uint32 dungeonID = 6;
+  LFGRole assignedRole = 7;
 }

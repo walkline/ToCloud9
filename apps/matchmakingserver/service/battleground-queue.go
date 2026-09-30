@@ -219,12 +219,13 @@ func (q *GenericBattlegroundQueue) balancedGroups(minPlayers, maxPlayers int) ([
 		}
 	}
 
-	// Sort groups by number of members in descending order
+	// Preserve queue age within each faction. Parties remain atomic; a party
+	// that does not fit in the remaining slots is skipped for this pass.
 	sort.Slice(allianceGroups, func(i, j int) bool {
-		return len(allianceGroups[i].Members) > len(allianceGroups[j].Members)
+		return allianceGroups[i].EnqueuedTime.Before(allianceGroups[j].EnqueuedTime)
 	})
 	sort.Slice(hordeGroups, func(i, j int) bool {
-		return len(hordeGroups[i].Members) > len(hordeGroups[j].Members)
+		return hordeGroups[i].EnqueuedTime.Before(hordeGroups[j].EnqueuedTime)
 	})
 
 	totalMembers := func(groups []QueuedGroup) int {
@@ -235,49 +236,24 @@ func (q *GenericBattlegroundQueue) balancedGroups(minPlayers, maxPlayers int) ([
 		return total
 	}
 
-	// Function to find the best combination of groups for a given team
-	var findBestGroups func(groups []QueuedGroup, minPlayers, maxPlayers int) []QueuedGroup
-	findBestGroups = func(groups []QueuedGroup, minPlayers, maxPlayers int) []QueuedGroup {
-		var best []QueuedGroup
-		bestTotal := 0
-		bestDiff := maxPlayers
-
-		var backtrack func(index int, current []QueuedGroup, currentTotal, currentDiff int)
-		backtrack = func(index int, current []QueuedGroup, currentTotal, currentDiff int) {
-			if index >= len(groups) {
-				// Check if current combination is better than the best found so far
-				if currentTotal >= minPlayers && currentTotal <= maxPlayers {
-					if currentTotal > bestTotal || (currentTotal == bestTotal && currentDiff < bestDiff) {
-						best = append([]QueuedGroup{}, current...)
-						bestTotal = currentTotal
-						bestDiff = currentDiff
-					}
-				}
-				return
+	selectFIFO := func(groups []QueuedGroup, minPlayers, maxPlayers int) []QueuedGroup {
+		selected := make([]QueuedGroup, 0, len(groups))
+		players := 0
+		for _, group := range groups {
+			groupSize := len(group.Members) + 1
+			if players+groupSize > maxPlayers {
+				continue
 			}
-
-			// Calculate maximum possible players that can be added without exceeding maxPlayers
-			maxPossiblePlayers := currentTotal + len(groups[index].Members) + 1
-
-			// Include current group in the combination if it maintains the player balance
-			if abs(maxPossiblePlayers-maxPlayers) <= bestDiff {
-				backtrack(index+1, append(current, groups[index]),
-					maxPossiblePlayers,
-					abs(maxPossiblePlayers-maxPlayers))
-			}
-
-			// Exclude current group from the combination
-			backtrack(index+1, current, currentTotal, currentDiff)
+			selected = append(selected, group)
+			players += groupSize
 		}
-
-		// Start backtracking from the beginning of the groups slice
-		backtrack(0, []QueuedGroup{}, 0, maxPlayers)
-
-		return best
+		if players < minPlayers {
+			return nil
+		}
+		return selected
 	}
 
-	// Find the best combination of groups for Alliance
-	bestAlliance := findBestGroups(allianceGroups, minPlayers, maxPlayers)
+	bestAlliance := selectFIFO(allianceGroups, minPlayers, maxPlayers)
 
 	// Remove selected Alliance groups from hordeGroups
 	for _, group := range bestAlliance {
@@ -289,16 +265,15 @@ func (q *GenericBattlegroundQueue) balancedGroups(minPlayers, maxPlayers int) ([
 		}
 	}
 
-	// Find the best combination of groups for Horde with remaining groups
-	bestHorde := findBestGroups(hordeGroups, minPlayers, maxPlayers)
+	bestHorde := selectFIFO(hordeGroups, minPlayers, maxPlayers)
 	totalBestHorde := totalMembers(bestHorde)
 	totalBestAlliance := totalMembers(bestAlliance)
 
 	if abs(totalBestHorde-totalBestAlliance) > 1 {
 		if totalBestHorde > totalBestAlliance {
-			bestHorde = findBestGroups(hordeGroups, minPlayers, totalBestAlliance+1)
+			bestHorde = selectFIFO(hordeGroups, minPlayers, totalBestAlliance+1)
 		} else {
-			bestAlliance = findBestGroups(allianceGroups, minPlayers, totalBestHorde+1)
+			bestAlliance = selectFIFO(allianceGroups, minPlayers, totalBestHorde+1)
 		}
 	}
 
@@ -311,6 +286,14 @@ func (q *GenericBattlegroundQueue) findGroupsForGivenSlots(slots uint8, team bat
 
 	groups := make([]QueuedGroup, 0)
 	for _, group := range q.queuedGroups {
+		groups = append(groups, group)
+	}
+	sort.Slice(groups, func(i, j int) bool {
+		return groups[i].EnqueuedTime.Before(groups[j].EnqueuedTime)
+	})
+
+	selected := make([]QueuedGroup, 0, len(groups))
+	for _, group := range groups {
 		if slots == 0 {
 			break
 		}
@@ -322,11 +305,11 @@ func (q *GenericBattlegroundQueue) findGroupsForGivenSlots(slots uint8, team bat
 			continue
 		}
 
-		groups = append(groups, group)
+		selected = append(selected, group)
 		slots -= groupSize
 	}
 
-	return groups
+	return selected
 }
 
 func (q *GenericBattlegroundQueue) inviteGroupsToBG(groups []QueuedGroup, bg *battleground.Battleground, team battleground.PVPTeam) {

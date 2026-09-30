@@ -2,7 +2,9 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
 	"database/sql"
+	"encoding/hex"
 	"fmt"
 	"net"
 	"os"
@@ -19,6 +21,7 @@ import (
 
 	matchmaking "github.com/walkline/ToCloud9/apps/matchmakingserver"
 	"github.com/walkline/ToCloud9/apps/matchmakingserver/config"
+	"github.com/walkline/ToCloud9/apps/matchmakingserver/lfg"
 	"github.com/walkline/ToCloud9/apps/matchmakingserver/repo"
 	"github.com/walkline/ToCloud9/apps/matchmakingserver/server"
 	"github.com/walkline/ToCloud9/apps/matchmakingserver/service"
@@ -118,7 +121,8 @@ func main() {
 	}
 
 	grpcServer := grpc.NewServer()
-	matchmakingServer := server.NewMatchmakingServer(bgService, gameserverConnMgr)
+	lfgService := lfg.NewService(newInstanceID(), nil)
+	matchmakingServer := server.NewMatchmakingServer(bgService, lfgService, gameserverConnMgr)
 	if cfg.LogLevel == zerolog.DebugLevel {
 		matchmakingServer = server.NewMatchmakingDebugLoggerMiddleware(matchmakingServer, log.Logger)
 	}
@@ -149,6 +153,14 @@ func main() {
 	wg.Wait()
 
 	log.Info().Msg("👍 Server successfully stopped.")
+}
+
+func newInstanceID() string {
+	value := make([]byte, 16)
+	if _, err := rand.Read(value); err != nil {
+		log.Fatal().Err(err).Msg("can't generate matchmaking instance ID")
+	}
+	return hex.EncodeToString(value)
 }
 
 func servRegistryService(cnf *config.Config) pbServ.ServersRegistryServiceClient {

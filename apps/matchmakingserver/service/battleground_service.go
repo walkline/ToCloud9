@@ -60,6 +60,7 @@ type BattleGroundService interface {
 		typeID battleground.QueueTypeID,
 		leaderLvl uint8,
 		teamID battleground.PVPTeam,
+		queuedAt time.Time,
 	) error
 
 	InviteGroups(ctx context.Context, groups []QueuedGroup, bg *battleground.Battleground, team battleground.PVPTeam) error
@@ -243,6 +244,7 @@ func (s *battleGroundService) AddGroupToQueue(
 	typeID battleground.QueueTypeID,
 	leaderLvl uint8,
 	teamID battleground.PVPTeam,
+	queuedAt time.Time,
 ) error {
 	partyMembersGUIDs := make([]guid.PlayerUnwrapped, len(partyMembers))
 	for i, playerGUID := range partyMembers {
@@ -280,6 +282,9 @@ func (s *battleGroundService) AddGroupToQueue(
 	}
 
 	queue := s.queues[queueKey][typeID][bracketID]
+	if queuedAt.IsZero() || queuedAt.After(time.Now()) {
+		queuedAt = time.Now()
+	}
 	group := &QueuedGroup{
 		LeaderGUID: guid.PlayerUnwrapped{
 			RealmID: uint16(realmID),
@@ -288,7 +293,7 @@ func (s *battleGroundService) AddGroupToQueue(
 		Members:      partyMembersGUIDs,
 		RealmID:      realmID,
 		TeamID:       teamID,
-		EnqueuedTime: time.Now(),
+		EnqueuedTime: queuedAt,
 	}
 
 	// Check and link under a single lock: two concurrent enqueues of the

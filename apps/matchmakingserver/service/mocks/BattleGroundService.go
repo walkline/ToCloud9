@@ -4,6 +4,7 @@ package mocks
 
 import (
 	context "context"
+	time "time"
 
 	battleground "github.com/walkline/ToCloud9/apps/matchmakingserver/battleground"
 
@@ -22,8 +23,8 @@ type BattleGroundService struct {
 }
 
 // AddGroupToQueue provides a mock function with given fields: ctx, realmID, leaderGUID, partyMembers, typeID, leaderLvl, teamID
-func (_m *BattleGroundService) AddGroupToQueue(ctx context.Context, realmID uint32, leaderGUID uint64, partyMembers []uint64, typeID battleground.QueueTypeID, leaderLvl uint8, teamID battleground.PVPTeam) error {
-	ret := _m.Called(ctx, realmID, leaderGUID, partyMembers, typeID, leaderLvl, teamID)
+func (_m *BattleGroundService) AddGroupToQueue(ctx context.Context, realmID uint32, leaderGUID uint64, partyMembers []uint64, typeID battleground.QueueTypeID, leaderLvl uint8, teamID battleground.PVPTeam, queuedAt time.Time) error {
+	ret := _m.Called(ctx, realmID, leaderGUID, partyMembers, typeID, leaderLvl, teamID, queuedAt)
 
 	var r0 error
 	if rf, ok := ret.Get(0).(func(context.Context, uint32, uint64, []uint64, battleground.QueueTypeID, uint8, battleground.PVPTeam) error); ok {
